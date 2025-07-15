@@ -1,26 +1,40 @@
-import React from 'react';
-import logo from './logo.svg';
-import './App.css';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
+import { motion } from 'framer-motion'
+import Sidebar from './components/layout/Sidebar'
+import Topbar from './components/layout/Topbar'
+import Dashboard from './pages/Dashboard'
+import ClientsPage from './pages/clients/index'
+import ClientPage from './pages/clients/[id]' // Import your client page component
 
 function App() {
   return (
-    <div className="App">
-      <header className="App-header">
-        <img src={logo} className="App-logo" alt="logo" />
-        <p>
-          Edit <code>src/App.tsx</code> and save to reload.
-        </p>
-        <a
-          className="App-link"
-          href="https://reactjs.org"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Learn React
-        </a>
-      </header>
-    </div>
-  );
+    <Router>
+      <div className="flex h-screen overflow-hidden">
+        <Sidebar />
+        
+        <div className="flex-1 flex flex-col">
+          <Topbar />
+          
+          <motion.main 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.3 }}
+            className="flex-1 overflow-y-auto p-6 bg-background"
+          >
+            <Routes>
+              <Route path="/" element={<Dashboard />} />
+              
+              {/* Clients Routes */}
+              <Route path="/clients" element={<ClientsPage />} />
+              <Route path="/clients/:id" element={<ClientPage />} />
+              
+              {/* Add other routes here */}
+            </Routes>
+          </motion.main>
+        </div>
+      </div>
+    </Router>
+  )
 }
 
-export default App;
+export default App
