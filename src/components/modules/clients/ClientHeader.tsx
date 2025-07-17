@@ -19,7 +19,7 @@ export const ClientHeader = ({ client }: { client: Client }) => (
         </div>
         <Badge 
           variant={client.status === 'Actif' ? 'success' : 'warning'} 
-          className="absolute -bottom-1 -right-1"
+          className="absolute -bottom-5 -right-1"
         >
           {client.status}
         </Badge>

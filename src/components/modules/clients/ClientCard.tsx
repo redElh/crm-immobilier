@@ -1,5 +1,6 @@
-import { Badge } from '../../ui/Badge'; // Corrected path to Badge component
-import { Phone, Mail, Home, User, Clock } from 'react-feather';
+import { Badge } from '../../ui/Badge';
+import { Phone, Home, User, Clock } from 'react-feather';
+import { useNavigate } from 'react-router-dom';
 
 interface ClientCardProps {
   client: {
@@ -15,8 +16,17 @@ interface ClientCardProps {
 }
 
 export const ClientCard = ({ client }: ClientCardProps) => {
+  const navigate = useNavigate();
+
+  const handleCardClick = () => {
+    navigate(`/clients/${client.id}`);
+  };
+
   return (
-    <div className="glass-card p-4 hover:shadow-md transition-shadow">
+    <div 
+      className="glass-card p-4 hover:shadow-md transition-shadow cursor-pointer"
+      onClick={handleCardClick}
+    >
       <div className="flex justify-between items-start">
         <div>
           <h3 className="font-medium flex items-center gap-2">
@@ -63,10 +73,19 @@ export const ClientCard = ({ client }: ClientCardProps) => {
       </div>
 
       <div className="mt-4 flex gap-2">
-        <button className="text-xs bg-white/5 hover:bg-accent/10 border border-white/10 px-3 py-1 rounded-full transition-colors">
+        <button 
+          className="text-xs bg-white/5 hover:bg-accent/10 border border-white/10 px-3 py-1 rounded-full transition-colors"
+          onClick={(e) => {
+            e.stopPropagation();
+            navigate(`/clients/${client.id}`);
+          }}
+        >
           Voir fiche
         </button>
-        <button className="text-xs bg-white/5 hover:bg-green-500/10 border border-white/10 px-3 py-1 rounded-full transition-colors">
+        <button 
+          className="text-xs bg-white/5 hover:bg-green-500/10 border border-white/10 px-3 py-1 rounded-full transition-colors"
+          onClick={(e) => e.stopPropagation()}
+        >
           Contacter
         </button>
       </div>

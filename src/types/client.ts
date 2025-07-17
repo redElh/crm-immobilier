@@ -1,23 +1,38 @@
-// src/types/client.ts
 export interface Client {
-  // Identité
   id: string;
   name: string;
-  status: 'Actif' | 'Inactif';
-  
-  // Critères
+  type: 'Acheteur' | 'Vendeur' | 'Locataire' | 'Bailleur';
+  status: 'Actif' | 'En négociation' | 'Contrat signé' | 'Inactif';
+  phone: string;
+  email?: string;
+  // Property Criteria
   propertyType?: string;
   area?: string;
   minSurface?: number;
   rooms?: string;
   specificCriteria?: string[];
   comments?: string;
-  
-  // Financier
+  // Financial Info
   budget?: number;
   contribution?: number;
-  financing?: number;
   financingType?: string;
   loanDuration?: number;
-  documents?: { name: string; url: string }[];
+  // Documents
+  documents?: Array<{
+    name: string;
+    url: string;
+    type: string;
+  }>;
+  // Timeline
+  lastContact?: string;
+  events?: Array<{
+    id: string;
+    type: string;
+    date: string;
+    summary: string;
+    agent: string;
+  }>;
+  // Metadata
+  createdAt?: string;
+  updatedAt?: string;
 }

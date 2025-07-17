@@ -3,34 +3,66 @@ import { ClientCard } from '../../components/modules/clients/ClientCard';
 import { SearchInput } from '../../components/ui/SearchInput';
 import { FilterDropdown } from '../../components/ui/FilterDropdown';
 import { AddClientButton } from '../../components/modules/clients/AddClientButton';
+import { ClientFormModal } from '../../components/modules/clients/ClientFormModal';
+import { Client } from '../../types/client';
 
 // Sample data - replace with your API calls
-const sampleClients = [
+const sampleClients: Client[] = [
   {
     id: '1',
     name: 'Pierre Martin',
     type: 'Acheteur',
     status: 'Actif',
     phone: '+33 6 12 34 56 78',
+    email: 'pierre.martin@example.com',
     budget: 450000,
     propertyType: 'Appartement',
-    lastContact: '2023-06-15'
+    area: 'Paris',
+    minSurface: 60,
+    rooms: '2',
+    specificCriteria: ['Balcon', 'Ascenseur'],
+    comments: 'Intéressé par les biens avec balcon et ascenseur',
+    contribution: 100000,
+    financingType: 'Prêt bancaire',
+    loanDuration: 20,
+    documents: [
+      { name: 'Justificatif de domicile', url: '/documents/domicile.pdf', type: 'proof' },
+      { name: 'Bulletin de salaire', url: '/documents/salary.pdf', type: 'salary' }
+    ],
+    lastContact: '2023-06-15',
+    events: [
+      {
+        id: 'event-1',
+        type: 'email',
+        date: '2023-06-15T10:00:00Z',
+        summary: 'Premier contact par email',
+        agent: 'John Doe'
+      }
+    ],
+    createdAt: '2023-06-01',
+    updatedAt: '2023-06-15'
   },
-  {
-    id: '2',
-    name: 'Sophie Dubois',
-    type: 'Vendeur',
-    status: 'En négociation',
-    phone: '+33 6 98 76 54 32',
-    propertyType: 'Maison',
-    lastContact: '2023-06-10'
-  }
+  // Add more sample clients as needed
 ];
 
 export default function ClientsPage() {
+  const [clients, setClients] = useState<Client[]>(sampleClients);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [typeFilter, setTypeFilter] = useState<string>('all');
+  const [isModalOpen, setIsModalOpen] = useState(false);
+
+  const handleAddClient = (newClient: Omit<Client, 'id'>) => {
+    const clientWithId: Client = {
+      ...newClient,
+      id: `client-${Date.now()}`,
+      createdAt: new Date().toISOString(),
+      status: newClient.status || 'Actif',
+      events: []
+    };
+    setClients([...clients, clientWithId]);
+    setIsModalOpen(false);
+  };
 
   const filteredClients = sampleClients.filter(client => {
     const matchesSearch = client.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
@@ -45,8 +77,15 @@ export default function ClientsPage() {
     <div className="p-6 space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <h1 className="text-2xl font-semibold">Gestion des Clients</h1>
-        <AddClientButton />
+        <AddClientButton onClick={() => setIsModalOpen(true)} />
       </div>
+
+      {isModalOpen && (
+        <ClientFormModal
+          onClose={() => setIsModalOpen(false)}
+          onSubmit={handleAddClient}
+        />
+      )}
 
       <div className="glass-card p-4">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
@@ -97,3 +136,5 @@ export default function ClientsPage() {
     </div>
   );
 }
+
+export { sampleClients };

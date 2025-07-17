@@ -5,7 +5,7 @@ import { FileText, DollarSign, CreditCard, Calendar } from "react-feather";
 import { Client } from "../../../../types/client"; // Ensure this path is correct
 
 export const ClientFinancial = ({ client }: { client: Client }) => {
-  const financialStatus = calculateFinancialStatus(client.budget, client.financing);
+  const financialStatus = calculateFinancialStatus(client.budget, client.contribution);
 
   return (
     <div className="space-y-6">

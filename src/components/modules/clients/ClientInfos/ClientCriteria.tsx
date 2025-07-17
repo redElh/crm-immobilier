@@ -4,10 +4,10 @@ import { Home, MapPin, Maximize2, MessageSquare, Tag, Grid } from "react-feather
 import { Client } from "../../../../types/client"; // Ensure this path is correct
 
 export const ClientCriteria = ({ client }: { client: Client }) => {
-  const propertyTypes = [
+  /*const propertyTypes = [
     "Appartement", "Maison", "Loft", "Terrain", 
     "Local commercial", "Immeuble"
-  ];
+  ];*/
 
   return (
     <div className="space-y-4">
