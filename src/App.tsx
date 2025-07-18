@@ -3,8 +3,9 @@ import { motion } from 'framer-motion'
 import Sidebar from './components/layout/Sidebar'
 import Topbar from './components/layout/Topbar'
 import Dashboard from './pages/Dashboard'
-import ClientsPage from './pages/clients/index'
+import ClientsPageWithType from './pages/clients/withType'
 import ClientPage from './pages/clients/[id]' // Import your client page component
+import ClientTypesPage from './pages/clients/types'
 
 function App() {
   return (
@@ -25,7 +26,8 @@ function App() {
               <Route path="/" element={<Dashboard />} />
               
               {/* Clients Routes */}
-              <Route path="/clients" element={<ClientsPage />} />
+              <Route path="/clients" element={<ClientTypesPage />} />
+              <Route path="/clients/type/:type" element={<ClientsPageWithType />} />
               <Route path="/clients/:id" element={<ClientPage />} />
               
               {/* Add other routes here */}

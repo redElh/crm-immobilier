@@ -78,7 +78,7 @@ export default function ClientPage() {
   }
 
   return (
-    <ClientLayout>
+    <ClientLayout backToType={client?.type.toLowerCase()}>
       <AnimatePresence>
         {showContent && (
           <motion.div

@@ -22,7 +22,7 @@ export default function Topbar() {
           <div className="w-8 h-8 rounded-full bg-accent/30 flex items-center justify-center">
             <User className="text-text" size={16} />
           </div>
-          <span className="text-sm text-text">Admin</span>
+          <span className="text-sm text-text">Agent</span>
         </div>
       </div>
     </header>
