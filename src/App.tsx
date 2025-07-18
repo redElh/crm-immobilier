@@ -6,6 +6,8 @@ import Dashboard from './pages/Dashboard'
 import ClientsPageWithType from './pages/clients/withType'
 import ClientPage from './pages/clients/[id]' // Import your client page component
 import ClientTypesPage from './pages/clients/types'
+import PropertyTypesPage from './pages/properties/types'
+import PropertiesPageWithType from './pages/properties/withType'
 
 function App() {
   return (
@@ -29,8 +31,13 @@ function App() {
               <Route path="/clients" element={<ClientTypesPage />} />
               <Route path="/clients/type/:type" element={<ClientsPageWithType />} />
               <Route path="/clients/:id" element={<ClientPage />} />
-              
-              {/* Add other routes here */}
+          
+              {/* Properties Routes */}
+              <Route path="/properties" element={<PropertyTypesPage />} />
+              <Route path="/properties/type/:type" element={<PropertiesPageWithType />} />
+              {/*<Route path="/properties/add" element={<AddPropertyPage />} />
+              /*<Route path="/properties/:id" element={<PropertyPage />} />
+              /*<Route path="/properties/edit/:id" element={<EditPropertyPage />} />*/ }
             </Routes>
           </motion.main>
         </div>
