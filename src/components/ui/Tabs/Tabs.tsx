@@ -1,99 +1,77 @@
+// src/components/ui/Tabs/index.tsx
 import * as React from "react";
 
-// Main Tabs component
-const TabsRoot = ({ children, activeTab, onChange, className = '' }: TabsProps) => {
-  const childrenArray = React.Children.toArray(children);
-  const list = childrenArray.find((child: any) => child.type === List);
-  const content = childrenArray.filter((child: any) => child.type === Content);
+interface TabsProps {
+  children: React.ReactNode;
+  value: string;
+  onValueChange: (value: string) => void;
+  className?: string;
+}
 
+interface TabsListProps {
+  children: React.ReactNode;
+  className?: string;
+}
+
+interface TabsTriggerProps {
+  children: React.ReactNode;
+  value: string;
+  disabled?: boolean;
+  className?: string;
+}
+
+interface TabsContentProps {
+  children: React.ReactNode;
+  value: string;
+  className?: string;
+}
+
+const TabsContext = React.createContext<{
+  value: string;
+  onValueChange: (value: string) => void;
+}>({
+  value: "",
+  onValueChange: () => {},
+});
+
+export const Tabs = ({ children, value, onValueChange, className = "" }: TabsProps) => {
   return (
-    <div className={`w-full ${className}`}>
-      {list && React.cloneElement(list as React.ReactElement<ListProps>, { 
-        activeTab, 
-        setActiveTab: onChange 
-      })}
-      {content.find((child: any) => child.props.value === activeTab)}
-    </div>
+    <TabsContext.Provider value={{ value, onValueChange }}>
+      <div className={`w-full ${className}`}>{children}</div>
+    </TabsContext.Provider>
   );
 };
 
-// List component
-const List = ({ children, activeTab, setActiveTab, className = "" }: ListProps) => {
-  return (
-    <div className={`flex border-b border-white/10 mb-4 ${className}`}>
-      {React.Children.map(children, (child: any) =>
-        React.cloneElement(child, {
-          isActive: child.props.value === activeTab,
-          onClick: () => setActiveTab(child.props.value),
-        })
-      )}
-    </div>
-  );
+export const TabsList = ({ children, className = "" }: TabsListProps) => {
+  return <div className={`flex border-b border-gray-200 mb-4 ${className}`}>{children}</div>;
 };
 
-// Trigger component
-const Trigger = ({ 
-  children, 
-  isActive, 
-  onClick, 
-  className = "",
+export const TabsTrigger = ({
+  children,
   value,
-  disabled
-}: TriggerProps) => {
+  disabled = false,
+  className = "",
+}: TabsTriggerProps) => {
+  const { value: currentValue, onValueChange } = React.useContext(TabsContext);
+
   return (
     <button
-      onClick={onClick}
+      onClick={() => onValueChange(value)}
       disabled={disabled}
       className={`px-4 py-2 text-sm font-medium relative ${
-        isActive ? 'text-accent' : 'text-text/60 hover:text-text'
+        currentValue === value ? "text-accent" : "text-gray-500 hover:text-gray-700"
       } ${className}`}
     >
       {children}
-      {isActive && (
+      {currentValue === value && (
         <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-accent rounded-full" />
       )}
     </button>
   );
 };
 
-// Content component
-const Content = ({ children, className = "", value }: ContentProps) => {
-  return <div className={className}>{children}</div>;
+export const TabsContent = ({ children, value, className = "" }: TabsContentProps) => {
+  const { value: currentValue } = React.useContext(TabsContext);
+
+  return currentValue === value ? <div className={className}>{children}</div> : null;
 };
-
-// Export all components
-export const Tabs = Object.assign(TabsRoot, {
-  List,
-  Trigger,
-  Content
-});
-
-// Interfaces
-interface TabsProps {
-  children: React.ReactNode;
-  activeTab: string;
-  onChange: (tabValue: string) => void;
-  className?: string;
-}
-
-interface ListProps {
-  children: React.ReactNode;
-  activeTab: string;
-  setActiveTab: (value: string) => void;
-  className?: string;
-}
-
-interface TriggerProps {
-  value: string;
-  children: React.ReactNode;
-  isActive?: boolean;
-  onClick?: () => void;
-  className?: string;
-  disabled?: boolean;
-}
-
-interface ContentProps {
-  value: string;
-  children: React.ReactNode;
-  className?: string;
-}

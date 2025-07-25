@@ -1,6 +1,6 @@
-// Tab.tsx
+// src/components/ui/Tabs/Tab.tsx
 import * as React from "react";
-import { Tabs } from "./Tabs";
+import { TabsTrigger } from "./Tabs";
 
 interface TabProps {
   children: React.ReactNode;
@@ -12,9 +12,9 @@ interface TabProps {
 export const Tab = ({ children, label, value, disabled }: TabProps) => {
   return (
     <>
-      <Tabs.Trigger value={value} disabled={disabled}>
+      <TabsTrigger value={value} disabled={disabled}>
         {label}
-      </Tabs.Trigger>
+      </TabsTrigger>
       {children}
     </>
   );

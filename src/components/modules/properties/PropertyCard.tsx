@@ -4,17 +4,19 @@ import { Icon } from '../../ui/Icon'
 import { HomeModernIcon, SparklesIcon } from '@heroicons/react/24/outline'
 
 const statusColors = {
-  for_sale: 'bg-blue-100 text-blue-800',
-  for_rent: 'bg-green-100 text-green-800',
-  sold: 'bg-gray-100 text-gray-800',
-  rented: 'bg-purple-100 text-purple-800'
+  transaction: 'bg-blue-100 text-blue-800',
+  long_term: 'bg-green-100 text-green-800',
+  seasonal: 'bg-purple-100 text-purple-800',
+  pending: 'bg-yellow-100 text-yellow-800',
+  archived: 'bg-gray-100 text-gray-800'
 }
 
 const statusLabels = {
-  for_sale: 'À vendre',
-  for_rent: 'À louer',
-  sold: 'Vendu',
-  rented: 'Loué'
+  transaction: 'Transaction',
+  long_term: 'Longue durée',
+  seasonal: 'Saisonnière',
+  pending: 'En estimation',
+  archived: 'Archives'
 }
 
 interface Property {

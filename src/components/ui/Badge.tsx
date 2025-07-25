@@ -1,7 +1,8 @@
 import { cn } from "../../lib/utils"; // Utilitaire Tailwind merge
 
 interface BadgeProps extends React.HTMLAttributes<HTMLDivElement> {
-  variant?: 'default' | 'primary' | 'success' | 'warning' | 'error';
+  variant?: 'default' | 'primary' | 'success' | 'warning' | 'error' | 'outline' | 'secondary';
+  size?: 'sm' | 'md' | 'lg';
 }
 
 export const Badge = ({ 
@@ -16,6 +17,8 @@ export const Badge = ({
     success: 'bg-green-500/10 text-green-500 border-green-500/20',
     warning: 'bg-premium/10 text-premium border-premium/20',
     error: 'bg-red-500/10 text-red-500 border-red-500/20',
+    outline: 'bg-transparent text-text border border-white/20',
+    secondary: 'bg-gray-500/10 text-gray-500 border-gray-500/20'
   };
 
   return (

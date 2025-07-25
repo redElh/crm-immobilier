@@ -1,16 +1,21 @@
+// Progress.tsx
 interface ProgressProps {
   value: number;
   className?: string;
-  indicatorClass?: string;
+  indicatorColor?: string; // Add this
 }
 
-export const Progress = ({ value, className, indicatorClass }: ProgressProps) => {
+export const Progress = ({ 
+  value, 
+  className = '', 
+  indicatorColor = 'bg-accent' // Default color
+}: ProgressProps) => {
   return (
-    <div className={`w-full overflow-hidden rounded-full ${className}`}>
+    <div className={`w-full bg-gray-200 rounded-full h-2.5 ${className}`}>
       <div 
-        className={`h-full transition-all duration-300 ${indicatorClass || 'bg-accent'}`}
+        className={`h-2.5 rounded-full ${indicatorColor}`} 
         style={{ width: `${value}%` }}
-      />
+      ></div>
     </div>
   );
 };

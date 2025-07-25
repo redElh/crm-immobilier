@@ -13,7 +13,7 @@ export const ClientLayout = ({ children, backToType }: ClientLayoutProps) => {
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-6">
-      <BackLink href={backLinkPath} className="mb-4" />
+      <BackLink  className="mb-4" />
       {children}
     </div>
   );

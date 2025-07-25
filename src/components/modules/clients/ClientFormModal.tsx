@@ -9,7 +9,7 @@ import { Textarea } from '../../ui/Textarea';
 interface ClientFormModalProps {
   onClose: () => void;
   onSubmit: (client: Omit<Client, 'id'>) => void;
-  clientType: 'Acheteur' | 'Propriétaire' | 'Bailleur' | 'Locataire' | 'Voyageur';
+  clientType: 'Acheteur' | 'Vendeur' | 'Bailleur' | 'Locataire' | 'Voyageur';
 }
 
 type FormData = Omit<Client, 'id' | 'createdAt' | 'updatedAt' | 'createdBy' | 'updatedBy' | 'events' | 'lastContact'> & {
@@ -183,7 +183,7 @@ export const ClientFormModal = ({ onClose, onSubmit, clientType }: ClientFormMod
         if (!formData.preferredTenant) newErrors.preferredTenant = 'Ce champ est requis';
         break;
         
-      case 'Propriétaire':
+      case 'Vendeur':
         if (!formData.propertyType) newErrors.propertyType = 'Le type de bien est requis';
         if (!formData.area?.trim()) newErrors.area = 'Le secteur est requis';
         if (!formData.propertyCondition) newErrors.propertyCondition = 'Ce champ est requis';
@@ -579,7 +579,7 @@ export const ClientFormModal = ({ onClose, onSubmit, clientType }: ClientFormMod
           </>
         );
         
-      case 'Propriétaire':
+      case 'Vendeur':
         return (
           <>
             <div className="mb-6">

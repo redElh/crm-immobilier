@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import  Card  from '../../../components/ui/Card';
 
 const clientTypes = [
-  { id: 'propriétaire', label: 'Propriétaire', icon: '🏠' },
+  { id: 'vendeur', label: 'Vendeur', icon: '🏠' },
   { id: 'bailleur', label: 'Bailleur', icon: '🔑' },
   { id: 'acheteur', label: 'Acheteur', icon: '💰' },
   { id: 'locataire', label: 'Locataire', icon: '🏡' },

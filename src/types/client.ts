@@ -1,7 +1,7 @@
 export interface Client {
   id: string;
   name: string;
-  type: 'Acheteur' | 'Locataire' | 'Bailleur' | 'Propriétaire' | 'Voyageur';
+  type: 'Acheteur' | 'Locataire' | 'Bailleur' | 'Vendeur' | 'Voyageur';
   status: 'Actif' | 'En négociation' | 'Contrat signé' | 'Inactif' | 'Archivé';
   phone: string;
   email?: string;

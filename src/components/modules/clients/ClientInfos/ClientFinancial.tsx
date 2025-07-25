@@ -36,7 +36,7 @@ export const ClientFinancial = ({ client }: { client: Client }) => {
                 <Progress 
                   value={financialStatus.percentage} 
                   className="h-2 bg-white/10"
-                  indicatorClass="bg-premium"
+                  indicatorColor="bg-premium"
                 />
                 <p className="text-xs text-text/60">
                   {financialStatus.message}

@@ -8,6 +8,18 @@ import ClientPage from './pages/clients/[id]' // Import your client page compone
 import ClientTypesPage from './pages/clients/types'
 import PropertyTypesPage from './pages/properties/types'
 import PropertiesPageWithType from './pages/properties/withType'
+import PropertyPage from './pages/properties/[id]' // Import your property page component
+import AddPropertyForm from '../src/components/modules/properties/AddPropertyForm' // Import your add property page component
+import DocumentsPage from './pages/documents/index'
+import DocumentDetailPage from './pages/documents/[id]' // Import your document detail page component
+import ComposeMessagePage from './pages/messages/compose'
+import MessageDetailPage from './pages/messages/[id]' // Import your message detail page component
+import MessagesPage from './pages/messages/index'
+import SettingsPage from './pages/settings'
+import NotificationSettingsPage from './pages/settings/notifications'
+import ProfileSettingsPage from './pages/settings/profile'
+import EditTemplatePage from './pages/messages/templates/[id]/edit'
+import NewTemplatePage from './pages/messages/templates/new'
 
 function App() {
   return (
@@ -35,9 +47,28 @@ function App() {
               {/* Properties Routes */}
               <Route path="/properties" element={<PropertyTypesPage />} />
               <Route path="/properties/type/:type" element={<PropertiesPageWithType />} />
-              {/*<Route path="/properties/add" element={<AddPropertyPage />} />
-              /*<Route path="/properties/:id" element={<PropertyPage />} />
+              <Route path="/properties/:id" element={<PropertyPage />} />
+              <Route path="/properties/add" element={<AddPropertyForm />} />
+              {/*
               /*<Route path="/properties/edit/:id" element={<EditPropertyPage />} />*/ }
+
+              {/* Documents Routes */}
+              <Route path="/documents" element={<DocumentsPage />} />
+              <Route path="/documents/:id" element={<DocumentDetailPage />} />
+              
+              {/* Messages Routes */}
+              <Route path="/messages" element={<MessagesPage />} />
+              <Route path="/messages/compose" element={<ComposeMessagePage />} />
+              <Route path="/messages/:id" element={<MessageDetailPage />} />
+              <Route path="/messages/templates/:id/edit" element={<EditTemplatePage />} />
+              <Route path="/messages/templates/new" element={<NewTemplatePage />} />
+
+              {/* Settings Routes */}
+              <Route path="/settings" element={<SettingsPage/>}/>
+              <Route path="/settings/notifications" element={<NotificationSettingsPage/>} />
+              <Route path="/settings/profile" element={<ProfileSettingsPage />} />
+              {/* Add more routes as needed */}
+
             </Routes>
           </motion.main>
         </div>

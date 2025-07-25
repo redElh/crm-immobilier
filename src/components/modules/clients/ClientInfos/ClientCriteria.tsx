@@ -78,7 +78,7 @@ export const ClientCriteria = ({ client }: { client: Client }) => {
         );
         
       case 'Bailleur':
-        case 'Propriétaire':
+        case 'Vendeur':
         case 'Voyageur':
         default:
           return null;

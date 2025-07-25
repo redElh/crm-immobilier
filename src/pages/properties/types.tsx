@@ -52,13 +52,28 @@ export default function PropertyTypesPage() {
     <div className="p-6">
       <div className="flex items-center justify-between mb-8">
         <h1 className="text-2xl font-bold">Types de biens</h1>
-        <Button 
-          variant="default" 
-          onClick={() => navigate('/properties/add')} 
-          icon="plus"
-        >
-          Ajouter un bien
-        </Button>
+      </div>
+
+      
+      
+      
+      <div className="mt-8 grid grid-cols-1 md:grid-cols-4 gap-4 mb-5">
+        <Card className="p-4">
+          <div className="text-gray-500 text-sm">Total biens</div>
+          <div className="text-2xl font-bold">142</div>
+        </Card>
+        <Card className="p-4">
+          <div className="text-gray-500 text-sm">En vente</div>
+          <div className="text-2xl font-bold">87</div>
+        </Card>
+        <Card className="p-4">
+          <div className="text-gray-500 text-sm">En location</div>
+          <div className="text-2xl font-bold">42</div>
+        </Card>
+        <Card className="p-4">
+          <div className="text-gray-500 text-sm">Vendus ce mois</div>
+          <div className="text-2xl font-bold">13</div>
+        </Card>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -82,24 +97,6 @@ export default function PropertyTypesPage() {
       </div>
 
       {/* Optionnel: Statistiques rapides */}
-      <div className="mt-8 grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card className="p-4">
-          <div className="text-gray-500 text-sm">Total biens</div>
-          <div className="text-2xl font-bold">142</div>
-        </Card>
-        <Card className="p-4">
-          <div className="text-gray-500 text-sm">En vente</div>
-          <div className="text-2xl font-bold">87</div>
-        </Card>
-        <Card className="p-4">
-          <div className="text-gray-500 text-sm">En location</div>
-          <div className="text-2xl font-bold">42</div>
-        </Card>
-        <Card className="p-4">
-          <div className="text-gray-500 text-sm">Vendus ce mois</div>
-          <div className="text-2xl font-bold">13</div>
-        </Card>
-      </div>
     </div>
   )
 }

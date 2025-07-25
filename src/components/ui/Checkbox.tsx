@@ -4,13 +4,16 @@ interface CheckboxProps extends Omit<React.InputHTMLAttributes<HTMLInputElement>
   label?: string;
   error?: string;
   className?: string;
-  onChange?: (checked: boolean) => void; // Our custom onChange
+  onChange?: (checked: boolean, e?: React.ChangeEvent<HTMLInputElement>) => void;
 }
 
 export const Checkbox = forwardRef<HTMLInputElement, CheckboxProps>(
   ({ label, error, className = '', onChange, ...props }, ref) => {
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-      onChange?.(e.target.checked);
+      if (onChange) {
+        // Call onChange with both the checked state and the event
+        onChange(e.target.checked, e);
+      }
     };
 
     return (

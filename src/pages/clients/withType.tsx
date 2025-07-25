@@ -10,8 +10,8 @@ import { useState } from 'react';
 import { Client } from '../../types/client';
 import { BackLink } from '../../components/ui/BackLink';
 
-const typeLabels: Record<string, 'Acheteur' | 'Locataire' | 'Bailleur' | 'Propriétaire' | 'Voyageur'> = {
-  propriétaire: 'Propriétaire',
+const typeLabels: Record<string, 'Acheteur' | 'Locataire' | 'Bailleur' | 'Vendeur' | 'Voyageur'> = {
+  vendeur: 'Vendeur',
   bailleur: 'Bailleur',
   acheteur: 'Acheteur',
   locataire: 'Locataire',
@@ -55,7 +55,7 @@ export default function ClientsPageWithType() {
 
   return (
     <div className="p-6 space-y-6">
-      <BackLink href="/clients" className="mb-4" />
+      <BackLink className="mb-4" />
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <h1 className="text-2xl font-semibold">Clients - {typeLabels[type || '']}</h1>
         <AddClientButton onClick={() => setIsModalOpen(true)} />
