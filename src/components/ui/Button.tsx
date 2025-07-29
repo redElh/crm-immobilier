@@ -4,11 +4,12 @@ import { cn } from "../../lib/utils"
 import { Icon } from "./Icon"
 
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: "default" | "ghost" | "danger" | "outline" | "secondary"
+  variant?: "default" | "ghost" | "danger" | "outline" | "secondary" | "primary"
   size?: "sm" | "md" | "lg"
   icon?: React.ReactNode
   iconPosition?: "left" | "right"
   tooltip?: string
+  loading?: boolean
 }
 
 export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
@@ -20,6 +21,7 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
     iconPosition = "left", 
     children,
     tooltip,
+    loading = false,
     ...props 
   }, ref) => {
     const baseClasses = cn(
@@ -38,6 +40,7 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
       danger: "bg-red-600 text-white hover:bg-red-700 shadow hover:shadow-md",
       outline: "border border-accent text-accent hover:bg-accent/10",
       secondary: "bg-secondary text-secondary-foreground hover:bg-secondary/80",
+      primary: "bg-primary text-primary-foreground hover:bg-primary/90 shadow hover:shadow-md"
     }
 
     const sizes = {
@@ -62,22 +65,32 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
           className
         )}
         title={tooltip}
+        disabled={loading || props.disabled}
         {...props}
       >
-        {icon && iconPosition === "left" && (
-  <Icon 
-    name={icon} 
-    size={iconSizes[size] as 'sm' | 'md'} // Explicitly type the size
-    className={children ? "mr-1" : ""}
-  />
-)}
-        {children}
-        {icon && iconPosition === "right" && (
-          <Icon 
-            name={icon} 
-            size={iconSizes[size]}
-            className={children ? "ml-1" : ""}
-          />
+        {loading ? (
+          <span className="animate-spin">
+            {/* Add your loading spinner icon here */}
+            <Icon name="spinner" size={iconSizes[size]} />
+          </span>
+        ) : (
+          <>
+            {icon && iconPosition === "left" && (
+              <Icon 
+                name={icon} 
+                size={iconSizes[size] as 'sm' | 'md'}
+                className={children ? "mr-1" : ""}
+              />
+            )}
+            {children}
+            {icon && iconPosition === "right" && (
+              <Icon 
+                name={icon} 
+                size={iconSizes[size]}
+                className={children ? "ml-1" : ""}
+              />
+            )}
+          </>
         )}
       </button>
     )
