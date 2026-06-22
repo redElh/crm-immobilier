@@ -2,27 +2,89 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Effets de glasmorphisme */
-.glass-card {
-  @apply bg-card/40 backdrop-blur-glass rounded-glass border border-white/20 shadow-lg;
+@layer base {
+  body {
+    @apply bg-background text-text font-sans antialiased;
+  }
+
+  h1 { @apply text-2xl font-semibold tracking-tight; }
+  h2 { @apply text-xl font-semibold tracking-tight; }
+  h3 { @apply text-lg font-medium; }
+  h4 { @apply text-base font-medium; }
 }
 
-/* Animations de base */
-.fade-in {
-  animation: fadeIn 0.3s ease-in-out;
+@layer components {
+  .glass-card {
+    @apply bg-card rounded-glass border border-border/50 shadow-card;
+  }
+
+  .glass-card-hover {
+    @apply glass-card hover:shadow-card-hover hover:border-border transition-all duration-200;
+  }
+
+  .input-field {
+    @apply w-full h-10 px-3 py-2 text-sm rounded-lg border border-border bg-card
+      placeholder:text-text-secondary/50
+      focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent
+      disabled:opacity-50 disabled:cursor-not-allowed
+      transition-all duration-200;
+  }
+
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium
+      rounded-lg bg-accent text-white
+      hover:bg-accent-hover
+      active:scale-[0.98]
+      disabled:opacity-50 disabled:pointer-events-none
+      transition-all duration-150;
+  }
+
+  .btn-secondary {
+    @apply inline-flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium
+      rounded-lg border border-border bg-card text-text
+      hover:bg-background hover:border-text-secondary/30
+      active:scale-[0.98]
+      disabled:opacity-50 disabled:pointer-events-none
+      transition-all duration-150;
+  }
+
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-2 px-3 py-2 text-sm font-medium
+      rounded-lg text-text-secondary
+      hover:text-text hover:bg-background
+      disabled:opacity-50 disabled:pointer-events-none
+      transition-all duration-150;
+  }
+
+  .table-container {
+    @apply overflow-x-auto rounded-xl border border-border/50 bg-card shadow-card;
+  }
+
+  .tab-active {
+    @apply text-accent border-b-2 border-accent;
+  }
+
+  .tab-inactive {
+    @apply text-text-secondary hover:text-text border-b-2 border-transparent hover:border-border;
+  }
 }
 
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
+@layer utilities {
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: theme('colors.border') transparent;
+  }
 
-/* Typographie */
-body {
-  @apply bg-background text-text font-sans;
-}
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 6px;
+  }
 
-h1, h2, h3, h4, button, .cta {
-  @apply font-sans font-semibold;
-}
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
 
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background-color: theme('colors.border');
+    border-radius: 3px;
+  }
+}

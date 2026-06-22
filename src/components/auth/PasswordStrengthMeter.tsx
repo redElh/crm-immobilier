@@ -11,62 +11,43 @@ export function PasswordStrengthMeter({ password }: { password: string }) {
       return
     }
 
-    // Simple strength calculation
     let score = 0
-    let messages = []
+    const messages: string[] = []
 
-    // Length check
     if (password.length >= 8) score += 1
-    else messages.push('Au moins 8 caractères')
+    else messages.push('8 caractères minimum')
 
-    // Contains numbers
     if (/\d/.test(password)) score += 1
     else messages.push('Ajoutez des chiffres')
 
-    // Contains special chars
     if (/[!@#$%^&*(),.?":{}|<>]/.test(password)) score += 1
-    else messages.push('Ajoutez des caractères spéciaux')
+    else messages.push('Ajoutez un caractère spécial')
 
-    // Contains uppercase
     if (/[A-Z]/.test(password)) score += 1
-    else messages.push('Ajoutez des majuscules')
+    else messages.push('Ajoutez une majuscule')
 
     setStrength(score)
     setFeedback(messages.join(', '))
   }, [password])
 
-  const strengthColors = [
-    'bg-red-500',
-    'bg-orange-500',
-    'bg-yellow-500',
-    'bg-blue-500',
-    'bg-green-500'
-  ]
-
-  const strengthLabels = [
-    'Très faible',
-    'Faible',
-    'Moyen',
-    'Fort',
-    'Très fort'
-  ]
+  const colors = ['bg-error', 'bg-orange-500', 'bg-amber-500', 'bg-accent', 'bg-emerald-500']
+  const labels = ['Très faible', 'Faible', 'Moyen', 'Fort', 'Très fort']
 
   return (
-    <div className="mt-2">
-      <div className="flex space-x-1">
+    <div className="mt-2 space-y-1">
+      <div className="flex gap-1">
         {[1, 2, 3, 4].map((i) => (
           <div
             key={i}
-            className={`h-1 flex-1 rounded-full ${
-              i <= strength ? strengthColors[strength] : 'bg-gray-200'
+            className={`h-1 flex-1 rounded-full transition-colors duration-300 ${
+              i <= strength ? colors[strength] : 'bg-border'
             }`}
           />
         ))}
       </div>
       {password && (
-        <p className="mt-1 text-xs text-gray-500">
-          {strengthLabels[strength]}
-          {feedback && ` - ${feedback}`}
+        <p className="text-xs text-text-secondary">
+          {labels[strength]} {feedback && `— ${feedback}`}
         </p>
       )}
     </div>

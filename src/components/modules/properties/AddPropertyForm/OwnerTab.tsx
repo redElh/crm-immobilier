@@ -1,5 +1,6 @@
 import { Controller } from 'react-hook-form';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '../../../../components/ui/Accordion';
+import { DatePicker } from '../../../../components/ui/DatePicker';
 import { Input } from '../../../../components/ui/Input';
 import { Textarea } from '../../../../components/ui/Textarea';
 import { RadioGroup } from '../../../../components/ui/RadioGroup/RadioGroup';
@@ -12,180 +13,147 @@ interface OwnerTabProps {
   control: any;
   register: any;
   watch?: any;
-  ownerType?: string; // Make it optional since we might use watch instead
 }
 
-const fadeIn = {
-  hidden: { opacity: 0, y: 10 },
-  visible: { opacity: 1, y: 0, transition: { duration: 0.3 } }
+const container = {
+  hidden: { opacity: 0 },
+  show: {
+    opacity: 1,
+    transition: { staggerChildren: 0.04 }
+  }
+};
+
+const item = {
+  hidden: { opacity: 0, y: 8 },
+  show: { opacity: 1, y: 0 }
 };
 
 export function OwnerTab({ control, register, watch }: OwnerTabProps) {
   const ownerType = watch('ownerType');
-  const hasOtherProperties = watch('saleInfo.otherProperties'); // Watch the checkbox value
+  const hasOtherProperties = watch('saleInfo.otherProperties');
+
   return (
     <MotionCard
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      className="space-y-6 glass-card rounded-glass"
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.25, ease: "easeOut" }}
+      className="p-0 overflow-hidden"
     >
-      <Accordion type="multiple" defaultValue={['owner-info']} className="space-y-4">
-        <AccordionItem value="owner-info" className="glass-card rounded-glass overflow-hidden">
-          <AccordionTrigger className="px-6 py-4 hover:bg-white/10 transition-colors duration-200">
-            <div className="flex items-center space-x-3">
-              <span className="font-medium text-gray-900 dark:text-b">Informations propriétaire</span>
+      <Accordion type="multiple" defaultValue={['owner-info']} className="space-y-0">
+        <AccordionItem value="owner-info" className="border-0">
+          <AccordionTrigger className="px-6 py-4 hover:bg-background/50 transition-colors duration-200">
+            <div className="flex items-center gap-3">
+              <div className="w-1.5 h-1.5 rounded-full bg-accent" />
+              <span className="font-medium text-text">Informations propriétaire</span>
             </div>
           </AccordionTrigger>
-          <AccordionContent className="px-6 pt-2 pb-6">
-            <motion.div 
+          <AccordionContent className="px-6 pb-6">
+            <motion.div
+              variants={container}
               initial="hidden"
-              animate="visible"
-              variants={fadeIn}
-              className="grid grid-cols-1 md:grid-cols-2 gap-6"
+              animate="show"
+              className="grid grid-cols-1 md:grid-cols-2 gap-5"
             >
-              <Controller
-                name="ownerType"
-                control={control}
-                render={({ field }) => (
-                  <RadioGroup
-                    value={field.value}
-                    onValueChange={field.onChange}
-                    className="flex gap-6 col-span-2 p-4 bg-white/10 rounded-glass"
-                  >
-                    <div className="flex items-center space-x-3">
-                      <RadioGroupItem 
-                        value="particulier" 
-                        id="particulier" 
-                        checked={field.value === "particulier"}
-                        className="text-purple-400 border-white/30 focus:ring-purple-400"
-                      />
-                      <label htmlFor="particulier" className="text-gray-900 ">Particulier</label>
+              <motion.div variants={item} className="md:col-span-2">
+                <Controller
+                  name="ownerType"
+                  control={control}
+                  render={({ field }) => (
+                    <div className="p-4 rounded-lg bg-background/50 border border-border/30">
+                      <RadioGroup
+                        value={field.value}
+                        onValueChange={field.onChange}
+                        className="flex gap-6"
+                      >
+                        <RadioGroupItem value="particulier" id="particulier">Particulier</RadioGroupItem>
+                        <RadioGroupItem value="societe" id="societe">Société</RadioGroupItem>
+                      </RadioGroup>
                     </div>
-                    <div className="flex items-center space-x-3">
-                      <RadioGroupItem 
-                        value="societe" 
-                        id="societe"
-                        checked={field.value === "societe"}
-                        className="text-purple-400 border-white/30 focus:ring-purple-400"
-                      />
-                      <label htmlFor="societe" className="text-gray-900 ">Société</label>
-                    </div>
-                  </RadioGroup>
-                )}
-              />
+                  )}
+                />
+              </motion.div>
 
-{ownerType === 'particulier' ? (
-  <>
-    <Input 
-      label="Nom" 
-      {...register('owner.lastName')} 
-      required 
-    />
-    <Input 
-      label="Prénom" 
-      {...register('owner.firstName')} 
-      required 
-    />
-    <Input 
-      label="Adresse" 
-      {...register('owner.address')} 
-    />
-    <Input 
-      label="Téléphone" 
-      {...register('owner.phone')} 
-    />
-    <Input 
-      label="Profession" 
-      {...register('owner.profession')} 
-    />
-    <Input 
-      label="Email" 
-      type="email" 
-      {...register('owner.email')} 
-    />
-  </>
-) : (
-  <>
-    <Input 
-      label="Dénomination sociale" 
-      {...register('company.name')} 
-      required 
-    />
-    <Input 
-      label="Forme sociale" 
-      {...register('company.legalForm')} 
-    />
-    <Input 
-      label="N° Siren" 
-      {...register('company.siren')} 
-    />
-    <Input 
-      label="Adresse" 
-      {...register('company.address')} 
-    />
-  </>
-)}
+              {ownerType === 'particulier' ? (
+                <>
+                  <motion.div variants={item}>
+                    <Input label="Nom" {...register('owner.lastName')} required />
+                  </motion.div>
+                  <motion.div variants={item}>
+                    <Input label="Prénom" {...register('owner.firstName')} required />
+                  </motion.div>
+                  <motion.div variants={item}>
+                    <Input label="Adresse" {...register('owner.address')} />
+                  </motion.div>
+                  <motion.div variants={item}>
+                    <Input label="Téléphone" {...register('owner.phone')} />
+                  </motion.div>
+                  <motion.div variants={item}>
+                    <Input label="Profession" {...register('owner.profession')} />
+                  </motion.div>
+                  <motion.div variants={item}>
+                    <Input label="Email" type="email" {...register('owner.email')} />
+                  </motion.div>
+                </>
+              ) : (
+                <>
+                  <motion.div variants={item}>
+                    <Input label="Dénomination sociale" {...register('company.name')} required />
+                  </motion.div>
+                  <motion.div variants={item}>
+                    <Input label="Forme sociale" {...register('company.legalForm')} />
+                  </motion.div>
+                  <motion.div variants={item}>
+                    <Input label="N° Siren" {...register('company.siren')} />
+                  </motion.div>
+                  <motion.div variants={item}>
+                    <Input label="Adresse" {...register('company.address')} />
+                  </motion.div>
+                </>
+              )}
             </motion.div>
           </AccordionContent>
         </AccordionItem>
 
-        <AccordionItem value="sale-info" className="glass-card rounded-glass overflow-hidden">
-          <AccordionTrigger className="px-6 py-4 hover:bg-white/10 transition-colors duration-200">
-            <div className="flex items-center space-x-3">
-              <span className="font-medium text-gray-900">Motivation de vente/location</span>
+        <AccordionItem value="sale-info" className="border-0 border-t border-border/40">
+          <AccordionTrigger className="px-6 py-4 hover:bg-background/50 transition-colors duration-200">
+            <div className="flex items-center gap-3">
+              <div className="w-1.5 h-1.5 rounded-full bg-premium" />
+              <span className="font-medium text-text">Motivation de vente/location</span>
             </div>
           </AccordionTrigger>
-          <AccordionContent className="px-6 pt-2 pb-6">
-            <motion.div 
+          <AccordionContent className="px-6 pb-6">
+            <motion.div
+              variants={container}
               initial="hidden"
-              animate="visible"
-              variants={fadeIn}
-              className="grid grid-cols-1 md:grid-cols-2 gap-6"
+              animate="show"
+              className="grid grid-cols-1 md:grid-cols-2 gap-5"
             >
-              <Input
-                label="Date d'achat"
-                type="date"
-                {...register('saleInfo.purchaseDate')}
-              />
-              
-              <Input
-                label="Durée de mise en vente/location"
-                {...register('saleInfo.listingDuration')}
-              />
-
-              <div className="col-span-2">
-                <Textarea
-                  label="Raisons de la vente/location"
-                  {...register('saleInfo.motivation')}
-                  rows={3}
+              <motion.div variants={item}>
+                <DatePicker label="Date d'achat" {...register('saleInfo.purchaseDate')} />
+              </motion.div>
+              <motion.div variants={item}>
+                <Input label="Durée de mise en vente/location" {...register('saleInfo.listingDuration')} />
+              </motion.div>
+              <motion.div variants={item} className="md:col-span-2">
+                <Textarea label="Raisons de la vente/location" {...register('saleInfo.motivation')} rows={3} />
+              </motion.div>
+              <motion.div variants={item} className="md:col-span-2">
+                <Controller
+                  name="saleInfo.otherProperties"
+                  control={control}
+                  render={({ field }) => (
+                    <Checkbox label="Avez-vous d'autres biens à vendre/louer?" checked={field.value} onChange={(checked) => field.onChange(checked)} />
+                  )}
                 />
-              </div>
-
-              <Controller
-                name="saleInfo.otherProperties"
-                control={control}
-                render={({ field }) => (
-                  <Checkbox
-                    label="Avez-vous d'autres biens à vendre/louer?"
-                    checked={field.value}
-                    onChange={(checked) => field.onChange(checked)}
-                  />
-                )}
-              />
-
-              {/* Add this conditional textarea */}
+              </motion.div>
               {hasOtherProperties && (
                 <motion.div
                   initial={{ opacity: 0, height: 0 }}
                   animate={{ opacity: 1, height: 'auto' }}
-                  transition={{ duration: 0.3 }}
-                  className="col-span-2"
+                  transition={{ duration: 0.25, ease: "easeOut" }}
+                  className="md:col-span-2"
                 >
-                  <Textarea
-                    label="Décrivez les autres biens à vendre/louer"
-                    {...register('saleInfo.otherPropertiesDescription')}
-                    rows={3}
-                  />
+                  <Textarea label="Décrivez les autres biens à vendre/louer" {...register('saleInfo.otherPropertiesDescription')} rows={3} />
                 </motion.div>
               )}
             </motion.div>

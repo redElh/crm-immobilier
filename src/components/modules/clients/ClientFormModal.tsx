@@ -1,6 +1,7 @@
 import { useState, ReactElement } from 'react';
 import { Client } from '../../../types/client';
 import { Dialog } from '../../ui/Dialog';
+import { DatePicker } from '../../ui/DatePicker';
 import { Input } from '../../ui/Input';
 import { Select } from '../../ui/Select';
 import { Checkbox } from '../../ui/Checkbox';
@@ -100,6 +101,14 @@ const SOURCES = [
   { value: 'Autre', label: 'Autre' },
 ];
 
+const CURRENCIES = [
+  { value: 'MAD', label: 'MAD' },
+  { value: 'EUR', label: 'EUR' },
+  { value: 'USD', label: 'USD' },
+  { value: 'GBP', label: 'GBP' },
+  { value: 'CHF', label: 'CHF' },
+];
+
 export const ClientFormModal = ({ onClose, onSubmit, clientType }: ClientFormModalProps) => {
   const [formData, setFormData] = useState<FormData>({
     name: '',
@@ -111,6 +120,7 @@ export const ClientFormModal = ({ onClose, onSubmit, clientType }: ClientFormMod
     minSurface: undefined,
     rooms: '',
     budget: undefined,
+    devise: 'EUR',
     contribution: undefined,
     financingType: undefined,
     loanDuration: undefined,
@@ -250,9 +260,8 @@ export const ClientFormModal = ({ onClose, onSubmit, clientType }: ClientFormMod
                   'urgency'
                 )}
                 {renderField(
-                  <Input
+                  <DatePicker
                     label="Date souhaitée d'emménagement"
-                    type="date"
                     value={formData.moveInDate || ''}
                     onChange={(e) => handleChange('moveInDate', e.target.value)}
                     error={errors.moveInDate}
@@ -307,7 +316,7 @@ export const ClientFormModal = ({ onClose, onSubmit, clientType }: ClientFormMod
                 )}
                 {renderField(
                   <Input
-                    label="Budget max (€)*"
+                    label={`Budget max (${formData.devise})*`}
                     type="number"
                     min="0"
                     value={formData.budget?.toString() || ''}
@@ -315,6 +324,15 @@ export const ClientFormModal = ({ onClose, onSubmit, clientType }: ClientFormMod
                     error={errors.budget}
                   />,
                   'budget'
+                )}
+                {renderField(
+                  <Select
+                    label="Devise"
+                    options={CURRENCIES}
+                    value={formData.devise}
+                    onChange={(v) => handleChange('devise', v)}
+                  />,
+                  'devise'
                 )}
                 {renderField(
                   <Textarea
@@ -344,7 +362,7 @@ export const ClientFormModal = ({ onClose, onSubmit, clientType }: ClientFormMod
                 )}
                 {renderField(
                   <Input
-                    label="Apport (€)"
+                    label={`Apport (${formData.devise})`}
                     type="number"
                     min="0"
                     value={formData.contribution?.toString() || ''}
@@ -399,9 +417,8 @@ export const ClientFormModal = ({ onClose, onSubmit, clientType }: ClientFormMod
                   'employmentStatus'
                 )}
                 {renderField(
-                  <Input
+                  <DatePicker
                     label="Date souhaitée d'emménagement*"
-                    type="date"
                     value={formData.moveInDate || ''}
                     onChange={(e) => handleChange('moveInDate', e.target.value)}
                     error={errors.moveInDate}
@@ -456,7 +473,7 @@ export const ClientFormModal = ({ onClose, onSubmit, clientType }: ClientFormMod
                 )}
                 {renderField(
                   <Input
-                    label="Budget max (€)*"
+                    label={`Budget max (${formData.devise})*`}
                     type="number"
                     min="0"
                     value={formData.budget?.toString() || ''}
@@ -464,6 +481,15 @@ export const ClientFormModal = ({ onClose, onSubmit, clientType }: ClientFormMod
                     error={errors.budget}
                   />,
                   'budget'
+                )}
+                {renderField(
+                  <Select
+                    label="Devise"
+                    options={CURRENCIES}
+                    value={formData.devise}
+                    onChange={(v) => handleChange('devise', v)}
+                  />,
+                  'devise'
                 )}
               </div>
             </div>
@@ -696,7 +722,7 @@ export const ClientFormModal = ({ onClose, onSubmit, clientType }: ClientFormMod
                 )}
                 {renderField(
                   <Input
-                    label="Budget (€)"
+                    label={`Budget (${formData.devise})`}
                     type="number"
                     min="0"
                     value={formData.budget?.toString() || ''}

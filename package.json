@@ -16,16 +16,19 @@
     "@testing-library/react": "^16.3.0",
     "@testing-library/user-event": "^13.5.0",
     "@types/jest": "^27.5.2",
+    "@types/leaflet": "^1.9.21",
     "@types/node": "^16.18.126",
     "@types/react-dom": "^19.1.6",
     "bcrypt": "^6.0.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
     "dotenv": "^17.2.1",
     "express": "^5.1.0",
     "framer-motion": "^12.23.5",
     "jsonwebtoken": "^9.0.2",
+    "leaflet": "^1.9.4",
     "lucide": "^0.525.0",
     "lucide-react": "^0.525.0",
     "multer": "^2.0.2",
@@ -38,6 +41,7 @@
     "react-feather": "^2.0.10",
     "react-hook-form": "^7.60.0",
     "react-icons": "^5.5.0",
+    "react-leaflet": "^5.0.0",
     "react-router-dom": "^7.6.3",
     "react-scripts": "^5.0.1",
     "sequelize": "^6.37.7",
@@ -73,6 +77,5 @@
   "devDependencies": {
     "@types/react": "^19.1.8"
   },
-
   "proxy": "http://localhost:5000"
 }

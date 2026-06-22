@@ -1,0 +1,109 @@
+import { useMemo } from 'react'
+import { motion } from 'framer-motion'
+import { FileText } from 'react-feather'
+import { Badge } from '../../ui/Badge'
+import { Button } from '../../ui/Button'
+import {
+  getClientTransactions,
+  MANDAT_TYPE_LABELS,
+  TRANSACTION_ETAPE_LABELS,
+  TRANSACTION_ETAPE_COLORS,
+} from '../../../types/transactions'
+import type { TransactionRole } from '../../../types/transactions'
+
+const roleColor = (role: string) => {
+  switch (role) {
+    case 'Vendeur': case 'Propriétaire': return 'bg-purple-500/10 text-purple-500 border-purple-500/20'
+    case 'Acheteur': case 'Acquéreur': return 'bg-blue-500/10 text-blue-500 border-blue-500/20'
+    case 'Locataire': return 'bg-cyan-500/10 text-cyan-500 border-cyan-500/20'
+    case 'Bailleur': return 'bg-orange-500/10 text-orange-500 border-orange-500/20'
+    case 'Voyageur': return 'bg-pink-500/10 text-pink-500 border-pink-500/20'
+    default: return 'bg-text-secondary/10 text-text-secondary border-text-secondary/20'
+  }
+}
+
+export const ClientTransactionsTab = ({ clientId, clientName, clientType }: {
+  clientId: string
+  clientName: string
+  clientType: string
+}) => {
+  const transactions = useMemo(() => getClientTransactions(clientId), [clientId])
+
+  if (transactions.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center py-12 text-text-secondary">
+        <FileText size={32} className="mb-3 opacity-40" />
+        <p className="text-sm">Aucune transaction pour ce client</p>
+        <p className="text-xs text-text-secondary/60 mt-1">Les transactions apparaîtront automatiquement à la signature d'un mandat</p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <p className="text-xs text-text-secondary">
+          {transactions.length} transaction{transactions.length !== 1 ? 's' : ''} liée{transactions.length !== 1 ? 's' : ''} à <span className="font-medium text-text">{clientName}</span>
+        </p>
+      </div>
+
+      <div className="overflow-x-auto rounded-lg border border-border">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="bg-background border-b border-border">
+              <th className="text-left px-4 py-3 text-xs font-medium text-text-secondary">Réf.</th>
+              <th className="text-left px-4 py-3 text-xs font-medium text-text-secondary">Type</th>
+              <th className="text-left px-4 py-3 text-xs font-medium text-text-secondary">Rôle</th>
+              <th className="text-left px-4 py-3 text-xs font-medium text-text-secondary">Produit</th>
+              <th className="text-left px-4 py-3 text-xs font-medium text-text-secondary">Étape</th>
+              <th className="text-left px-4 py-3 text-xs font-medium text-text-secondary">Date</th>
+              <th className="text-right px-4 py-3 text-xs font-medium text-text-secondary">Montant</th>
+              <th className="text-right px-4 py-3 text-xs font-medium text-text-secondary">Actions</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-border">
+            {transactions.map((t, i) => (
+              <motion.tr
+                key={t.id}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: i * 0.03, duration: 0.2 }}
+                className="hover:bg-background/50 transition-colors"
+              >
+                <td className="px-4 py-3 font-mono text-xs text-text-secondary">{t.reference}</td>
+                <td className="px-4 py-3 text-xs font-medium text-text">{MANDAT_TYPE_LABELS[t.type]}</td>
+                <td className="px-4 py-3">
+                  <span className={`inline-block px-2 py-0.5 text-[10px] font-medium rounded-lg border ${roleColor(t.role)}`}>
+                    {t.role}
+                  </span>
+                </td>
+                <td className="px-4 py-3">
+                  {t.propertyTitle ? (
+                    <div>
+                      <p className="text-sm text-text">{t.propertyTitle}</p>
+                      {t.propertyRef && <p className="text-[10px] text-text-secondary/60 font-mono">{t.propertyRef}</p>}
+                    </div>
+                  ) : (
+                    <span className="text-text-secondary/60 text-xs">—</span>
+                  )}
+                </td>
+                <td className="px-4 py-3">
+                  <Badge className={TRANSACTION_ETAPE_COLORS[t.etape]}>
+                    {TRANSACTION_ETAPE_LABELS[t.etape]}
+                  </Badge>
+                </td>
+                <td className="px-4 py-3 text-xs text-text-secondary">
+                  {new Date(t.dateContracted).toLocaleDateString('fr-FR')}
+                </td>
+                <td className="px-4 py-3 text-right font-medium text-text text-sm">{t.montant}</td>
+                <td className="px-4 py-3 text-right">
+                  <Button variant="ghost" size="sm" icon={<FileText size={13} />} />
+                </td>
+              </motion.tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}

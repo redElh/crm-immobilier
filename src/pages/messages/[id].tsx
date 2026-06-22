@@ -1,199 +1,228 @@
 import { useParams, useNavigate } from 'react-router-dom'
-import Card from '../../components/ui/Card'
+import { useEffect, useState, useMemo } from 'react'
+import { ArrowLeft, Paperclip, Send, User, Home, Star, MessageSquare, EyeOff } from 'react-feather'
 import { Button } from '../../components/ui/Button'
-import { Icon } from '../../components/ui/Icon'
-import { InfoField } from '../../components/ui/InfoField'
-import { useEffect, useState } from 'react'
+import { mockConversations } from '../../types/messages'
+import type { Conversation, Message } from '../../types/messages'
 
-interface Message {
-  id: string;
-  from: string;
-  to: string;
-  subject: string;
-  date: string;
-  relatedProperty: string;
-  relatedClient: string;
-  body: string;
-  attachments: { name: string; size: string }[];
+function formatDate(dateString: string) {
+  return new Date(dateString).toLocaleDateString('fr-FR', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  })
 }
 
-export default function MessageDetailPage() {
+function formatMessageDate(dateString: string) {
+  const date = new Date(dateString)
+  const now = new Date()
+  const diffMs = now.getTime() - date.getTime()
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
+
+  if (diffDays === 0) {
+    return date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
+  }
+  if (diffDays === 1) {
+    return `Hier \u00e0 ${date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}`
+  }
+  if (diffDays < 7) {
+    return date.toLocaleDateString('fr-FR', { weekday: 'long', hour: '2-digit', minute: '2-digit' })
+  }
+  return date.toLocaleDateString('fr-FR', {
+    day: 'numeric',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+
+function getDateLabel(dateString: string) {
+  const date = new Date(dateString)
+  const now = new Date()
+  const diffMs = now.getTime() - date.getTime()
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
+
+  if (diffDays === 0) return "Aujourd'hui"
+  if (diffDays === 1) return 'Hier'
+  if (diffDays < 7) return date.toLocaleDateString('fr-FR', { weekday: 'long' })
+  return formatDate(dateString)
+}
+
+export default function ConversationDetailPage() {
   const { id } = useParams()
   const navigate = useNavigate()
-  const [message, setMessage] = useState<Message | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
+  const [replyText, setReplyText] = useState('')
+  const [loading, setLoading] = useState(true)
 
-  useEffect(() => {
-    // Simulate API fetch
-    const fetchMessage = async () => {
-      setIsLoading(true)
-      // In a real app, you would fetch from your API here
-      setTimeout(() => {
-        const mockMessage = {
-          id: id || '',
-          from: 'Sophie Martin',
-          to: 'Karim Eloui',
-          subject: 'Visite de la villa à Marrakech',
-          date: '2023-06-15T14:30:00',
-          relatedProperty: 'Villa Marrakech #1234',
-          relatedClient: 'Sophie Martin',
-          body: `Bonjour Karim,
-
-Je suis très intéressée par la villa que vous proposez à Marrakech. Serait-il possible de faire une visite le week-end prochain?
-
-J'aimerais également savoir si le prix est négociable et quelles sont les charges annuelles.
-
-Cordialement,
-Sophie Martin`,
-          attachments: [
-            { name: 'critères.pdf', size: '2.4 MB' },
-            { name: 'photo_piece_jointe.jpg', size: '1.8 MB' }
-          ]
-        }
-        setMessage(mockMessage)
-        setIsLoading(false)
-      }, 500)
-    }
-
-    fetchMessage()
+  const conversation = useMemo(() => {
+    if (!id) return null
+    return mockConversations.find(c => c.id === id) ?? null
   }, [id])
 
-  if (isLoading) {
+  const dayGroups = useMemo(() => {
+    if (!conversation) return []
+    const map = new Map<string, Message[]>()
+    for (const msg of conversation.messages) {
+      const day = new Date(msg.sentAt).toLocaleDateString('fr-FR')
+      if (!map.has(day)) map.set(day, [])
+      map.get(day)!.push(msg)
+    }
+    return Array.from(map.entries())
+  }, [conversation])
+
+  const participantNames = conversation ? conversation.participants.map(p => p.name).join(', ') : ''
+
+  useEffect(() => {
+    const timer = setTimeout(() => setLoading(false), 400)
+    return () => clearTimeout(timer)
+  }, [])
+
+  if (loading) {
     return (
-      <div className="p-6 flex justify-center items-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-accent"></div>
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-accent" />
       </div>
     )
   }
 
-  if (!message) {
+  if (!conversation) {
     return (
-      <div className="p-6 text-center">
-        <Icon name="alert-circle" className="mx-auto h-12 w-12 text-gray-400" />
-        <h3 className="mt-4 text-lg font-medium">Message non trouvé</h3>
-        <p className="mt-2 text-gray-500">
-          Le message que vous recherchez n'existe pas ou a été supprimé.
+      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
+        <div className="w-16 h-16 rounded-full bg-card border border-border flex items-center justify-center">
+          <MessageSquare size={28} className="text-text-secondary" />
+        </div>
+        <h2 className="text-xl font-semibold">Conversation introuvable</h2>
+        <p className="text-text-secondary max-w-md text-center">
+          Cette conversation n'existe pas ou a \u00e9t\u00e9 supprim\u00e9e.
         </p>
-        <Button variant="default" className="mt-4" onClick={() => navigate('/messages')}>
+        <Button variant="outline" icon={<ArrowLeft size={16} />} onClick={() => navigate('/messages')}>
           Retour aux messages
         </Button>
       </div>
     )
   }
 
+  const handleSendReply = () => {
+    if (!replyText.trim()) return
+    setReplyText('')
+  }
+
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <Button variant="ghost" icon="arrow-left" onClick={() => navigate('/messages')} />
-          <h1 className="text-2xl font-bold">{message.subject}</h1>
+    <div className="h-full flex flex-col">
+      <div className="border-b border-border px-6 py-4 flex items-center gap-4 shrink-0">
+        <Button variant="ghost" icon={<ArrowLeft size={18} />} onClick={() => navigate('/messages')} />
+        <div className="flex-1 min-w-0">
+          <h1 className="text-lg font-semibold truncate">{conversation.subject}</h1>
+          <p className="text-sm text-text-secondary truncate">{participantNames}</p>
         </div>
-        <div className="flex gap-3">
-          <Button variant="outline" icon="reply">
-            Répondre
-          </Button>
-          <Button variant="outline" icon="forward">
-            Transférer
-          </Button>
-          <Button variant="outline" icon="trash-2">
-            Supprimer
-          </Button>
+        <div className="flex items-center gap-2 shrink-0">
+          {conversation.isStarred && <Star size={16} className="text-accent fill-accent" />}
+          {conversation.relatedPropertyTitle && (
+            <Button
+              variant="outline"
+              size="sm"
+              icon={<Home size={14} />}
+              onClick={() => navigate(`/properties/${conversation.relatedPropertyId}`)}
+            >
+              {conversation.relatedPropertyTitle}
+            </Button>
+          )}
         </div>
       </div>
 
-      <Card>
-        <div className="p-6 space-y-6">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div className="flex items-center gap-4">
-              <div className="w-10 h-10 rounded-full bg-accent/20 flex items-center justify-center">
-                <Icon name="user" className="text-accent" />
-              </div>
-              <div>
-                <h3 className="font-medium">{message.from}</h3>
-                <p className="text-sm text-gray-500">À {message.to}</p>
-              </div>
+      <div className="flex-1 overflow-y-auto px-6 py-6">
+        {dayGroups.map(([dayLabel, messages]) => (
+          <div key={dayLabel} className="mb-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="flex-1 h-px bg-border" />
+              <span className="text-xs font-medium text-text-secondary uppercase px-2">
+                {getDateLabel(messages[0].sentAt)}
+              </span>
+              <div className="flex-1 h-px bg-border" />
             </div>
-            <div className="text-gray-500">
-              {new Date(message.date).toLocaleDateString('fr-FR', {
-                weekday: 'long',
-                day: 'numeric',
-                month: 'long',
-                year: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit'
+
+            <div className="space-y-4">
+              {messages.map((msg) => {
+                const isAgent = msg.sender.type === 'agent'
+                return (
+                  <div key={msg.id} className={`flex ${isAgent ? 'justify-end' : 'justify-start'}`}>
+                    <div className="max-w-[75%] min-w-[240px]">
+                      <div className={`flex items-center gap-2 mb-1.5 ${isAgent ? 'justify-end' : 'justify-start'}`}>
+                        <span className="text-xs font-medium text-text-secondary">{msg.sender.name}</span>
+                        {isAgent && (
+                          <span className="text-[10px] uppercase tracking-widest text-accent font-semibold">
+                            Agent
+                          </span>
+                        )}
+                      </div>
+
+                      <div
+                        className={`rounded-2xl px-4 py-3 ${
+                          isAgent
+                            ? 'bg-accent text-white rounded-tr-md'
+                            : 'bg-card border border-border rounded-tl-md'
+                        }`}
+                      >
+                        <p className="text-sm whitespace-pre-wrap leading-relaxed">{msg.body}</p>
+
+                        {msg.attachments.length > 0 && (
+                          <div className={`mt-3 pt-3 space-y-2 ${isAgent ? 'border-t border-white/20' : 'border-t border-border'}`}>
+                            {msg.attachments.map((att) => (
+                              <div
+                                key={att.id}
+                                className={`flex items-center gap-2.5 p-2.5 rounded-lg ${
+                                  isAgent ? 'bg-white/10' : 'bg-background'
+                                }`}
+                              >
+                                <Paperclip size={14} className={isAgent ? 'text-white/70' : 'text-text-secondary'} />
+                                <div className="flex-1 min-w-0">
+                                  <p className={`text-xs font-medium truncate ${isAgent ? 'text-white' : 'text-text'}`}>
+                                    {att.name}
+                                  </p>
+                                  <p className={`text-[11px] ${isAgent ? 'text-white/60' : 'text-text-secondary'}`}>
+                                    {att.size}
+                                  </p>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      <div className={`flex items-center gap-1.5 mt-1 ${isAgent ? 'justify-end' : 'justify-start'}`}>
+                        <span className="text-[11px] text-text-secondary">{formatMessageDate(msg.sentAt)}</span>
+                        {!msg.isRead && <span className="w-1.5 h-1.5 rounded-full bg-accent" />}
+                      </div>
+                    </div>
+                  </div>
+                )
               })}
             </div>
           </div>
+        ))}
+      </div>
 
-          <div className="border-t pt-6">
-            <div className="prose max-w-none">
-              {message.body.split('\n').map((paragraph, i) => (
-                <p key={i}>{paragraph}</p>
-              ))}
-            </div>
-          </div>
-
-          {message.attachments.length > 0 && (
-            <div className="border-t pt-6">
-              <h4 className="font-medium mb-3">Pièces jointes</h4>
-              <div className="flex flex-wrap gap-3">
-                {message.attachments.map((file, index) => (
-                  <div key={index} className="flex items-center gap-2 border rounded-lg p-3">
-                    <Icon name="paperclip" className="text-gray-400" />
-                    <div>
-                      <p className="font-medium">{file.name}</p>
-                      <p className="text-sm text-gray-500">{file.size}</p>
-                    </div>
-                    <Button variant="ghost" size="sm" icon="download" className="ml-auto" />
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-      </Card>
-
-      <Card>
-        <div className="p-6">
-          <h3 className="font-semibold text-lg mb-4">Liens associés</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <InfoField 
-              label="Bien concerné" 
-              value={message.relatedProperty} 
-              icon="home"
-              action={
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
-                  icon="arrow-right" 
-                  onClick={() => navigate(`/properties/${message.relatedProperty.split('#')[1]}`)}
-                />
-              }
-            />
-            <InfoField 
-              label="Client" 
-              value={message.relatedClient} 
-              icon="user"
-              action={
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
-                  icon="arrow-right" 
-                  onClick={() => navigate(`/clients/${message.relatedClient.split(' ').join('-').toLowerCase()}`)}
-                />
-              }
+      <div className="border-t border-border px-6 py-4 shrink-0">
+        <div className="flex items-end gap-3">
+          <div className="flex-1">
+            <textarea
+              value={replyText}
+              onChange={(e) => setReplyText(e.target.value)}
+              placeholder="\u00c9crivez votre r\u00e9ponse..."
+              rows={3}
+              className="w-full rounded-xl border border-border bg-card px-4 py-3 text-sm text-text placeholder-text-secondary resize-none focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent transition-colors"
             />
           </div>
+          <Button
+            variant="default"
+            icon={<Send size={16} />}
+            onClick={handleSendReply}
+            disabled={!replyText.trim()}
+          >
+            Envoyer
+          </Button>
         </div>
-      </Card>
-
-      <div className="flex justify-end gap-3">
-        <Button variant="outline" icon="reply">
-          Répondre
-        </Button>
-        <Button variant="default" icon="forward">
-          Transférer
-        </Button>
       </div>
     </div>
   )

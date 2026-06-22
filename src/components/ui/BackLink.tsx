@@ -3,7 +3,7 @@ import { cn } from "../../lib/utils";
 import { useNavigate } from "react-router-dom";
 
 interface BackLinkProps {
-  to?: string; // Changed from href to to
+  to?: string;
   className?: string;
   onClick?: () => void;
 }
@@ -17,7 +17,7 @@ export const BackLink = ({ to, className, onClick }: BackLinkProps) => {
     } else if (to) {
       navigate(to);
     } else {
-      navigate(-1); // Go back one page if no destination specified
+      navigate(-1);
     }
   };
 
@@ -25,12 +25,11 @@ export const BackLink = ({ to, className, onClick }: BackLinkProps) => {
     <button 
       onClick={handleClick}
       className={cn(
-        "inline-flex items-center text-sm text-accent hover:underline",
-        "focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-accent",
+        "btn-ghost text-xs gap-1.5",
         className
       )}
     >
-      <ArrowLeft size={16} className="mr-1" />
+      <ArrowLeft size={14} />
       Retour
     </button>
   );

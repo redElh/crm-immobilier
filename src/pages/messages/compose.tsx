@@ -1,154 +1,152 @@
+import { useState, useEffect } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
+import { X, Paperclip, Send, Save, ArrowLeft, User, Home, FileText, Users, CheckSquare } from 'react-feather'
 import Card from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
-import { Input } from '../../components/ui/Input'
 import { Select } from '../../components/ui/Select'
-import { Textarea } from '../../components/ui/Textarea'
-import { useNavigate, useSearchParams } from 'react-router-dom'
-import { useState, useEffect } from 'react'
-import { Icon } from '../../components/ui/Icon'
-import { Badge } from '../../components/ui/Badge'
+import { Checkbox } from '../../components/ui/Checkbox'
+import { mockConversations, mockTemplates } from '../../types/messages'
 
-const mockRecipients = [
-  { value: 'client1', label: 'Sophie Martin', type: 'client' },
-  { value: 'client2', label: 'Thomas Dubois', type: 'client' },
-  { value: 'colleague1', label: 'Youssef Amrani', type: 'colleague' },
-  { value: 'colleague2', label: 'Leila Benbrahim', type: 'colleague' }
-]
+const allParticipants = Array.from(
+  new Map(mockConversations.flatMap(c => c.participants).map(p => [p.id, p])).values()
+)
 
-const mockProperties = [
-  { value: 'property1', label: 'Villa Marrakech #1234' },
-  { value: 'property2', label: 'Appartement Casablanca #5678' }
-]
+const mockProperties = Array.from(
+  new Map(
+    mockConversations
+      .filter(c => c.relatedPropertyId && c.relatedPropertyTitle)
+      .map(c => [c.relatedPropertyId!, { value: c.relatedPropertyId!, label: c.relatedPropertyTitle! }])
+  ).values()
+)
 
-const mockTemplates = [
-  { id: 'template1', name: 'Confirmation de visite', content: 'Bonjour [Nom],\n\nNous confirmons votre visite du [Date] à [Heure].\n\nCordialement,' },
-  { id: 'template2', name: 'Relance après visite', content: 'Bonjour [Nom],\n\nSuite à votre visite du [Date], quelles sont vos impressions?\n\nCordialement,' },
-  { id: 'template3', name: 'Demande de mandat', content: 'Bonjour [Nom],\n\nNous vous remercions pour votre confiance. Veuillez trouver ci-joint le mandat à signer.\n\nCordialement,' }
-]
-
-const mockDrafts = [
-  {
-    id: 'draft1',
-    recipient: 'client1',
-    property: 'property1',
-    subject: 'Proposition de visite - Villa Marrakech',
-    message: 'Bonjour [Nom],\n\nJe vous propose une visite de la villa à Marrakech...',
-    attachments: []
-  }
+const VARIABLE_BADGES = [
+  { label: '{{client.prenom}}', value: '{{client.prenom}}' },
+  { label: '{{client.nom}}', value: '{{client.nom}}' },
+  { label: '{{bien.titre}}', value: '{{bien.titre}}' },
+  { label: '{{agent.prenom}}', value: '{{agent.prenom}}' },
+  { label: '{{agent.nom}}', value: '{{agent.nom}}' },
+  { label: '{{date_visite}}', value: '{{date_visite}}' },
+  { label: '{{heure_visite}}', value: '{{heure_visite}}' },
+  { label: '{{liste_biens}}', value: '{{liste_biens}}' },
+  { label: '{{liste_documents}}', value: '{{liste_documents}}' },
 ]
 
 export default function ComposeMessagePage() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
-  const [formData, setFormData] = useState({
-    recipient: '',
-    property: '',
-    template: '',
-    subject: '',
-    message: '',
-    attachments: [] as string[]
-  })
+
+  const [recipientType, setRecipientType] = useState<'client' | 'agent' | 'multiple'>('client')
+  const [selectedRecipients, setSelectedRecipients] = useState<Array<{ id: string; name: string; type: string }>>([])
+  const [property, setProperty] = useState('')
+  const [templateId, setTemplateId] = useState('')
+  const [subject, setSubject] = useState('')
+  const [body, setBody] = useState('')
+  const [attachments, setAttachments] = useState<string[]>([])
+  const [sendCopy, setSendCopy] = useState(false)
+  const [scheduleSend, setScheduleSend] = useState(false)
+  const [markImportant, setMarkImportant] = useState(false)
   const [isSending, setIsSending] = useState(false)
-  const [availableTemplates, setAvailableTemplates] = useState(mockTemplates)
 
-  // Load draft or template when component mounts
+  const availableRecipients = allParticipants.filter(p => {
+    if (selectedRecipients.some(r => r.id === p.id)) return false
+    if (recipientType === 'client') return p.type === 'client'
+    if (recipientType === 'agent') return p.type === 'agent'
+    return true
+  })
+
+  const placeholderLabel = availableRecipients.length === 0
+    ? 'Tous les destinataires sélectionnés'
+    : recipientType === 'client'
+      ? 'Ajouter un client...'
+      : recipientType === 'agent'
+        ? 'Ajouter un agent...'
+        : 'Ajouter un destinataire...'
+
+  const recipientOptions = [
+    { value: '', label: placeholderLabel },
+    ...availableRecipients.map(p => ({ value: p.id, label: p.name })),
+  ]
+
+  const propertyOptions = mockProperties.map(p => ({ value: p.value, label: p.label }))
+  const templateOptions = mockTemplates.map(t => ({ value: t.id, label: t.name }))
+
   useEffect(() => {
-    const draftId = searchParams.get('draftId')
-    const templateId = searchParams.get('templateId')
-
-    if (draftId) {
-      const draft = mockDrafts.find(d => d.id === draftId)
-      if (draft) {
-        setFormData({
-          recipient: draft.recipient,
-          property: draft.property,
-          template: '',
-          subject: draft.subject,
-          message: draft.message,
-          attachments: draft.attachments
-        })
-      }
-    } else if (templateId) {
-      const template = mockTemplates.find(t => t.id === templateId)
-      if (template) {
-        setFormData(prev => ({
-          ...prev,
-          template: templateId,
-          subject: template.name,
-          message: template.content
-        }))
-      }
+    if (!templateId) return
+    const template = mockTemplates.find(t => t.id === templateId)
+    if (template) {
+      setSubject(template.subject)
+      setBody(template.body)
     }
-  }, [searchParams])
+  }, [templateId])
 
-  const handleInputChange = (field: keyof typeof formData, value: string) => {
-    setFormData(prev => ({ ...prev, [field]: value }))
+  const handleAddRecipient = (id: string) => {
+    if (!id) return
+    const person = allParticipants.find(p => p.id === id)
+    if (person) {
+      setSelectedRecipients(prev => [...prev, person])
+    }
   }
 
-  const handleTemplateChange = (value: string) => {
-    const selectedTemplate = mockTemplates.find(t => t.id === value)
-    if (selectedTemplate) {
-      setFormData(prev => ({
-        ...prev,
-        template: value,
-        message: selectedTemplate.content,
-        subject: selectedTemplate.name
-      }))
-    }
+  const handleRemoveRecipient = (id: string) => {
+    setSelectedRecipients(prev => prev.filter(r => r.id !== id))
+  }
+
+  const handleAddAttachment = () => {
+    const names = [
+      'brochure_villa_marrakech.pdf',
+      'plan_acces.pdf',
+      'mandat_signe.pdf',
+      'photos_biens.zip',
+      'document_identite.pdf',
+      'compromis_vente.pdf',
+    ]
+    const name = names[Math.floor(Math.random() * names.length)]
+    setAttachments(prev => [...prev, name])
+  }
+
+  const handleRemoveAttachment = (index: number) => {
+    setAttachments(prev => prev.filter((_, i) => i !== index))
+  }
+
+  const handleInsertVariable = (variable: string) => {
+    setBody(prev => prev + variable)
   }
 
   const handleSend = () => {
-    if (!formData.recipient || !formData.subject || !formData.message) {
-      alert('Veuillez remplir les champs obligatoires (destinataire, sujet, message)')
-      return
-    }
+    if (selectedRecipients.length === 0) return
+    if (!subject.trim()) return
+    if (!body.trim()) return
 
     setIsSending(true)
     setTimeout(() => {
-      console.log('Message sent:', formData)
       setIsSending(false)
       navigate('/messages')
     }, 1500)
   }
 
   const handleSaveDraft = () => {
-    console.log('Draft saved:', formData)
-    alert('Brouillon enregistré')
     navigate('/messages')
   }
 
-  const handleAddAttachment = () => {
-    const fileName = `fichier-${Math.floor(Math.random() * 1000)}.pdf`
-    setFormData(prev => ({
-      ...prev,
-      attachments: [...prev.attachments, fileName]
-    }))
-  }
+  const isFormValid = selectedRecipients.length > 0 && subject.trim().length > 0 && body.trim().length > 0
 
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <Button variant="ghost" icon="arrow-left" onClick={() => navigate('/messages')}>
-            Retour
-          </Button>
-          <h1 className="text-2xl font-bold">
-            {searchParams.get('draftId') ? 'Modifier le brouillon' : 'Nouveau message'}
-          </h1>
+          <Button variant="ghost" icon={<ArrowLeft size={16} />} onClick={() => navigate('/messages')} />
+          <h1 className="text-2xl font-bold">Nouveau Message</h1>
         </div>
         <div className="flex gap-3">
-          <Button 
-            variant="outline" 
-            icon="save"
-            onClick={handleSaveDraft}
-          >
+          <Button variant="outline" icon={<Save size={16} />} onClick={handleSaveDraft}>
             Enregistrer comme brouillon
           </Button>
-          <Button 
-            variant="default" 
-            icon={isSending ? "loader" : "send"}
+          <Button
+            variant="default"
+            icon={<Send size={16} />}
             onClick={handleSend}
-            disabled={isSending}
+            disabled={!isFormValid || isSending}
+            loading={isSending}
           >
             {isSending ? 'Envoi en cours...' : 'Envoyer'}
           </Button>
@@ -157,100 +155,193 @@ export default function ComposeMessagePage() {
 
       <Card>
         <div className="p-6 space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <Select 
-              options={mockRecipients}
-              placeholder="Sélectionner un destinataire"
-              label="Destinataire*"
-              value={formData.recipient}
-              onValueChange={(value) => handleInputChange('recipient', value)}
-              required
-            />
-            <Select 
-              options={mockProperties}
-              placeholder="Lier à un bien"
-              label="Bien concerné"
-              value={formData.property}
-              onValueChange={(value) => handleInputChange('property', value)}
-            />
-            <Select 
-              options={availableTemplates.map(t => ({ value: t.id, label: t.name }))}
-              placeholder="Utiliser un modèle"
-              label="Modèle"
-              value={formData.template}
-              onValueChange={handleTemplateChange}
+          <div>
+            <label className="text-sm font-medium text-text mb-3 block">Type de destinataire</label>
+            <div className="flex gap-6">
+              {(['client', 'agent', 'multiple'] as const).map(type => (
+                <label key={type} className="flex items-center gap-2 cursor-pointer group">
+                  <div className="relative flex-shrink-0">
+                    <input
+                      type="radio"
+                      name="recipientType"
+                      className="sr-only"
+                      checked={recipientType === type}
+                      onChange={() => setRecipientType(type)}
+                    />
+                    <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center transition-all duration-200 ${
+                      recipientType === type
+                        ? 'border-accent'
+                        : 'border-border group-hover:border-text-secondary/40'
+                    }`}>
+                      {recipientType === type && (
+                        <div className="w-2 h-2 rounded-full bg-accent animate-scale-in" />
+                      )}
+                    </div>
+                  </div>
+                  <span className="text-sm text-text capitalize">{type === 'multiple' ? 'Multiple' : type}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <label className="text-sm font-medium text-text mb-2 block">
+              Destinataires <span className="text-error">*</span>
+            </label>
+            {selectedRecipients.length > 0 && (
+              <div className="flex flex-wrap gap-2 mb-3">
+                {selectedRecipients.map(recipient => (
+                  <div
+                    key={recipient.id}
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border border-border bg-background text-text-secondary text-sm"
+                  >
+                    {recipient.type === 'client' ? <User size={12} /> : <Users size={12} />}
+                    <span>{recipient.name}</span>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveRecipient(recipient.id)}
+                      className="ml-0.5 text-text-secondary/60 hover:text-text transition-colors"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <Select
+              options={recipientOptions}
+              placeholder="Ajouter un destinataire..."
+              value=""
+              onValueChange={handleAddRecipient}
             />
           </div>
 
-          <Input
-            label="Sujet*"
-            placeholder="Objet du message"
-            value={formData.subject}
-            onChange={(e) => handleInputChange('subject', e.target.value)}
-            required
-          />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Select
+              label="Bien concerné"
+              options={propertyOptions}
+              placeholder="Sélectionner un bien (optionnel)"
+              value={property}
+              onValueChange={setProperty}
+            />
+            <Select
+              label="Modèle"
+              options={templateOptions}
+              placeholder="Utiliser un modèle (optionnel)"
+              value={templateId}
+              onValueChange={setTemplateId}
+            />
+          </div>
 
-          <div>
-            <label className="block text-sm font-medium mb-2">Message*</label>
-            <div className="flex flex-wrap gap-2 mb-2">
-              <Badge variant="outline" className="cursor-pointer" onClick={() => handleInputChange('message', formData.message + '[Nom]')}>
-                [Nom]
-              </Badge>
-              <Badge variant="outline" className="cursor-pointer" onClick={() => handleInputChange('message', formData.message + '[Prénom]')}>
-                [Prénom]
-              </Badge>
-              <Badge variant="outline" className="cursor-pointer" onClick={() => handleInputChange('message', formData.message + '[Propriété]')}>
-                [Propriété]
-              </Badge>
-              <Badge variant="outline" className="cursor-pointer" onClick={() => handleInputChange('message', formData.message + '[Date]')}>
-                [Date]
-              </Badge>
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium text-text">
+              Sujet <span className="text-error">*</span>
+            </label>
+            <input
+              type="text"
+              className="w-full h-9 px-3 py-2 text-sm rounded-lg border border-border bg-card placeholder:text-text-secondary/40 focus:outline-none focus:ring-2 focus:ring-accent/15 focus:border-accent hover:border-text-secondary/30 transition-all duration-200 ease-out"
+              placeholder="Objet du message"
+              value={subject}
+              onChange={e => setSubject(e.target.value)}
+              required
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium text-text">
+              Message <span className="text-error">*</span>
+            </label>
+            <div className="flex flex-wrap gap-1.5 mb-2">
+              {VARIABLE_BADGES.map(v => (
+                <button
+                  key={v.value}
+                  type="button"
+                  onClick={() => handleInsertVariable(v.value)}
+                  className="inline-flex items-center px-2 py-0.5 text-[11px] font-medium rounded-md border border-border bg-transparent text-text-secondary hover:text-text hover:bg-background transition-colors"
+                >
+                  {v.label}
+                </button>
+              ))}
             </div>
-            <Textarea
+            <textarea
+              className="w-full min-h-[200px] px-3 py-2 text-sm rounded-lg border border-border bg-card placeholder:text-text-secondary/40 focus:outline-none focus:ring-2 focus:ring-accent/15 focus:border-accent hover:border-text-secondary/30 transition-all duration-200 ease-out resize-y"
               placeholder="Écrivez votre message ici..."
               rows={10}
-              value={formData.message}
-              onChange={(e) => handleInputChange('message', e.target.value)}
+              value={body}
+              onChange={e => setBody(e.target.value)}
               required
             />
           </div>
 
-          <div>
-            <label className="block text-sm font-medium mb-2">Pièces jointes</label>
-            <div className="flex flex-col gap-3">
-              <div className="flex items-center gap-3">
-                <Button variant="outline" icon="paperclip" onClick={handleAddAttachment}>
-                  Ajouter un fichier
-                </Button>
-                <Button variant="outline" icon="file-text">
-                  Ajouter un document CRM
-                </Button>
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium text-text">Pièces jointes</label>
+            <Button variant="outline" icon={<Paperclip size={16} />} onClick={handleAddAttachment}>
+              Ajouter un fichier
+            </Button>
+            {attachments.length > 0 && (
+              <div className="mt-2 space-y-2">
+                {attachments.map((file, index) => (
+                  <div
+                    key={index}
+                    className="flex items-center gap-2 px-3 py-2 rounded-lg border border-border bg-card"
+                  >
+                    <FileText size={14} className="text-text-secondary shrink-0" />
+                    <span className="text-sm text-text flex-1">{file}</span>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveAttachment(index)}
+                      className="text-text-secondary/60 hover:text-text transition-colors shrink-0"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+                ))}
               </div>
-              
-              {formData.attachments.length > 0 && (
-                <div className="mt-3 space-y-2">
-                  {formData.attachments.map((file, index) => (
-                    <div key={index} className="flex items-center gap-2 p-2 border rounded">
-                      <Icon name="paperclip" className="text-gray-400" />
-                      <span className="text-sm">{file}</span>
-                      <Button 
-                        variant="ghost" 
-                        size="sm" 
-                        icon="x" 
-                        className="ml-auto"
-                        onClick={() => setFormData(prev => ({
-                          ...prev,
-                          attachments: prev.attachments.filter((_, i) => i !== index)
-                        }))}
-                      />
-                    </div>
-                  ))}
-                </div>
-              )}
+            )}
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-sm font-medium text-text">Options</label>
+            <div className="space-y-2">
+              <Checkbox
+                label="Envoyer une copie à mon adresse"
+                checked={sendCopy}
+                onChange={setSendCopy}
+              />
+              <Checkbox
+                label="Programmer l'envoi"
+                checked={scheduleSend}
+                onChange={setScheduleSend}
+              />
+              <Checkbox
+                label="Marquer comme important"
+                checked={markImportant}
+                onChange={setMarkImportant}
+              />
             </div>
           </div>
         </div>
       </Card>
+
+      <div className="flex items-center justify-between">
+        <Button variant="ghost" icon={<ArrowLeft size={16} />} onClick={() => navigate('/messages')}>
+          Annuler
+        </Button>
+        <div className="flex gap-3">
+          <Button variant="outline" icon={<Save size={16} />} onClick={handleSaveDraft}>
+            Enregistrer comme brouillon
+          </Button>
+          <Button
+            variant="default"
+            icon={<Send size={16} />}
+            onClick={handleSend}
+            disabled={!isFormValid || isSending}
+            loading={isSending}
+          >
+            {isSending ? 'Envoi en cours...' : 'Envoyer'}
+          </Button>
+        </div>
+      </div>
     </div>
   )
 }

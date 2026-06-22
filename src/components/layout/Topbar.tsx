@@ -1,96 +1,107 @@
-import { Home, ChevronRight, User, LogOut, Settings, Bell, HelpCircle } from 'react-feather';
+import { ChevronRight, User, LogOut, Settings, Bell, HelpCircle } from 'react-feather';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
+import { useState, useRef, useEffect } from 'react';
 
 export default function Topbar() {
   const navigate = useNavigate();
   const location = useLocation();
+  const [showDropdown, setShowDropdown] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // Get current section for breadcrumb
   const getCurrentSection = () => {
     const path = location.pathname.split('/')[1];
     switch(path) {
-      case 'properties': return 'Propriétés';
+      case 'properties': return 'Biens';
       case 'clients': return 'Clients';
       case 'documents': return 'Documents';
+      case 'messages': return 'Messages';
+      case 'settings': return 'Paramètres';
       default: return 'Tableau de bord';
     }
   };
 
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setShowDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   return (
-    <header className="glass-card p-4 flex items-center justify-between sticky top-0 z-50 backdrop-blur-md">
-      {/* Left side - Breadcrumb */}
-      <div className="flex items-center space-x-2 text-sm">
-        <button 
+    <header className="h-16 bg-card border-b border-border/50 px-6 flex items-center justify-between sticky top-0 z-40">
+      <div className="flex items-center gap-2 text-sm">
+        <button
           onClick={() => navigate('/')}
-          className="text-text hover:text-accent transition-colors"
+          className="text-text-secondary hover:text-text transition-colors"
         >
-          <Home size={16} />
+          <span className="font-medium">Dashboard</span>
         </button>
-        <ChevronRight size={14} className="text-text/30" />
-        <span className="font-medium text-text">{getCurrentSection()}</span>
+        {location.pathname.split('/').filter(Boolean).length > 1 && (
+          <>
+            <ChevronRight size={14} className="text-text-secondary/50" />
+            <span className="text-text-secondary">{getCurrentSection()}</span>
+          </>
+        )}
       </div>
 
-      {/* Right side - User menu with hover dropdown */}
-      <div className="flex items-center space-x-4">
-        {/* Notification bell */}
-        <button className="p-2 text-text hover:text-accent transition-colors relative">
+      <div className="flex items-center gap-3">
+        <button className="w-9 h-9 rounded-lg flex items-center justify-center text-text-secondary hover:text-text hover:bg-background transition-all">
           <Bell size={18} />
-          <span className="absolute top-1 right-1 w-2 h-2 bg-red-400 rounded-full"></span>
+          <span className="absolute mt-[-8px] ml-[8px] w-2 h-2 bg-error rounded-full ring-2 ring-card" />
         </button>
 
-        {/* User profile dropdown */}
-        <div className="relative group">
-          <button className="flex items-center space-x-2 focus:outline-none">
-            <div className="w-8 h-8 rounded-full bg-accent/10 flex items-center justify-center border border-accent/20">
-              <User size={16} className="text-text" />
-            </div>
+        <div className="relative" ref={dropdownRef}>
+          <button
+            onClick={() => setShowDropdown(!showDropdown)}
+            className="w-9 h-9 rounded-lg bg-accent-light flex items-center justify-center text-accent hover:bg-accent/20 transition-all"
+          >
+            <User size={16} />
           </button>
 
-          {/* Dropdown menu */}
-          <motion.div 
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="absolute right-0 mt-2 w-56 origin-top-right bg-glass-card rounded-lg shadow-lg ring-1 ring-black ring-opacity-5 focus:outline-none z-50 
-                      invisible group-hover:visible opacity-0 group-hover:opacity-100 transition-all duration-200 border border-white/10 backdrop-blur-lg"
-          >
-            <div className="py-1">
-              {/* User info */}
-              <div className="px-4 py-3 border-b border-white/10">
-                <p className="text-sm font-medium text-text">John Doe</p>
-                <p className="text-xs text-text/60">Agent</p>
-              </div>
+          <AnimatePresence>
+            {showDropdown && (
+              <motion.div
+                initial={{ opacity: 0, y: 8, scale: 0.96 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 8, scale: 0.96 }}
+                transition={{ duration: 0.15 }}
+                className="absolute right-0 mt-2 w-56 bg-card rounded-xl border border-border/50 shadow-dropdown py-1 z-50"
+              >
+                <div className="px-4 py-3 border-b border-border/40">
+                  <p className="text-sm font-medium text-text">John Doe</p>
+                  <p className="text-xs text-text-secondary">Agent</p>
+                </div>
 
-              {/* Menu items */}
-              <button 
-                onClick={() => navigate('/settings')}
-                className="flex w-full items-center px-4 py-2 text-sm text-left text-text hover:bg-white/5 transition-colors"
-              >
-                <Settings size={14} className="mr-3" />
-                Paramètres
-              </button>
-              
-              <button 
-                onClick={() => navigate('/help')}
-                className="flex w-full items-center px-4 py-2 text-sm text-left text-text hover:bg-white/5 transition-colors"
-              >
-                <HelpCircle size={14} className="mr-3" />
-                Aide & Support
-              </button>
+                <button
+                  onClick={() => { navigate('/settings/profile'); setShowDropdown(false); }}
+                  className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-text-secondary hover:text-text hover:bg-background transition-colors"
+                >
+                  <Settings size={14} />
+                  Paramètres
+                </button>
 
-              {/* Logout */}
-              <button 
-                onClick={() => {
-                  console.log('Logging out...');
-                  navigate('/auth/login');
-                }}
-                className="flex w-full items-center px-4 py-2 text-sm text-left text-red-400 hover:bg-white/5 transition-colors border-t border-white/10 mt-1"
-              >
-                <LogOut size={14} className="mr-3" />
-                Déconnexion
-              </button>
-            </div>
-          </motion.div>
+                <button
+                  onClick={() => { navigate('/settings'); setShowDropdown(false); }}
+                  className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-text-secondary hover:text-text hover:bg-background transition-colors"
+                >
+                  <HelpCircle size={14} />
+                  Aide & Support
+                </button>
+
+                <button
+                  onClick={() => { navigate('/auth/login'); setShowDropdown(false); }}
+                  className="flex w-full items-center gap-3 px-4 py-2.5 text-sm text-text-secondary hover:text-error hover:bg-error/5 transition-colors border-t border-border/40 mt-1"
+                >
+                  <LogOut size={14} />
+                  Déconnexion
+                </button>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       </div>
     </header>

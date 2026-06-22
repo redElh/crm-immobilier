@@ -1,5 +1,10 @@
 import { ClientLayout } from "../../components/layout/ClientLayout";
 import { ClientInfos } from "../../components/modules/clients/ClientInfos";
+import { BuyerDetailTabs } from "../../components/modules/clients/ClientInfos/BuyerDetailTabs";
+import { SellerDetailTabs } from "../../components/modules/clients/ClientInfos/SellerDetailTabs";
+import { BailleurDetailTabs } from "../../components/modules/clients/ClientInfos/BailleurDetailTabs";
+import { LocataireDetailTabs } from "../../components/modules/clients/ClientInfos/LocataireDetailTabs";
+import { VoyageurDetailTabs } from "../../components/modules/clients/ClientInfos/VoyageurDetailTabs";
 import { ClientHeader } from "../../components/modules/clients/ClientHeader";
 import { ClientTimeline } from "../../components/modules/clients/ClientTimeline";
 import { useParams } from "react-router-dom";
@@ -88,20 +93,64 @@ export default function ClientPage() {
             className="space-y-4"
           >
             <ClientHeader client={client} />
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.1, duration: 0.4 }}
-            >
-              <ClientInfos client={client} />
-            </motion.div>
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.2, duration: 0.4 }}
-            >
-              <ClientTimeline events={client.events} />
-            </motion.div>
+            {client.type === 'Acheteur' ? (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.1, duration: 0.4 }}
+              >
+                <BuyerDetailTabs client={client} />
+              </motion.div>
+            ) : client.type === 'Vendeur' ? (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.1, duration: 0.4 }}
+              >
+                <SellerDetailTabs client={client} />
+              </motion.div>
+            ) : client.type === 'Bailleur' ? (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.1, duration: 0.4 }}
+              >
+                <BailleurDetailTabs client={client} />
+              </motion.div>
+            ) : client.type === 'Locataire' ? (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.1, duration: 0.4 }}
+              >
+                <LocataireDetailTabs client={client} />
+              </motion.div>
+            ) : client.type === 'Voyageur' ? (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.1, duration: 0.4 }}
+              >
+                <VoyageurDetailTabs client={client} />
+              </motion.div>
+            ) : (
+              <>
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: 0.1, duration: 0.4 }}
+                >
+                  <ClientInfos client={client} />
+                </motion.div>
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: 0.2, duration: 0.4 }}
+                >
+                  <ClientTimeline events={client.events} />
+                </motion.div>
+              </>
+            )}
           </motion.div>
         )}
       </AnimatePresence>

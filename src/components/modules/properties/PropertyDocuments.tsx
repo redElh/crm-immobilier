@@ -1,75 +1,57 @@
-import Card from '../../ui/Card'
-import { Button } from '../../ui/Button'
-import { Icon } from '../../ui/Icon'
-import { Table } from '../../ui/Table'
+import { useState } from 'react'
+import { Shield, FileText, Activity, Camera, Link, Image, Plus } from 'react-feather'
+import { DocumentCategorySection } from '../documents/DocumentCategorySection'
+import { PROPERTY_DOC_CATEGORIES } from '../../../types/document'
+import type { Property } from '../../../types/property'
+import type { PropertyDocumentCategory } from '../../../types/document'
+
+const CATEGORY_ICONS: Record<PropertyDocumentCategory, React.ReactNode> = {
+  juridique: <Shield size={16} />,
+  technique: <Activity size={16} />,
+  diagnostic: <FileText size={16} />,
+  marketing: <Camera size={16} />,
+  media: <Image size={16} />,
+  contrat: <Link size={16} />,
+  autre: <FileText size={16} />,
+}
 
 interface PropertyDocumentsProps {
-  documents: {
-    id: string
-    name: string
-    type: string
-    date: string
-    size?: string
-    uploadedBy?: string
-  }[]
+  property: Property
 }
 
-const documentTypes = {
-  contract: 'Contrat',
-  technical: 'Technique',
-  legal: 'Juridique',
-  financial: 'Financier',
-  other: 'Autre'
-}
+export const PropertyDocuments = ({ property }: PropertyDocumentsProps) => {
+  const docs = property.documents || []
 
-export const PropertyDocuments = ({ documents }: PropertyDocumentsProps) => {
+  const handleDownload = (doc: any) => {}
+  const handleDelete = (doc: any) => {}
+  const handleView = (doc: any) => {}
+
   return (
-    <Card className="p-6">
-      <div className="flex justify-between items-center mb-6">
-        <h3 className="font-semibold text-lg">Documents</h3>
-        <Button variant="default" icon="plus">
-          Ajouter un document
-        </Button>
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <p className="text-xs text-text-secondary">
+          {docs.length} document{docs.length !== 1 ? 's' : ''} pour <span className="font-medium text-text">{property.title}</span>
+        </p>
       </div>
 
-      {documents.length > 0 ? (
-        <Table>
-          <Table.Header>
-            <Table.Column>Nom</Table.Column>
-            <Table.Column>Type</Table.Column>
-            <Table.Column>Date</Table.Column>
-            <Table.Column>Taille</Table.Column>
-            <Table.Column>Actions</Table.Column>
-          </Table.Header>
-          <Table.Body>
-            {documents.map((doc) => (
-              <Table.Row key={doc.id}>
-                <Table.Cell className="font-medium">{doc.name}</Table.Cell>
-                <Table.Cell>
-                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-                    {documentTypes[doc.type as keyof typeof documentTypes] || doc.type}
-                  </span>
-                </Table.Cell>
-                <Table.Cell>{new Date(doc.date).toLocaleDateString('fr-FR')}</Table.Cell>
-                <Table.Cell>{doc.size || '-'}</Table.Cell>
-                <Table.Cell>
-                  <div className="flex space-x-2">
-                    <Button variant="ghost" size="sm" icon="download" />
-                    <Button variant="ghost" size="sm" icon="eye" />
-                    <Button variant="ghost" size="sm" icon="trash" className="text-red-600" />
-                  </div>
-                </Table.Cell>
-              </Table.Row>
-            ))}
-          </Table.Body>
-        </Table>
-      ) : (
-        <div className="text-center py-12">
-          <Icon name="folder-open" className="mx-auto h-12 w-12 text-gray-400" />
-          <h4 className="mt-2 text-sm font-medium text-gray-900">Aucun document</h4>
-          <p className="mt-1 text-sm text-gray-500">Ajoutez des documents pour les retrouver ici</p>
-        </div>
-      )}
-    </Card>
+      {PROPERTY_DOC_CATEGORIES.map(({ key, label, description }) => {
+        const categoryDocs = docs.filter(d => (d.category || 'autre') === key)
+        return (
+          <DocumentCategorySection
+            key={key}
+            title={label}
+            description={description}
+            icon={CATEGORY_ICONS[key]}
+            documents={categoryDocs}
+            onAdd={key !== 'contrat' ? () => {} : undefined}
+            onDelete={handleDelete}
+            onDownload={handleDownload}
+            onView={handleView}
+            emptyMessage={key === 'contrat' ? 'Aucun contrat lié à ce bien' : `Aucun document ${label.toLowerCase()}`}
+            defaultOpen={categoryDocs.length > 0 || key === 'contrat'}
+          />
+        )
+      })}
+    </div>
   )
 }

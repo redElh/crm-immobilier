@@ -27,6 +27,64 @@ export interface Client {
   moveInDate?: string;
   mustHaveFeatures?: string;
   urgency?: string;
+  classification?: string;
+  statutMetier?: string;
+  croisementAutomatique?: boolean;
+  contactId?: string;
+  secteur?: string;
+  categorie?: string;
+  piecesOperator?: string;
+  pieces?: number;
+  chambresOperator?: string;
+  chambres?: number;
+  surfaceMax?: number;
+  prixMin?: number;
+  prixMax?: number;
+  devise?: string;
+  etageOperator?: string;
+  etage?: number;
+  vue?: string;
+  exposition?: string;
+  etat?: string;
+  standing?: string;
+  disponibilite?: string;
+  attributPrincipal?: string;
+  attributsPersonnalises?: string[];
+  criteres?: string[];
+  proximites?: {
+    transports: string[];
+    commerces: string[];
+    education: string[];
+    sante: string[];
+    loisirs: string[];
+  };
+  prestations?: {
+    exterieur: string[];
+    confort: string[];
+    electromenager: string[];
+    multimedia: string[];
+    sport: string[];
+  };
+  capaciteEmprunt?: number;
+  numeroMandat?: string;
+  dateSignature?: string;
+  dateDebut?: string;
+  dateExpiration?: string;
+  statutMandat?: string;
+  typeMandat?: string;
+  conjoint?: string;
+  societe?: string;
+  agentDesigne?: string;
+  typeRemuneration?: string;
+  montantRemuneration?: number;
+  conditionPaiement?: string;
+  dureeProtection?: string;
+  mandatPdfUrl?: string;
+  banqueSollicitee?: string;
+  tauxEnvisage?: number;
+  statutFinancement?: string;
+  dateObtentionPret?: string;
+  attestationPretUrl?: string;
 
   // Renter Specific (Locataire)
   furnished?: boolean;
@@ -47,6 +105,16 @@ export interface Client {
   travelDates?: string;
   accommodationType?: string;
   specialRequirements?: string;
+  nbPersonnes?: number;
+  budgetParNuitMin?: number;
+  budgetParNuitMax?: number;
+  dateArrivee?: string;
+  dateDepart?: string;
+  flexibiliteDates?: string;
+  modePaiement?: string;
+  acompteVersee?: number;
+  caution?: number;
+  conditionsAnnulation?: string;
 
   // Documents
   documents?: Array<{
@@ -54,6 +122,9 @@ export interface Client {
     url: string;
     type: string;
     uploadedAt: string;
+    category?: string;
+    size?: string;
+    version?: number;
   }>;
 
   // Timeline & Activity

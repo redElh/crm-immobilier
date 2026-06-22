@@ -1,100 +1,86 @@
-import Card from '../../ui/Card'
-import { Icon } from '../../ui/Icon'
-import { Button } from '../../ui/Button'
+import { Clock, User, DollarSign, Camera, FileText, Phone, Plus, Home } from 'react-feather';
+import type { TimelineEvent } from '../../../types/property';
 
-interface PropertyTimelineProps {
-  events: {
-    id: string
-    date: string
-    type: string
-    agent?: string
-    notes?: string
-  }[]
-}
+const eventIcons: Record<string, React.ReactNode> = {
+  visit: <User size={14} />,
+  price_adjustment: <DollarSign size={14} />,
+  photo: <Camera size={14} />,
+  document: <FileText size={14} />,
+  contact: <Phone size={14} />,
+  creation: <Plus size={14} />,
+  default: <Clock size={14} />,
+};
 
-const eventIcons = {
-  visit: 'calendar',
-  price_adjustment: 'currency',
-  status_change: 'badge',
-  note: 'file-text',
-  document: 'folder',
-  call: 'phone',
-  email: 'mail'
-}
+const eventColors: Record<string, string> = {
+  visit: 'bg-blue-100 text-blue-600',
+  price_adjustment: 'bg-amber-100 text-amber-600',
+  photo: 'bg-purple-100 text-purple-600',
+  document: 'bg-emerald-100 text-emerald-600',
+  contact: 'bg-rose-100 text-rose-600',
+  creation: 'bg-gray-100 text-gray-600',
+  default: 'bg-accent-light text-accent',
+};
 
-const eventColors = {
-  visit: 'bg-blue-100 text-blue-800',
-  price_adjustment: 'bg-amber-100 text-amber-800',
-  status_change: 'bg-purple-100 text-purple-800',
-  note: 'bg-gray-100 text-gray-800',
-  document: 'bg-green-100 text-green-800',
-  call: 'bg-red-100 text-red-800',
-  email: 'bg-indigo-100 text-indigo-800'
-}
-
-export const PropertyTimeline = ({ events }: PropertyTimelineProps) => {
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString)
-    return date.toLocaleDateString('fr-FR', { 
-      weekday: 'short', 
-      day: 'numeric', 
-      month: 'short',
-      year: 'numeric'
-    })
-  }
-
-  const formatTime = (dateString: string) => {
-    const date = new Date(dateString)
-    return date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
+export const PropertyTimeline = ({ events }: { events: TimelineEvent[] }) => {
+  if (events.length === 0) {
+    return (
+      <div className="bg-card rounded-xl border border-border/50 shadow-card p-8 text-center">
+        <Clock size={24} className="text-text-secondary/20 mx-auto mb-2" />
+        <p className="text-sm text-text-secondary">Aucun historique</p>
+      </div>
+    );
   }
 
   return (
-    <Card className="p-6">
-      <div className="flex justify-between items-center mb-6">
-        <h3 className="font-semibold text-lg">Historique d'activité</h3>
-        <Button variant="outline" icon="plus">
-          Ajouter une note
-        </Button>
-      </div>
+    <div className="bg-card rounded-xl border border-border/50 shadow-card p-5">
+      <h3 className="font-semibold flex items-center gap-2 mb-6">
+        <Clock size={16} className="text-accent" />
+        Historique
+      </h3>
+      <div className="relative">
+        {events.map((event, index) => {
+          const Icon = eventIcons[event.type] || eventIcons.default;
+          const colorClass = eventColors[event.type] || eventColors.default;
+          const isLast = index === events.length - 1;
 
-      <div className="space-y-8">
-        {events.length > 0 ? (
-          events.map((event) => (
-            <div key={event.id} className="relative pl-8">
-              <div className={`absolute left-0 top-0 flex h-6 w-6 items-center justify-center rounded-full ${eventColors[event.type as keyof typeof eventColors]}`}>
-                <Icon name={eventIcons[event.type as keyof typeof eventIcons] || 'circle'} className="h-4 w-4" />
-              </div>
-              
-              <div className="flex justify-between items-baseline">
-                <h4 className="text-sm font-medium capitalize">
-                  {event.type.replace('_', ' ')}
-                </h4>
-                <time className="text-xs text-gray-500">
-                  {formatTime(event.date)} • {formatDate(event.date)}
-                </time>
-              </div>
-              
-              {event.agent && (
-                <p className="mt-1 text-sm text-gray-500">
-                  Par {event.agent}
-                </p>
+          return (
+            <div key={event.id} className="relative flex gap-4 pb-6 last:pb-0">
+              {/* Timeline line */}
+              {!isLast && (
+                <div className="absolute left-[18px] top-10 bottom-0 w-px bg-border/60" />
               )}
-              
-              {event.notes && (
-                <p className="mt-2 text-sm text-gray-700">
+
+              {/* Icon */}
+              <div className={`relative z-10 w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${colorClass}`}>
+                {Icon}
+              </div>
+
+              {/* Content */}
+              <div className="flex-1 min-w-0 pt-1">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-sm font-medium capitalize">
+                    {event.type.replace(/_/g, ' ')}
+                  </span>
+                  <span className="text-[11px] text-text-secondary/50">
+                    {new Date(event.date).toLocaleDateString('fr-FR', {
+                      day: 'numeric', month: 'long', year: 'numeric'
+                    })}
+                  </span>
+                </div>
+                <p className="text-xs text-text-secondary mt-0.5 leading-relaxed">
                   {event.notes}
                 </p>
-              )}
+                {event.agent && (
+                  <p className="text-[11px] text-text-secondary/50 mt-0.5 flex items-center gap-1">
+                    <User size={10} />
+                    Par {event.agent}
+                  </p>
+                )}
+              </div>
             </div>
-          ))
-        ) : (
-          <div className="text-center py-12">
-            <Icon name="clock" className="mx-auto h-12 w-12 text-gray-400" />
-            <h4 className="mt-2 text-sm font-medium text-gray-900">Aucune activité récente</h4>
-            <p className="mt-1 text-sm text-gray-500">Les actions sur ce bien apparaîtront ici</p>
-          </div>
-        )}
+          );
+        })}
       </div>
-    </Card>
-  )
-}
+    </div>
+  );
+};

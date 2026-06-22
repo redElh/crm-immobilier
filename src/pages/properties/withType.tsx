@@ -1,169 +1,369 @@
 import { useNavigate, useParams } from 'react-router-dom';
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Button } from '../../components/ui/Button';
 import Card from '../../components/ui/Card';
-import { Input } from '../../components/ui/Input';
 import { Select } from '../../components/ui/Select';
-import { PropertyCard } from '../../components/modules/properties/PropertyCard';
-import { FilterDropdown } from '../../components/ui/FilterDropdown';
-import { Icon } from '../../components/ui/Icon';
 import { BackLink } from '../../components/ui/BackLink';
+import { PropertyCard } from '../../components/modules/properties/PropertyCard';
+import { mockPropertiesList } from '../../data/mockProperties';
+import { PROPERTY_TYPE_LABELS, TRANSACTION_TYPE_LABELS, STATUS_LABELS, STATUS_COLORS } from '../../types/property';
+import { ConfidentialProvider } from '../../components/modules/confidentiality/ConfidentialContext';
+import { ConfidentialBanner } from '../../components/modules/confidentiality/ConfidentialBanner';
+import { Search, Plus, Sliders, X, Grid, List } from 'react-feather';
 
-// Mock data - replace with your actual data fetching logic
-const mockProperties = [
-  {
-    id: '1',
-    title: 'Luxury Villa in Marrakech',
-    type: 'residential',
-    status: 'transaction',
-    price: 4500000,
-    location: 'Marrakech',
-    bedrooms: 5,
-    bathrooms: 4,
-    surface: 320,
-    image: '/images/properties/prop1.jpg',
-  },
-  // Add more mock properties...
-];
+const CITY_GROUPS: Record<string, string[]> = {
+  Essaouira: [
+    'Argana', 'Azlef', 'Douar Laraab', 'Erraounak', 'Ghazoua', 'Medina',
+    'Ounagha', 'Arbaa Ida Ougourd', 'Sidi Kaouki', 'Sidi Magdoul',
+    'Sidi Ahmed Essayeh', 'Tidzi',
+  ],
+};
 
-const statusOptions = [
-  { value: 'all', label: 'Tous les statuts' },
-  { value: 'transaction', label: 'Transaction' },
-  { value: 'long_term', label: 'Location longue durée' },
-  { value: 'seasonal', label: 'Location saisonnière' },
-  { value: 'pending', label: 'En attente - En estimation' },
-  { value: 'archived', label: 'Archives' }
-];
-
-const sortOptions = [
-  { value: 'price_asc', label: 'Prix (croissant)' },
-  { value: 'price_desc', label: 'Prix (décroissant)' },
-  { value: 'surface_asc', label: 'Surface (croissant)' },
-  { value: 'surface_desc', label: 'Surface (décroissant)' },
-  { value: 'date_desc', label: 'Récent en premier' }
-];
+const TOP_CITIES = ['Essaouira', 'Marrakech', 'Agadir'];
 
 export default function PropertiesPageWithType() {
   const navigate = useNavigate();
-  const { type } = useParams(); // Replaces router.query
+  const { type } = useParams<{ type: string }>();
+
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
-  const [sortOption, setSortOption] = useState('date_desc');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [typeFilter, setTypeFilter] = useState<string>('all');
+  const [transactionFilter, setTransactionFilter] = useState<string>('all');
+  const [cityFilter, setCityFilter] = useState<string>('all');
+  const [citySubFilter, setCitySubFilter] = useState<string>('all');
+  const [priceMin, setPriceMin] = useState('');
+  const [priceMax, setPriceMax] = useState('');
+  const [surfaceMin, setSurfaceMin] = useState('');
+  const [surfaceMax, setSurfaceMax] = useState('');
+  const [bedroomsMin, setBedroomsMin] = useState('');
+  const [dpeFilter, setDpeFilter] = useState<string>('all');
+  const [showFilters, setShowFilters] = useState(false);
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
 
-  // Get the type label for display
-  const typeLabel = {
-    residential: 'Résidentiel',
-    commercial: 'Commercial',
-    land: 'Terrains',
-    vacation: 'Vacances',
-    luxury: 'Luxe'
-  }[type as string] || '';
+  const typeLabel = ({ residential: 'Résidentiel', commercial: 'Commercial', land: 'Terrains', vacation: 'Vacances', luxury: 'Luxe' } as Record<string, string>)[type || ''] || '';
 
-  // Filter properties based on type, search term and status
-  const filteredProperties = mockProperties
-    .filter(property => property.type === type)
-    .filter(property => 
-      statusFilter === 'all' || property.status === statusFilter
-    )
-    .filter(property =>
-      property.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      property.location.toLowerCase().includes(searchTerm.toLowerCase())
-    )
-    .sort((a, b) => {
-      switch(sortOption) {
-        case 'price_asc': return a.price - b.price
-        case 'price_desc': return b.price - a.price
-        case 'surface_asc': return a.surface - b.surface
-        case 'surface_desc': return b.surface - a.surface
-        case 'date_desc': 
-        default: return 0 // In a real app, you'd sort by date
-      }
-    });
+  const STATUS_BY_TYPE: Record<string, string[]> = {
+    residential: ['for_sale', 'for_rent', 'mandate_pending', 'negotiation', 'under_compromise', 'signing', 'sold', 'rented', 'withdrawn'],
+    commercial: ['for_sale_or_rent', 'negotiation', 'under_promise', 'sold_or_rented', 'withdrawn'],
+    land: ['for_sale', 'under_promise', 'urbanism', 'sold', 'withdrawn'],
+    vacation: ['available', 'option', 'reserved', 'occupied', 'unavailable', 'withdrawn'],
+    luxury: ['for_sale_or_rent', 'confidential', 'negotiation', 'sold_or_rented', 'withdrawn'],
+  };
+
+  const TRANSACTION_BY_TYPE: Record<string, string[]> = {
+    residential: ['vente', 'location_ld'],
+    commercial: ['vente', 'location_ld'],
+    land: ['vente'],
+    vacation: ['location_saisonniere'],
+    luxury: ['vente', 'location_ld'],
+  };
+
+  function getStatusOptions() {
+    const statuses = type ? (STATUS_BY_TYPE[type] || Object.keys(STATUS_LABELS)) : Object.keys(STATUS_LABELS);
+    return [
+      { value: 'all', label: 'Tous les statuts' },
+      ...statuses.map(v => ({ value: v, label: STATUS_LABELS[v] || v })),
+    ];
+  }
+
+  function getTransactionOptions() {
+    if (!type) {
+      return [
+        { value: 'all', label: 'Toutes les transactions' },
+        ...Object.entries(TRANSACTION_TYPE_LABELS).map(([value, label]) => ({ value, label })),
+      ];
+    }
+    const transactions = TRANSACTION_BY_TYPE[type] || [];
+    return [
+      { value: 'all', label: 'Toutes les transactions' },
+      ...transactions.map(v => ({ value: v, label: TRANSACTION_TYPE_LABELS[v as keyof typeof TRANSACTION_TYPE_LABELS] || v })),
+    ];
+  }
+
+  const statusOptions = getStatusOptions();
+  const transactionOptions = getTransactionOptions();
+
+  const typeOptions = [
+    { value: 'all', label: 'Tous les types' },
+    ...Object.entries(PROPERTY_TYPE_LABELS).map(([value, label]) => ({ value, label })),
+  ];
+
+  const dpeOptions = [
+    { value: 'all', label: 'Tout DPE' },
+    ...'ABCDEFG'.split('').map(c => ({ value: c, label: `Classe ${c}` })),
+  ];
+
+  const cityOptions = [
+    { value: 'all', label: 'Toutes les villes' },
+    ...TOP_CITIES.map(c => ({
+      value: c,
+      label: CITY_GROUPS[c] ? `${c} ▸` : c,
+    })),
+  ];
+
+  const subCityOptions = cityFilter === 'Essaouira'
+    ? [{ value: 'all', label: 'Toutes les localités' }, ...CITY_GROUPS['Essaouira'].map(c => ({ value: c, label: c }))]
+    : [];
+
+  const filteredProperties = useMemo(() => {
+    return mockPropertiesList
+      .filter(p => type ? p.propertyType === type : true)
+      .filter(p =>
+        !searchTerm ||
+        p.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        p.location.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        p.city.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        p.reference.toLowerCase().includes(searchTerm.toLowerCase())
+      )
+      .filter(p => statusFilter === 'all' || p.status === statusFilter)
+      .filter(p => typeFilter === 'all' || type === undefined || p.propertyType === typeFilter)
+      .filter(p => transactionFilter === 'all' || p.transactionType === transactionFilter)
+      .filter(p => {
+        if (cityFilter === 'all') return true;
+        if (cityFilter === 'Essaouira') return citySubFilter === 'all' || p.city === citySubFilter;
+        return p.city === cityFilter;
+      })
+      .filter(p => !priceMin || p.price >= Number(priceMin))
+      .filter(p => !priceMax || p.price <= Number(priceMax))
+      .filter(p => !surfaceMin || p.surface >= Number(surfaceMin))
+      .filter(p => !surfaceMax || p.surface <= Number(surfaceMax))
+      .filter(p => !bedroomsMin || (p.bedrooms ?? 0) >= Number(bedroomsMin))
+      .filter(p => dpeFilter === 'all' || (p.dpe && p.dpe.class === dpeFilter));
+  }, [type, searchTerm, statusFilter, typeFilter, transactionFilter, cityFilter, priceMin, priceMax, surfaceMin, surfaceMax, bedroomsMin, dpeFilter]);
+
+  const activeFiltersCount = [
+    statusFilter !== 'all',
+    typeFilter !== 'all' && !type,
+    transactionFilter !== 'all',
+    cityFilter !== 'all',
+    citySubFilter !== 'all',
+    priceMin !== '',
+    priceMax !== '',
+    surfaceMin !== '',
+    surfaceMax !== '',
+    bedroomsMin !== '',
+    dpeFilter !== 'all',
+  ].filter(Boolean).length;
 
   return (
-    <div className="p-6">
-      <div className="mb-4">
-        <BackLink />
-      </div>
+    <ConfidentialProvider>
+    <div className="space-y-6 animate-fade-in">
+      <BackLink className="mb-2" />
 
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-8 gap-4">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold">Biens {typeLabel}</h1>
-          <p className="text-gray-600">
-            {filteredProperties.length} {filteredProperties.length === 1 ? 'bien trouvé' : 'biens trouvés'}
+          <h1 className="text-2xl font-semibold tracking-tight">Biens {typeLabel}</h1>
+          <p className="text-sm text-text-secondary mt-1">
+            {filteredProperties.length} bien{filteredProperties.length !== 1 ? 's' : ''} trouvé{filteredProperties.length !== 1 ? 's' : ''}
           </p>
         </div>
-        
-        <div className="flex gap-3">
-          <Button 
-            variant="default" 
-            onClick={() => navigate(`/properties/add?type=${type}`)} // Updated
-            icon="plus"
-          >
-            Ajouter un bien
-          </Button>
-        </div>
+        <Button variant="default" icon={<Plus size={14} />} onClick={() => navigate(`/properties/add${type ? `?type=${type}` : ''}`)}>
+          Ajouter un bien
+        </Button>
       </div>
 
-      {/* Filters and Search */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-        <div className="md:col-span-2 mt-6">
-          <Input
-            placeholder="Rechercher par nom ou localisation..."
+      <ConfidentialBanner />
+
+      {/* Search + Filter bar */}
+      <div className="flex flex-col sm:flex-row gap-3">
+        <div className="flex-1 relative">
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary" />
+          <input
+            type="text"
+            placeholder="Rechercher par nom, localisation ou référence..."
+            className="w-full h-9 pl-9 pr-3 text-sm rounded-lg border border-border bg-card placeholder:text-text-secondary/50 focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent transition-all"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            icon=""
           />
         </div>
-        
-        <FilterDropdown
-          options={statusOptions}
-          value={statusFilter}
-          onChange={setStatusFilter}
-          label="Statut"
-        />
-        
-        <FilterDropdown
-          options={sortOptions}
-          value={sortOption}
-          onChange={setSortOption}
-          label="Trier par"
-        />
+        <div className="flex gap-2">
+          <button
+            className={`btn-secondary h-9 px-3 flex items-center gap-2 text-sm ${showFilters || activeFiltersCount > 0 ? 'ring-2 ring-accent/20 border-accent' : ''}`}
+            onClick={() => setShowFilters(!showFilters)}
+          >
+            <Sliders size={14} />
+            Filtres
+            {activeFiltersCount > 0 && (
+              <span className="w-5 h-5 rounded-full bg-accent text-white text-[10px] font-bold flex items-center justify-center">
+                {activeFiltersCount}
+              </span>
+            )}
+          </button>
+          <div className="flex rounded-lg border border-border overflow-hidden">
+            <button
+              className={`p-2 ${viewMode === 'grid' ? 'bg-accent text-white' : 'bg-card text-text-secondary hover:bg-background'}`}
+              onClick={() => setViewMode('grid')}
+            >
+                <Grid size={14} />
+            </button>
+            <button
+              className={`p-2 ${viewMode === 'list' ? 'bg-accent text-white' : 'bg-card text-text-secondary hover:bg-background'}`}
+              onClick={() => setViewMode('list')}
+            >
+              <List size={14} />
+            </button>
+          </div>
+        </div>
       </div>
 
-      {/* Properties Grid */}
-      {filteredProperties.length > 0 ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          {filteredProperties.map(property => (
-            <PropertyCard
-              key={property.id}
-              property={property}
-              onClick={() => navigate(`/properties/${property.id}`)} // Updated
-            />
-          ))}
-        </div>
-      ) : (
-        <Card className="p-8 text-center">
-          <div className="text-gray-500 mb-4">
-            <Icon name="folder-open" className="w-12 h-12 mx-auto opacity-50" />
+      {/* Advanced Filters Panel */}
+      {showFilters && (
+        <Card className="p-4 animate-slide-down">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-sm font-medium">Filtres avancés</span>
+            <button className="btn-ghost text-xs flex items-center gap-1" onClick={() => {
+              setStatusFilter('all'); setTypeFilter('all'); setTransactionFilter('all'); setCityFilter('all'); setCitySubFilter('all');
+              setPriceMin(''); setPriceMax(''); setSurfaceMin(''); setSurfaceMax('');
+              setBedroomsMin(''); setDpeFilter('all');
+            }}>
+              <X size={12} /> Réinitialiser
+            </button>
           </div>
-          <h3 className="text-lg font-medium mb-2">Aucun bien trouvé</h3>
-          <p className="text-gray-600 mb-4">
-            {searchTerm 
-              ? "Aucun bien ne correspond à votre recherche."
-              : "Aucun bien disponible dans cette catégorie."}
-          </p>
-          <Button
-            variant="outline"
-            onClick={() => {
-              setSearchTerm('')
-              setStatusFilter('all')
-            }}
-          >
-            Réinitialiser les filtres
-          </Button>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            {!type && (
+              <Select
+                options={typeOptions}
+                value={typeFilter}
+                onValueChange={setTypeFilter}
+              />
+            )}
+            <Select
+              options={statusOptions}
+              value={statusFilter}
+              onValueChange={setStatusFilter}
+            />
+            <Select
+              options={transactionOptions}
+              value={transactionFilter}
+              onValueChange={setTransactionFilter}
+            />
+            <Select
+              options={cityOptions}
+              value={cityFilter}
+              onValueChange={(v) => { setCityFilter(v); setCitySubFilter('all'); }}
+            />
+            {cityFilter === 'Essaouira' && subCityOptions.length > 0 && (
+              <Select
+                options={subCityOptions}
+                value={citySubFilter}
+                onValueChange={setCitySubFilter}
+              />
+            )}
+            <div className="flex items-center gap-2">
+              <input
+                type="number"
+                placeholder="Prix min"
+                className="w-full h-9 px-3 text-sm rounded-lg border border-border bg-card placeholder:text-text-secondary/50 focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent transition-all"
+                value={priceMin}
+                onChange={(e) => setPriceMin(e.target.value)}
+              />
+              <span className="text-text-secondary/40 text-xs">-</span>
+              <input
+                type="number"
+                placeholder="Prix max"
+                className="w-full h-9 px-3 text-sm rounded-lg border border-border bg-card placeholder:text-text-secondary/50 focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent transition-all"
+                value={priceMax}
+                onChange={(e) => setPriceMax(e.target.value)}
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              <input
+                type="number"
+                placeholder="Surface min"
+                className="w-full h-9 px-3 text-sm rounded-lg border border-border bg-card placeholder:text-text-secondary/50 focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent transition-all"
+                value={surfaceMin}
+                onChange={(e) => setSurfaceMin(e.target.value)}
+              />
+              <span className="text-text-secondary/40 text-xs">-</span>
+              <input
+                type="number"
+                placeholder="Surface max"
+                className="w-full h-9 px-3 text-sm rounded-lg border border-border bg-card placeholder:text-text-secondary/50 focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent transition-all"
+                value={surfaceMax}
+                onChange={(e) => setSurfaceMax(e.target.value)}
+              />
+            </div>
+            <input
+              type="number"
+              placeholder="Chambres min"
+              className="w-full h-9 px-3 text-sm rounded-lg border border-border bg-card placeholder:text-text-secondary/50 focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent transition-all"
+              value={bedroomsMin}
+              onChange={(e) => setBedroomsMin(e.target.value)}
+            />
+            <Select
+              options={dpeOptions}
+              value={dpeFilter}
+              onValueChange={setDpeFilter}
+            />
+          </div>
+        </Card>
+      )}
+
+      {/* Results */}
+      {filteredProperties.length > 0 ? (
+        viewMode === 'grid' ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            {filteredProperties.map(property => (
+              <PropertyCard key={property.id} property={property} />
+            ))}
+          </div>
+        ) : (
+          <Card className="overflow-hidden">
+            <div className="divide-y divide-border/30">
+              {filteredProperties.map(property => (
+                <div
+                  key={property.id}
+                  className="flex items-center gap-4 p-4 hover:bg-background/50 transition-colors cursor-pointer"
+                  onClick={() => navigate(`/properties/${property.id}`)}
+                >
+                  <div className="w-16 h-16 rounded-lg bg-gradient-to-br from-accent-light to-background flex-shrink-0 flex items-center justify-center overflow-hidden">
+                    {property.images?.[0] ? (
+                      <img src={property.images[0]} alt="" className="w-full h-full object-cover" />
+                    ) : (
+                      <span className="text-text-secondary/30 text-xs">N/A</span>
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0 grid grid-cols-2 md:grid-cols-5 gap-2 items-center">
+                    <div>
+                      <p className="text-[11px] text-text-secondary/50">{property.reference}</p>
+                      <p className="text-sm font-medium truncate">{property.title}</p>
+                    </div>
+                    <p className="text-xs text-text-secondary hidden md:block">{property.city}</p>
+                    <p className="text-xs text-text-secondary hidden md:block">
+                      {property.surface} m² · {property.rooms} pièces
+                      {property.bedrooms > 0 && ` · ${property.bedrooms} ch.`}
+                      {property.dpe && <span className="ml-1.5 inline-flex items-center justify-center w-4 h-4 rounded text-[8px] font-bold text-white bg-green-500">A</span>}
+                    </p>
+                    <p className="text-sm font-semibold text-accent">
+                      {property.prixSurDemande ? 'Sur demande' : `${property.price.toLocaleString()} MAD`}
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <span className={`inline-flex items-center px-2 py-0.5 text-[10px] font-medium rounded-md border ${
+                        STATUS_LABELS[property.status] ? STATUS_COLORS[property.status] :
+                        'bg-gray-50 text-gray-500 border-gray-200'
+                      }`}>
+                        {STATUS_LABELS[property.status] || property.status}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </Card>
+        )
+      ) : (
+        <Card className="p-12 text-center">
+          <div className="max-w-xs mx-auto">
+            <Search size={32} className="text-text-secondary/20 mx-auto mb-3" />
+            <p className="text-text-secondary font-medium">Aucun bien trouvé</p>
+            <p className="text-xs text-text-secondary/60 mt-1">
+              Essayez de modifier vos filtres ou d'ajouter un nouveau bien
+            </p>
+          </div>
         </Card>
       )}
     </div>
+    </ConfidentialProvider>
   );
 }

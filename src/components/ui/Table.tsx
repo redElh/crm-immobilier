@@ -1,129 +1,49 @@
-// src/components/ui/Table.tsx
 import * as React from "react";
 import { cn } from "../../lib/utils";
 
-interface TableProps extends React.HTMLAttributes<HTMLTableElement> {
-  className?: string;
-  children: React.ReactNode;
-  striped?: boolean;
-  hover?: boolean;
-}
-
-interface TableHeaderProps extends React.HTMLAttributes<HTMLTableSectionElement> {
-  className?: string;
-  children: React.ReactNode;
-}
-
-interface TableBodyProps extends React.HTMLAttributes<HTMLTableSectionElement> {
-  className?: string;
-  children: React.ReactNode;
-}
-
-interface TableRowProps extends React.HTMLAttributes<HTMLTableRowElement> {
-  className?: string;
-  children: React.ReactNode;
-}
-
-interface TableColumnProps extends React.ThHTMLAttributes<HTMLTableCellElement> {
-  className?: string;
-  children: React.ReactNode;
-  align?: "left" | "center" | "right";
-  width?: string | number;
-}
-
-interface TableCellProps extends React.TdHTMLAttributes<HTMLTableCellElement> {
-  className?: string;
-  children: React.ReactNode;
-  align?: "left" | "center" | "right";
-}
-
-const Table = ({ 
-  className, 
-  children, 
-  striped = true,
-  hover = true,
-  ...props 
-}: TableProps) => {
+const Table = ({ className, children, ...props }: React.HTMLAttributes<HTMLTableElement>) => {
   return (
-    <div className="overflow-x-auto rounded-lg border border-white/10 shadow-sm">
-      <table
-        className={cn(
-          "w-full border-collapse text-sm",
-          className
-        )}
-        {...props}
-      >
+    <div className="table-container">
+      <table className={cn("w-full border-collapse text-sm", className)} {...props}>
         {children}
       </table>
     </div>
   );
 };
 
-const Header = ({ className, children, ...props }: TableHeaderProps) => {
+const Header = ({ className, children, ...props }: React.HTMLAttributes<HTMLTableSectionElement>) => {
   return (
-    <thead
-      className={cn(
-        "bg-white/5 text-left font-medium text-b/80",
-        className
-      )}
-      {...props}
-    >
+    <thead className={cn("bg-background/50", className)} {...props}>
       {children}
     </thead>
   );
 };
 
-const Body = ({ className, children, ...props }: TableBodyProps) => {
+const Body = ({ className, children, ...props }: React.HTMLAttributes<HTMLTableSectionElement>) => {
   return (
-    <tbody
-      className={cn(
-        "divide-y divide-white/5",
-        className
-      )}
-      {...props}
-    >
+    <tbody className={cn("divide-y divide-border/40", className)} {...props}>
       {children}
     </tbody>
   );
 };
 
-const Row = ({ 
-  className, 
-  children, 
-  ...props 
-}: TableRowProps) => {
+const Row = ({ className, children, ...props }: React.HTMLAttributes<HTMLTableRowElement>) => {
   return (
-    <tr
-      className={cn(
-        "transition-colors hover:bg-white/5",
-        className
-      )}
-      {...props}
-    >
+    <tr className={cn("transition-colors hover:bg-background/50", className)} {...props}>
       {children}
     </tr>
   );
 };
 
-const Column = ({
-  className,
-  children,
-  align = "left",
-  width,
-  ...props
-}: TableColumnProps) => {
-  const alignment = {
-    left: "text-left",
-    center: "text-center",
-    right: "text-right",
-  };
+const Column = ({ className, children, align = "left", width, ...props }: any) => {
+  const alignment = { left: "text-left", center: "text-center", right: "text-right" };
 
   return (
     <th
       scope="col"
       className={cn(
-        "px-4 py-3 font-medium first:pl-6 last:pr-6",
-        alignment[align],
+        "px-4 py-3 text-xs font-semibold text-text-secondary uppercase tracking-wider first:pl-6 last:pr-6",
+        alignment[align as keyof typeof alignment],
         className
       )}
       style={{ width }}
@@ -134,23 +54,14 @@ const Column = ({
   );
 };
 
-const Cell = ({
-  className,
-  children,
-  align = "left",
-  ...props
-}: TableCellProps) => {
-  const alignment = {
-    left: "text-left",
-    center: "text-center",
-    right: "text-right",
-  };
+const Cell = ({ className, children, align = "left", ...props }: any) => {
+  const alignment = { left: "text-left", center: "text-center", right: "text-right" };
 
   return (
     <td
       className={cn(
-        "px-4 py-3 first:pl-6 last:pr-6",
-        alignment[align],
+        "px-4 py-3 text-sm first:pl-6 last:pr-6",
+        alignment[align as keyof typeof alignment],
         className
       )}
       {...props}
@@ -160,7 +71,6 @@ const Cell = ({
   );
 };
 
-// Assign subcomponents to Table
 Table.Header = Header;
 Table.Body = Body;
 Table.Row = Row;

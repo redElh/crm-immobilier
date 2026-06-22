@@ -3,7 +3,7 @@ import { BackLink } from '../ui/BackLink';
 
 interface ClientLayoutProps {
   children: ReactNode;
-  backToType?: string;  // <-- New prop
+  backToType?: string;
 }
 
 export const ClientLayout = ({ children, backToType }: ClientLayoutProps) => {
@@ -12,8 +12,8 @@ export const ClientLayout = ({ children, backToType }: ClientLayoutProps) => {
     : '/clients';
 
   return (
-    <div className="max-w-5xl mx-auto px-4 py-6">
-      <BackLink  className="mb-4" />
+    <div className="max-w-5xl mx-auto px-4 py-6 space-y-4">
+      <BackLink to={backLinkPath} />
       {children}
     </div>
   );

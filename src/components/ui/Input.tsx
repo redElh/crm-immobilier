@@ -1,49 +1,56 @@
 import React from "react";
 import { cn } from "../../lib/utils";
-import { Icon } from "./Icon"; // Make sure this path is correct
 
 interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   label?: string;
   error?: string;
-  icon?: string;
-  isActive?: boolean;
-  iconSize?: number; // Optional icon size prop
+  icon?: React.ReactNode;
 }
 
 export const Input = React.forwardRef<HTMLInputElement, InputProps>(
-  ({ className, type = "text", label, error, icon, isActive = false, iconSize = 16, ...props }, ref) => {
+  ({ className, type = "text", label, error, icon, ...props }, ref) => {
     return (
-      <div className="space-y-1 w-full">
+      <div className="space-y-1.5 w-full">
         {label && (
-          <label className="text-sm font-medium text-text/80">
+          <label className="text-sm font-medium text-text">
             {label}
-            {props.required && <span className="text-red-500 ml-1">*</span>}
+            {props.required && <span className="text-error ml-0.5">*</span>}
           </label>
         )}
         <div className="relative">
           {icon && (
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-              <Icon name={icon} className={`w-${iconSize} h-${iconSize} text-gray-400`} />
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-text-secondary">
+              {icon}
             </div>
           )}
           <input
             type={type}
             className={cn(
-              "flex h-10 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm ring-offset-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50",
-              error && "border-red-500 focus-visible:ring-red-400",
+              "w-full h-9 px-3 py-2 text-sm rounded-lg border bg-card",
+              "placeholder:text-text-secondary/40",
+              "focus:outline-none focus:ring-2 focus:ring-accent/15 focus:border-accent",
+              "disabled:opacity-50 disabled:cursor-not-allowed",
+              "transition-all duration-200 ease-out",
+              "hover:border-text-secondary/30",
+              error
+                ? "border-error focus:ring-error/15 focus:border-error"
+                : "border-border",
               icon && "pl-10",
               className
             )}
             ref={ref}
             {...props}
           />
+          <div className="absolute inset-0 rounded-lg pointer-events-none ring-0 transition-shadow duration-200 focus-within:ring-2 focus-within:ring-accent/15" />
         </div>
-        {isActive && (
-          <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-            <div className="h-2 w-2 rounded-full bg-accent animate-pulse"></div>
-          </div>
+        {error && (
+          <p className="text-xs text-error flex items-center gap-1 mt-1">
+            <svg xmlns="http://www.w3.org/2000/svg" className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+            </svg>
+            {error}
+          </p>
         )}
-        {error && <p className="text-xs text-red-500">{error}</p>}
       </div>
     );
   }
