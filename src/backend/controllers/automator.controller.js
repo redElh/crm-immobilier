@@ -1,5 +1,5 @@
 import pool from '../config/db.js';
-import bcrypt from 'bcrypt';
+import bcrypt from 'bcryptjs';
 import { checkAgentInactivityAndNotify } from '../services/inactivity.service.js';
 
 function rowToAutomator(row) {
