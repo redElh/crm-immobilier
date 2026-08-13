@@ -1,12 +1,54 @@
 export interface Mandat {
   id: string;
   clientType: 'Vendeur' | 'Bailleur' | 'Acheteur' | 'Locataire' | 'Voyageur';
-  status: 'Actif' | 'Expiré';
+  status: 'Actif' | 'Expiré' | 'En attente';
   startDate: string;
   endDate?: string;
   propertyType?: string;
   area?: string;
   notes?: string;
+  clientId?: string;
+  numeroMandat?: string;
+  typeMandat?: string;
+  statutMetier?: string;
+  statutMandat?: string;
+  dateSignature?: string;
+  conjoint?: string;
+  societe?: string;
+  bienConcerneId?: string;
+  dureeProtection?: string;
+  typeRemuneration?: string;
+  montantRemuneration?: number;
+  remunerationIsPercentage?: boolean;
+  conditionPaiement?: string;
+  agentDesigne?: string;
+  mandatPdfUrl?: string;
+  mandatPdfName?: string;
+  fraisMiseEnLocation?: number;
+  fraisEtatDesLieux?: number;
+  fraisRenouvellementBail?: number;
+  numeroReservation?: string;
+  statutReservation?: string;
+  dateReservation?: string;
+  dateArrivee?: string;
+  dateDepart?: string;
+  tarifNuit?: number;
+  bienReserve?: string;
+  nbNuits?: number;
+  nbAdultes?: number;
+  nbEnfants?: number;
+  montantTotalHorsOptions?: number;
+  montantTotalAvecOptions?: number;
+  acompteMontant?: number;
+  soldeRestant?: number;
+  cautionMontant?: number;
+  checkInHeure?: string;
+  checkOutHeure?: string;
+  contratPdfUrl?: string;
+  conditionAnnulation?: string;
+  optionsSelectionnees?: string[];
+  animauxAcceptes?: boolean;
+  fumeur?: boolean;
 }
 
 export interface Contact {
@@ -45,6 +87,8 @@ export interface Contact {
   // Interne
   commentairePrive?: string;
   originalProspectId?: string;
+  originalContactId?: string | null;
+  agentId?: string | number | null;
   // Mandats
   mandats: Mandat[];
   createdAt: string;

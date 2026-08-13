@@ -1,21 +1,16 @@
 {
-  "short_name": "React App",
-  "name": "Create React App Sample",
+  "short_name": "CRM Square Immo",
+  "name": "CRM Square Immo",
   "icons": [
     {
-      "src": "favicon.ico",
-      "sizes": "64x64 32x32 24x24 16x16",
-      "type": "image/x-icon"
+      "src": "CRM_Square_Immo_App_Image_192.png",
+      "type": "image/png",
+      "sizes": "768x768"
     },
     {
-      "src": "logo192.png",
+      "src": "CRM_Square_Immo_App_Image_512.png",
       "type": "image/png",
-      "sizes": "192x192"
-    },
-    {
-      "src": "logo512.png",
-      "type": "image/png",
-      "sizes": "512x512"
+      "sizes": "2048x2048"
     }
   ],
   "start_url": ".",

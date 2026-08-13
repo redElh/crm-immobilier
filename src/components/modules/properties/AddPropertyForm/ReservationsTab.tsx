@@ -1,16 +1,19 @@
-import { useState } from 'react';
-import { motion } from 'framer-motion';
+import { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Icon } from '../../../../components/ui/Icon';
+import { Badge } from '../../../../components/ui/Badge';
 import { Button } from '../../../../components/ui/Button';
 import { DatePicker } from '../../../../components/ui/DatePicker';
 import { MotionCard } from '../../../../components/ui/Card';
 import { VoyageurFormModal } from '../../clients/VoyageurFormModal';
 import { Client } from '../../../../types/client';
+import { fetchReservations } from '../../../../services/reservationService';
 
 interface ReservationsTabProps {
-  register: any;
-  control: any;
-  watch: any;
+  register?: any;
+  control?: any;
+  watch?: any;
+  propertyId?: string | null;
 }
 
 type ReservationStatus = 'option' | 'confirme' | 'annule' | 'occupe';
@@ -27,11 +30,25 @@ interface Reservation {
   status: ReservationStatus;
 }
 
-const statusConfig: Record<ReservationStatus, { label: string; color: string; bg: string }> = {
-  option: { label: 'Option', color: 'text-amber-700', bg: 'bg-amber-100' },
-  confirme: { label: 'Confirmé', color: 'text-green-700', bg: 'bg-green-100' },
-  annule: { label: 'Annulé', color: 'text-red-700', bg: 'bg-red-100' },
-  occupe: { label: 'Occupé', color: 'text-blue-700', bg: 'bg-blue-100' },
+const statusLabels: Record<ReservationStatus, string> = {
+  option: 'Option',
+  confirme: 'Confirmé',
+  annule: 'Annulé',
+  occupe: 'Occupé',
+};
+
+const statusColors: Record<ReservationStatus, string> = {
+  option: 'bg-amber-100 text-amber-700',
+  confirme: 'bg-emerald-100 text-emerald-700',
+  annule: 'bg-red-100 text-red-700',
+  occupe: 'bg-blue-100 text-blue-700',
+};
+
+const statusDotColors: Record<ReservationStatus, string> = {
+  option: 'bg-amber-500',
+  confirme: 'bg-emerald-500',
+  annule: 'bg-red-400',
+  occupe: 'bg-blue-500',
 };
 
 const MOCK_VOYAGEURS: { name: string; email: string; telephone: string }[] = [
@@ -42,31 +59,35 @@ const MOCK_VOYAGEURS: { name: string; email: string; telephone: string }[] = [
   { name: 'Pierre Petit', email: 'pierre.petit@email.com', telephone: '+212 6 00 00 00 05' },
 ];
 
-export function ReservationsTab({ register, control, watch }: ReservationsTabProps) {
-  const [reservations, setReservations] = useState<Reservation[]>([
-    {
-      id: '1',
-      voyageur: 'Jean Dupont',
-      email: 'jean.dupont@email.com',
-      telephone: '+212 6 00 00 00 01',
-      arrivee: '2026-07-15',
-      depart: '2026-07-22',
-      nuits: 7,
-      montant: 3500,
-      status: 'confirme',
-    },
-    {
-      id: '2',
-      voyageur: 'Marie Martin',
-      email: 'marie.martin@email.com',
-      telephone: '+212 6 00 00 00 02',
-      arrivee: '2026-08-01',
-      depart: '2026-08-08',
-      nuits: 7,
-      montant: 4200,
-      status: 'option',
-    },
-  ]);
+function formatDateShort(dateStr: string): string {
+  if (!dateStr) return '';
+  const d = new Date(dateStr + 'T00:00:00');
+  return d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+}
+
+export function ReservationsTab({ register, control, watch, propertyId }: ReservationsTabProps) {
+  const [reservations, setReservations] = useState<Reservation[]>([]);
+
+  useEffect(() => {
+    if (propertyId) {
+      fetchReservations({ property_id: String(propertyId) })
+        .then(data => {
+          if (!Array.isArray(data)) { setReservations([]); return; }
+          setReservations(data.map((r: any) => ({
+            id: r.id,
+            voyageur: r.clientName || '',
+            email: r.email || '',
+            telephone: r.phone || '',
+            arrivee: r.startDate || '',
+            depart: r.endDate || '',
+            nuits: r.nights || 0,
+            montant: r.grandTotal || 0,
+            status: r.status === 'confirmed' ? 'confirme' : r.status === 'cancelled' ? 'annule' : r.status === 'occupied' ? 'occupe' : 'option',
+          })));
+        })
+        .catch(() => {});
+    }
+  }, [propertyId]);
 
   const [showForm, setShowForm] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
@@ -75,6 +96,7 @@ export function ReservationsTab({ register, control, watch }: ReservationsTabPro
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [selectedVoyageur, setSelectedVoyageur] = useState<string | null>(null);
   const [showVoyageurModal, setShowVoyageurModal] = useState(false);
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
 
   const filteredVoyageurs = voyageurSearch.length > 0
     ? MOCK_VOYAGEURS.filter(v =>
@@ -85,10 +107,12 @@ export function ReservationsTab({ register, control, watch }: ReservationsTabPro
 
   const deleteReservation = (id: string) => {
     setReservations(prev => prev.filter(r => r.id !== id));
+    setOpenMenuId(null);
   };
 
   const changeStatus = (id: string, status: ReservationStatus) => {
     setReservations(prev => prev.map(r => r.id === id ? { ...r, status } : r));
+    setOpenMenuId(null);
   };
 
   const openNew = () => {
@@ -105,6 +129,7 @@ export function ReservationsTab({ register, control, watch }: ReservationsTabPro
     setVoyageurSearch(r.voyageur);
     setSelectedVoyageur(r.voyageur);
     setShowForm(true);
+    setOpenMenuId(null);
   };
 
   const selectVoyageur = (v: { name: string; email: string; telephone: string }) => {
@@ -316,92 +341,96 @@ export function ReservationsTab({ register, control, watch }: ReservationsTabPro
           </motion.div>
         )}
 
-        <div className="overflow-x-auto rounded-lg border border-border/30">
-          <table className="w-full border-collapse text-sm">
-            <thead>
-              <tr className="bg-background/50">
-                <th className="p-3 text-left text-xs font-semibold text-text-secondary uppercase tracking-wider">Voyageur</th>
-                <th className="p-3 text-left text-xs font-semibold text-text-secondary uppercase tracking-wider">Contact</th>
-                <th className="p-3 text-left text-xs font-semibold text-text-secondary uppercase tracking-wider">Arrivée</th>
-                <th className="p-3 text-left text-xs font-semibold text-text-secondary uppercase tracking-wider">Départ</th>
-                <th className="p-3 text-center text-xs font-semibold text-text-secondary uppercase tracking-wider">Nuitées</th>
-                <th className="p-3 text-right text-xs font-semibold text-text-secondary uppercase tracking-wider">Montant</th>
-                <th className="p-3 text-center text-xs font-semibold text-text-secondary uppercase tracking-wider">Statut</th>
-                <th className="p-3 text-center text-xs font-semibold text-text-secondary uppercase tracking-wider">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border/30">
-              {reservations.length === 0 ? (
-                <tr>
-                  <td colSpan={8} className="p-6 text-center text-text-secondary">
-                    Aucune réservation pour le moment
-                  </td>
-                </tr>
-              ) : (
-                reservations.map(r => {
-                  const cfg = statusConfig[r.status];
-                  return (
-                    <tr key={r.id} className="hover:bg-background/30 transition-colors">
-                      <td className="p-3 font-medium text-text">{r.voyageur}</td>
-                      <td className="p-3">
-                        <div className="text-text">{r.email}</div>
-                        <div className="text-xs text-text-secondary">{r.telephone}</div>
-                      </td>
-                      <td className="p-3 text-text">{r.arrivee}</td>
-                      <td className="p-3 text-text">{r.depart}</td>
-                      <td className="p-3 text-center text-text">{r.nuits}</td>
-                      <td className="p-3 text-right text-text font-medium">{r.montant.toLocaleString('fr-FR')} MAD</td>
-                      <td className="p-3 text-center">
-                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${cfg.bg} ${cfg.color}`}>
-                          {cfg.label}
-                        </span>
-                      </td>
-                      <td className="p-3">
-                        <div className="flex items-center justify-center gap-1">
-                          <select
-                            className="text-xs rounded border border-border/30 bg-card px-1.5 py-1 text-text focus:outline-none"
-                            value={r.status}
-                            onChange={e => changeStatus(r.id, e.target.value as ReservationStatus)}
-                          >
-                            <option value="option">Option</option>
-                            <option value="confirme">Confirmé</option>
-                            <option value="annule">Annulé</option>
-                            <option value="occupe">Occupé</option>
-                          </select>
+        <div className="space-y-1.5">
+          {reservations.length === 0 ? (
+            <p className="text-sm text-text-secondary text-center py-6">
+              Aucune réservation pour le moment
+            </p>
+          ) : (
+            reservations.map(r => (
+              <div
+                key={r.id}
+                className="flex items-center justify-between text-sm p-2.5 rounded-lg bg-background cursor-pointer hover:bg-border/30 transition-colors"
+                onClick={() => openEdit(r)}
+              >
+                <div className="flex items-center gap-2.5">
+                  <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${statusDotColors[r.status]}`} />
+                  <div>
+                    <span className="font-medium text-text">{r.voyageur}</span>
+                    <span className="text-xs text-text-secondary ml-2">{r.email}</span>
+                    {r.telephone && <span className="text-xs text-text-secondary ml-2">{r.telephone}</span>}
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className="text-xs text-text-secondary">
+                    {formatDateShort(r.arrivee)} → {formatDateShort(r.depart)} · {r.nuits} nuits
+                  </span>
+                  <span className="text-xs font-medium text-text">{r.montant.toLocaleString('fr-FR')} MAD</span>
+                  <Badge className={statusColors[r.status]} size="sm">{statusLabels[r.status]}</Badge>
+                  <div className="relative">
+                    <button
+                      type="button"
+                      className="p-1 rounded hover:bg-background/60 text-text-secondary hover:text-text transition-colors"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setOpenMenuId(openMenuId === r.id ? null : r.id);
+                      }}
+                    >
+                      <Icon name="more-vertical" className="w-4 h-4" />
+                    </button>
+                    <AnimatePresence>
+                      {openMenuId === r.id && (
+                        <motion.div
+                          initial={{ opacity: 0, scale: 0.95 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          exit={{ opacity: 0, scale: 0.95 }}
+                          className="absolute z-30 right-0 top-full mt-1 w-40 bg-card rounded-lg border border-border/50 shadow-dropdown py-1"
+                        >
                           <button
                             type="button"
-                            className="p-1 px-2 rounded hover:bg-background/50 text-xs text-text-secondary hover:text-text transition-colors"
-                            onClick={() => openEdit(r)}
-                            title="Modifier"
+                            className="w-full px-3 py-2 text-sm text-left hover:bg-background transition-colors"
+                            onClick={(e) => { e.stopPropagation(); openEdit(r); }}
                           >
-                            Éditer
+                            Modifier
                           </button>
+                          <div className="px-3 py-1.5 text-[10px] font-medium text-text-secondary/60 uppercase tracking-wider">Changer le statut</div>
+                          {(['option', 'confirme', 'annule', 'occupe'] as ReservationStatus[]).filter(s => s !== r.status).map(s => (
+                            <button
+                              key={s}
+                              type="button"
+                              className="w-full px-3 py-1.5 text-sm text-left hover:bg-background transition-colors flex items-center gap-2"
+                              onClick={(e) => { e.stopPropagation(); changeStatus(r.id, s); }}
+                            >
+                              <span className={`w-2 h-2 rounded-full ${statusDotColors[s]}`} />
+                              {statusLabels[s]}
+                            </button>
+                          ))}
+                          <div className="border-t border-border/30 my-1" />
                           <button
                             type="button"
-                            className="p-1 rounded hover:bg-background/50 text-text-secondary hover:text-red-600 transition-colors"
-                            onClick={() => deleteReservation(r.id)}
-                            title="Supprimer"
+                            className="w-full px-3 py-2 text-sm text-left hover:bg-background transition-colors text-red-600"
+                            onClick={(e) => { e.stopPropagation(); deleteReservation(r.id); }}
                           >
-                            <Icon name="trash-2" className="w-3.5 h-3.5" />
+                            Supprimer
                           </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6">
           {(['option', 'confirme', 'annule', 'occupe'] as ReservationStatus[]).map(s => {
             const count = reservations.filter(r => r.status === s).length;
-            const cfg = statusConfig[s];
+            const cfg = statusColors[s];
             return (
-              <div key={s} className={`rounded-lg border border-border/30 p-4 ${cfg.bg}/30`}>
-                <div className={`text-2xl font-bold ${cfg.color}`}>{count}</div>
-                <div className="text-sm text-text-secondary mt-0.5">{cfg.label}</div>
+              <div key={s} className={`rounded-lg border border-border/30 p-4 ${cfg}/30`}>
+                <div className="text-2xl font-bold" style={{ color: statusDotColors[s].replace('bg-', '') }}>{count}</div>
+                <div className="text-sm text-text-secondary mt-0.5">{statusLabels[s]}</div>
               </div>
             );
           })}

@@ -1,6 +1,8 @@
+import { TrendingUp, Key, Sun } from 'react-feather'
+
 export type ContractType = 'vente' | 'location_classique' | 'location_saisonniere'
 
-export type ContractStatus = 'en_cours' | 'confirme_actif' | 'finalise_termine' | 'annule'
+export type ContractStatus = 'en_cours' | 'confirme_actif' | 'paye' | 'occupe' | 'finalise_termine' | 'annule'
 
 export type VenteEtape = 'offre' | 'reservation' | 'compromis' | 'acte_authentique'
 
@@ -100,9 +102,49 @@ export const CONTRACT_TYPE_LABELS: Record<ContractType, string> = {
   location_saisonniere: 'Location saisonnière',
 }
 
+export const CONTRACT_TYPE_CONFIG: Record<ContractType, {
+  label: string
+  shortLabel: string
+  accent: string
+  accentBg: string
+  accentBorder: string
+  gradient: string
+  icon: any
+}> = {
+  vente: {
+    label: 'Vente',
+    shortLabel: 'VTE',
+    accent: 'text-blue-600',
+    accentBg: 'bg-blue-50',
+    accentBorder: 'border-l-blue-500',
+    gradient: 'from-blue-500/5',
+    icon: TrendingUp,
+  },
+  location_classique: {
+    label: 'Location classique',
+    shortLabel: 'LOC',
+    accent: 'text-emerald-600',
+    accentBg: 'bg-emerald-50',
+    accentBorder: 'border-l-emerald-500',
+    gradient: 'from-emerald-500/5',
+    icon: Key,
+  },
+  location_saisonniere: {
+    label: 'Location saisonnière',
+    shortLabel: 'SAI',
+    accent: 'text-violet-600',
+    accentBg: 'bg-violet-50',
+    accentBorder: 'border-l-violet-500',
+    gradient: 'from-violet-500/5',
+    icon: Sun,
+  },
+}
+
 export const CONTRACT_STATUS_LABELS: Record<ContractStatus, string> = {
   en_cours: 'En cours',
   confirme_actif: 'Confirmé / Actif',
+  paye: 'Payée',
+  occupe: 'Occupé',
   finalise_termine: 'Finalisé / Terminé',
   annule: 'Annulé',
 }
@@ -110,6 +152,8 @@ export const CONTRACT_STATUS_LABELS: Record<ContractStatus, string> = {
 export const CONTRACT_STATUS_COLORS: Record<ContractStatus, string> = {
   en_cours: 'bg-amber-500/10 text-amber-500 border-amber-500/20',
   confirme_actif: 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20',
+  paye: 'bg-violet-500/10 text-violet-500 border-violet-500/20',
+  occupe: 'bg-teal-500/10 text-teal-500 border-teal-500/20',
   finalise_termine: 'bg-blue-500/10 text-blue-500 border-blue-500/20',
   annule: 'bg-red-500/10 text-red-500 border-red-500/20',
 }

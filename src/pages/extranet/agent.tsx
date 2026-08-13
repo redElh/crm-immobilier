@@ -1,21 +1,26 @@
-import { useState, useMemo, useCallback } from 'react'
+import { useState, useMemo, useCallback, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
-  Globe, Search, X, ChevronDown, Send, Eye, User,
-  BarChart2, Activity, MoreVertical, RefreshCw,
+  Eye, Search, X, ChevronDown, Send, Mail, Calendar,
+  BarChart2, Activity, User, Users, Clock, Smartphone,
+  Globe, CheckCircle, XCircle, Star, Circle, Radio,
+  ChevronRight, TrendingUp, TrendingDown, BarChart,
 } from 'react-feather'
+import {
+  BarChart as ReBarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell,
+  PieChart as RePieChart, Pie,
+} from 'recharts'
 import Card from '../../components/ui/Card'
 import { Button } from '../../components/ui/Button'
 import { Dialog } from '../../components/ui/Dialog'
 import {
-  mockClients, allLogs, getClientLogs,
+  mockClients, allLogs, getClientLogs, getPropertyViews, STATUS_COLORS,
   computeActivityBadge, ACTIVITY_BADGE_CONFIG,
 } from '../../types/extranet'
-import type { ExtranetClient, ClientType, ActionType, AccessStatus, ConnectionLog } from '../../types/extranet'
+import type { ExtranetClient, ClientType, ActionType, AccessStatus, ConnectionLog, PropertyView } from '../../types/extranet'
 
 const CURRENT_AGENT = 'Karim Eloui'
 
-const ACTIONS: ActionType[] = ['Connexion', 'Visite', 'Proposition', 'Telechargement']
 const CLIENT_TYPES: ClientType[] = ['Vendeur', 'Acheteur', 'Bailleur', 'Locataire', 'Voyageur']
 const ACTION_LABELS: Record<ActionType, string> = {
   Connexion: 'Connexion',
@@ -32,17 +37,11 @@ const ACTION_COLORS: Record<ActionType, string> = {
 }
 
 const CLIENT_TYPE_COLORS: Record<ClientType, string> = {
-  Vendeur: 'bg-blue-500',
-  Acheteur: 'bg-emerald-500',
-  Bailleur: 'bg-amber-500',
-  Locataire: 'bg-violet-500',
-  Voyageur: 'bg-rose-500',
-}
-
-const STATUS_COLORS: Record<AccessStatus, string> = {
-  actif: 'text-emerald-500',
-  inactif: 'text-amber-500',
-  bloque: 'text-red-500',
+  Vendeur: '#3B82F6',
+  Acheteur: '#10B981',
+  Bailleur: '#F59E0B',
+  Locataire: '#8B5CF6',
+  Voyageur: '#F43F5E',
 }
 
 function formatDate(d: string) {
@@ -55,9 +54,106 @@ function formatDateShort(d: string) {
   return new Date(d).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' })
 }
 
+function formatTimeAgo(d: string) {
+  if (!d) return 'Jamais'
+  const diff = Date.now() - new Date(d).getTime()
+  const mins = Math.floor(diff / 60000)
+  if (mins < 1) return "A l'instant"
+  if (mins < 60) return `il y a ${mins} min`
+  const hours = Math.floor(mins / 60)
+  if (hours < 24) return `il y a ${hours}h`
+  const days = Math.floor(hours / 24)
+  return `il y a ${days}j`
+}
+
 function formatTime(d: string) {
   if (!d) return '\u2014'
   return new Date(d).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+}
+
+function AnimatedCounter({ value, duration = 1200 }: { value: number; duration?: number }) {
+  const [display, setDisplay] = useState(0)
+  const ref = useRef<number | null>(null)
+
+  useEffect(() => {
+    const start = performance.now()
+    const animate = (now: number) => {
+      const elapsed = now - start
+      const progress = Math.min(elapsed / duration, 1)
+      const eased = 1 - Math.pow(1 - progress, 3)
+      setDisplay(Math.round(eased * value))
+      if (progress < 1) {
+        ref.current = requestAnimationFrame(animate)
+      }
+    }
+    ref.current = requestAnimationFrame(animate)
+    return () => { if (ref.current) cancelAnimationFrame(ref.current) }
+  }, [value, duration])
+
+  return <>{display}</>
+}
+
+function StatCard({ icon: Icon, label, value, sub, trend, color = 'accent' }: {
+  icon: any; label: string; value: string | number; sub?: string; trend?: { value: string; up: boolean }; color?: string
+}) {
+  const colorMap: Record<string, string> = {
+    accent: 'bg-accent/10 text-accent',
+    emerald: 'bg-emerald-500/10 text-emerald-500',
+    indigo: 'bg-indigo-500/10 text-indigo-500',
+    amber: 'bg-amber-500/10 text-amber-500',
+    red: 'bg-red-500/10 text-red-500',
+  }
+  return (
+    <Card className="p-4 flex items-center gap-4 hover:shadow-md transition-shadow duration-300">
+      <div className={`w-11 h-11 rounded-xl ${colorMap[color] || colorMap.accent} flex items-center justify-center flex-shrink-0`}>
+        <Icon size={20} />
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-2xl font-bold text-text">
+          {typeof value === 'number' ? <AnimatedCounter value={value} /> : value}
+        </p>
+        <p className="text-xs text-text-secondary truncate">{label}</p>
+        {sub && <p className="text-[10px] text-text-secondary/60 mt-0.5 truncate">{sub}</p>}
+        {trend && (
+          <p className={`text-[11px] font-medium mt-0.5 flex items-center gap-1 ${trend.up ? 'text-emerald-600' : 'text-red-500'}`}>
+            {trend.up ? <TrendingUp size={11} /> : <TrendingDown size={11} />}
+            {trend.value}
+          </p>
+        )}
+      </div>
+    </Card>
+  )
+}
+
+function ClientActivityBar({ percentage }: { percentage: number }) {
+  const color = percentage >= 70 ? '#10B981' : percentage >= 40 ? '#F59E0B' : '#EF4444'
+  return (
+    <div className="w-full h-1.5 bg-background rounded-full overflow-hidden">
+      <motion.div
+        initial={{ width: 0 }}
+        animate={{ width: `${percentage}%` }}
+        transition={{ duration: 1, ease: 'easeOut' }}
+        className="h-full rounded-full"
+        style={{ backgroundColor: color }}
+      />
+    </div>
+  )
+}
+
+const CustomTooltip = ({ active, payload, label }: any) => {
+  if (active && payload && payload.length) {
+    return (
+      <div className="bg-card border border-border/50 rounded-lg shadow-lg p-3 text-xs">
+        <p className="font-medium text-text mb-1">{label}</p>
+        {payload.map((entry: any, index: number) => (
+          <p key={index} className="text-text-secondary" style={{ color: entry.color }}>
+            {entry.name}: {entry.value}
+          </p>
+        ))}
+      </div>
+    )
+  }
+  return null
 }
 
 export default function AgentExtranetPage() {
@@ -68,6 +164,7 @@ export default function AgentExtranetPage() {
 
   const [detailClient, setDetailClient] = useState<ExtranetClient | null>(null)
   const [detailLogs, setDetailLogs] = useState<ConnectionLog[]>([])
+  const [detailProperties, setDetailProperties] = useState<PropertyView[]>([])
 
   const [reminderClient, setReminderClient] = useState<ExtranetClient | null>(null)
   const [sendToAgent, setSendToAgent] = useState(false)
@@ -88,16 +185,43 @@ export default function AgentExtranetPage() {
     })
   }, [search, selectedTypes, selectedStatuses, agentClients])
 
-  const totalConns = filtered.reduce((s, c) => s + c.totalConnections, 0)
+  const activeClients = useMemo(() => filtered.filter(c => c.status === 'actif'), [filtered])
+  const inactiveClients = useMemo(() => filtered.filter(c => c.status !== 'actif'), [filtered])
+
+  const stats = useMemo(() => {
+    const totalConns = agentClients.reduce((s, c) => s + c.totalConnections, 0)
+    const actifs = agentClients.filter(c => c.status === 'actif').length
+    const inactifs = agentClients.filter(c => c.status === 'inactif' || c.status === 'bloque').length
+    const avgActivity = agentClients.length > 0
+      ? Math.round(agentClients.reduce((s, c) => s + (c.activityPercentage || 0), 0) / agentClients.length)
+      : 0
+    return { totalConns, actifs, inactifs, avgActivity }
+  }, [agentClients])
+
+  const repartitionData = useMemo(() => {
+    const total = agentClients.length
+    if (total === 0) return []
+    return CLIENT_TYPES.map(type => {
+      const count = agentClients.filter(c => c.type === type).length
+      return {
+        name: type,
+        value: count,
+        percentage: Math.round((count / total) * 100),
+        fill: CLIENT_TYPE_COLORS[type],
+      }
+    }).filter(r => r.value > 0)
+  }, [agentClients])
 
   const openDetail = useCallback((c: ExtranetClient) => {
     setDetailClient(c)
     setDetailLogs(getClientLogs(c.id))
+    setDetailProperties(getPropertyViews(c.id))
   }, [])
 
   const closeDetail = useCallback(() => {
     setDetailClient(null)
     setDetailLogs([])
+    setDetailProperties([])
   }, [])
 
   return (
@@ -105,12 +229,12 @@ export default function AgentExtranetPage() {
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-accent/10 flex items-center justify-center">
-            <Globe size={20} className="text-accent" />
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg shadow-indigo-500/20">
+            <Eye size={20} className="text-white" />
           </div>
           <div>
-            <h1 className="text-xl font-bold">Extranet</h1>
-            <p className="text-sm text-text-secondary">Clients ayant acces a leur espace personnel</p>
+            <h1 className="text-xl font-bold tracking-tight">SQUAREPEEK</h1>
+            <p className="text-sm text-text-secondary">Espionnage commercial &middot; Suivi des activites de vos clients sur Squaremeter</p>
           </div>
         </div>
         <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-accent/5 border border-accent/20 text-xs text-accent font-medium">
@@ -119,45 +243,152 @@ export default function AgentExtranetPage() {
         </div>
       </div>
 
-      {/* Quick summary */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card className="p-4 flex items-center gap-4">
-          <div className="w-11 h-11 rounded-xl bg-accent/10 flex items-center justify-center flex-shrink-0">
-            <User size={20} className="text-accent" />
-          </div>
-          <div>
-            <p className="text-2xl font-bold text-text">{agentClients.length}</p>
-            <p className="text-xs text-text-secondary">Clients extranet</p>
+      {/* Personal Stats */}
+      <Card className="p-5 border-l-4 border-l-indigo-500">
+        <h3 className="text-sm font-semibold flex items-center gap-2 mb-4 text-text">
+          <BarChart size={14} className="text-indigo-500" />
+          Statistiques personnelles
+        </h3>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <StatCard icon={Users} label="Clients actifs" value={stats.actifs} sub={`sur ${agentClients.length} clients`} color="emerald" trend={{ value: '+20%', up: true }} />
+          <StatCard icon={Activity} label="Connexions ce mois" value={stats.totalConns} sub="Tous clients" color="indigo" trend={{ value: '+30%', up: true }} />
+          <StatCard icon={BarChart2} label="Activite moyenne" value={`${stats.avgActivity}%`} sub="Taux d'engagement" color="amber" trend={{ value: '+8%', up: true }} />
+          <StatCard icon={Users} label="Clients inactifs" value={stats.inactifs} sub="Sans activite recente" color="red" trend={{ value: '-10%', up: false }} />
+        </div>
+      </Card>
+
+      {/* Active Clients List */}
+      <Card className="p-5 border-l-4 border-l-emerald-500">
+        <h3 className="text-sm font-semibold flex items-center gap-2 mb-4 text-text">
+          <Radio size={14} className="text-emerald-500" />
+          Mes clients actives ({activeClients.length})
+        </h3>
+        <div className="space-y-3">
+          {activeClients.length === 0 ? (
+            <p className="text-sm text-text-secondary/60 py-8 text-center">Aucun client actif</p>
+          ) : (
+            activeClients.map((c, i) => (
+              <motion.div
+                key={c.id}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: i * 0.05 }}
+                className="p-4 rounded-xl border border-border/50 hover:border-emerald-500/30 hover:shadow-md transition-all duration-300 bg-card"
+              >
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex items-start gap-3 flex-1 min-w-0">
+                    <div className="relative mt-0.5">
+                      <div className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
+                      {c.isLive && (
+                        <div className="absolute inset-0 w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping" />
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-semibold text-text">{c.name}</p>
+                        <span className="text-[10px] px-1.5 py-0.5 rounded-md font-medium text-white" style={{ backgroundColor: CLIENT_TYPE_COLORS[c.type] }}>
+                          {c.type}
+                        </span>
+                      </div>
+                      <p className="text-xs text-text-secondary mt-0.5">
+                        Derniere connexion : {formatTimeAgo(c.lastDate)}
+                      </p>
+                      <div className="flex items-center gap-3 mt-1.5 text-[11px] text-text-secondary/70">
+                        <span className="flex items-center gap-1"><Smartphone size={11} /> {c.lastBrowser}/{c.lastOs}</span>
+                        <span className="flex items-center gap-1"><Globe size={11} /> {c.lastIp}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <Button size="sm" variant="outline" icon={<Eye size={12} />} onClick={() => openDetail(c)}>
+                      Voir details
+                    </Button>
+                    <Button size="sm" variant="outline" icon={<Mail size={12} />} onClick={() => setReminderClient(c)}>
+                      Contacter
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Activity details */}
+                <div className="mt-3 pt-3 border-t border-border/30">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-[11px] text-text-secondary flex items-center gap-1">
+                      <BarChart2 size={10} /> Activite : {c.activityPercentage || 0}%
+                    </span>
+                    <span className="text-[10px] text-text-secondary/60">
+                      {c.pagesConsulted || 0} pages &middot; {c.propertiesViewed || 0} biens consultes
+                    </span>
+                  </div>
+                  <ClientActivityBar percentage={c.activityPercentage || 0} />
+                  {c.isLive && c.currentActivity && (
+                    <div className="mt-2 flex items-center gap-1.5 text-[11px] text-emerald-600 font-medium">
+                      <Radio size={10} className="animate-pulse" />
+                      En direct : {c.currentActivity}
+                    </div>
+                  )}
+                </div>
+              </motion.div>
+            ))
+          )}
+        </div>
+      </Card>
+
+      {/* Inactive Clients */}
+      {inactiveClients.length > 0 && (
+        <Card className="p-5 border-l-4 border-l-amber-500">
+          <h3 className="text-sm font-semibold flex items-center gap-2 mb-4 text-text">
+            <Clock size={14} className="text-amber-500" />
+            Clients inactifs ({inactiveClients.length})
+          </h3>
+          <div className="space-y-2">
+            {inactiveClients.map((c, i) => (
+              <motion.div
+                key={c.id}
+                initial={{ opacity: 0, y: 4 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: i * 0.05 }}
+                className="flex items-center gap-3 p-3 rounded-lg bg-background/50 hover:bg-background transition-colors cursor-pointer"
+                onClick={() => openDetail(c)}
+              >
+                <div className="w-2 h-2 rounded-full bg-amber-400 flex-shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-text">{c.name}</p>
+                  <p className="text-[10px] text-text-secondary/60">{c.type} &middot; {c.product}</p>
+                </div>
+                <span className="text-[10px] text-text-secondary/60">{c.totalConnections} connexions</span>
+                <ChevronRight size={14} className="text-text-secondary/40" />
+              </motion.div>
+            ))}
           </div>
         </Card>
-        <Card className="p-4 flex items-center gap-4">
-          <div className="w-11 h-11 rounded-xl bg-emerald-500/10 flex items-center justify-center flex-shrink-0">
-            <Activity size={20} className="text-emerald-500" />
+      )}
+
+      {/* Activity by Client Type - Recharts */}
+      <Card className="p-5 border-l-4 border-l-violet-500">
+        <h3 className="text-sm font-semibold flex items-center gap-2 mb-4 text-text">
+          <BarChart size={14} className="text-violet-500" />
+          Activite par type de client
+        </h3>
+        {repartitionData.length > 0 ? (
+          <div className="h-64">
+            <ResponsiveContainer width="100%" height="100%">
+              <ReBarChart data={repartitionData} layout="vertical" margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(0,0,0,0.06)" horizontal={false} />
+                <XAxis type="number" tick={{ fontSize: 11, fill: '#6B7280' }} />
+                <YAxis type="category" dataKey="name" tick={{ fontSize: 11, fill: '#374151' }} width={80} />
+                <Tooltip content={<CustomTooltip />} />
+                <Bar dataKey="value" name="Clients" radius={[0, 6, 6, 0]} animationDuration={1200} animationBegin={200}>
+                  {repartitionData.map((entry, index) => (
+                    <Cell key={entry.name} fill={entry.fill} />
+                  ))}
+                </Bar>
+              </ReBarChart>
+            </ResponsiveContainer>
           </div>
-          <div>
-            <p className="text-2xl font-bold text-text">{agentClients.filter(c => c.status === 'actif').length}</p>
-            <p className="text-xs text-text-secondary">Actifs</p>
-          </div>
-        </Card>
-        <Card className="p-4 flex items-center gap-4">
-          <div className="w-11 h-11 rounded-xl bg-amber-500/10 flex items-center justify-center flex-shrink-0">
-            <BarChart2 size={20} className="text-amber-500" />
-          </div>
-          <div>
-            <p className="text-2xl font-bold text-text">{totalConns}</p>
-            <p className="text-xs text-text-secondary">Connexions totales</p>
-          </div>
-        </Card>
-        <Card className="p-4 flex items-center gap-4">
-          <div className="w-11 h-11 rounded-xl bg-red-500/10 flex items-center justify-center flex-shrink-0">
-            <X size={20} className="text-red-500" />
-          </div>
-          <div>
-            <p className="text-2xl font-bold text-text">{agentClients.filter(c => c.status === 'inactif').length}</p>
-            <p className="text-xs text-text-secondary">Inactifs</p>
-          </div>
-        </Card>
-      </div>
+        ) : (
+          <p className="text-sm text-text-secondary/60 py-8 text-center">Aucune donnee</p>
+        )}
+      </Card>
 
       {/* Filters */}
       <Card className="overflow-hidden">
@@ -212,94 +443,6 @@ export default function AgentExtranetPage() {
         </AnimatePresence>
       </Card>
 
-      {/* Table */}
-      <Card className="overflow-hidden">
-        <div className="flex items-center justify-between px-5 py-3 border-b border-border/50">
-          <p className="text-sm font-medium flex items-center gap-2">
-            <Activity size={14} className="text-accent" />
-            Mes clients extranet
-            <span className="text-xs text-text-secondary font-normal">({filtered.length} client{filtered.length > 1 ? 's' : ''})</span>
-          </p>
-        </div>
-        <div className="overflow-x-auto scrollbar-thin">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="bg-background border-b border-border/50 text-[11px]">
-                <th className="text-left px-4 py-2.5 font-medium text-text-secondary">Contact</th>
-                <th className="text-left px-4 py-2.5 font-medium text-text-secondary">Produit</th>
-                <th className="text-left px-4 py-2.5 font-medium text-text-secondary">Type</th>
-                <th className="text-center px-4 py-2.5 font-medium text-text-secondary">Acces</th>
-                <th className="text-left px-4 py-2.5 font-medium text-text-secondary">Activite</th>
-                <th className="text-left px-4 py-2.5 font-medium text-text-secondary">Derniere action</th>
-                <th className="w-10 px-4 py-2.5" />
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border/30">
-              {filtered.length === 0 ? (
-                <tr><td colSpan={7} className="px-4 py-16 text-center text-text-secondary text-sm">Aucun resultat</td></tr>
-              ) : (
-                filtered.map((c, i) => {
-                  const badge = computeActivityBadge(c.totalConnections, c.status)
-                  const badgeCfg = ACTIVITY_BADGE_CONFIG[badge]
-                  return (
-                    <motion.tr key={c.id} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.03 }}
-                      className="hover:bg-background/50 transition-colors cursor-pointer" onClick={() => openDetail(c)}>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-2">
-                          <span className={`w-2 h-2 rounded-full ${c.status === 'actif' ? 'bg-emerald-500' : c.status === 'inactif' ? 'bg-amber-400' : 'bg-red-500'}`} />
-                          <div>
-                            <p className="text-sm font-medium text-text">{c.name}</p>
-                            <p className="text-[10px] text-text-secondary/60 font-mono">{c.lastIp}</p>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3">
-                        <p className="text-sm text-text">{c.product}</p>
-                        {c.lastBrowser !== '-' && <p className="text-[10px] text-text-secondary/60">{c.lastBrowser}/{c.lastOs}</p>}
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className={`text-[11px] px-2 py-0.5 rounded-md font-medium text-white ${CLIENT_TYPE_COLORS[c.type]}`}>
-                          {c.type}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3 text-center">
-                        <span className={`text-sm font-semibold ${STATUS_COLORS[c.status]}`}>{c.totalConnections}</span>
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className={`text-[10px] px-2 py-0.5 rounded-md font-medium ${badgeCfg.color} ${badgeCfg.bg}`}>
-                          {badgeCfg.label}
-                        </span>
-                      </td>
-                      <td className="px-4 py-3">
-                        {c.lastDate ? (
-                          <div>
-                            <p className="text-sm text-text">{formatDate(c.lastDate)}</p>
-                            <span className={`text-[10px] px-1.5 py-0.5 rounded ${ACTION_COLORS[c.lastAction]}`}>
-                              {ACTION_LABELS[c.lastAction]}
-                            </span>
-                          </div>
-                        ) : (
-                          <span className="text-text-secondary/60 text-xs">Jamais</span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 text-right">
-                        <button onClick={e => { e.stopPropagation(); openDetail(c) }}
-                          className="p-1.5 rounded-lg hover:bg-background text-text-secondary hover:text-accent transition-all">
-                          <Eye size={13} />
-                        </button>
-                      </td>
-                    </motion.tr>
-                  )
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
-        <div className="px-4 py-2.5 border-t border-border/30 flex items-center justify-between text-[10px] text-text-secondary/60">
-          <span>{filtered.length} client{filtered.length > 1 ? 's' : ''} &middot; {totalConns} connexions</span>
-        </div>
-      </Card>
-
       {/* Detail modal */}
       <AnimatePresence>
         {detailClient && (
@@ -310,35 +453,50 @@ export default function AgentExtranetPage() {
               onClick={e => e.stopPropagation()}
               className="bg-card rounded-xl border border-border/50 shadow-xl w-full max-w-3xl mx-4 max-h-[80vh] overflow-y-auto scrollbar-thin">
               <div className="flex items-center justify-between px-6 py-4 border-b border-border/50">
-                <h2 className="text-base font-semibold">Details des connexions &mdash; {detailClient.name}</h2>
+                <div>
+                  <h2 className="text-base font-semibold flex items-center gap-2">
+                    <Eye size={16} className="text-indigo-500" />
+                    SQUAREPEEK &mdash; Detail Client
+                  </h2>
+                  <p className="text-xs text-text-secondary mt-0.5">{detailClient.name} &middot; {detailClient.type}</p>
+                </div>
                 <button onClick={closeDetail} className="p-1.5 rounded-lg hover:bg-background text-text-secondary hover:text-text transition-colors">
                   <X size={16} />
                 </button>
               </div>
               <div className="p-6 space-y-5">
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 rounded-xl bg-background border border-border/50">
-                  <div>
-                    <p className="text-[10px] text-text-secondary/60 uppercase tracking-wider">Email</p>
-                    <p className="text-sm text-text mt-0.5">{detailClient.email}</p>
+                {/* Global Activity Stats */}
+                <Card className="p-4 border-l-4 border-l-indigo-500">
+                  <h3 className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                    <Activity size={12} className="text-indigo-500" />
+                    Activite globale
+                  </h3>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <div className="text-center p-3 rounded-lg bg-background">
+                      <p className="text-xl font-bold text-text"><AnimatedCounter value={detailClient.totalConnections} /></p>
+                      <p className="text-[10px] text-text-secondary/60 uppercase tracking-wider mt-1">Connexions totales</p>
+                    </div>
+                    <div className="text-center p-3 rounded-lg bg-background">
+                      <p className="text-xl font-bold text-text">{detailClient.avgTimeOnSite || 0} min</p>
+                      <p className="text-[10px] text-text-secondary/60 uppercase tracking-wider mt-1">Temps moyen</p>
+                    </div>
+                    <div className="text-center p-3 rounded-lg bg-background">
+                      <p className="text-xl font-bold text-text"><AnimatedCounter value={detailClient.pagesConsulted || 0} /></p>
+                      <p className="text-[10px] text-text-secondary/60 uppercase tracking-wider mt-1">Pages consultees</p>
+                    </div>
+                    <div className="text-center p-3 rounded-lg bg-background">
+                      <p className="text-xl font-bold text-text"><AnimatedCounter value={detailClient.propertiesViewed || 0} /></p>
+                      <p className="text-[10px] text-text-secondary/60 uppercase tracking-wider mt-1">Biens consultes</p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-[10px] text-text-secondary/60 uppercase tracking-wider">Statut</p>
-                    <p className={`text-sm font-medium mt-0.5 ${STATUS_COLORS[detailClient.status]} capitalize`}>
-                      {detailClient.status}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-[10px] text-text-secondary/60 uppercase tracking-wider">Activation</p>
-                    <p className="text-sm text-text mt-0.5">{detailClient.activationDate ? formatDateShort(detailClient.activationDate) : '\u2014'}</p>
-                  </div>
-                  <div>
-                    <p className="text-[10px] text-text-secondary/60 uppercase tracking-wider">Total connexions</p>
-                    <p className="text-sm font-semibold text-text mt-0.5">{detailClient.totalConnections}</p>
-                  </div>
-                </div>
+                </Card>
 
+                {/* Connection History */}
                 <div>
-                  <h3 className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-3">Historique detaille</h3>
+                  <h3 className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                    <Clock size={12} className="text-accent" />
+                    Historique des connexions
+                  </h3>
                   {detailLogs.length === 0 ? (
                     <p className="text-sm text-text-secondary/60 py-4 text-center">Aucun historique de connexion</p>
                   ) : (
@@ -347,24 +505,26 @@ export default function AgentExtranetPage() {
                         <thead>
                           <tr className="bg-background border-b border-border text-[11px]">
                             <th className="text-left px-3 py-2 font-medium text-text-secondary">Date</th>
+                            <th className="text-left px-3 py-2 font-medium text-text-secondary">Duree</th>
+                            <th className="text-left px-3 py-2 font-medium text-text-secondary">Pages</th>
                             <th className="text-left px-3 py-2 font-medium text-text-secondary">Action</th>
-                            <th className="text-left px-3 py-2 font-medium text-text-secondary">IP</th>
                             <th className="text-left px-3 py-2 font-medium text-text-secondary">Appareil</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-border/30">
-                          {detailLogs.map(log => (
+                          {detailLogs.slice(0, 10).map(log => (
                             <tr key={log.id} className="hover:bg-background/50">
                               <td className="px-3 py-2 text-xs text-text">
                                 {new Date(log.date).toLocaleDateString('fr-FR')} {formatTime(log.date)}
                               </td>
+                              <td className="px-3 py-2 text-xs text-text-secondary">{log.duration || '-'} min</td>
+                              <td className="px-3 py-2 text-xs text-text-secondary">{log.pagesViewed || '-'}</td>
                               <td className="px-3 py-2">
                                 <span className={`text-[11px] px-2 py-0.5 rounded border ${ACTION_COLORS[log.action]}`}>
                                   {ACTION_LABELS[log.action]}
                                 </span>
                               </td>
-                              <td className="px-3 py-2 text-[11px] text-text-secondary font-mono">{log.ip}</td>
-                              <td className="px-3 py-2 text-[11px] text-text-secondary">{log.userAgent}</td>
+                              <td className="px-3 py-2 text-[11px] text-text-secondary">{log.browser}/{log.os}</td>
                             </tr>
                           ))}
                         </tbody>
@@ -373,12 +533,62 @@ export default function AgentExtranetPage() {
                   )}
                 </div>
 
+                {/* Properties Consulted */}
+                {detailProperties.length > 0 && (
+                  <div>
+                    <h3 className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                      <Globe size={12} className="text-accent" />
+                      Biens consultes par le client
+                    </h3>
+                    <div className="overflow-x-auto rounded-lg border border-border">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="bg-background border-b border-border text-[11px]">
+                            <th className="text-left px-3 py-2 font-medium text-text-secondary">Bien</th>
+                            <th className="text-center px-3 py-2 font-medium text-text-secondary">Vues</th>
+                            <th className="text-left px-3 py-2 font-medium text-text-secondary">Derniere vue</th>
+                            <th className="text-center px-3 py-2 font-medium text-text-secondary">Favori</th>
+                            <th className="text-center px-3 py-2 font-medium text-text-secondary">Contact demande</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-border/30">
+                          {detailProperties.map(pv => (
+                            <tr key={pv.id} className="hover:bg-background/50">
+                              <td className="px-3 py-2 text-xs font-medium text-text">{pv.propertyName}</td>
+                              <td className="px-3 py-2 text-xs text-text-secondary text-center">{pv.views}</td>
+                              <td className="px-3 py-2 text-xs text-text-secondary">{formatDateShort(pv.lastViewed)}</td>
+                              <td className="px-3 py-2 text-center">
+                                {pv.isFavorite ? (
+                                  <Star size={13} className="text-amber-500 fill-amber-500 inline" />
+                                ) : (
+                                  <Circle size={13} className="text-text-secondary/30 inline" />
+                                )}
+                              </td>
+                              <td className="px-3 py-2 text-center">
+                                {pv.contactRequested ? (
+                                  <CheckCircle size={13} className="text-emerald-500 inline" />
+                                ) : (
+                                  <XCircle size={13} className="text-text-secondary/30 inline" />
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
+                {/* Actions */}
                 <div className="flex flex-wrap gap-2 pt-2 border-t border-border/30">
-                  <Button size="sm" icon={<Send size={13} />} onClick={() => { closeDetail(); setReminderClient(detailClient) }}>
-                    Envoyer un rappel
+                  <Button size="sm" icon={<Mail size={13} />} onClick={() => { closeDetail(); setReminderClient(detailClient) }}>
+                    Envoyer un message
                   </Button>
-                  <Button size="sm" variant="outline" icon={<RefreshCw size={13} />}>
-                    Reinitialiser mot de passe
+                  <Button size="sm" variant="outline" icon={<Calendar size={13} />}>
+                    Programmer un rappel
+                  </Button>
+                  <Button size="sm" variant="outline" icon={<BarChart2 size={13} />}>
+                    Voir les statistiques
                   </Button>
                   <Button size="sm" variant="ghost" onClick={closeDetail}>Fermer</Button>
                 </div>
@@ -389,7 +599,7 @@ export default function AgentExtranetPage() {
       </AnimatePresence>
 
       {/* Send reminder dialog */}
-      <Dialog isOpen={!!reminderClient} onClose={() => setReminderClient(null)} title="Envoyer un rappel de connexion" size="lg">
+      <Dialog isOpen={!!reminderClient} onClose={() => setReminderClient(null)} title="Envoyer un message" size="lg">
         {reminderClient && (
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-3 p-3 rounded-lg bg-background border border-border/50 text-sm">

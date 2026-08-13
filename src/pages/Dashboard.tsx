@@ -1,68 +1,27 @@
 import { useState } from 'react'
 import { motion } from 'framer-motion'
-import Card from '../components/ui/Card'
-import { Badge } from '../components/ui/Badge'
 import {
-  Calendar, Users, Home, DollarSign, TrendingUp, AlertTriangle,
-  BarChart2, ChevronRight, Clock, UserPlus, FileText, Globe,
-  ArrowUpRight, ArrowDownRight, Edit3, Target
+  Users, Home, DollarSign, AlertTriangle, Clock, Edit3, Target, FileText,
+  BarChart2, TrendingUp, Filter, Calendar, Globe, ChevronRight, UserPlus,
+  ArrowUpRight, ArrowDownRight, Eye, Phone, Award, Grid
 } from 'react-feather'
+import { Badge } from '../components/ui/Badge'
+import { Button } from '../components/ui/Button'
+import {
+  DashboardTabs, TabContent, StatCard, DashboardPanel,
+  DashboardLinkRow, BarChartCard, TrendChart, AnimatedNumber, useThemeColors
+} from '../components/dashboard'
+import type { DashboardTab } from '../components/dashboard'
 
 type Period = 'week' | 'month' | 'quarter' | 'year'
 
-interface KpiData {
-  icon: typeof Users
-  label: string
-  value: string
-  trend: string
-  trendUp: boolean
-  iconBg: string
-  iconColor: string
-}
-
-interface AlertData {
-  icon: typeof AlertTriangle
-  text: string
-  badge: string
-  badgeVariant: 'error' | 'warning'
-}
-
-interface StageData {
-  value: number
-  label: string
-  trend: string
-}
-
-interface AppointmentData {
-  time: string
-  type: string
-  client: string
-  context: string
-  badgeVariant: 'primary' | 'success' | 'warning' | 'secondary'
-}
-
-interface LeadData {
-  initials: string
-  initialBg: string
-  name: string
-  property: string
-  time: string
-}
-
-interface DocumentData {
-  type: string
-  client: string
-  status: string
-  statusVariant: 'success' | 'default' | 'warning'
-  time: string
-}
-
-interface BarDayData {
-  day: string
-  calls: number
-  visits: number
-  signatures: number
-}
+const tabs: DashboardTab[] = [
+  { id: 'overview', label: 'Vue d\'ensemble', icon: Grid },
+  { id: 'performance', label: 'Performance', icon: TrendingUp },
+  { id: 'pipeline', label: 'Pipeline', icon: Filter },
+  { id: 'agenda', label: 'Agenda', icon: Calendar },
+  { id: 'activite', label: 'Activité', icon: Globe },
+]
 
 const periods: { key: Period; label: string }[] = [
   { key: 'week', label: 'Cette semaine' },
@@ -71,521 +30,569 @@ const periods: { key: Period; label: string }[] = [
   { key: 'year', label: 'Cette année' },
 ]
 
-const kpiData: KpiData[] = [
-  { icon: Users, label: 'Prospects', value: '47', trend: '+12%', trendUp: true, iconBg: 'bg-accent-light', iconColor: 'text-accent' },
-  { icon: Users, label: 'Contacts', value: '156', trend: '+5%', trendUp: true, iconBg: 'bg-blue-50', iconColor: 'text-blue-600' },
-  { icon: Home, label: 'Biens en stock', value: '89', trend: '-3%', trendUp: false, iconBg: 'bg-amber-50', iconColor: 'text-amber-600' },
-  { icon: DollarSign, label: 'Ventes ce mois', value: '12', trend: '+20%', trendUp: true, iconBg: 'bg-emerald-50', iconColor: 'text-emerald-600' },
-  { icon: DollarSign, label: 'Honoraires ce mois', value: '342 500 MAD', trend: '+15%', trendUp: true, iconBg: 'bg-violet-50', iconColor: 'text-violet-600' },
-]
-
-const alertData: AlertData[] = [
-  { icon: Target, text: '7 Croisements a faire', badge: 'Haute', badgeVariant: 'error' },
-  { icon: FileText, text: '3 Demandes incompletes', badge: 'Haute', badgeVariant: 'error' },
-  { icon: Home, text: '1 Produits en attente de correction', badge: 'Moyenne', badgeVariant: 'warning' },
-  { icon: Clock, text: '14 Mandats expires', badge: 'Haute', badgeVariant: 'error' },
-  { icon: AlertTriangle, text: '5 Mandats expirent bientot', badge: 'Moyenne', badgeVariant: 'warning' },
-  { icon: Edit3, text: '2 Signatures de documents attendues', badge: 'Haute', badgeVariant: 'error' },
-]
-
-const barData: BarDayData[] = [
-  { day: 'L', calls: 6, visits: 2, signatures: 1 },
-  { day: 'M', calls: 8, visits: 1, signatures: 1 },
-  { day: 'M', calls: 7, visits: 3, signatures: 2 },
-  { day: 'J', calls: 10, visits: 1, signatures: 0 },
-  { day: 'V', calls: 8, visits: 3, signatures: 2 },
-  { day: 'S', calls: 4, visits: 2, signatures: 1 },
-  { day: 'D', calls: 2, visits: 0, signatures: 1 },
-]
-
-const stageData: StageData[] = [
-  { value: 47, label: 'Prospects', trend: '+12%' },
-  { value: 32, label: 'En qualification', trend: '+8%' },
-  { value: 18, label: 'En recherche', trend: '+15%' },
-  { value: 8, label: 'En negociation', trend: '+33%' },
-  { value: 5, label: 'En compromis', trend: '+66%' },
-  { value: 12, label: 'Vendus', trend: '+20%' },
-]
-
-const appointmentData: AppointmentData[] = [
-  { time: '14h30', type: 'Visite', client: 'Sophie Martin', context: 'Villa Marrakech', badgeVariant: 'primary' },
-  { time: '10h00', type: 'Appel proposition', client: 'Ahmed Benali', context: 'Proposition commerciale', badgeVariant: 'success' },
-  { time: '16h00', type: 'Signature mandat', client: 'Mme Dupont', context: 'Mandat de vente', badgeVariant: 'warning' },
-  { time: '11h30', type: 'Visite terrain', client: 'Leila Benbrahim', context: 'Terrain Rabat', badgeVariant: 'primary' },
-  { time: '09h00', type: 'Reunion equipe', client: 'Toute l\'agence', context: 'Reunion hebdomadaire', badgeVariant: 'secondary' },
-]
-
-const leadData: LeadData[] = [
-  { initials: 'SM', initialBg: 'bg-accent-light text-accent', name: 'Sophie Martin', property: 'Villa Marrakech', time: 'il y a 15min' },
-  { initials: 'AB', initialBg: 'bg-emerald-50 text-emerald-600', name: 'Ahmed Benali', property: 'Appartement Casa', time: 'il y a 2h' },
-  { initials: 'LB', initialBg: 'bg-amber-50 text-amber-600', name: 'Leila Benbrahim', property: 'Terrain Rabat', time: 'il y a 5h' },
-  { initials: 'YA', initialBg: 'bg-violet-50 text-violet-600', name: 'Youssef Amrani', property: 'Bureau Tanger', time: 'il y a 1j' },
-]
-
-const documentData: DocumentData[] = [
-  { type: 'Mandat vente', client: 'Villa Argana', status: 'Signe', statusVariant: 'success', time: '2h' },
-  { type: 'DPE', client: 'Appartement Centre', status: 'Telecharge', statusVariant: 'default', time: '5h' },
-  { type: 'Contrat location', client: 'Residence Oasis', status: 'En attente', statusVariant: 'warning', time: '1j' },
-  { type: 'Compromis vente', client: 'Villa Marrakech', status: 'Signe', statusVariant: 'success', time: '2j' },
-]
-
-const containerVariants = {
-  hidden: {},
-  show: { transition: { staggerChildren: 0.06, delayChildren: 0.05 } },
+const subtitles: Record<string, string> = {
+  overview: 'Vue globale de votre activité',
+  performance: 'Analyse de votre performance',
+  pipeline: 'Suivi de votre cycle de vente',
+  agenda: 'Vos prochains rendez-vous',
+  activite: 'Suivi de votre activité et de vos clients',
 }
 
-const itemVariants = {
-  hidden: { opacity: 0, y: 20 },
-  show: { opacity: 1, y: 0, transition: { duration: 0.4, ease: [0, 0, 0.58, 1] as [number, number, number, number] } },
+interface AlertItem {
+  icon: React.ComponentType<{ size?: number | string; className?: string }>
+  text: string
+  variant: 'error' | 'warning'
 }
 
-const maxBarTotal = Math.max(...barData.map(d => d.calls + d.visits + d.signatures), 1)
+const alertData: AlertItem[] = [
+  { icon: Target, text: '7 Croisements à faire', variant: 'error' },
+  { icon: FileText, text: '3 Demandes incomplètes', variant: 'error' },
+  { icon: Home, text: '1 Produit en attente de correction', variant: 'warning' },
+  { icon: Clock, text: '14 Mandats expirés', variant: 'error' },
+  { icon: AlertTriangle, text: '5 Mandats expirent bientôt', variant: 'warning' },
+  { icon: Edit3, text: '2 Signatures de documents attendues', variant: 'error' },
+]
 
-export default function Dashboard() {
-  const [period, setPeriod] = useState<Period>('month')
+const activityData = [
+  { label: 'L', appels: 6, visites: 2, signatures: 1 },
+  { label: 'M', appels: 8, visites: 1, signatures: 1 },
+  { label: 'M', appels: 7, visites: 3, signatures: 2 },
+  { label: 'J', appels: 10, visites: 1, signatures: 0 },
+  { label: 'V', appels: 8, visites: 3, signatures: 2 },
+  { label: 'S', appels: 4, visites: 2, signatures: 1 },
+  { label: 'D', appels: 2, visites: 0, signatures: 1 },
+]
 
+const salesData = [
+  { label: 'Jan', ventes: 4 },
+  { label: 'Fév', ventes: 6 },
+  { label: 'Mar', ventes: 8 },
+  { label: 'Avr', ventes: 10 },
+  { label: 'Mai', ventes: 9 },
+  { label: 'Juin', ventes: 12 },
+]
+
+const funnelStages = [
+  { label: 'Prospects', value: 47, trend: '+12%', color: '#8b5cf6' },
+  { label: 'En qualification', value: 32, trend: '+8%', color: '#6366f1' },
+  { label: 'En recherche', value: 18, trend: '+15%', color: '#3b82f6' },
+  { label: 'En négociation', value: 8, trend: '+33%', color: '#f59e0b' },
+  { label: 'En compromis', value: 5, trend: '+66%', color: '#f97316' },
+  { label: 'Vendus', value: 12, trend: '+20%', color: '#10b981' },
+]
+
+const statusRepartition = [
+  { label: 'En recherche', pct: 38, color: '#3b82f6' },
+  { label: 'En qualification', pct: 25, color: '#6366f1' },
+  { label: 'En négociation', pct: 17, color: '#f59e0b' },
+  { label: 'En compromis', pct: 12, color: '#f97316' },
+  { label: 'Vendus', pct: 8, color: '#10b981' },
+]
+
+const negociationClients = [
+  { initials: 'HE', bg: 'bg-violet-50 text-violet-600', name: 'Hassan El Fassi', property: 'Villa Argana', price: '2 500 000 MAD' },
+  { initials: 'PM', bg: 'bg-blue-50 text-blue-600', name: 'Pierre Martin', property: 'Villa Marrakech', price: '4 500 000 MAD' },
+  { initials: 'AB', bg: 'bg-emerald-50 text-emerald-600', name: 'Ahmed Benali', property: 'Appartement Casa', price: '850 000 MAD' },
+]
+
+interface Appointment {
+  time: string
+  type: string
+  variant: 'primary' | 'success' | 'warning' | 'secondary'
+  client: string
+  context: string
+}
+
+const todayAppointments: Appointment[] = [
+  { time: '14:30', type: 'Visite', variant: 'primary', client: 'Sophie Martin', context: 'Villa Marrakech' },
+  { time: '10:00', type: 'Appel', variant: 'success', client: 'Ahmed Benali', context: 'Proposition commerciale' },
+  { time: '16:00', type: 'Signature', variant: 'warning', client: 'Mme Dupont', context: 'Mandat de vente' },
+  { time: '11:30', type: 'Visite', variant: 'primary', client: 'Leila Benbrahim', context: 'Terrain Rabat' },
+  { time: '09:00', type: 'Réunion', variant: 'secondary', client: 'Toute l\'agence', context: 'Réunion hebdomadaire' },
+]
+
+const weekAppointments = [
+  { day: 'Demain', time: '10:00', type: 'Visite', client: 'Client X' },
+  { day: 'Mercredi', time: '14:00', type: 'Appel', client: 'Client Y' },
+  { day: 'Jeudi', time: '09:30', type: 'Signature', client: 'Client Z' },
+]
+
+const connections = [
+  { initials: 'SM', bg: 'bg-emerald-50 text-emerald-600', name: 'Sophie Martin', property: 'Villa Marrakech', time: 'il y a 10 min', dot: 'bg-emerald-500' },
+  { initials: 'PD', bg: 'bg-blue-50 text-blue-600', name: 'Pierre Dubois', property: 'Appartement Casa', time: 'il y a 45 min', dot: 'bg-emerald-500' },
+  { initials: 'LB', bg: 'bg-amber-50 text-amber-600', name: 'Leila Benbrahim', property: 'Terrain Rabat', time: 'il y a 2h', dot: 'bg-amber-500' },
+  { initials: 'YA', bg: 'bg-red-50 text-red-600', name: 'Youssef Amrani', property: 'Bureau Tanger', time: 'il y a 1j', dot: 'bg-red-500' },
+]
+
+const leads = [
+  { initials: 'SM', bg: 'bg-accent-light text-accent', name: 'Sophie Martin', property: 'Villa Marrakech', time: 'il y a 15 min' },
+  { initials: 'AB', bg: 'bg-emerald-50 text-emerald-600', name: 'Ahmed Benali', property: 'Appartement Casa', time: 'il y a 2h' },
+  { initials: 'LB', bg: 'bg-amber-50 text-amber-600', name: 'Leila Benbrahim', property: 'Terrain Rabat', time: 'il y a 5h' },
+  { initials: 'YA', bg: 'bg-violet-50 text-violet-600', name: 'Youssef Amrani', property: 'Bureau Tanger', time: 'il y a 1j' },
+]
+
+const recentDocuments = [
+  { type: 'Mandat de vente', client: 'Villa Argana', status: 'Signé', variant: 'success' as const, time: 'il y a 2h' },
+  { type: 'DPE', client: 'Appartement Centre', status: 'Téléchargé', variant: 'default' as const, time: 'il y a 5h' },
+  { type: 'Contrat location', client: 'Résidence Oasis', status: 'En attente', variant: 'warning' as const, time: 'il y a 1j' },
+  { type: 'Compromis vente', client: 'Villa Marrakech', status: 'Signé', variant: 'success' as const, time: 'il y a 2j' },
+]
+
+const rankings = [
+  { rank: 1, label: 'Ventes', value: 12, agents: 8, color: '#10b981' },
+  { rank: 2, label: 'Appels', value: 45, agents: 8, color: '#3b82f6' },
+  { rank: 3, label: 'Visites', value: 12, agents: 8, color: '#8b5cf6' },
+  { rank: 1, label: 'Honoraires', value: 342, suffix: 'K', agents: 8, color: '#f59e0b' },
+]
+
+const extranetStats = [
+  { label: 'Connexions cette semaine', value: 124, trend: '+18%', color: 'text-accent', dot: 'bg-accent' },
+  { label: 'Clients actifs', value: 12, trend: '+12%', color: 'text-emerald-600', dot: 'bg-emerald-500' },
+  { label: 'Documents consultés', value: 45, trend: '+8%', color: 'text-amber-600', dot: 'bg-amber-500' },
+]
+
+function TabIntro({ title, subtitle }: { title: string; subtitle: string }) {
   return (
-    <motion.div
-      className="space-y-6"
-      variants={containerVariants}
-      initial="hidden"
-      animate="show"
-    >
-      {/* Section 1 — Header + Period Filter */}
-      <motion.div variants={itemVariants} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Tableau de bord</h1>
-          <p className="text-sm text-text-secondary mt-1">Bienvenue, Karim ! Voici votre activite du jour</p>
-        </div>
-        <div className="flex items-center gap-1 bg-card rounded-lg border border-border/50 p-1 shadow-sm">
-          <Calendar size={15} className="text-text-secondary ml-1" />
-          {periods.map(p => (
-            <button
-              key={p.key}
-              onClick={() => setPeriod(p.key)}
-              className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
-                period === p.key
-                  ? 'bg-accent text-white shadow-sm'
-                  : 'text-text-secondary hover:text-text hover:bg-background'
-              }`}
-            >
-              {p.label}
-            </button>
-          ))}
-        </div>
-      </motion.div>
+    <div>
+      <h2 className="text-lg font-semibold tracking-tight">{title}</h2>
+      <p className="mt-0.5 text-sm text-text-secondary">{subtitle}</p>
+    </div>
+  )
+}
 
-      {/* Section 2 — KPI Cards */}
-      <motion.div variants={itemVariants} className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-5 gap-4">
-        {kpiData.map((kpi, i) => {
-          const Icon = kpi.icon
-          const TrendIcon = kpi.trendUp ? ArrowUpRight : ArrowDownRight
-          return (
-            <Card key={i} className="p-5 group hover:shadow-card-hover transition-shadow">
-              <div className="flex items-start justify-between mb-3">
-                <div className={`p-2.5 rounded-lg ${kpi.iconBg} ${kpi.iconColor}`}>
-                  <Icon size={18} />
-                </div>
-                <span className={`inline-flex items-center gap-0.5 text-xs font-medium ${
-                  kpi.trendUp ? 'text-emerald-600' : 'text-error'
-                }`}>
-                  <TrendIcon size={12} />
-                  {kpi.trend}
-                </span>
-              </div>
-              <p className="text-2xl font-semibold tracking-tight">{kpi.value}</p>
-              <p className="text-sm text-text-secondary mt-0.5">{kpi.label}</p>
-            </Card>
-          )
-        })}
-      </motion.div>
+function OverviewTab() {
+  const colors = useThemeColors()
+  return (
+    <>
+      <TabIntro title="Vue d'ensemble" subtitle={subtitles.overview} />
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
+        <StatCard icon={Users} label="Prospects" value={47} trend="+12%" iconBg="bg-accent-light" iconColor="text-accent" spark={[3, 5, 4, 7, 6, 8]} sparkColor={colors.accent} delay={0} />
+        <StatCard icon={Users} label="Contacts" value={156} trend="+8%" iconBg="bg-blue-50" iconColor="text-blue-600" spark={[12, 15, 14, 18, 17, 20]} sparkColor="#3b82f6" delay={0.05} />
+        <StatCard icon={Home} label="Biens" value={89} trend="-3%" trendUp={false} iconBg="bg-amber-50" iconColor="text-amber-600" spark={[9, 8, 9, 7, 8, 6]} sparkColor="#f59e0b" delay={0.1} />
+        <StatCard icon={DollarSign} label="Ventes" value={12} trend="+20%" iconBg="bg-emerald-50" iconColor="text-emerald-600" spark={[1, 2, 1, 3, 2, 4]} sparkColor="#10b981" delay={0.15} />
+        <StatCard icon={DollarSign} label="Honoraires" value={342} suffix="K" trend="+15%" iconBg="bg-violet-50" iconColor="text-violet-600" spark={[20, 25, 22, 28, 30, 34]} sparkColor="#8b5cf6" delay={0.2} />
+      </div>
 
-      {/* Section 3 — Actions Requises + Prochains Rendez-vous */}
-      <motion.div variants={itemVariants} className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Actions */}
-        <Card className="p-5">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <AlertTriangle size={16} className="text-text" />
-              <h2 className="font-semibold">Actions requises</h2>
-            </div>
-            <Badge variant="error" size="sm">6 en cours</Badge>
-          </div>
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+        <DashboardPanel title="Actions requises" icon={AlertTriangle} badge={<Badge variant="error">6 en cours</Badge>}>
           <div className="space-y-1">
             {alertData.map((alert, i) => {
               const AlertIcon = alert.icon
               return (
-                <div key={i} className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-background transition-colors group cursor-default">
-                  <div className="w-7 h-7 rounded-md bg-error/5 text-error flex items-center justify-center flex-shrink-0">
+                <div key={i} className="flex items-center gap-3 rounded-lg px-3 py-2.5 transition-colors hover:bg-background">
+                  <div className={`flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md ${alert.variant === 'error' ? 'bg-error/5 text-error' : 'bg-amber-50 text-amber-600'}`}>
                     <AlertIcon size={13} />
                   </div>
                   <span className="flex-1 text-sm">{alert.text}</span>
-                  <Badge variant={alert.badgeVariant} size="sm">{alert.badge}</Badge>
+                  <Badge variant={alert.variant}>{alert.variant === 'error' ? 'Haute' : 'Moyenne'}</Badge>
                 </div>
               )
             })}
           </div>
-          <button className="mt-4 text-sm text-accent hover:text-accent-hover font-medium transition-colors">
-            Voir toutes les actions
-            <ChevronRight size={14} className="inline ml-0.5" />
-          </button>
-        </Card>
+          <DashboardLinkRow label="Voir toutes les actions" />
+        </DashboardPanel>
 
-        {/* Prochains rendez-vous */}
-        <Card className="p-5">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <Calendar size={16} className="text-text" />
-              <h2 className="font-semibold">Prochains rendez-vous</h2>
-            </div>
-            <Badge variant="primary" size="sm">Aujourd'hui</Badge>
-          </div>
-          <div className="space-y-1">
-            {appointmentData.map((apt, i) => (
-              <div key={i} className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-background transition-colors">
-                <div className="w-14 flex-shrink-0">
-                  <span className="text-xs font-semibold text-text">{apt.time}</span>
-                </div>
-                <Badge variant={apt.badgeVariant} size="sm">{apt.type}</Badge>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium truncate">{apt.client}</p>
-                </div>
-                <span className="text-xs text-text-secondary hidden sm:block truncate max-w-[140px]">{apt.context}</span>
+        <DashboardPanel title="Activité récente" icon={BarChart2} badge={<Badge variant="primary">Cette semaine</Badge>}>
+          <BarChartCard
+            data={activityData}
+            series={[
+              { dataKey: 'appels', name: 'Appels', color: colors.accent, stackId: 'a' },
+              { dataKey: 'visites', name: 'Visites', color: '#10b981', stackId: 'a' },
+              { dataKey: 'signatures', name: 'Signatures', color: '#f59e0b', stackId: 'a', radius: true },
+            ]}
+            height={180}
+          />
+          <div className="grid grid-cols-3 gap-3">
+            {[
+              { value: '45', label: 'appels' },
+              { value: '12', label: 'visites' },
+              { value: '8', label: 'documents signés' },
+            ].map(s => (
+              <div key={s.label} className="rounded-lg bg-background p-3 text-center">
+                <p className="text-lg font-semibold text-accent">{s.value}</p>
+                <p className="text-[11px] text-text-secondary">{s.label}</p>
               </div>
             ))}
           </div>
-          <button className="mt-4 text-sm text-accent hover:text-accent-hover font-medium transition-colors">
-            Voir tout le calendrier
-            <ChevronRight size={14} className="inline ml-0.5" />
-          </button>
-        </Card>
-      </motion.div>
+        </DashboardPanel>
+      </div>
+    </>
+  )
+}
 
-      {/* Section 4 — Cycle de Vente */}
-      <motion.div variants={itemVariants}>
-        <Card className="p-5">
-          <div className="flex items-center gap-2 mb-5">
-            <TrendingUp size={16} className="text-text" />
-            <h2 className="font-semibold">Cycle de vente</h2>
+function PerformanceTab() {
+  const colors = useThemeColors()
+  return (
+    <>
+      <TabIntro title="Performance" subtitle={subtitles.performance} />
+
+      <DashboardPanel title="Performance financière" icon={DollarSign}>
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+          <div>
+            <p className="text-xs uppercase tracking-wider text-text-secondary">Chiffre d'affaires — ce mois</p>
+            <div className="mt-1 flex items-baseline gap-2">
+              <AnimatedNumber value={342500} suffix=" MAD" className="text-3xl font-bold tracking-tight" />
+              <span className="inline-flex items-center gap-0.5 text-sm font-medium text-emerald-600">
+                <ArrowUpRight size={13} />
+                +15%
+              </span>
+            </div>
+            <div className="mt-1 flex items-center gap-2 text-sm text-text-secondary">
+              <span>Mois dernier : 298 000 MAD</span>
+            </div>
+            <div className="mt-5">
+              <div className="mb-1.5 flex items-center justify-between text-sm">
+                <span className="text-text-secondary">Objectif : 400 000 MAD</span>
+                <span className="font-semibold">85%</span>
+              </div>
+              <div className="h-2.5 w-full overflow-hidden rounded-full bg-border/60">
+                <motion.div
+                  className="h-full rounded-full bg-accent"
+                  initial={{ width: 0 }}
+                  animate={{ width: '85%' }}
+                  transition={{ duration: 1.2, ease: [0, 0, 0.58, 1] }}
+                />
+              </div>
+            </div>
           </div>
-
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-            {stageData.map((stage, i) => (
-              <div key={stage.label} className="relative">
-                <Card className="p-4 text-center hover:shadow-card-hover transition-shadow">
-                  <div className="w-12 h-12 rounded-full bg-accent-light text-accent flex items-center justify-center text-lg font-bold mx-auto mb-2">
-                    {stage.value}
-                  </div>
-                  <p className="text-sm text-text-secondary">{stage.label}</p>
-                  <span className="text-xs font-medium text-emerald-600 inline-flex items-center gap-0.5 mt-1">
-                    <ArrowUpRight size={10} />
-                    {stage.trend}
+          <div className="rounded-xl bg-background p-4">
+            <p className="mb-2 text-xs uppercase tracking-wider text-text-secondary">Répartition par type</p>
+            {[
+              { label: 'Vente', pct: 78, color: colors.accent },
+              { label: 'Location', pct: 15, color: '#10b981' },
+              { label: 'Saisonnier', pct: 7, color: '#f59e0b' },
+            ].map(item => (
+              <div key={item.label} className="mb-3 last:mb-0">
+                <div className="mb-1 flex items-center justify-between text-sm">
+                  <span className="flex items-center gap-2">
+                    <span className="h-2.5 w-2.5 rounded-sm" style={{ backgroundColor: item.color }} />
+                    {item.label}
                   </span>
-                </Card>
-                {i < stageData.length - 1 && (
-                  <ChevronRight
-                    size={18}
-                    className="hidden lg:block absolute -right-2.5 top-1/2 -translate-y-1/2 text-text-secondary/30 z-10"
+                  <span className="font-semibold">{item.pct}%</span>
+                </div>
+                <div className="h-2 w-full overflow-hidden rounded-full bg-border/60">
+                  <motion.div
+                    className="h-full rounded-full"
+                    style={{ backgroundColor: item.color }}
+                    initial={{ width: 0 }}
+                    animate={{ width: `${item.pct}%` }}
+                    transition={{ duration: 1, ease: [0, 0, 0.58, 1] }}
                   />
-                )}
+                </div>
               </div>
             ))}
           </div>
+        </div>
+      </DashboardPanel>
 
-          <div className="flex flex-wrap items-center gap-4 mt-5 pt-4 border-t border-border/30">
-            <div className="flex items-center gap-2 text-sm">
-              <span className="text-text-secondary">Taux de conversion global :</span>
-              <span className="font-semibold text-emerald-600 inline-flex items-center gap-0.5">
-                25.5%
-                <ArrowUpRight size={12} />
-                +5%
-              </span>
-            </div>
-            <div className="w-px h-4 bg-border/50" />
-            <div className="flex items-center gap-2 text-sm">
-              <span className="text-text-secondary">Delai moyen vente :</span>
-              <span className="font-semibold text-accent inline-flex items-center gap-0.5">
-                45 jours
-                <ArrowDownRight size={12} className="text-emerald-600" />
-                <span className="text-emerald-600">-3 jours</span>
-              </span>
-            </div>
-          </div>
-        </Card>
-      </motion.div>
+      <DashboardPanel title="Évolution des ventes" icon={TrendingUp} badge={<Badge variant="success">Tendance +15%</Badge>}>
+        <TrendChart
+          data={salesData}
+          series={[{ dataKey: 'ventes', name: 'Ventes', color: colors.accent }]}
+          height={240}
+        />
+        <div className="mt-3 flex items-center justify-center gap-2 text-sm text-text-secondary">
+          <span className="inline-flex items-center gap-1 font-medium text-emerald-600">
+            <ArrowUpRight size={13} />
+            +15%
+          </span>
+          par rapport au mois dernier
+        </div>
+      </DashboardPanel>
 
-      {/* Section 5 — Activite recente */}
-      <motion.div variants={itemVariants}>
-        <Card className="p-5">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <BarChart2 size={16} className="text-text" />
-              <h2 className="font-semibold">Activite recente</h2>
+      <DashboardPanel title="Classement personnel" icon={Award} badge={<Badge variant="primary">Ce mois</Badge>}>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          {rankings.map(rank => (
+            <div key={rank.label} className="rounded-xl bg-background p-4">
+              <div className="flex items-center justify-between">
+                <span className="flex h-8 w-8 items-center justify-center rounded-full text-sm font-bold" style={{ backgroundColor: `${rank.color}1a`, color: rank.color }}>
+                  {rank.rank}er
+                </span>
+                <Badge variant="outline">{rank.rank === 1 ? '1er' : rank.rank === 2 ? '2ème' : '3ème'} / {rank.agents} agents</Badge>
+              </div>
+              <p className="mt-3 text-2xl font-semibold tracking-tight">
+                <AnimatedNumber value={rank.value} suffix={rank.suffix || ''} />
+              </p>
+              <p className="text-[13px] text-text-secondary">{rank.label}</p>
+              <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-border/60">
+                <motion.div
+                  className="h-full rounded-full"
+                  style={{ backgroundColor: rank.color }}
+                  initial={{ width: 0 }}
+                  animate={{ width: '100%' }}
+                  transition={{ duration: 1, ease: [0, 0, 0.58, 1] }}
+                />
+              </div>
             </div>
-          </div>
+          ))}
+        </div>
+      </DashboardPanel>
+    </>
+  )
+}
 
-          {/* Bar Chart */}
-          <div className="flex items-end justify-between h-[160px] pt-2 pb-1 px-1">
-            {barData.map((day) => {
-              const total = day.calls + day.visits + day.signatures
-              const colPct = (total / maxBarTotal) * 100
-              const callsPct = total > 0 ? (day.calls / total) * 100 : 0
-              const visitsPct = total > 0 ? (day.visits / total) * 100 : 0
-              const sigsPct = total > 0 ? (day.signatures / total) * 100 : 0
-              return (
-                <div key={day.day} className="flex flex-col items-center gap-1.5 flex-1 h-full justify-end">
-                  <div
-                    className="w-[70%] max-w-[32px] flex flex-col justify-end rounded-sm overflow-hidden transition-all duration-300 hover:opacity-80"
-                    style={{ height: `${colPct}%` }}
-                  >
-                    {day.signatures > 0 && (
-                      <div className="w-full bg-amber-400" style={{ height: `${sigsPct}%` }} />
-                    )}
-                    {day.visits > 0 && (
-                      <div className="w-full bg-emerald-400" style={{ height: `${visitsPct}%` }} />
-                    )}
-                    {day.calls > 0 && (
-                      <div className="w-full bg-accent" style={{ height: `${callsPct}%` }} />
-                    )}
-                  </div>
-                  <span className="text-[11px] text-text-secondary font-medium">{day.day}</span>
+function PipelineTab() {
+  return (
+    <>
+      <TabIntro title="Pipeline" subtitle={subtitles.pipeline} />
+
+      <DashboardPanel title="Cycle de vente" icon={Filter}>
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6">
+          {funnelStages.map((stage, i) => (
+            <div key={stage.label} className="relative">
+              <div className="rounded-xl border border-border/50 bg-background p-4 text-center transition-all duration-200 hover:shadow-card-hover">
+                <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-full text-lg font-bold" style={{ backgroundColor: `${stage.color}1a`, color: stage.color }}>
+                  {stage.value}
                 </div>
-              )
-            })}
-          </div>
-
-          {/* Legend */}
-          <div className="flex items-center justify-center gap-5 mt-3 pt-3 border-t border-border/30">
-            <div className="flex items-center gap-1.5 text-xs text-text-secondary">
-              <span className="w-2.5 h-2.5 rounded-sm bg-accent" />
-              Appels
-            </div>
-            <div className="flex items-center gap-1.5 text-xs text-text-secondary">
-              <span className="w-2.5 h-2.5 rounded-sm bg-emerald-400" />
-              Visites
-            </div>
-            <div className="flex items-center gap-1.5 text-xs text-text-secondary">
-              <span className="w-2.5 h-2.5 rounded-sm bg-amber-400" />
-              Signatures
-            </div>
-          </div>
-
-          {/* Stats */}
-          <div className="grid grid-cols-3 gap-3 mt-4">
-            <div className="bg-accent-light/50 rounded-lg p-3 text-center">
-              <p className="text-lg font-semibold text-accent">45</p>
-              <p className="text-[11px] text-text-secondary">appels cette semaine</p>
-            </div>
-            <div className="bg-emerald-50 rounded-lg p-3 text-center">
-              <p className="text-lg font-semibold text-emerald-600">12</p>
-              <p className="text-[11px] text-text-secondary">visites terrain</p>
-            </div>
-            <div className="bg-amber-50 rounded-lg p-3 text-center">
-              <p className="text-lg font-semibold text-amber-600">8</p>
-              <p className="text-[11px] text-text-secondary">documents signes</p>
-            </div>
-          </div>
-        </Card>
-      </motion.div>
-
-      {/* Section 6 — Performance Financiere */}
-      <motion.div variants={itemVariants}>
-        <Card className="p-5">
-          <div className="flex items-center gap-2 mb-5">
-            <DollarSign size={16} className="text-text" />
-            <h2 className="font-semibold">Performance financiere</h2>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {/* Chiffre d'affaires */}
-            <div className="bg-background rounded-xl p-5">
-              <p className="text-xs text-text-secondary uppercase tracking-wider font-medium mb-1">Chiffre d'affaires</p>
-              <div className="flex items-baseline gap-2 mb-1">
-                <span className="text-3xl font-bold tracking-tight">342 500 MAD</span>
-                <span className="text-sm font-medium text-emerald-600 inline-flex items-center gap-0.5">
-                  <ArrowUpRight size={13} />
-                  +15%
+                <p className="text-[13px] font-medium">{stage.label}</p>
+                <span className="mt-1 inline-flex items-center gap-0.5 text-xs font-medium text-emerald-600">
+                  <ArrowUpRight size={10} />
+                  {stage.trend}
                 </span>
               </div>
-              <div className="flex items-center gap-2 text-sm text-text-secondary mt-0.5">
-                <span>Mois dernier: 298 000 MAD</span>
-                <span className="w-1 h-1 rounded-full bg-text-secondary/30" />
-                <span className="text-error/70">-3,2%</span>
+              {i < funnelStages.length - 1 && (
+                <ChevronRight size={18} className="absolute -right-2.5 top-1/2 z-10 hidden -translate-y-1/2 text-text-secondary/30 lg:block" />
+              )}
+            </div>
+          ))}
+        </div>
+        <div className="mt-5 flex flex-wrap items-center gap-4 border-t border-border/30 pt-4 text-sm">
+          <div className="flex items-center gap-2">
+            <span className="text-text-secondary">Taux de conversion :</span>
+            <span className="inline-flex items-center gap-0.5 font-semibold text-emerald-600">
+              25,5%
+              <ArrowUpRight size={12} />
+              +5%
+            </span>
+          </div>
+          <div className="h-4 w-px bg-border/50" />
+          <div className="flex items-center gap-2">
+            <span className="text-text-secondary">Délai moyen vente :</span>
+            <span className="font-semibold text-accent">45 jours</span>
+            <span className="inline-flex items-center gap-0.5 text-emerald-600">
+              <ArrowDownRight size={12} />
+              -3 jours
+            </span>
+          </div>
+        </div>
+      </DashboardPanel>
+
+      <DashboardPanel title="Répartition par statut" icon={BarChart2}>
+        <div className="space-y-3.5">
+          {statusRepartition.map(item => (
+            <div key={item.label}>
+              <div className="mb-1 flex items-center justify-between text-sm">
+                <span className="flex items-center gap-2">
+                  <span className="h-2.5 w-2.5 rounded-sm" style={{ backgroundColor: item.color }} />
+                  {item.label}
+                </span>
+                <span className="font-semibold">{item.pct}%</span>
               </div>
-              <div className="mt-4">
-                <div className="flex items-center justify-between text-sm mb-1.5">
-                  <span className="text-text-secondary">Objectif: 400 000 MAD</span>
-                  <span className="font-semibold">85%</span>
-                </div>
-                <div className="w-full h-2.5 bg-border/60 rounded-full overflow-hidden">
-                  <div className="h-full bg-accent rounded-full transition-all duration-500" style={{ width: '85%' }} />
-                </div>
+              <div className="h-2.5 w-full overflow-hidden rounded-full bg-border/60">
+                <motion.div
+                  className="h-full rounded-full"
+                  style={{ backgroundColor: item.color }}
+                  initial={{ width: 0 }}
+                  animate={{ width: `${item.pct}%` }}
+                  transition={{ duration: 1, ease: [0, 0, 0.58, 1] }}
+                />
               </div>
             </div>
+          ))}
+        </div>
+      </DashboardPanel>
 
-            {/* Repartition par type */}
-            <div className="bg-background rounded-xl p-5">
-              <p className="text-xs text-text-secondary uppercase tracking-wider font-medium mb-4">Repartition par type</p>
-              <div className="space-y-4">
-                <div>
-                  <div className="flex items-center justify-between text-sm mb-1.5">
-                    <div className="flex items-center gap-2">
-                      <span className="w-2.5 h-2.5 rounded-sm bg-accent" />
-                      <span>Vente</span>
-                    </div>
-                    <span className="font-semibold">78%</span>
-                  </div>
-                  <div className="w-full h-2 bg-border/60 rounded-full overflow-hidden">
-                    <div className="h-full bg-accent rounded-full transition-all duration-500" style={{ width: '78%' }} />
-                  </div>
-                </div>
-                <div>
-                  <div className="flex items-center justify-between text-sm mb-1.5">
-                    <div className="flex items-center gap-2">
-                      <span className="w-2.5 h-2.5 rounded-sm bg-emerald-400" />
-                      <span>Location</span>
-                    </div>
-                    <span className="font-semibold">15%</span>
-                  </div>
-                  <div className="w-full h-2 bg-border/60 rounded-full overflow-hidden">
-                    <div className="h-full bg-emerald-400 rounded-full transition-all duration-500" style={{ width: '15%' }} />
-                  </div>
-                </div>
-                <div>
-                  <div className="flex items-center justify-between text-sm mb-1.5">
-                    <div className="flex items-center gap-2">
-                      <span className="w-2.5 h-2.5 rounded-sm bg-amber-400" />
-                      <span>Saisonnier</span>
-                    </div>
-                    <span className="font-semibold">7%</span>
-                  </div>
-                  <div className="w-full h-2 bg-border/60 rounded-full overflow-hidden">
-                    <div className="h-full bg-amber-400 rounded-full transition-all duration-500" style={{ width: '7%' }} />
-                  </div>
-                </div>
+      <DashboardPanel title="Derniers clients en négociation" icon={UserPlus} badge={<Badge variant="warning">3 en cours</Badge>}>
+        <div className="space-y-2">
+          {negociationClients.map(client => (
+            <div key={client.name} className="flex items-center gap-3 rounded-lg p-3 transition-colors hover:bg-background">
+              <div className={`flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full text-xs font-semibold ${client.bg}`}>
+                {client.initials}
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium">{client.name}</p>
+                <p className="truncate text-xs text-text-secondary">{client.property}</p>
+              </div>
+              <span className="hidden text-sm font-semibold sm:block">{client.price}</span>
+              <Button variant="outline" size="sm" icon={<Eye size={13} />}>Voir</Button>
+            </div>
+          ))}
+        </div>
+      </DashboardPanel>
+    </>
+  )
+}
+
+function AgendaTab() {
+  return (
+    <>
+      <TabIntro title="Agenda" subtitle={subtitles.agenda} />
+
+      <DashboardPanel title="Aujourd'hui" icon={Calendar} badge={<Badge variant="primary">5 rendez-vous</Badge>}>
+        <div className="space-y-1">
+          {todayAppointments.map(apt => (
+            <div key={apt.time + apt.client} className="flex items-center gap-3 rounded-lg px-3 py-2.5 transition-colors hover:bg-background">
+              <span className="w-12 flex-shrink-0 text-sm font-semibold">{apt.time}</span>
+              <Badge variant={apt.variant}>{apt.type}</Badge>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium">{apt.client}</p>
+                <p className="truncate text-xs text-text-secondary">{apt.context}</p>
+              </div>
+              <div className="flex flex-shrink-0 items-center gap-2">
+                <Button variant="outline" size="sm" icon={<Eye size={13} />}>Voir</Button>
+                <Button variant="primary" size="sm" icon={<Phone size={13} />}>Contacter</Button>
               </div>
             </div>
-          </div>
-        </Card>
-      </motion.div>
+          ))}
+        </div>
+        <DashboardLinkRow label="Voir tout le calendrier" />
+      </DashboardPanel>
 
-      {/* Section 7 — Derniers Leads + Derniers Documents */}
-      <motion.div variants={itemVariants} className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Derniers Leads */}
-        <Card className="p-5">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <UserPlus size={16} className="text-text" />
-              <h2 className="font-semibold">Derniers leads</h2>
+      <DashboardPanel title="Cette semaine" icon={Calendar} badge={<Badge variant="secondary">8 rendez-vous</Badge>}>
+        <div className="space-y-2">
+          {weekAppointments.map((apt, i) => (
+            <div key={i} className="flex items-center gap-3 rounded-lg px-3 py-2.5 transition-colors hover:bg-background">
+              <span className="w-16 flex-shrink-0 text-xs font-semibold text-text-secondary">{apt.day}</span>
+              <span className="w-12 flex-shrink-0 text-sm font-semibold">{apt.time}</span>
+              <Badge variant="secondary">{apt.type}</Badge>
+              <p className="flex-1 truncate text-sm font-medium">{apt.client}</p>
             </div>
-            <Badge variant="primary" size="sm">4 nouveaux</Badge>
-          </div>
-          <div className="space-y-2">
-            {leadData.map((lead, i) => (
-              <div key={i} className="flex items-center gap-3 p-3 rounded-lg hover:bg-background transition-colors">
-                <div className={`w-9 h-9 rounded-full ${lead.initialBg} flex items-center justify-center text-xs font-semibold flex-shrink-0`}>
-                  {lead.initials}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium">{lead.name}</p>
-                  <p className="text-xs text-text-secondary truncate">{lead.property}</p>
-                </div>
-                <span className="text-xs text-text-secondary/60 flex-shrink-0">{lead.time}</span>
-              </div>
-            ))}
-          </div>
-          <button className="mt-4 text-sm text-accent hover:text-accent-hover font-medium transition-colors">
-            Voir tous les prospects
-            <ChevronRight size={14} className="inline ml-0.5" />
-          </button>
-        </Card>
+          ))}
+        </div>
+        <DashboardLinkRow label="Voir le planning de la semaine" />
+      </DashboardPanel>
+    </>
+  )
+}
 
-        {/* Derniers Documents */}
-        <Card className="p-5">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <FileText size={16} className="text-text" />
-              <h2 className="font-semibold">Derniers documents</h2>
-            </div>
-            <Badge variant="primary" size="sm">4 recents</Badge>
-          </div>
-          <div className="space-y-2">
-            {documentData.map((doc, i) => (
-              <div key={i} className="flex items-center gap-3 p-3 rounded-lg hover:bg-background transition-colors">
-                <div className="w-8 h-8 rounded-lg bg-accent-light text-accent flex items-center justify-center flex-shrink-0">
-                  <FileText size={14} />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium">{doc.type}</p>
-                  <p className="text-xs text-text-secondary truncate">{doc.client}</p>
-                </div>
-                <Badge variant={doc.statusVariant} size="sm">{doc.status}</Badge>
-                <span className="text-xs text-text-secondary/60 flex-shrink-0 w-6 text-right">{doc.time}</span>
-              </div>
-            ))}
-          </div>
-          <button className="mt-4 text-sm text-accent hover:text-accent-hover font-medium transition-colors">
-            Voir tous les documents
-            <ChevronRight size={14} className="inline ml-0.5" />
-          </button>
-        </Card>
-      </motion.div>
+function ActiviteTab() {
+  return (
+    <>
+      <TabIntro title="Activité" subtitle={subtitles.activite} />
 
-      {/* Section 8 — Activite Extranet */}
-      <motion.div variants={itemVariants}>
-        <Card className="p-5">
-          <div className="flex items-center gap-2 mb-5">
-            <Globe size={16} className="text-text" />
-            <h2 className="font-semibold">Activite Extranet</h2>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        {extranetStats.map(stat => (
+          <div key={stat.label} className="rounded-xl border border-border/50 bg-card p-5 text-center shadow-card transition-all duration-200 hover:shadow-card-hover">
+            <p className={`text-3xl font-bold tracking-tight ${stat.color}`}>
+              <AnimatedNumber value={stat.value} />
+            </p>
+            <p className="mt-1 text-[13px] text-text-secondary">{stat.label}</p>
+            <span className="mt-1.5 inline-flex items-center gap-0.5 text-xs font-medium text-emerald-600">
+              <ArrowUpRight size={11} />
+              {stat.trend}
+            </span>
           </div>
+        ))}
+      </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-5">
-            <div className="bg-background rounded-xl p-4 text-center">
-              <p className="text-2xl font-bold text-accent">124</p>
-              <p className="text-xs text-text-secondary mt-0.5">Connexions cette semaine</p>
-              <span className="text-xs font-medium text-emerald-600 inline-flex items-center gap-0.5 mt-1">
-                <ArrowUpRight size={10} />
-                +18%
+      <DashboardPanel title="Dernières connexions" icon={Globe}>
+        <div className="space-y-2">
+          {connections.map(c => (
+            <div key={c.name} className="flex items-center gap-3 rounded-lg px-3 py-2.5 transition-colors hover:bg-background">
+              <span className="relative flex-shrink-0">
+                <span className={`flex h-9 w-9 items-center justify-center rounded-full text-xs font-semibold ${c.bg}`}>{c.initials}</span>
+                <span className={`absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-card ${c.dot}`} />
               </span>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-medium">{c.name}</p>
+                <p className="truncate text-xs text-text-secondary">{c.property}</p>
+              </div>
+              <span className="flex-shrink-0 text-xs text-text-secondary/60">{c.time}</span>
             </div>
-            <div className="bg-background rounded-xl p-4 text-center">
-              <p className="text-2xl font-bold text-emerald-600">23</p>
-              <p className="text-xs text-text-secondary mt-0.5">Clients actifs</p>
-            </div>
-            <div className="bg-background rounded-xl p-4 text-center">
-              <p className="text-2xl font-bold text-amber-600">45</p>
-              <p className="text-xs text-text-secondary mt-0.5">Documents consultes</p>
-            </div>
-          </div>
+          ))}
+        </div>
+        <DashboardLinkRow label="Voir le détail extranet" />
+      </DashboardPanel>
 
-          <div className="border-t border-border/30 pt-4">
-            <p className="text-xs text-text-secondary uppercase tracking-wider font-medium mb-3">Dernieres connexions</p>
-            <div className="space-y-2">
-              {[
-                { name: 'Sophie Martin', property: 'Villa Marrakech', time: 'il y a 10min', initials: 'SM', color: 'bg-accent-light text-accent' },
-                { name: 'Pierre Dubois', property: 'Appartement Casa', time: 'il y a 45min', initials: 'PD', color: 'bg-emerald-50 text-emerald-600' },
-                { name: 'Leila Benbrahim', property: 'Terrain Rabat', time: 'il y a 2h', initials: 'LB', color: 'bg-amber-50 text-amber-600' },
-              ].map((item, i) => (
-                <div key={i} className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-background transition-colors">
-                  <div className={`w-8 h-8 rounded-full ${item.color} flex items-center justify-center text-xs font-semibold`}>
-                    {item.initials}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium">{item.name}</p>
-                    <p className="text-xs text-text-secondary">{item.property}</p>
-                  </div>
-                  <span className="text-xs text-text-secondary/60">{item.time}</span>
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+        <DashboardPanel title="Derniers leads" icon={UserPlus} badge={<Badge variant="primary">4 nouveaux</Badge>}>
+          <div className="space-y-2">
+            {leads.map(lead => (
+              <div key={lead.name} className="flex items-center gap-3 rounded-lg p-3 transition-colors hover:bg-background">
+                <div className={`flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full text-xs font-semibold ${lead.bg}`}>{lead.initials}</div>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium">{lead.name}</p>
+                  <p className="truncate text-xs text-text-secondary">{lead.property}</p>
                 </div>
-              ))}
+                <span className="flex-shrink-0 text-xs text-text-secondary/60">{lead.time}</span>
+              </div>
+            ))}
+          </div>
+          <DashboardLinkRow label="Voir tous les prospects" />
+        </DashboardPanel>
+
+        <DashboardPanel title="Derniers documents" icon={FileText} badge={<Badge variant="secondary">4 récents</Badge>}>
+          <div className="space-y-2">
+            {recentDocuments.map(doc => (
+              <div key={doc.type + doc.client} className="flex items-center gap-3 rounded-lg p-3 transition-colors hover:bg-background">
+                <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-accent-light text-accent">
+                  <FileText size={15} />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium">{doc.type}</p>
+                  <p className="truncate text-xs text-text-secondary">{doc.client}</p>
+                </div>
+                <Badge variant={doc.variant}>{doc.status}</Badge>
+                <span className="flex-shrink-0 text-xs text-text-secondary/60">{doc.time}</span>
+              </div>
+            ))}
+          </div>
+          <DashboardLinkRow label="Voir tous les documents" />
+        </DashboardPanel>
+      </div>
+    </>
+  )
+}
+
+export default function Dashboard() {
+  const [activeTab, setActiveTab] = useState('overview')
+  const [period, setPeriod] = useState<Period>('month')
+
+  const content: Record<string, React.ReactNode> = {
+    overview: <OverviewTab />,
+    performance: <PerformanceTab />,
+    pipeline: <PipelineTab />,
+    agenda: <AgendaTab />,
+    activite: <ActiviteTab />,
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-2.5">
+            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-accent-light text-accent">
+              <Home size={19} />
+            </span>
+            <div>
+              <h1 className="text-2xl font-semibold tracking-tight">DASHBOARD</h1>
+              <p className="text-sm text-text-secondary">Bienvenue, Karim ! Voici votre activité du jour</p>
             </div>
           </div>
+          <div className="flex items-center gap-1 self-start rounded-xl border border-border/50 bg-card p-1 shadow-card sm:self-auto">
+            <Calendar size={15} className="ml-1.5 text-text-secondary" />
+            {periods.map(p => (
+              <button
+                key={p.key}
+                type="button"
+                onClick={() => setPeriod(p.key)}
+                className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+                  period === p.key
+                    ? 'bg-accent text-white shadow-sm'
+                    : 'text-text-secondary hover:text-text hover:bg-background'
+                }`}
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
+        </div>
+        <DashboardTabs tabs={tabs} activeId={activeTab} onChange={setActiveTab} />
+      </div>
 
-          <button className="mt-4 text-sm text-accent hover:text-accent-hover font-medium transition-colors">
-            Voir le detail extranet
-            <ChevronRight size={14} className="inline ml-0.5" />
-          </button>
-        </Card>
-      </motion.div>
-    </motion.div>
+      <TabContent tabId={activeTab}>
+        {content[activeTab]}
+      </TabContent>
+    </div>
   )
 }

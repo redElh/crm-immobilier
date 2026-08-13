@@ -5,13 +5,8 @@ import { Button } from '../../../components/ui/Button'
 import { Select } from '../../../components/ui/Select'
 import { Switch } from '../../../components/ui/Switch'
 import { BackLink } from '../../../components/ui/BackLink'
+import { useTheme, type ThemePreference } from '../../../contexts/ThemeContext'
 import { Globe, Sun, Eye, Clock, DollarSign, User, Shield } from 'react-feather'
-
-const compteTabs = [
-  { label: 'Profil', icon: User, to: '/settings/compte/profil' },
-  { label: 'Sécurité', icon: Shield, to: '/settings/compte/securite' },
-  { label: 'Préférences', icon: Sun, to: '/settings/compte/preferences' },
-]
 
 const languages = [
   { value: 'fr', label: 'Français' },
@@ -42,7 +37,7 @@ const currencies = [
   { value: 'usd', label: 'USD - Dollar américain' },
 ]
 
-const themes = [
+const themes: { value: ThemePreference; label: string }[] = [
   { value: 'light', label: 'Clair' },
   { value: 'dark', label: 'Sombre' },
   { value: 'system', label: 'Système' },
@@ -50,7 +45,7 @@ const themes = [
 
 export default function PreferencesSettingsPage() {
   const [langue, setLangue] = useState('fr')
-  const [theme, setTheme] = useState('light')
+  const { theme, setTheme } = useTheme()
   const [showNotifications, setShowNotifications] = useState(true)
   const [showMessagePreviews, setShowMessagePreviews] = useState(true)
   const [showSoldProperties, setShowSoldProperties] = useState(false)
@@ -80,6 +75,12 @@ export default function PreferencesSettingsPage() {
   }
 
   const location = useLocation()
+  const basePath = location.pathname.substring(0, location.pathname.lastIndexOf('/'))
+  const compteTabs = [
+    { label: 'Profil', icon: User, to: `${basePath}/profil` },
+    { label: 'Sécurité', icon: Shield, to: `${basePath}/securite` },
+    { label: 'Préférences', icon: Sun, to: `${basePath}/preferences` },
+  ]
 
   return (
     <div className="space-y-6">

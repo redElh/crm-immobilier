@@ -3,7 +3,6 @@ export type DocumentCategory =
   | 'financier'
   | 'mandat'
   | 'juridique'
-  | 'extranet'
   | 'technique'
   | 'diagnostic'
   | 'marketing'
@@ -18,7 +17,6 @@ export const DOCUMENT_CATEGORY_LABELS: Record<DocumentCategory, string> = {
   financier: 'Financier',
   mandat: 'Mandat',
   juridique: 'Juridique',
-  extranet: 'Extranet',
   technique: 'Technique',
   diagnostic: 'Diagnostic',
   marketing: 'Marketing',
@@ -32,7 +30,6 @@ export const DOCUMENT_CATEGORY_COLORS: Record<DocumentCategory, string> = {
   financier: 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20',
   mandat: 'bg-purple-500/10 text-purple-500 border-purple-500/20',
   juridique: 'bg-amber-500/10 text-amber-500 border-amber-500/20',
-  extranet: 'bg-cyan-500/10 text-cyan-500 border-cyan-500/20',
   technique: 'bg-sky-500/10 text-sky-500 border-sky-500/20',
   diagnostic: 'bg-orange-500/10 text-orange-500 border-orange-500/20',
   marketing: 'bg-pink-500/10 text-pink-500 border-pink-500/20',
@@ -64,18 +61,17 @@ export interface GlobalDocumentEntry extends FlatDocument {
   entityId: string
   entityName: string
   createdBy: string
+  folderPath?: string
 }
 
-export type ClientDocumentCategory = 'identite' | 'financier' | 'mandat' | 'juridique' | 'extranet' | 'autre'
+export type ClientDocumentCategory = 'identite' | 'financier' | 'mandat' | 'autre'
 
 export type PropertyDocumentCategory = 'juridique' | 'technique' | 'diagnostic' | 'marketing' | 'media' | 'contrat' | 'autre'
 
 export const CLIENT_DOC_CATEGORIES: { key: ClientDocumentCategory; label: string; description: string }[] = [
-  { key: 'identite', label: 'Identité', description: "Pièces d'identité et justificatifs" },
-  { key: 'financier', label: 'Financier', description: 'Revenus, relevés bancaires, avis fiscaux' },
-  { key: 'mandat', label: 'Mandats', description: 'Mandats de vente, de recherche, de gestion' },
-  { key: 'juridique', label: 'Juridique', description: 'Documents légaux et notariés' },
-  { key: 'extranet', label: 'Extranet', description: "Consentements, règlements acceptés" },
+  { key: 'identite', label: 'Identité', description: "Pièces d'identité et justificatifs de domicile" },
+  { key: 'financier', label: 'Financier', description: 'Revenus, relevés bancaires, financement' },
+  { key: 'mandat', label: 'Mandat', description: 'Mandats de vente, de recherche, de gestion' },
   { key: 'autre', label: 'Autres', description: 'Documents divers' },
 ]
 
@@ -94,7 +90,6 @@ export const GLOBAL_ALL_CATEGORIES: { key: DocumentCategory; label: string }[] =
   { key: 'financier', label: 'Financier' },
   { key: 'mandat', label: 'Mandat' },
   { key: 'juridique', label: 'Juridique' },
-  { key: 'extranet', label: 'Extranet' },
   { key: 'technique', label: 'Technique' },
   { key: 'diagnostic', label: 'Diagnostic' },
   { key: 'marketing', label: 'Marketing' },

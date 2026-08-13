@@ -2,25 +2,26 @@ import { useMemo } from 'react'
 import { motion } from 'framer-motion'
 import { Calendar, Clock } from 'react-feather'
 import {
-  CalendarEvent, EVENT_TYPE_CONFIG, AGENTS,
-  formatFrenchDate, formatTime, formatFrenchDayName,
+  CalendarEvent, getEventTypeConfig, Agent, getEventUserColor, withAlpha, getEventAgentNames,
+  formatEventRange, formatFrenchDate, formatFrenchDayName, eventMatchesSelectedAgents,
 } from '../../../types/calendar'
 
 interface AgendaViewProps {
   events: CalendarEvent[]
   selectedAgents: string[]
   selectedEventTypes: string[]
+  agents?: Agent[]
   onEventClick: (event: CalendarEvent) => void
 }
 
 export default function AgendaView({
-  events, selectedAgents, selectedEventTypes, onEventClick,
+  events, selectedAgents, selectedEventTypes, agents, onEventClick,
 }: AgendaViewProps) {
   const sortedEvents = useMemo(() => {
     return events
       .filter(e => {
         if (selectedEventTypes.length > 0 && !selectedEventTypes.includes(e.type)) return false
-        if (selectedAgents.length > 0 && !e.agentIds.some(a => selectedAgents.includes(a))) return false
+        if (!eventMatchesSelectedAgents(e, selectedAgents, agents)) return false
         return true
       })
       .sort((a, b) => a.start.getTime() - b.start.getTime())
@@ -29,16 +30,22 @@ export default function AgendaView({
   const grouped = useMemo(() => {
     const groups: { date: string; label: string; events: CalendarEvent[] }[] = []
     for (const event of sortedEvents) {
-      const dateKey = event.start.toLocaleDateString('fr-CA')
-      const existing = groups.find(g => g.date === dateKey)
-      if (existing) {
-        existing.events.push(event)
-      } else {
-        groups.push({
-          date: dateKey,
-          label: `${formatFrenchDayName(event.start)} ${formatFrenchDate(event.start)}`,
-          events: [event],
-        })
+      const start = new Date(event.start)
+      start.setHours(0, 0, 0, 0)
+      const end = new Date(event.end)
+      end.setHours(0, 0, 0, 0)
+      for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+        const dateKey = d.toLocaleDateString('fr-CA')
+        const existing = groups.find(g => g.date === dateKey)
+        if (existing) {
+          existing.events.push(event)
+        } else {
+          groups.push({
+            date: dateKey,
+            label: `${formatFrenchDayName(d)} ${formatFrenchDate(d)}`,
+            events: [event],
+          })
+        }
       }
     }
     return groups
@@ -62,21 +69,21 @@ export default function AgendaView({
           </h3>
           <div className="space-y-2">
             {group.events.map(event => {
-              const cfg = EVENT_TYPE_CONFIG[event.type]
-              const agentNames = event.agentIds
-                .map(id => AGENTS.find(a => a.id === id)?.name)
-                .filter(Boolean)
+              const cfg = getEventTypeConfig(event.type)
+              const color = getEventUserColor(event, agents)
+              const agentNames = getEventAgentNames(event)
               return (
                 <motion.button
                   key={event.id}
                   initial={{ opacity: 0, y: -4 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className={`w-full text-left p-3 rounded-lg border ${cfg.bgColor} ${cfg.borderColor} hover:opacity-80 transition-opacity`}
+                  className="w-full text-left p-3 rounded-lg border hover:opacity-80 transition-opacity"
+                  style={{ backgroundColor: withAlpha(color, '14'), borderColor: withAlpha(color, '40'), borderLeft: `3px solid ${color}` }}
                   onClick={() => onEventClick(event)}
                 >
                   <div className="flex items-start gap-3">
-                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center text-lg ${cfg.bgColor} ${cfg.borderColor} border shrink-0`}>
-                      {cfg.icon}
+                    <div className="w-10 h-10 rounded-lg flex items-center justify-center border shrink-0" style={{ backgroundColor: withAlpha(color, '1F'), borderColor: withAlpha(color, '40') }}>
+                      <cfg.icon size={20} className={cfg.textColor} />
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-0.5">
@@ -88,7 +95,7 @@ export default function AgendaView({
                       <div className="flex items-center gap-3 text-xs text-text-secondary">
                         <span className="flex items-center gap-1">
                           <Clock size={11} />
-                          {formatTime(event.start)} - {formatTime(event.end)}
+                          {formatEventRange(event)}
                         </span>
                         {agentNames.length > 0 && (
                           <span>{agentNames.join(', ')}</span>

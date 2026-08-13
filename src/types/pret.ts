@@ -1,5 +1,7 @@
 export type SimulationType = 'capacite' | 'mensualite';
 
+export type FinancingType = 'pret_bancaire' | 'apport_personnel' | 'comptant' | 'autre';
+
 export interface LoanParams {
   revenusAnnuels?: number;
   endettementMax?: number;
@@ -29,12 +31,14 @@ export interface SimulationRecord {
   id: string;
   date: string;
   type: SimulationType;
+  clientId?: string;
+  clientName?: string;
+  clientEmail?: string;
+  financingType?: FinancingType;
   revenus?: number;
   prixBien?: number;
   capacite?: number;
   mensualite?: number;
-  clientName?: string;
-  clientEmail?: string;
   notes?: string;
   apport?: number;
   tauxInteret?: number;
@@ -44,6 +48,8 @@ export interface SimulationRecord {
   tauxAssurance?: number;
   fraisDossier?: number;
   garantie?: number;
+  descriptionAutreFinancement?: string;
+  createdBy?: string;
 }
 
 export interface AmortizationRow {

@@ -63,7 +63,7 @@ export default function RegisterPage() {
   };
 
   return (
-    <AuthFormContainer title="Créer un compte agent" subtitle="Ajouter un nouvel agent à votre équipe" backgroundImage="/images/auth-bg.jpg">
+    <AuthFormContainer title="Créer un compte agent" subtitle="Ajouter un nouvel agent à votre équipe" backgroundImage="/CRM_Official_Image.jfif">
       {(errors.form || Object.keys(errors).length > 0) && (
         <div className="mb-4 p-3 bg-error/5 border border-error/20 rounded-lg">
           <p className="text-sm text-error font-medium">{errors.form || 'Veuillez corriger les erreurs'}</p>
@@ -89,7 +89,7 @@ export default function RegisterPage() {
           <span className="text-xs text-text-secondary">Je confirme la création de ce compte agent</span>
         </label>
 
-        <Button type="submit" variant="primary" className="w-full" loading={isLoading}>
+        <Button type="submit" variant="primary" className="w-full golden-border-animated" loading={isLoading}>
           Créer le compte agent
         </Button>
 

@@ -1,15 +1,18 @@
 import { useNavigate, useParams } from 'react-router-dom';
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Button } from '../../components/ui/Button';
 import Card from '../../components/ui/Card';
 import { Select } from '../../components/ui/Select';
 import { BackLink } from '../../components/ui/BackLink';
 import { PropertyCard } from '../../components/modules/properties/PropertyCard';
-import { mockPropertiesList } from '../../data/mockProperties';
+import { fetchProperties } from '../../services/propertyService';
 import { PROPERTY_TYPE_LABELS, TRANSACTION_TYPE_LABELS, STATUS_LABELS, STATUS_COLORS } from '../../types/property';
 import { ConfidentialProvider } from '../../components/modules/confidentiality/ConfidentialContext';
 import { ConfidentialBanner } from '../../components/modules/confidentiality/ConfidentialBanner';
-import { Search, Plus, Sliders, X, Grid, List } from 'react-feather';
+import { DraftSection } from '../../components/modules/properties/DraftSection';
+import { api } from '../../services/api';
+import { usePermission, useRestriction } from '../../hooks/usePermission';
+import { Search, Plus, Sliders, X, Grid, List, Lock } from 'react-feather';
 
 const CITY_GROUPS: Record<string, string[]> = {
   Essaouira: [
@@ -21,9 +24,40 @@ const CITY_GROUPS: Record<string, string[]> = {
 
 const TOP_CITIES = ['Essaouira', 'Marrakech', 'Agadir'];
 
+const formatPrice = (p: number) =>
+  new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'MAD', maximumFractionDigits: 0 }).format(p);
+
+const getDisplayPrice = (p: any) => {
+  if (p?.prixNetVendeur && p?.honorairesPct && p?.honorairesType === 'inclus') {
+    return Math.round(Number(p.prixNetVendeur) * (1 + Number(p.honorairesPct) / 100));
+  }
+  return p?.prixNetVendeur || p?.price || 0;
+};
+
 export default function PropertiesPageWithType() {
   const navigate = useNavigate();
-  const { type } = useParams<{ type: string }>();
+  const { type, agentId } = useParams<{ type: string; agentId: string }>();
+  const canRead = usePermission('biens-lecture');
+  const canWrite = usePermission('biens-ecriture');
+  const restricted = useRestriction('biens-info-privees');
+  const [allProperties, setAllProperties] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [currentUserId, setCurrentUserId] = useState('');
+
+  useEffect(() => {
+    api.get<any>('/auth/me')
+      .then(u => u && setCurrentUserId(String(u.id)))
+      .catch(() => {})
+  }, []);
+
+  useEffect(() => {
+    if (!currentUserId) return;
+    setLoading(true);
+    fetchProperties({ agent_id: currentUserId })
+      .then(setAllProperties)
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [currentUserId]);
 
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -36,7 +70,6 @@ export default function PropertiesPageWithType() {
   const [surfaceMin, setSurfaceMin] = useState('');
   const [surfaceMax, setSurfaceMax] = useState('');
   const [bedroomsMin, setBedroomsMin] = useState('');
-  const [dpeFilter, setDpeFilter] = useState<string>('all');
   const [showFilters, setShowFilters] = useState(false);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
 
@@ -88,11 +121,6 @@ export default function PropertiesPageWithType() {
     ...Object.entries(PROPERTY_TYPE_LABELS).map(([value, label]) => ({ value, label })),
   ];
 
-  const dpeOptions = [
-    { value: 'all', label: 'Tout DPE' },
-    ...'ABCDEFG'.split('').map(c => ({ value: c, label: `Classe ${c}` })),
-  ];
-
   const cityOptions = [
     { value: 'all', label: 'Toutes les villes' },
     ...TOP_CITIES.map(c => ({
@@ -106,8 +134,8 @@ export default function PropertiesPageWithType() {
     : [];
 
   const filteredProperties = useMemo(() => {
-    return mockPropertiesList
-      .filter(p => type ? p.propertyType === type : true)
+    return allProperties
+      .filter((p: any) => type ? p.propertyType === type : true)
       .filter(p =>
         !searchTerm ||
         p.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -127,9 +155,8 @@ export default function PropertiesPageWithType() {
       .filter(p => !priceMax || p.price <= Number(priceMax))
       .filter(p => !surfaceMin || p.surface >= Number(surfaceMin))
       .filter(p => !surfaceMax || p.surface <= Number(surfaceMax))
-      .filter(p => !bedroomsMin || (p.bedrooms ?? 0) >= Number(bedroomsMin))
-      .filter(p => dpeFilter === 'all' || (p.dpe && p.dpe.class === dpeFilter));
-  }, [type, searchTerm, statusFilter, typeFilter, transactionFilter, cityFilter, priceMin, priceMax, surfaceMin, surfaceMax, bedroomsMin, dpeFilter]);
+      .filter(p => !bedroomsMin || (p.bedrooms ?? 0) >= Number(bedroomsMin));
+  }, [type, searchTerm, statusFilter, typeFilter, transactionFilter, cityFilter, priceMin, priceMax, surfaceMin, surfaceMax, bedroomsMin, allProperties]);
 
   const activeFiltersCount = [
     statusFilter !== 'all',
@@ -142,7 +169,6 @@ export default function PropertiesPageWithType() {
     surfaceMin !== '',
     surfaceMax !== '',
     bedroomsMin !== '',
-    dpeFilter !== 'all',
   ].filter(Boolean).length;
 
   return (
@@ -150,6 +176,20 @@ export default function PropertiesPageWithType() {
     <div className="space-y-6 animate-fade-in">
       <BackLink className="mb-2" />
 
+      {!canRead && (
+        <Card className="p-12 text-center">
+          <div className="max-w-xs mx-auto">
+            <Lock size={32} className="text-text-secondary/20 mx-auto mb-3" />
+            <p className="text-text-secondary font-medium">Accès refusé</p>
+            <p className="text-xs text-text-secondary/60 mt-1">
+              Vous n'avez pas le droit de consulter les biens
+            </p>
+          </div>
+        </Card>
+      )}
+
+      {canRead && (
+      <>
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
@@ -158,13 +198,21 @@ export default function PropertiesPageWithType() {
             {filteredProperties.length} bien{filteredProperties.length !== 1 ? 's' : ''} trouvé{filteredProperties.length !== 1 ? 's' : ''}
           </p>
         </div>
-        <Button variant="default" icon={<Plus size={14} />} onClick={() => navigate(`/properties/add${type ? `?type=${type}` : ''}`)}>
-          Ajouter un bien
-        </Button>
+        {canWrite && (
+          <Button variant="default" icon={<Plus size={14} />} onClick={() => navigate(`/${agentId}/properties/type/${type}/add`)}>
+            Ajouter un bien
+          </Button>
+        )}
       </div>
 
-      <ConfidentialBanner />
+      {!loading && allProperties.length > 0 && <ConfidentialBanner />}
 
+      {loading ? (
+        <div className="flex items-center justify-center py-12">
+          <div className="w-6 h-6 border-2 border-accent border-t-transparent rounded-full animate-spin" />
+        </div>
+      ) : (
+      <>
       {/* Search + Filter bar */}
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="flex-1 relative">
@@ -215,7 +263,7 @@ export default function PropertiesPageWithType() {
             <button className="btn-ghost text-xs flex items-center gap-1" onClick={() => {
               setStatusFilter('all'); setTypeFilter('all'); setTransactionFilter('all'); setCityFilter('all'); setCitySubFilter('all');
               setPriceMin(''); setPriceMax(''); setSurfaceMin(''); setSurfaceMax('');
-              setBedroomsMin(''); setDpeFilter('all');
+              setBedroomsMin('');
             }}>
               <X size={12} /> Réinitialiser
             </button>
@@ -291,14 +339,12 @@ export default function PropertiesPageWithType() {
               value={bedroomsMin}
               onChange={(e) => setBedroomsMin(e.target.value)}
             />
-            <Select
-              options={dpeOptions}
-              value={dpeFilter}
-              onValueChange={setDpeFilter}
-            />
           </div>
         </Card>
       )}
+
+      {/* Drafts */}
+      <DraftSection propertyType={type} agentSlug={agentId} />
 
       {/* Results */}
       {filteredProperties.length > 0 ? (
@@ -315,7 +361,15 @@ export default function PropertiesPageWithType() {
                 <div
                   key={property.id}
                   className="flex items-center gap-4 p-4 hover:bg-background/50 transition-colors cursor-pointer"
-                  onClick={() => navigate(`/properties/${property.id}`)}
+                  onClick={() => {
+                    if (restricted) return;
+                    const propType = type || property.propertyType || 'residential';
+                    if (agentId) {
+                      navigate(`/${agentId}/properties/type/${propType}/${property.id}`);
+                    } else {
+                      navigate(`/properties/${property.id}`);
+                    }
+                  }}
                 >
                   <div className="w-16 h-16 rounded-lg bg-gradient-to-br from-accent-light to-background flex-shrink-0 flex items-center justify-center overflow-hidden">
                     {property.images?.[0] ? (
@@ -326,23 +380,29 @@ export default function PropertiesPageWithType() {
                   </div>
                   <div className="flex-1 min-w-0 grid grid-cols-2 md:grid-cols-5 gap-2 items-center">
                     <div>
-                      <p className="text-[11px] text-text-secondary/50">{property.reference}</p>
+                      <div className="flex items-center gap-1.5">
+                        <p className="text-[11px] text-text-secondary/50">{property.reference}</p>
+                        {property.originalPropertyId ? (
+                          <span className="inline-flex items-center px-1 py-0.5 text-[8px] font-semibold rounded-full uppercase tracking-wider bg-orange-100 text-orange-700 shrink-0">
+                            Copie
+                          </span>
+                        ) : null}
+                      </div>
                       <p className="text-sm font-medium truncate">{property.title}</p>
                     </div>
                     <p className="text-xs text-text-secondary hidden md:block">{property.city}</p>
                     <p className="text-xs text-text-secondary hidden md:block">
-                      {property.surface} m² · {property.rooms} pièces
-                      {property.bedrooms > 0 && ` · ${property.bedrooms} ch.`}
-                      {property.dpe && <span className="ml-1.5 inline-flex items-center justify-center w-4 h-4 rounded text-[8px] font-bold text-white bg-green-500">A</span>}
+                      {property.surface} m² · {((property as any).bathroom_count ?? property.bathrooms)} sdb
+                      {((property as any).bedrooms_total ?? property.bedrooms) > 0 && ` · ${((property as any).bedrooms_total ?? property.bedrooms)} ch.`}
                     </p>
                     <p className="text-sm font-semibold text-accent">
-                      {property.prixSurDemande ? 'Sur demande' : `${property.price.toLocaleString()} MAD`}
+                      {property.prixSurDemande ? 'Sur demande' : formatPrice(getDisplayPrice(property))}
                     </p>
                     <div className="flex items-center gap-2">
-                      <span className={`inline-flex items-center px-2 py-0.5 text-[10px] font-medium rounded-md border ${
+                      <span className={"inline-flex items-center px-2 py-0.5 text-[10px] font-medium rounded-md border " + (
                         STATUS_LABELS[property.status] ? STATUS_COLORS[property.status] :
                         'bg-gray-50 text-gray-500 border-gray-200'
-                      }`}>
+                      )}>
                         {STATUS_LABELS[property.status] || property.status}
                       </span>
                     </div>
@@ -363,7 +423,12 @@ export default function PropertiesPageWithType() {
           </div>
         </Card>
       )}
+      </>
+      )}
+      </>
+      )}
     </div>
     </ConfidentialProvider>
   );
 }
+

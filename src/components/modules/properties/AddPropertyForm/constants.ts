@@ -1,40 +1,123 @@
-export const propertyTypes = [
-  { value: 'maison', label: 'Maison' },
+export const propertyTypeOptions = [
   { value: 'appartement', label: 'Appartement' },
+  { value: 'maison', label: 'Maison' },
   { value: 'terrain', label: 'Terrain' },
-  { value: 'immeuble', label: 'Immeuble' },
   { value: 'commerce', label: 'Commerce' },
-  { value: 'riad', label: 'Riad' },
-];
-
-export const residentialPropertyTypes = [
-  { value: 'maison', label: 'Maison' },
-  { value: 'appartement', label: 'Appartement' },
-  { value: 'villa', label: 'Villa' },
+  { value: 'garage_parking', label: 'Garage / Parking' },
   { value: 'immeuble', label: 'Immeuble' },
-  { value: 'riad', label: 'Riad' },
-];
-
-export const luxuryPropertyTypes = [
-  { value: 'villa_de_standing', label: 'Villa de standing' },
-  { value: 'penthouse', label: 'Penthouse' },
-  { value: 'riad', label: 'Riad' },
-  { value: 'domaine', label: 'Domaine' },
-  { value: 'chateau', label: 'Château' },
-];
-
-export const commercialSubTypes = [
   { value: 'bureau', label: 'Bureau' },
-  { value: 'local_commercial', label: 'Local commercial' },
-  { value: 'entrepot', label: 'Entrepôt' },
-  { value: 'boutique', label: 'Boutique' },
+  { value: 'bateau', label: 'Bateau' },
+  { value: 'activite_entrepot', label: "Locaux d'activité / Entrepôts" },
+  { value: 'cave_box', label: 'Cave / Box' },
 ];
 
-export const landSubTypes = [
-  { value: 'constructible', label: 'Terrain constructible' },
-  { value: 'agricole', label: 'Terrain agricole' },
-  { value: 'urbain', label: 'Terrain urbain' },
-  { value: 'a_batir', label: 'Terrain à bâtir' },
+export const propertyTypeSubTypes: Record<string, { value: string; label: string }[]> = {
+  appartement: [
+    { value: 'appart_hotel', label: "Appart'hotel" },
+    { value: 'appartement', label: 'Appartement' },
+    { value: 'appartement_villa', label: 'Appartement villa' },
+    { value: 'chambre', label: 'Chambre' },
+    { value: 'duplex', label: 'Duplex' },
+    { value: 'loft', label: 'Loft' },
+    { value: 'maison_village', label: 'Maison de village' },
+    { value: 'penthouse', label: 'Penthouse' },
+    { value: 'studio', label: 'Studio' },
+    { value: 'triplex', label: 'Triplex' },
+  ],
+  maison: [
+    { value: 'maison_village', label: 'Maison de village' },
+    { value: 'penthouse', label: 'Penthouse' },
+    { value: 'bungalow', label: 'Bungalow' },
+    { value: 'chalet', label: 'Chalet' },
+    { value: 'chateau', label: 'Château' },
+    { value: 'chaumiere', label: 'Chaumière' },
+    { value: 'domaine_equestre', label: 'Domaine équestre' },
+    { value: 'ferme', label: 'Ferme' },
+    { value: 'fermette', label: 'Fermette' },
+    { value: 'grange', label: 'Grange' },
+    { value: 'haras', label: 'Haras' },
+    { value: 'hotel_particulier', label: 'Hôtel particulier' },
+    { value: 'maison', label: 'Maison' },
+    { value: 'maison_hotes', label: "Maison d'hôtes" },
+    { value: 'maison_ville', label: 'Maison de ville' },
+    { value: 'maison_jumelee', label: 'Maison jumelée' },
+    { value: 'maisonette', label: 'Maisonette' },
+    { value: 'manoir', label: 'Manoir' },
+    { value: 'mobile_home', label: 'Mobile home' },
+    { value: 'moulin', label: 'Moulin' },
+    { value: 'palais', label: 'Palais' },
+    { value: 'propriete', label: 'Propriété' },
+    { value: 'refuge', label: 'Refuge' },
+    { value: 'remise', label: 'Remise' },
+    { value: 'riad', label: 'Riad' },
+    { value: 'ruine', label: 'Ruine' },
+    { value: 'villa', label: 'Villa' },
+    { value: 'villa_jumelee', label: 'Villa jumelée' },
+  ],
+  terrain: [
+    { value: 'lac', label: 'Lac' },
+    { value: 'terrain', label: 'Terrain' },
+    { value: 'terrain_agricole', label: 'Terrain agricole' },
+    { value: 'terrain_commercial', label: 'Terrain commercial' },
+    { value: 'terrain_constructible', label: 'Terrain constructible' },
+    { value: 'terrain_inconstructible', label: 'Terrain inconstructible' },
+    { value: 'terrain_residentiel', label: 'Terrain résidentiel' },
+  ],
+  commerce: [
+    { value: 'atelier', label: 'Atelier' },
+    { value: 'boutique', label: 'Boutique' },
+    { value: 'commerce', label: 'Commerce' },
+    { value: 'droit_bail', label: 'Droit du bail' },
+    { value: 'entreprise', label: 'Entreprise' },
+    { value: 'exploitation_agricole', label: 'Exploitation agricole' },
+    { value: 'fonds_commerce', label: 'Fonds de commerce' },
+    { value: 'gerance', label: 'Gérance' },
+    { value: 'hotel', label: 'Hôtel' },
+    { value: 'local_commercial', label: 'Local commercial' },
+    { value: 'local_fonds_commerce', label: 'Local et fonds de commerce' },
+  ],
+  garage_parking: [
+    { value: 'box', label: 'Box' },
+    { value: 'garage', label: 'Garage' },
+    { value: 'parking', label: 'Parking' },
+  ],
+  immeuble: [
+    { value: 'hotel_particulier', label: 'Hôtel particulier' },
+    { value: 'ensemble_immobilier', label: 'Ensemble immobilier' },
+    { value: 'immeuble', label: 'Immeuble' },
+  ],
+  bureau: [
+    { value: 'bureau', label: 'Bureau' },
+    { value: 'cabinet', label: 'Cabinet' },
+    { value: 'local', label: 'Local' },
+  ],
+  bateau: [
+    { value: 'bateau_moteur', label: 'Bateau à moteur' },
+    { value: 'catamaran', label: 'Catamaran' },
+    { value: 'peniche', label: 'Péniche' },
+    { value: 'place_port', label: 'Place de port' },
+    { value: 'voilier', label: 'Voilier' },
+    { value: 'yacht', label: 'Yacht' },
+  ],
+  activite_entrepot: [
+    { value: 'remise', label: 'Remise' },
+    { value: 'atelier', label: 'Atelier' },
+    { value: 'exploitation_agricole', label: 'Exploitation agricole' },
+    { value: 'cabinet', label: 'Cabinet' },
+    { value: 'local', label: 'Local' },
+    { value: 'entrepot', label: 'Entrepôt' },
+    { value: 'hangar', label: 'Hangar' },
+    { value: 'usine', label: 'Usine' },
+  ],
+  cave_box: [
+    { value: 'cave', label: 'Cave' },
+    { value: 'box', label: 'Box' },
+  ],
+};
+
+export const allPropertyTypes = [
+  ...propertyTypeOptions,
+  ...Object.values(propertyTypeSubTypes).flat(),
 ];
 
 export const propertyStates = [
@@ -185,8 +268,45 @@ export const proximiteItems = [
 ];
 
 export const portalPartners = [
-  'Mubawab', 'Properstar', 'Green-Acres', 'Kyero',
-  'LuxuryEstate', 'JamesEdition', 'Avito', 'M2 Square Meter (site)',
+  'Arlet(Paper)', 'BabaCasa', 'Bien avec vue', 'Flatway',
+  'GoFlint', 'Green-Acres', 'Havelia', 'Immo Gratuit',
+  'JamesEdition', 'Kazaki', 'Kyero', 'Ieroiloc',
+  'localcommercial', 'LuxuryEstate', 'M2 Square Meter', 'MLS Worldwide',
+  'Monbien', 'Mubawab', 'Only-luxury', 'Properstar',
+  'StaysCo', 'Superimmo', 'Substainable Real Estate', 'Trovi.co',
+  'Vizzit', 'Zefir', 'Zilek',
+];
+
+export const etapeOptions = [
+  { value: 'en_cours', label: 'En cours' },
+  { value: 'en_attente', label: 'En attente' },
+  { value: 'termine', label: 'Terminé' },
+  { value: 'supprime', label: 'Supprimé' },
+];
+
+export const etapeEnAttenteOptions = [
+  { value: 'attente_mandat', label: 'Attente mandat' },
+  { value: 'mandat_expire', label: 'Mandat expiré' },
+  { value: 'sous_offre_reservation', label: 'Sous offre / réservation' },
+  { value: 'sous_contrat', label: 'Sous contrat vente/location' },
+  { value: 'attente_acte_bail', label: 'Attente acte/bail' },
+  { value: 'attente_correction', label: 'Attente correction' },
+  { value: 'attente_validation', label: 'Attente validation' },
+  { value: 'autre', label: 'Autre' },
+];
+
+export const etapeTermineOptions = [
+  { value: 'vendu_loue_agence', label: "Vendu/loué par l'agence" },
+  { value: 'vendu_loue_proprietaire', label: 'Vendu/loué par le propriétaire' },
+  { value: 'vendu_loue_confrere', label: 'Vendu/loué par un confrère' },
+  { value: 'retire_agence', label: "Retiré par l'agence" },
+  { value: 'retire_proprietaire', label: 'Retiré par le propriétaire' },
+  { value: 'vente_location_annulee', label: 'Vente/location annulée' },
+  { value: 'autre', label: 'Autre' },
+];
+
+export const etapeSupprimeOptions = [
+  { value: 'detruire_fiche', label: 'Détruire cette fiche' },
 ];
 
 export const mandateTypes = [

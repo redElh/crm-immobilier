@@ -6,6 +6,7 @@ import { cn } from '../../lib/utils'
 interface SelectOption {
   value: string
   label: string
+  icon?: React.ComponentType<{ size?: number; className?: string }>
 }
 
 interface SelectProps {
@@ -128,7 +129,8 @@ export const Select = ({
           )}
           {...props}
         >
-          <span className={cn('truncate', !selectedOption && 'text-text-secondary/60')}>
+          <span className={cn('truncate flex items-center gap-2', !selectedOption && 'text-text-secondary/60')}>
+            {selectedOption?.icon && <selectedOption.icon size={14} className="text-text-secondary shrink-0" />}
             {selectedOption ? selectedOption.label : placeholder || 'Sélectionner...'}
           </span>
           <motion.div
@@ -174,7 +176,8 @@ export const Select = ({
                     className="w-1.5 h-1.5 rounded-full bg-accent shrink-0"
                   />
                 )}
-                <span className={cn(!(currentValue === option.value) && 'ml-[18px]')}>
+                <span className={cn('flex items-center gap-2', !(currentValue === option.value) && 'ml-[18px]')}>
+                  {option.icon && <option.icon size={14} className="text-text-secondary shrink-0" />}
                   {option.label}
                 </span>
               </motion.button>

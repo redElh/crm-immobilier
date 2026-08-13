@@ -1,4 +1,4 @@
-import { CalendarEvent, EVENT_TYPE_CONFIG, AGENTS } from '../../../types/calendar'
+import { CalendarEvent, getEventTypeConfig, AGENTS, Agent, getEventUserColor, withAlpha, formatEventRange } from '../../../types/calendar'
 import { cn } from '../../../lib/utils'
 
 interface EventBadgeProps {
@@ -6,11 +6,14 @@ interface EventBadgeProps {
   compact?: boolean
   onClick?: (e: CalendarEvent) => void
   className?: string
+  agents?: Agent[]
 }
 
-export default function EventBadge({ event, compact, onClick, className }: EventBadgeProps) {
-  const cfg = EVENT_TYPE_CONFIG[event.type]
-  const agentColors = event.agentIds.map(id => AGENTS.find(a => a.id === id)?.color || '#6B7280')
+export default function EventBadge({ event, compact, onClick, className, agents }: EventBadgeProps) {
+  const cfg = getEventTypeConfig(event.type)
+  const color = getEventUserColor(event, agents)
+  const catalog = agents && agents.length > 0 ? agents : AGENTS
+  const agentColors = event.agentIds.map(id => catalog.find(a => a.id === id)?.color || '#6B7280')
 
   if (compact) {
     return (
@@ -18,11 +21,11 @@ export default function EventBadge({ event, compact, onClick, className }: Event
         onClick={() => onClick?.(event)}
         className={cn(
           'w-full text-left px-1.5 py-0.5 rounded text-[11px] font-medium truncate border-l-2 transition-colors hover:opacity-80',
-          cfg.bgColor, cfg.textColor, cfg.borderColor,
           className,
         )}
+        style={{ backgroundColor: withAlpha(color, '1F'), borderLeftColor: color }}
       >
-        {cfg.icon} {event.title}
+        {<cfg.icon size={12} className="inline-block -mt-0.5 shrink-0" />} {event.title}
       </button>
     )
   }
@@ -32,14 +35,14 @@ export default function EventBadge({ event, compact, onClick, className }: Event
       onClick={() => onClick?.(event)}
       className={cn(
         'w-full text-left p-2 rounded-lg border transition-colors hover:opacity-80',
-        cfg.bgColor, cfg.borderColor,
         className,
       )}
+      style={{ backgroundColor: withAlpha(color, '14'), borderColor: withAlpha(color, '40'), borderLeft: `3px solid ${color}` }}
     >
       <div className="flex items-center gap-1.5 mb-0.5">
-        <span className="text-xs">{cfg.icon}</span>
-        <span className={cn('text-xs font-semibold', cfg.textColor)}>
-          {event.start.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+        <span className="text-xs inline-flex"><cfg.icon size={12} /></span>
+        <span className={cn('text-xs font-semibold truncate', cfg.textColor)}>
+          {formatEventRange(event)}
         </span>
       </div>
       <p className={cn('text-xs font-medium truncate', cfg.textColor)}>

@@ -1,20 +1,23 @@
 import { motion, AnimatePresence } from 'framer-motion'
 import { X, Edit3, Trash2, Phone, Mail, MapPin, Key, Calendar, User } from 'react-feather'
 import {
-  CalendarEvent, EVENT_TYPE_CONFIG, AGENTS, formatFrenchDate, formatTime,
+  CalendarEvent, getEventTypeConfig, Agent, AGENTS, getEventUserColor, withAlpha, getAgentColor, getInitials, formatFrenchDate, formatTime,
 } from '../../../types/calendar'
 
 interface EventDetailPanelProps {
   event: CalendarEvent | null
+  agents?: Agent[]
   onClose: () => void
   onEdit: (event: CalendarEvent) => void
   onDelete: (eventId: string) => void
 }
 
-export default function EventDetailPanel({ event, onClose, onEdit, onDelete }: EventDetailPanelProps) {
+export default function EventDetailPanel({ event, agents, onClose, onEdit, onDelete }: EventDetailPanelProps) {
   if (!event) return null
-  const cfg = EVENT_TYPE_CONFIG[event.type]
-  const agentNames = event.agentIds.map(id => AGENTS.find(a => a.id === id)).filter(Boolean)
+  const cfg = getEventTypeConfig(event.type)
+  const color = getEventUserColor(event, agents)
+  const catalog = agents && agents.length > 0 ? agents : AGENTS
+  const chipColor = (name: string) => catalog.find(a => a.name.replace(/\s+/g, ' ').trim() === name.replace(/\s+/g, ' ').trim())?.color || getAgentColor(name)
 
   return (
     <AnimatePresence>
@@ -26,10 +29,10 @@ export default function EventDetailPanel({ event, onClose, onEdit, onDelete }: E
           transition={{ duration: 0.2, ease: 'easeOut' }}
           className="bg-card rounded-xl border border-border/50 shadow-card overflow-hidden"
         >
-          <div className={`px-4 py-3 border-b border-border/30 ${cfg.bgColor}`}>
+          <div className="px-4 py-3 border-b border-border/30" style={{ backgroundColor: withAlpha(color, '17'), borderLeft: `4px solid ${color}` }}>
             <div className="flex items-center justify-between mb-1">
-              <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${cfg.bgColor} ${cfg.textColor} border ${cfg.borderColor}`}>
-                {cfg.icon} {cfg.label}
+              <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${cfg.bgColor} ${cfg.textColor} border ${cfg.borderColor} inline-flex items-center gap-1`}>
+                <cfg.icon size={12} /> {cfg.label}
               </span>
               <div className="flex items-center gap-1">
                 <button
@@ -54,34 +57,30 @@ export default function EventDetailPanel({ event, onClose, onEdit, onDelete }: E
               <Calendar size={14} className="text-text-secondary mt-0.5" />
               <div>
                 <p className="text-sm text-text">
-                  {formatFrenchDate(event.start)}
+                  Démarre le {formatFrenchDate(event.start)} à {formatTime(event.start)}
                 </p>
-                {!event.allDay && (
-                  <p className="text-sm text-text-secondary">
-                    {formatTime(event.start)} - {formatTime(event.end)}
-                  </p>
-                )}
-                {event.allDay && (
-                  <p className="text-sm text-text-secondary">Journée entière</p>
-                )}
+                <p className="text-sm text-text-secondary">
+                  Termine le {formatFrenchDate(event.end)} à {formatTime(event.end)}
+                </p>
               </div>
             </div>
 
             <div className="flex items-start gap-3">
               <User size={14} className="text-text-secondary mt-0.5" />
               <div>
-                <p className="text-sm font-medium text-text">Agent(s)</p>
-                <div className="flex flex-wrap gap-1.5 mt-1">
-                  {agentNames.map(agent => agent && (
+                <p className="text-sm font-medium text-text">Auteur d'événement</p>
+                {event.createdBy ? (
+                  <div className="flex flex-wrap gap-1.5 mt-1">
                     <span
-                      key={agent.id}
                       className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium text-white"
-                      style={{ backgroundColor: agent.color }}
+                      style={{ backgroundColor: chipColor(event.createdBy) }}
                     >
-                      {agent.initials} {agent.name.split(' ')[0]}
+                      {getInitials(event.createdBy)} {event.createdBy}
                     </span>
-                  ))}
-                </div>
+                  </div>
+                ) : (
+                  <p className="text-sm text-text-secondary mt-0.5">—</p>
+                )}
               </div>
             </div>
 

@@ -1,4 +1,5 @@
 import React, { useRef, useState, useEffect, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Clock } from 'react-feather'
 import { cn } from '../../lib/utils'
@@ -155,84 +156,87 @@ export const TimePicker = React.forwardRef<HTMLInputElement, TimePickerProps>(
           </div>
         </div>
 
-        <AnimatePresence>
-          {isOpen && (
-            <motion.div
-              ref={dropdownRef}
-              key="timepicker-dropdown"
-              initial={{ opacity: 0, y: -8, scale: 0.96 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: -8, scale: 0.96 }}
-              transition={{ duration: 0.15, ease: 'easeOut' }}
-              style={dropdownStyle}
-              className="bg-card rounded-lg border border-border/50 shadow-dropdown p-3"
-            >
-              <div className="flex items-stretch gap-1">
-                <div className="flex-1">
-                  <div className="text-[10px] font-medium text-text-secondary/50 text-center mb-1.5 uppercase tracking-wider">
-                    Heures
+        {createPortal(
+          <AnimatePresence>
+            {isOpen && (
+              <motion.div
+                ref={dropdownRef}
+                key="timepicker-dropdown"
+                initial={{ opacity: 0, y: -8, scale: 0.96 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: -8, scale: 0.96 }}
+                transition={{ duration: 0.15, ease: 'easeOut' }}
+                style={dropdownStyle}
+                className="bg-card rounded-lg border border-border/50 shadow-dropdown p-3"
+              >
+                <div className="flex items-stretch gap-1">
+                  <div className="flex-1">
+                    <div className="text-[10px] font-medium text-text-secondary/50 text-center mb-1.5 uppercase tracking-wider">
+                      Heures
+                    </div>
+                    <div
+                      ref={hourListRef}
+                      className="overflow-y-auto max-h-[168px] scrollbar-thin space-y-0.5 scroll-smooth"
+                    >
+                      {HOURS.map((h) => (
+                        <button
+                          key={h}
+                          type="button"
+                          onClick={() => {
+                            setTempHour(h)
+                            commitTime(h, tempMinute || '00')
+                          }}
+                          className={cn(
+                            'w-full text-center py-1.5 text-sm rounded-md transition-all duration-150',
+                            tempHour === h
+                              ? 'bg-accent text-white font-semibold shadow-sm'
+                              : 'text-text-secondary hover:text-text hover:bg-background'
+                          )}
+                        >
+                          {h}
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                  <div
-                    ref={hourListRef}
-                    className="overflow-y-auto max-h-[168px] scrollbar-thin space-y-0.5 scroll-smooth"
-                  >
-                    {HOURS.map((h) => (
-                      <button
-                        key={h}
-                        type="button"
-                        onClick={() => {
-                          setTempHour(h)
-                          commitTime(h, tempMinute || '00')
-                        }}
-                        className={cn(
-                          'w-full text-center py-1.5 text-sm rounded-md transition-all duration-150',
-                          tempHour === h
-                            ? 'bg-accent text-white font-semibold shadow-sm'
-                            : 'text-text-secondary hover:text-text hover:bg-background'
-                        )}
-                      >
-                        {h}
-                      </button>
-                    ))}
-                  </div>
-                </div>
 
-                <div className="flex items-center justify-center w-6 shrink-0">
-                  <span className="text-lg font-semibold text-text-secondary/40 mt-6">:</span>
-                </div>
+                  <div className="flex items-center justify-center w-6 shrink-0">
+                    <span className="text-lg font-semibold text-text-secondary/40 mt-6">:</span>
+                  </div>
 
-                <div className="flex-1">
-                  <div className="text-[10px] font-medium text-text-secondary/50 text-center mb-1.5 uppercase tracking-wider">
-                    Minutes
-                  </div>
-                  <div
-                    ref={minuteListRef}
-                    className="overflow-y-auto max-h-[168px] scrollbar-thin space-y-0.5 scroll-smooth"
-                  >
-                    {MINUTES.map((m) => (
-                      <button
-                        key={m}
-                        type="button"
-                        onClick={() => {
-                          setTempMinute(m)
-                          commitTime(tempHour || '00', m)
-                        }}
-                        className={cn(
-                          'w-full text-center py-1.5 text-sm rounded-md transition-all duration-150',
-                          tempMinute === m
-                            ? 'bg-accent text-white font-semibold shadow-sm'
-                            : 'text-text-secondary hover:text-text hover:bg-background'
-                        )}
-                      >
-                        {m}
-                      </button>
-                    ))}
+                  <div className="flex-1">
+                    <div className="text-[10px] font-medium text-text-secondary/50 text-center mb-1.5 uppercase tracking-wider">
+                      Minutes
+                    </div>
+                    <div
+                      ref={minuteListRef}
+                      className="overflow-y-auto max-h-[168px] scrollbar-thin space-y-0.5 scroll-smooth"
+                    >
+                      {MINUTES.map((m) => (
+                        <button
+                          key={m}
+                          type="button"
+                          onClick={() => {
+                            setTempMinute(m)
+                            commitTime(tempHour || '00', m)
+                          }}
+                          className={cn(
+                            'w-full text-center py-1.5 text-sm rounded-md transition-all duration-150',
+                            tempMinute === m
+                              ? 'bg-accent text-white font-semibold shadow-sm'
+                              : 'text-text-secondary hover:text-text hover:bg-background'
+                          )}
+                        >
+                          {m}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 </div>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+              </motion.div>
+            )}
+          </AnimatePresence>,
+          document.body
+        )}
 
         <input
           ref={ref}

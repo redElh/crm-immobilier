@@ -1,13 +1,15 @@
-import { ChevronLeft, ChevronRight, Plus } from 'react-feather'
+import { ChevronLeft, ChevronRight, Filter, Plus } from 'react-feather'
 import { CalendarView, MONTH_NAMES, addDays, addWeeks, addMonths } from '../../../types/calendar'
 
 interface CalendarToolbarProps {
   view: CalendarView
   currentDate: Date
+  filtersOpen: boolean
+  onToggleFilters: () => void
   onViewChange: (view: CalendarView) => void
   onDateChange: (date: Date) => void
   onToday: () => void
-  onAddEvent: () => void
+  onAddEvent?: () => void
 }
 
 const VIEWS: { value: CalendarView; label: string }[] = [
@@ -19,7 +21,7 @@ const VIEWS: { value: CalendarView; label: string }[] = [
 ]
 
 export default function CalendarToolbar({
-  view, currentDate, onViewChange, onDateChange, onToday, onAddEvent,
+  view, currentDate, filtersOpen, onToggleFilters, onViewChange, onDateChange, onToday, onAddEvent,
 }: CalendarToolbarProps) {
   const title = () => {
     if (view === 'day') {
@@ -52,10 +54,24 @@ export default function CalendarToolbar({
   return (
     <div className="flex items-center justify-between flex-shrink-0">
       <div className="flex items-center gap-3">
-        <button onClick={onAddEvent} className="btn-primary text-sm">
-          <Plus size={16} />
-          Nouvel événement
+        <button
+          onClick={onToggleFilters}
+          className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-sm font-medium transition-colors ${
+            filtersOpen
+              ? 'bg-accent text-white border-accent'
+              : 'border-border text-text-secondary hover:text-text hover:bg-surface'
+          }`}
+          title="Filtres"
+        >
+          <Filter size={16} />
+          Filtres
         </button>
+        {onAddEvent && (
+          <button onClick={onAddEvent} className="btn-primary text-sm">
+            <Plus size={16} />
+            Nouvel événement
+          </button>
+        )}
         <button onClick={onToday} className="btn-secondary text-sm">
           Aujourd'hui
         </button>

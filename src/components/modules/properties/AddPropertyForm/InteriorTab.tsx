@@ -25,9 +25,10 @@ interface InteriorTabProps {
   register: any;
   watch: any;
   propertyType: string;
+  isGerant?: boolean;
 }
 
-export function InteriorTab({ control, register, watch, propertyType }: InteriorTabProps) {
+export function InteriorTab({ control, register, watch, propertyType, isGerant = false }: InteriorTabProps) {
   const isLuxury = propertyType === 'luxury';
   const isVacation = propertyType === 'vacation';
   const isResidential = propertyType === 'residential';
@@ -45,7 +46,7 @@ export function InteriorTab({ control, register, watch, propertyType }: Interior
         <AccordionItem value="interior-details" className="border-0">
           <AccordionTrigger className="px-6 py-4 hover:bg-background/50 transition-colors duration-200">
             <div className="flex items-center gap-3">
-              <div className="w-1.5 h-1.5 rounded-full bg-accent" />
+              <div className={`w-1.5 h-1.5 rounded-full ${isGerant ? 'bg-[#905D5D]' : 'bg-accent'}`} />
               <span className="font-medium text-text">Détails intérieurs</span>
             </div>
           </AccordionTrigger>
@@ -78,12 +79,12 @@ export function InteriorTab({ control, register, watch, propertyType }: Interior
                           onClick={() => field.onChange(!field.value)}
                         >
                           <div className={`rounded-lg overflow-hidden border-2 transition-all duration-200 ${
-                            field.value ? 'border-accent shadow-tab' : 'border-border/40 hover:border-border'
+                            field.value ? (isGerant ? 'border-[#905D5D] shadow-tab' : 'border-accent shadow-tab') : 'border-border/40 hover:border-border'
                           }`}>
                             <div className="aspect-square bg-background relative overflow-hidden">
                               <img src={style.image} alt={style.label} className="w-full h-full object-cover" />
                               {field.value && (
-                                <div className="absolute top-2 right-2 bg-accent rounded-full p-1 shadow-sm">
+                                <div className={`absolute top-2 right-2 rounded-full p-1 shadow-sm ${isGerant ? 'bg-[#905D5D]' : 'bg-accent'}`}>
                                   <svg xmlns="http://www.w3.org/2000/svg" className="w-3.5 h-3.5 text-white" viewBox="0 0 20 20" fill="currentColor">
                                     <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                                   </svg>
@@ -344,7 +345,7 @@ export function InteriorTab({ control, register, watch, propertyType }: Interior
                     <thead>
                       <tr className="bg-background/50">
                         <th className="p-3 text-left text-xs font-semibold text-text-secondary uppercase tracking-wider">Pièce</th>
-                        <th className="p-3 text-left text-xs font-semibold text-text-secondary uppercase tracking-wider">Surface</th>
+                        <th className="p-3 text-left text-xs font-semibold text-text-secondary uppercase tracking-wider">Surface (m²)</th>
                         <th className="p-3 text-left text-xs font-semibold text-text-secondary uppercase tracking-wider">Revêtement sol</th>
                         <th className="p-3 text-left text-xs font-semibold text-text-secondary uppercase tracking-wider">État</th>
                         <th className="p-3 text-center text-xs font-semibold text-text-secondary uppercase tracking-wider">Accès ext.</th>
@@ -358,7 +359,7 @@ export function InteriorTab({ control, register, watch, propertyType }: Interior
                         <tr key={room} className="hover:bg-background/30 transition-colors">
                           <td className="p-3 font-medium text-text">{room}</td>
                           <td className="p-3">
-                            <Input {...register(`interiorSpaces.${room.toLowerCase().replace(' ', '_')}.surface`)} />
+                            <Input type="number" {...register(`interiorSpaces.${room.toLowerCase().replace(' ', '_')}.surface`)} />
                           </td>
                           <td className="p-3">
                             <Input {...register(`interiorSpaces.${room.toLowerCase().replace(' ', '_')}.floorCovering`)} />

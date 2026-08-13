@@ -1,23 +1,51 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Plus } from 'react-feather';
+import { X, Plus, Save, Upload, Eye, ExternalLink, Home, Briefcase, MapPin } from 'react-feather';
+import { useNavigate, useParams } from 'react-router-dom';
 import { Client } from '../../../types/client';
+import { AGENTS } from '../../../types/calendar';
 import { DatePicker } from '../../ui/DatePicker';
 import { Input } from '../../ui/Input';
 import { Select } from '../../ui/Select';
 import { Checkbox } from '../../ui/Checkbox';
 import { Textarea } from '../../ui/Textarea';
 import { Button } from '../../ui/Button';
+import { Dialog } from '../../ui/Dialog';
+import { LocationMap } from '../properties/AddPropertyForm/LocationMap';
+import { saveDraft, getDraft, deleteDraft } from '../../../services/clientDraftStorage';
+import { CompletionRing } from '../../ui/CompletionRing';
+import { api } from '../../../services/api';
+import { uploadFiles } from '../../../services/uploadService';
+import { fetchContacts, createContact } from '../../../services/contactService';
+import { ContactFormModal } from '../contacts/ContactFormModal';
+
+const USER_CACHE: Record<string, string> = {};
+
+const GERANT_BUTTON_CLASSES = 'bg-[#905D5D] hover:bg-[#7D5050] border-[#905D5D] hover:border-[#7D5050] text-white shadow-[0_10px_24px_rgba(144,93,93,0.35)]'
+
+interface AssignmentInfo {
+  assignedType: 'agent' | 'admin';
+  assignedName: string;
+}
 
 interface BailleurFormModalProps {
   onClose: () => void;
   onSubmit: (client: Omit<Client, 'id'>) => void;
+  assignmentInfo?: AssignmentInfo;
+  draftId?: string;
+  userId?: string;
+  onDraftChange?: () => void;
+  client?: Client;
+  selectedContactId?: string;
+  isGerant?: boolean;
 }
 
 const STATUT_METIER_OPTIONS = [
   { value: 'En attente de signature', label: 'En attente de signature' },
   { value: 'En mandat', label: 'En mandat' },
+  { value: 'En negociation', label: 'En n\u00e9gociation' },
   { value: 'En location', label: 'En location' },
+  { value: 'Loue', label: 'Lou\u00e9' },
   { value: 'Inactif', label: 'Inactif' },
   { value: 'Perdu', label: 'Perdu' },
 ];
@@ -354,7 +382,10 @@ const RAISON_MISE_EN_LOCATION_OPTIONS = [
   { value: 'Autre', label: 'Autre' },
 ];
 
+
 const STATUT_MANDAT_OPTIONS = [
+  { value: 'Non défini', label: 'Non défini' },
+  { value: 'En attente de signature', label: 'En attente de signature' },
   { value: 'Actif', label: 'Actif' },
   { value: 'Expire', label: 'Expiré' },
   { value: 'Resilie', label: 'Résilié' },
@@ -367,13 +398,6 @@ const TYPE_MANDAT_OPTIONS = [
   { value: 'Co-gestion', label: 'Co-gestion' },
 ];
 
-const DUREE_MANDAT_OPTIONS = [
-  { value: '1', label: '1 an' },
-  { value: '2', label: '2 ans' },
-  { value: '3', label: '3 ans' },
-  { value: 'indeterminee', label: 'Durée indéterminée' },
-];
-
 const REMUNERATION_TYPE_OPTIONS = [
   { value: 'Frais de gestion mensuels', label: 'Frais de gestion mensuels' },
   { value: 'Commission sur loyer', label: 'Commission sur loyer' },
@@ -383,12 +407,6 @@ const REMUNERATION_TYPE_OPTIONS = [
 const CONDITION_PAIEMENT_OPTIONS = [
   { value: 'Preleve sur loyer', label: 'Prélevé sur loyer' },
   { value: 'Facture annuellement', label: 'Facturé annuellement' },
-];
-
-const AGENTS = [
-  { value: 'agent-1', label: 'Agent 1' },
-  { value: 'agent-2', label: 'Agent 2' },
-  { value: 'agent-3', label: 'Agent 3' },
 ];
 
 interface ProximiteCategorie {
@@ -409,7 +427,6 @@ interface PrestationCategorie {
 
 interface BailleurFormData {
   actif: boolean;
-  croisementAutomatique: boolean;
   classification: string;
   statutMetier: string;
   contactId: string;
@@ -469,8 +486,10 @@ interface BailleurFormData {
   conjoint: string;
   societe: string;
   agentDesigne: string;
+  bienConcerneId: string;
   typeRemuneration: string;
   montantRemuneration: number | undefined;
+  remunerationIsPercentage: boolean;
   conditionPaiement: string;
   fraisMiseEnLocation: number | undefined;
   fraisEtatDesLieux: number | undefined;
@@ -479,6 +498,23 @@ interface BailleurFormData {
   signatureAgent: string;
   dateSignatureMandat: string;
   mandatSignePdfUrl: string;
+  mandatSignePdfName: string;
+  docIdentiteUrl: string;
+  docIdentiteName: string;
+  docTitreProprieteUrl: string;
+  docTitreProprieteName: string;
+  docDiagnosticUrl: string;
+  docDiagnosticName: string;
+  docCoproprieteUrl: string;
+  docCoproprieteName: string;
+  docAssuranceUrl: string;
+  docAssuranceName: string;
+  docEtatDesLieuxUrl: string;
+  docEtatDesLieuxName: string;
+  docAutreUrl: string;
+  docAutreName: string;
+  latitude: number;
+  longitude: number;
 }
 
 const TABS = [
@@ -511,11 +547,11 @@ const formatDate = (date: Date): string => {
 const today = formatDate(new Date());
 const inOneYear = formatDate(addMonths(new Date(), 12));
 
-export const BailleurFormModal = ({ onClose, onSubmit }: BailleurFormModalProps) => {
-  const [step, setStep] = useState(1);
-  const [formData, setFormData] = useState<BailleurFormData>({
+export function resetBailleurFormData(): BailleurFormData {
+  const today = formatDate(new Date());
+  const inOneYear = formatDate(addMonths(new Date(), 12));
+  return {
     actif: true,
-    croisementAutomatique: true,
     classification: 'Actif',
     statutMetier: 'En attente de signature',
     contactId: '',
@@ -564,19 +600,21 @@ export const BailleurFormModal = ({ onClose, onSubmit }: BailleurFormModalProps)
     notesComplementaires: '',
     conditionsParticulieres: '',
     numeroMandat: generateMandatNumber(),
-    statutMandat: 'Actif',
+    statutMandat: 'Non défini',
     dateSignature: today,
     dateDebut: today,
     dateExpiration: inOneYear,
-    typeMandat: 'Gestion',
-    dureeMandat: '1',
+    typeMandat: '',
+    dureeMandat: '',
     clauseProtection: false,
     clauseProtectionMois: 3,
     conjoint: '',
     societe: '',
     agentDesigne: '',
+    bienConcerneId: '',
     typeRemuneration: '',
     montantRemuneration: undefined,
+    remunerationIsPercentage: false,
     conditionPaiement: '',
     fraisMiseEnLocation: undefined,
     fraisEtatDesLieux: undefined,
@@ -585,15 +623,413 @@ export const BailleurFormModal = ({ onClose, onSubmit }: BailleurFormModalProps)
     signatureAgent: '',
     dateSignatureMandat: today,
     mandatSignePdfUrl: '',
+    mandatSignePdfName: '',
+    docIdentiteUrl: '',
+    docIdentiteName: '',
+    docTitreProprieteUrl: '',
+    docTitreProprieteName: '',
+    docDiagnosticUrl: '',
+    docDiagnosticName: '',
+    docCoproprieteUrl: '',
+    docCoproprieteName: '',
+    docAssuranceUrl: '',
+    docAssuranceName: '',
+    docEtatDesLieuxUrl: '',
+    docEtatDesLieuxName: '',
+    docAutreUrl: '',
+    docAutreName: '',
+    latitude: 0,
+    longitude: 0,
+  };
+}
+
+export const BailleurFormModal = ({ onClose, onSubmit, assignmentInfo, draftId: initialDraftId, userId, onDraftChange, client: editingClient, selectedContactId, isGerant = false }: BailleurFormModalProps) => {
+  const [step, setStep] = useState(1);
+  const [contacts, setContacts] = useState<any[]>([]);
+  const [contactOptions, setContactOptions] = useState<{value: string; label: string}[]>([]);
+  const [formData, setFormData] = useState<BailleurFormData>({
+    actif: true,
+    classification: 'Actif',
+    statutMetier: 'En attente de signature',
+    contactId: selectedContactId || '',
+    origine: '',
+    plan: '',
+    adresseComplete: '',
+    complementAdresse: '',
+    codePostalVille: '',
+    pays: 'Maroc',
+    secteur: '',
+    categorie: '',
+    typeBien: '',
+    referenceCadastrale: '',
+    lotCopropriete: undefined,
+    syndicPresent: false,
+    nbLotsTotal: undefined,
+    piecesOperator: 'ge',
+    pieces: undefined,
+    chambresOperator: 'ge',
+    chambres: undefined,
+    surfaceMin: undefined,
+    surfaceMax: undefined,
+    etageOperator: 'ge',
+    etage: undefined,
+    vue: '',
+    exposition: '',
+    etat: '',
+    standing: '',
+    disponibilite: '',
+    devise: 'MAD',
+    loyerHC: undefined,
+    charges: undefined,
+    depotGarantie: undefined,
+    typeLoyer: 'Libre',
+    periodiciteLoyer: 'Mensuel',
+    attributPrincipal: '',
+    attributsPersonnalises: [],
+    criteres: [],
+    proximites: { transports: [], commerces: [], education: [], sante: [], loisirs: [] },
+    prestations: { exterieur: [], confort: [], electromenager: [], multimedia: [], sport: [] },
+    situationActuelle: '',
+    raisonMiseEnLocation: '',
+    creditEnCours: false,
+    creditMontantRestant: undefined,
+    dateDisponibilite: '',
+    notesComplementaires: '',
+    conditionsParticulieres: '',
+    numeroMandat: generateMandatNumber(),
+    statutMandat: 'Non défini',
+    dateSignature: today,
+    dateDebut: today,
+    dateExpiration: inOneYear,
+    typeMandat: '',
+    dureeMandat: '',
+    clauseProtection: false,
+    clauseProtectionMois: 3,
+    conjoint: '',
+    societe: '',
+    agentDesigne: '',
+    bienConcerneId: '',
+    typeRemuneration: '',
+    montantRemuneration: undefined,
+    remunerationIsPercentage: false,
+    conditionPaiement: '',
+    fraisMiseEnLocation: undefined,
+    fraisEtatDesLieux: undefined,
+    fraisRenouvellementBail: undefined,
+    signatureBailleur: '',
+    signatureAgent: '',
+    dateSignatureMandat: today,
+    mandatSignePdfUrl: '',
+    mandatSignePdfName: '',
+    docIdentiteUrl: '',
+    docIdentiteName: '',
+    docTitreProprieteUrl: '',
+    docTitreProprieteName: '',
+    docDiagnosticUrl: '',
+    docDiagnosticName: '',
+    docCoproprieteUrl: '',
+    docCoproprieteName: '',
+    docAssuranceUrl: '',
+    docAssuranceName: '',
+    docEtatDesLieuxUrl: '',
+    docEtatDesLieuxName: '',
+    docAutreUrl: '',
+    docAutreName: '',
+    latitude: 0,
+    longitude: 0,
   });
+
+  useEffect(() => {
+    fetchContacts().then(allContacts => {
+      setContacts(allContacts);
+      setContactOptions([
+        { value: '', label: 'Sélectionner un contact...' },
+        ...allContacts.map(c => ({ value: String(c.id), label: `${c.civility} ${c.firstName} ${c.lastName}` })),
+      ]);
+    }).catch(() => {});
+  }, []);
+
+  const refreshContacts = () => {
+    fetchContacts().then(allContacts => {
+      setContacts(allContacts);
+      setContactOptions([
+        { value: '', label: 'Sélectionner un contact...' },
+        ...allContacts.map(c => ({ value: String(c.id), label: `${c.civility} ${c.firstName} ${c.lastName}` })),
+      ]);
+    }).catch(() => {});
+  };
+
+  const selectedContactName = formData.contactId ? (contactOptions.find(o => o.value === formData.contactId)?.label || '') : '';
+
+  useEffect(() => {
+    if (!editingClient) return;
+    const c = editingClient as any;
+    setFormData(prev => ({
+      ...prev,
+      actif: editingClient.status === 'Actif',
+      classification: editingClient.classification || 'Actif',
+      statutMetier: editingClient.statutMetier || 'En attente de signature',
+      contactId: editingClient.contactId || '',
+      origine: editingClient.source || '',
+      secteur: editingClient.secteur || editingClient.area || '',
+      typeBien: editingClient.propertyType || '',
+      devise: editingClient.devise || 'MAD',
+      piecesOperator: editingClient.piecesOperator || 'ge',
+      pieces: editingClient.pieces,
+      chambresOperator: editingClient.chambresOperator || 'ge',
+      chambres: editingClient.chambres,
+      surfaceMin: editingClient.minSurface,
+      surfaceMax: editingClient.surfaceMax,
+      etageOperator: editingClient.etageOperator || 'ge',
+      etage: editingClient.etage,
+      vue: editingClient.vue || '',
+      exposition: editingClient.exposition || '',
+      etat: editingClient.etat || '',
+      standing: editingClient.standing || '',
+      disponibilite: editingClient.disponibilite || '',
+      attributPrincipal: editingClient.attributPrincipal || '',
+      attributsPersonnalises: editingClient.attributsPersonnalises || [],
+      criteres: editingClient.criteres || [],
+      proximites: editingClient.proximites || { transports: [], commerces: [], education: [], sante: [], loisirs: [] },
+      prestations: editingClient.prestations || { exterieur: [], confort: [], electromenager: [], multimedia: [], sport: [] },
+      raisonMiseEnLocation: editingClient.reasonForSelling || '',
+      situationActuelle: editingClient.currentSituation || '',
+      notesComplementaires: c.notesComplementaires || editingClient.notes || '',
+      conditionsParticulieres: c.conditionsParticulieres || '',
+      creditEnCours: c.creditEnCours || false,
+      creditMontantRestant: c.creditMontantRestant,
+      dateDisponibilite: c.dateDisponibilite || '',
+      loyerHC: c.loyerHC,
+      charges: c.charges,
+      depotGarantie: c.depotGarantie,
+      typeLoyer: c.typeLoyer || '',
+      periodiciteLoyer: c.periodiciteLoyer || '',
+      adresseComplete: c.adresseComplete || '',
+      complementAdresse: c.complementAdresse || '',
+      codePostalVille: c.codePostalVille || '',
+      pays: c.pays || editingClient.localisation || prev.pays,
+      referenceCadastrale: c.referenceCadastrale || '',
+      lotCopropriete: c.lotCopropriete,
+      syndicPresent: c.syndicPresent || false,
+      nbLotsTotal: c.nbLotsTotal,
+      societe: editingClient.societe || '',
+      dureeMandat: c.dureeMandat || '',
+      clauseProtection: !!editingClient.dureeProtection,
+      clauseProtectionMois: editingClient.dureeProtection ? parseInt(editingClient.dureeProtection) || 0 : 0,
+      typeRemuneration: editingClient.typeRemuneration || '',
+      conditionPaiement: editingClient.conditionPaiement || '',
+      fraisMiseEnLocation: c.fraisMiseEnLocation,
+      fraisEtatDesLieux: c.fraisEtatDesLieux,
+      fraisRenouvellementBail: c.fraisRenouvellementBail,
+      mandatSignePdfUrl: c.mandatPdfUrl || '',
+      mandatSignePdfName: c.mandatPdfName || '',
+      docIdentiteUrl: c.docIdentiteUrl || '',
+      docIdentiteName: c.docIdentiteName || '',
+      docTitreProprieteUrl: c.docDomicileUrl || '',
+      docTitreProprieteName: c.docDomicileName || '',
+      docDiagnosticUrl: c.docDiagnosticUrl || '',
+      docDiagnosticName: c.docDiagnosticName || '',
+      docCoproprieteUrl: c.docRevenusUrl || '',
+      docCoproprieteName: c.docRevenusName || '',
+      docAssuranceUrl: c.docAssuranceUrl || '',
+      docAssuranceName: c.docAssuranceName || '',
+      docEtatDesLieuxUrl: c.docEtatDesLieuxUrl || '',
+      docEtatDesLieuxName: c.docEtatDesLieuxName || '',
+      docAutreUrl: c.docFinancementUrl || '',
+      docAutreName: c.docFinancementName || '',
+      numeroMandat: editingClient.numeroMandat || prev.numeroMandat,
+      dateSignature: editingClient.dateSignature || prev.dateSignature,
+      dateDebut: editingClient.dateDebut || prev.dateDebut,
+      dateExpiration: editingClient.dateExpiration || prev.dateExpiration,
+      statutMandat: editingClient.statutMandat || 'Non défini',
+      typeMandat: editingClient.typeMandat || '',
+      conjoint: editingClient.conjoint || '',
+      agentDesigne: editingClient.agentDesigne || editingClient.agentId || '',
+      bienConcerneId: c.bienConcerneId || '',
+      montantRemuneration: editingClient.montantRemuneration,
+      remunerationIsPercentage: editingClient.remunerationIsPercentage ?? false,
+      latitude: c.latitude || 0,
+      longitude: c.longitude || 0,
+    }));
+  }, [editingClient]);
+
+  useEffect(() => {
+    if (assignmentInfo?.assignedName && !editingClient) {
+      setFormData(prev => ({ ...prev, agentDesigne: assignmentInfo.assignedName }));
+    }
+  }, [assignmentInfo, editingClient]);
+
+  const [, setUsersFetched] = useState(false);
+  useEffect(() => {
+    api.get<any>('/auth/me').then((u: any) => {
+      if (u) {
+        const name = [u.first_name || '', u.last_name || ''].filter(Boolean).join(' ').trim() || u.email || 'Inconnu';
+        USER_CACHE[String(u.id)] = name;
+      }
+    }).catch(() => {});
+    api.get<any[]>('/admin/users').then((list: any[]) => {
+      if (Array.isArray(list)) {
+        for (const u of list) {
+          const name = [u.first_name || '', u.last_name || ''].filter(Boolean).join(' ').trim() || u.email || 'Inconnu';
+          USER_CACHE[String(u.id)] = name;
+        }
+      }
+      setUsersFetched(true);
+    }).catch(() => { setUsersFetched(true); });
+  }, []);
+
+  const { adminId, agentId } = useParams<{ adminId?: string; agentId?: string }>();
+
+  const [bailleurProperties, setBailleurProperties] = useState<any[]>([]);
+  const [loadingProperties, setLoadingProperties] = useState(false);
+  const [showPropertyTypeModal, setShowPropertyTypeModal] = useState(false);
+
+  useEffect(() => {
+    setLoadingProperties(true);
+    api.get<any[]>('/properties')
+      .then((res) => setBailleurProperties(Array.isArray(res) ? res : []))
+      .catch(() => setBailleurProperties([]))
+      .finally(() => setLoadingProperties(false));
+  }, []);
+
+  const filteredBailleurProperties = useMemo(() => {
+    const contact = contacts.find((c: any) => String(c.id) === formData.contactId);
+    const contactFirstName = (contact?.firstName || '').toLowerCase().trim();
+    const contactLastName = (contact?.lastName || '').toLowerCase().trim();
+    const stripCivility = (s: string) => s
+      .replace(/^(mme?|mlle?|dr|maitre|maitresse|me|maître)\s+/i, '')
+      .replace(/\s+(mme?|mlle?|dr|maitre|maitresse|me|maître)$/i, '')
+      .trim();
+    const stripCivilityAndClean = (s: string) => stripCivility(s).toLowerCase().replace(/\s+/g, ' ').trim();
+    return bailleurProperties.filter((p: any) => {
+      if (p.status !== 'for_rent') return false;
+      if (!contactFirstName && !contactLastName) return false;
+      const ownerName = stripCivilityAndClean(p.owner?.name || '');
+      const matchesFirst = !contactFirstName || ownerName.includes(contactFirstName);
+      const matchesLast = !contactLastName || ownerName.includes(contactLastName);
+      return matchesFirst && matchesLast;
+    });
+  }, [bailleurProperties, contacts, formData.contactId]);
+
+  const propertyTypeRouteMap: Record<string, { route: string; transactionType: string }> = {
+    'Résidentiel': { route: 'residential', transactionType: 'location_ld' },
+    'Commercial': { route: 'commercial', transactionType: 'location_ld' },
+  };
+
+  const handlePropertyTypeSelect = (typeName: string) => {
+    const config = propertyTypeRouteMap[typeName] || { route: 'residential', transactionType: 'location' };
+    const basePath = adminId ? `/admin/${adminId}` : agentId ? `/${agentId}` : '';
+    setShowPropertyTypeModal(false);
+    window.open(`${basePath}/properties/type/${config.route}/add?transactionType=${config.transactionType}`, '_blank');
+  };
 
   const [errors, setErrors] = useState<Partial<Record<keyof BailleurFormData, string>>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showContactForm, setShowContactForm] = useState(false);
+  const [savedDraftId, setSavedDraftId] = useState<string | undefined>(initialDraftId || undefined);
+  const [loadingDraft, setLoadingDraft] = useState(!!initialDraftId);
+  const formDataRef = useRef(formData);
+  formDataRef.current = formData;
 
   const loyerCC = useMemo(() => {
     if (!formData.loyerHC) return 0;
     return formData.loyerHC + (formData.charges || 0);
   }, [formData.loyerHC, formData.charges]);
+
+  useEffect(() => {
+    if (editingClient) return;
+    const section1 = formData.numeroMandat.trim() && formData.dateDebut.trim() && formData.dateExpiration.trim();
+    const section2 = formData.typeMandat.trim() !== '';
+    const section3 = !formData.clauseProtection || (formData.clauseProtection && (formData.clauseProtectionMois ?? 0) > 0);
+    const section4 = formData.conjoint.trim() !== '' || formData.societe.trim() !== '' || (assignmentInfo?.assignedName?.trim() ?? '') !== '';
+    const section5 = formData.typeRemuneration !== '' && formData.montantRemuneration !== undefined && formData.conditionPaiement !== '' && formData.fraisMiseEnLocation !== undefined && formData.fraisEtatDesLieux !== undefined && formData.fraisRenouvellementBail !== undefined;
+    const allFilled = section1 && section2 && section3 && section4 && section5;
+    const newStatus = allFilled ? 'En attente de signature' : 'Non défini';
+    setFormData(prev => prev.statutMandat !== newStatus ? { ...prev, statutMandat: newStatus } : prev);
+  }, [
+    editingClient,
+    formData.numeroMandat, formData.dateDebut, formData.dateExpiration,
+    formData.typeMandat,
+    formData.clauseProtection, formData.clauseProtectionMois,
+    formData.conjoint, formData.societe, assignmentInfo?.assignedName,
+    formData.typeRemuneration, formData.montantRemuneration, formData.conditionPaiement,
+    formData.fraisMiseEnLocation, formData.fraisEtatDesLieux, formData.fraisRenouvellementBail,
+  ]);
+
+  useEffect(() => {
+    if (formData.statutMandat === 'Actif') return;
+    const mapping: Record<string, string> = {
+      'Non défini': 'En attente de signature',
+      'En attente de signature': 'En attente de signature',
+      'Termine': 'Loue',
+      'Expire': 'Inactif',
+      'Resilie': 'Perdu',
+    };
+    const target = mapping[formData.statutMandat];
+    if (target && formData.statutMetier !== target) {
+      setFormData(prev => ({ ...prev, statutMetier: target }));
+    }
+  }, [formData.statutMandat]);
+
+  useEffect(() => {
+    if (!initialDraftId || !userId) return;
+    const draft = getDraft(userId, initialDraftId);
+    if (draft) {
+      const draftData = draft.data;
+      setFormData(prev => ({ ...prev, ...draftData }));
+      if (draftData._step) setStep(draftData._step);
+    }
+    setLoadingDraft(false);
+  }, []);
+
+  const isFilled = (v: any): boolean => {
+    if (v === undefined || v === null) return false;
+    if (typeof v === 'string') return v.trim() !== '';
+    if (Array.isArray(v)) return v.length > 0;
+    if (typeof v === 'object') {
+      if (v instanceof Date) return true;
+      return Object.values(v).some((a: any) => Array.isArray(a) && a.length > 0);
+    }
+    return true;
+  };
+
+  const calcCompletion = (data: BailleurFormData): number => {
+    const fields = [
+      data.classification, data.statutMetier, data.origine,
+      data.secteur, data.categorie, data.typeBien,
+      data.pieces, data.chambres, data.surfaceMin, data.surfaceMax,
+      data.vue, data.exposition, data.etat, data.standing, data.disponibilite,
+      data.attributPrincipal, data.attributsPersonnalises, data.criteres,
+      data.proximites, data.prestations,
+      data.loyerHC, data.charges, data.depotGarantie, data.typeLoyer, data.periodiciteLoyer,
+      data.raisonMiseEnLocation, data.situationActuelle,
+      data.creditEnCours, data.creditMontantRestant, data.dateDisponibilite,
+      data.conditionsParticulieres, data.notesComplementaires,
+      data.fraisMiseEnLocation, data.fraisEtatDesLieux, data.fraisRenouvellementBail,
+      data.statutMandat, data.dureeMandat, data.clauseProtection,
+      data.typeRemuneration, data.montantRemuneration, data.conditionPaiement,
+      data.agentDesigne, data.mandatSignePdfUrl, data.bienConcerneId,
+      data.docIdentiteUrl, data.docTitreProprieteUrl, data.docDiagnosticUrl,
+      data.docCoproprieteUrl, data.docAssuranceUrl, data.docEtatDesLieuxUrl, data.docAutreUrl,
+      data.adresseComplete, data.complementAdresse, data.codePostalVille, data.pays,
+    ];
+    const filled = fields.filter(isFilled).length;
+    return Math.min(100, Math.round((filled / fields.length) * 100));
+  };
+
+  const doSaveDraft = () => {
+    if (!userId) return;
+    const data = { ...formDataRef.current, _draftId: savedDraftId, _step: step };
+    const draft = saveDraft(userId, 'Bailleur', data, calcCompletion(formDataRef.current));
+    if (!savedDraftId) setSavedDraftId(draft.id);
+    onDraftChange?.();
+  };
+
+  useEffect(() => {
+    if (!savedDraftId) return;
+    const timer = setTimeout(doSaveDraft, 2000);
+    return () => clearTimeout(timer);
+  }, [formData, savedDraftId, step]);
 
   const handleChange = (field: keyof BailleurFormData, value: any) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -632,7 +1068,7 @@ export const BailleurFormModal = ({ onClose, onSubmit }: BailleurFormModalProps)
 
   const validate = (): boolean => {
     const newErrors: Partial<Record<keyof BailleurFormData, string>> = {};
-    if (!formData.contactId) newErrors.contactId = 'Le contact est requis';
+    if (!formData.contactId) newErrors.contactId = 'Veuillez sélectionner ou créer un contact';
     if (!formData.origine) newErrors.origine = "L'origine est requise";
     if (!formData.typeBien) newErrors.typeBien = 'Le type de bien est requis';
     if (!formData.categorie) newErrors.categorie = 'La catégorie est requise';
@@ -640,78 +1076,73 @@ export const BailleurFormModal = ({ onClose, onSubmit }: BailleurFormModalProps)
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!validate()) {
-      setStep(1);
-      return;
+  const submitForm = () => {
+    if (isSubmitting) return;
+    if (savedDraftId && userId) {
+      deleteDraft(userId, savedDraftId);
+      onDraftChange?.();
     }
-
     setIsSubmitting(true);
 
     onSubmit({
-      name: '',
-      type: 'Bailleur',
-      status: formData.actif ? 'Actif' : 'Inactif',
-      phone: '',
-      email: '',
+      ...formData,
+      name: selectedContactName || editingClient?.name || 'Nouveau client',
+      type: 'Bailleur' as const,
+      status: (formData.actif ? 'Actif' : 'Inactif') as 'Actif' | 'Inactif',
+      phone: (formData.contactId ? (contacts.find(c => String(c.id) === formData.contactId)?.mobile || '') : '') || editingClient?.phone || '',
+      email: (formData.contactId ? (contacts.find(c => String(c.id) === formData.contactId)?.emailPrincipal || '') : '') || editingClient?.email || '',
+      completion: calcCompletion(formData),
       source: formData.origine,
-      notes: formData.notesComplementaires,
-      propertyType: formData.typeBien,
-      area: formData.secteur || formData.adresseComplete,
-      minSurface: formData.surfaceMin,
-      rooms: formData.pieces?.toString() || '',
-      currentSituation: formData.situationActuelle,
-      classification: formData.classification,
-      statutMetier: formData.statutMetier,
-      croisementAutomatique: formData.croisementAutomatique,
-      contactId: formData.contactId,
+      localisation: formData.pays,
       secteur: formData.secteur,
       categorie: formData.categorie,
-      piecesOperator: formData.piecesOperator,
-      pieces: formData.pieces,
-      chambresOperator: formData.chambresOperator,
-      chambres: formData.chambres,
-      surfaceMax: formData.surfaceMax,
-      etageOperator: formData.etageOperator,
-      etage: formData.etage,
-      vue: formData.vue,
-      exposition: formData.exposition,
-      etat: formData.etat,
-      standing: formData.standing,
-      disponibilite: formData.disponibilite,
-      attributPrincipal: formData.attributPrincipal,
-      attributsPersonnalises: formData.attributsPersonnalises.length > 0 ? formData.attributsPersonnalises : undefined,
-      criteres: formData.criteres.length > 0 ? formData.criteres : undefined,
-      proximites: formData.proximites.transports.length > 0 || formData.proximites.commerces.length > 0 || formData.proximites.education.length > 0 || formData.proximites.sante.length > 0 || formData.proximites.loisirs.length > 0
-        ? formData.proximites : undefined,
-      prestations: formData.prestations.exterieur.length > 0 || formData.prestations.confort.length > 0 || formData.prestations.electromenager.length > 0 || formData.prestations.multimedia.length > 0 || formData.prestations.sport.length > 0
-        ? formData.prestations : undefined,
-      devise: formData.devise,
-      reasonForSelling: formData.raisonMiseEnLocation || undefined,
-      numeroMandat: formData.numeroMandat,
-      dateSignature: formData.dateSignature,
-      dateDebut: formData.dateDebut,
-      dateExpiration: formData.dateExpiration,
+      propertyType: formData.typeBien,
+      classification: formData.classification,
+      notes: formData.notesComplementaires,
+      statutMetier: formData.statutMetier,
       statutMandat: formData.statutMandat,
-      typeMandat: formData.typeMandat,
-      conjoint: formData.conjoint || undefined,
-      societe: formData.societe || undefined,
-      agentDesigne: formData.agentDesigne || undefined,
+      minSurface: formData.surfaceMin,
+      currentSituation: formData.situationActuelle,
+      reasonForSelling: formData.raisonMiseEnLocation,
+      dureeProtection: formData.clauseProtection ? (formData.clauseProtectionMois?.toString() || '') : '',
       typeRemuneration: formData.typeRemuneration || undefined,
       montantRemuneration: formData.montantRemuneration,
+      remunerationIsPercentage: formData.remunerationIsPercentage,
       conditionPaiement: formData.conditionPaiement || undefined,
+      agentId: formData.agentDesigne || undefined,
+      agentDesigne: formData.agentDesigne || undefined,
+      bienConcerneId: formData.bienConcerneId || undefined,
       mandatPdfUrl: formData.mandatSignePdfUrl || undefined,
-      createdAt: new Date().toISOString(),
+      mandatPdfName: formData.mandatSignePdfName || undefined,
+      docIdentiteUrl: formData.docIdentiteUrl || undefined,
+      docIdentiteName: formData.docIdentiteName || undefined,
+      docDomicileUrl: formData.docTitreProprieteUrl || undefined,
+      docDomicileName: formData.docTitreProprieteName || undefined,
+      docDiagnosticUrl: formData.docDiagnosticUrl || undefined,
+      docDiagnosticName: formData.docDiagnosticName || undefined,
+      docRevenusUrl: formData.docCoproprieteUrl || undefined,
+      docRevenusName: formData.docCoproprieteName || undefined,
+      docAssuranceUrl: formData.docAssuranceUrl || undefined,
+      docAssuranceName: formData.docAssuranceName || undefined,
+      docEtatDesLieuxUrl: formData.docEtatDesLieuxUrl || undefined,
+      docEtatDesLieuxName: formData.docEtatDesLieuxName || undefined,
+      docFinancementUrl: formData.docAutreUrl || undefined,
+      docFinancementName: formData.docAutreName || undefined,
+      createdAt: editingClient?.createdAt || new Date().toISOString(),
       updatedAt: new Date().toISOString(),
-      createdBy: 'current-user-id',
+      createdBy: editingClient?.createdBy || 'current-user-id',
     });
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    submitForm();
   };
 
   const renderSection = (title: string, children: React.ReactNode) => (
     <div className="mb-6">
       <h3 className="text-sm font-semibold text-text flex items-center gap-2 mb-4">
-        <span className="w-1 h-4 rounded-full bg-accent" />
+        <span className={`w-1 h-4 rounded-full ${isGerant ? 'bg-[#905D5D]' : 'bg-accent'}`} />
         {title}
       </h3>
       {children}
@@ -735,13 +1166,13 @@ export const BailleurFormModal = ({ onClose, onSubmit }: BailleurFormModalProps)
               type="button"
               onClick={() => handleChange(field, opt.value)}
               className={`px-3 py-1.5 text-xs rounded-lg border transition-all ${
-                isSelected
-                  ? 'bg-accent text-white border-accent ring-2 ring-accent/30'
-                  : 'bg-card text-text-secondary border-border hover:border-accent/50'
-              }`}
-            >
-              {opt.label}
-            </button>
+                  isSelected
+                    ? (isGerant ? 'bg-[#905D5D] text-white border-[#905D5D]' : 'bg-accent text-white border-accent')
+                    : (isGerant ? 'bg-card text-text-secondary border-border hover:border-[#905D5D]/50' : 'bg-card text-text-secondary border-border hover:border-accent/50')
+                }`}
+              >
+                {opt.label}
+              </button>
           );
         })}
       </div>
@@ -767,8 +1198,8 @@ export const BailleurFormModal = ({ onClose, onSubmit }: BailleurFormModalProps)
               onClick={() => onChange(opt.value)}
               className={`px-3 py-1.5 text-xs rounded-lg border transition-all ${
                 isSelected
-                  ? 'bg-accent text-white border-accent'
-                  : 'bg-card text-text-secondary border-border hover:border-accent/50'
+                  ? (isGerant ? 'bg-[#905D5D] text-white border-[#905D5D]' : 'bg-accent text-white border-accent')
+                  : (isGerant ? 'bg-card text-text-secondary border-border hover:border-[#905D5D]/50' : 'bg-card text-text-secondary border-border hover:border-accent/50')
               }`}
             >
               {opt.label}
@@ -798,8 +1229,8 @@ export const BailleurFormModal = ({ onClose, onSubmit }: BailleurFormModalProps)
                 onClick={() => handleProximiteCategory(category, opt.value)}
                 className={`px-3 py-1.5 text-xs rounded-lg border transition-all ${
                   isSelected
-                    ? 'bg-accent text-white border-accent'
-                    : 'bg-card text-text-secondary border-border hover:border-accent/50'
+                    ? (isGerant ? 'bg-[#905D5D] text-white border-[#905D5D]' : 'bg-accent text-white border-accent')
+                    : (isGerant ? 'bg-card text-text-secondary border-border hover:border-[#905D5D]/50' : 'bg-card text-text-secondary border-border hover:border-accent/50')
                 }`}
               >
                 {opt.label}
@@ -830,8 +1261,8 @@ export const BailleurFormModal = ({ onClose, onSubmit }: BailleurFormModalProps)
                 onClick={() => handlePrestationCategory(category, opt.value)}
                 className={`px-3 py-1.5 text-xs rounded-lg border transition-all ${
                   isSelected
-                    ? 'bg-accent text-white border-accent'
-                    : 'bg-card text-text-secondary border-border hover:border-accent/50'
+                    ? (isGerant ? 'bg-[#905D5D] text-white border-[#905D5D]' : 'bg-accent text-white border-accent')
+                    : (isGerant ? 'bg-card text-text-secondary border-border hover:border-[#905D5D]/50' : 'bg-card text-text-secondary border-border hover:border-accent/50')
                 }`}
               >
                 {opt.label}
@@ -852,7 +1283,6 @@ export const BailleurFormModal = ({ onClose, onSubmit }: BailleurFormModalProps)
               <div className="space-y-4">
                 <div className="flex flex-wrap gap-6">
                   <Checkbox label="Actif" checked={formData.actif} onChange={(checked) => handleChange('actif', checked)} />
-                  <Checkbox label="Croisement automatique" checked={formData.croisementAutomatique} onChange={(checked) => handleChange('croisementAutomatique', checked)} />
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <Select label="Statut métier" options={STATUT_METIER_OPTIONS} value={formData.statutMetier} onValueChange={(v) => handleChange('statutMetier', v)} />
@@ -867,18 +1297,13 @@ export const BailleurFormModal = ({ onClose, onSubmit }: BailleurFormModalProps)
                   <div className="flex gap-2">
                     <div className="flex-1">
                       <Select
-                        options={[
-                          { value: '', label: 'Sélectionner un contact...' },
-                          { value: 'contact-1', label: 'Jean Dupont' },
-                          { value: 'contact-2', label: 'Marie Martin' },
-                          { value: 'contact-3', label: 'Ahmed Benali' },
-                        ]}
+                        options={contactOptions}
                         value={formData.contactId}
                         onValueChange={(v) => handleChange('contactId', v)}
                         error={errors.contactId}
                       />
                     </div>
-                    <button type="button" className="h-9 w-9 rounded-lg border border-border bg-card flex items-center justify-center text-text-secondary hover:text-accent hover:border-accent transition-all shrink-0" title="Créer un nouveau contact">
+                    <button type="button" className={`h-9 w-9 rounded-lg border border-border bg-card flex items-center justify-center text-text-secondary ${isGerant ? 'hover:text-[#905D5D] hover:border-[#905D5D]' : 'hover:text-accent hover:border-accent'} transition-all shrink-0`} title="Créer un nouveau contact" onClick={() => setShowContactForm(true)}>
                       <Plus size={16} />
                     </button>
                   </div>
@@ -896,9 +1321,12 @@ export const BailleurFormModal = ({ onClose, onSubmit }: BailleurFormModalProps)
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="sm:col-span-2">
                   <p className="text-sm font-medium text-text mb-1.5">Plan (Carte interactive)</p>
-                  <div className="w-full h-48 rounded-lg border border-border bg-background flex items-center justify-center text-text-secondary text-sm">
-                    🗺️ Carte interactive (cliquez pour sélectionner)
-                  </div>
+                  <LocationMap
+                    latitude={formData.latitude}
+                    longitude={formData.longitude}
+                    onLatitudeChange={(v: number) => handleChange('latitude', v)}
+                    onLongitudeChange={(v: number) => handleChange('longitude', v)}
+                  />
                 </div>
                 <Input label="Adresse complète" value={formData.adresseComplete} onChange={(e) => handleChange('adresseComplete', e.target.value)} placeholder="12 Rue de la Liberté, Casablanca" />
                 <Input label="Complément d'adresse" value={formData.complementAdresse} onChange={(e) => handleChange('complementAdresse', e.target.value)} placeholder="Résidence Les Palmiers, Appt 5" />
@@ -991,10 +1419,10 @@ export const BailleurFormModal = ({ onClose, onSubmit }: BailleurFormModalProps)
                   <Select label="Type de loyer" options={TYPE_LOYER_OPTIONS} value={formData.typeLoyer} onValueChange={(v) => handleChange('typeLoyer', v)} />
                   <Select label="Périodicité du loyer" options={PERIODICITE_LOYER_OPTIONS} value={formData.periodiciteLoyer} onValueChange={(v) => handleChange('periodiciteLoyer', v)} />
                 </div>
-                <div className="p-4 rounded-lg border border-accent/20 bg-accent/5">
+                <div className={`p-4 rounded-lg border ${isGerant ? 'border-[#905D5D]/20 bg-[#905D5D]/5' : 'border-accent/20 bg-accent/5'}`}>
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-medium text-text">Loyer mensuel (charges comprises)</span>
-                    <span className="text-lg font-bold text-accent">
+                    <span className={`text-lg font-bold ${isGerant ? 'text-[#905D5D]' : 'text-accent'}`}>
                       {loyerCC > 0
                         ? `${loyerCC.toLocaleString('fr-FR')} ${formData.devise}`
                         : '—'}
@@ -1024,8 +1452,8 @@ export const BailleurFormModal = ({ onClose, onSubmit }: BailleurFormModalProps)
                           onClick={() => handleChange('attributPrincipal', opt.value)}
                           className={`px-3 py-1.5 text-xs rounded-lg border transition-all ${
                             isSelected
-                              ? 'bg-accent text-white border-accent ring-2 ring-accent/30'
-                              : 'bg-card text-text-secondary border-border hover:border-accent/50'
+                              ? (isGerant ? 'bg-[#905D5D] text-white border-[#905D5D] ring-2 ring-[#905D5D]/30' : 'bg-accent text-white border-accent ring-2 ring-accent/30')
+                              : (isGerant ? 'bg-card text-text-secondary border-border hover:border-[#905D5D]/50' : 'bg-card text-text-secondary border-border hover:border-accent/50')
                           }`}
                         >
                           {opt.label}
@@ -1049,10 +1477,10 @@ export const BailleurFormModal = ({ onClose, onSubmit }: BailleurFormModalProps)
                         type="button"
                         onClick={() => handleCheckboxGroup('criteres', opt.value)}
                         className={`px-3 py-1.5 text-xs rounded-lg border transition-all ${
-                          isSelected
-                            ? 'bg-accent text-white border-accent'
-                            : 'bg-card text-text-secondary border-border hover:border-accent/50'
-                        }`}
+                  isSelected
+                    ? (isGerant ? 'bg-[#905D5D] text-white border-[#905D5D]' : 'bg-accent text-white border-accent')
+                    : (isGerant ? 'bg-card text-text-secondary border-border hover:border-[#905D5D]/50' : 'bg-card text-text-secondary border-border hover:border-accent/50')
+                }`}
                       >
                         {opt.label}
                       </button>
@@ -1125,7 +1553,7 @@ export const BailleurFormModal = ({ onClose, onSubmit }: BailleurFormModalProps)
         return (
           <div>
             <div className="flex items-center gap-2 mb-6">
-              <span className="w-1 h-6 rounded-full bg-accent" />
+              <span className={`w-1 h-6 rounded-full ${isGerant ? 'bg-[#905D5D]' : 'bg-accent'}`} />
               <h2 className="text-base font-semibold text-text">MANDAT DE GESTION LOCATIVE</h2>
             </div>
 
@@ -1133,7 +1561,6 @@ export const BailleurFormModal = ({ onClose, onSubmit }: BailleurFormModalProps)
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <Input label="Numéro de mandat" value={formData.numeroMandat} onChange={(e) => handleChange('numeroMandat', e.target.value)} placeholder="MG-2026-001" />
                 <Select label="Statut du mandat" options={STATUT_MANDAT_OPTIONS} value={formData.statutMandat} onValueChange={(v) => handleChange('statutMandat', v)} />
-                <DatePicker label="Date de signature" value={formData.dateSignature} onChange={(e) => handleChange('dateSignature', e.target.value)} />
                 <DatePicker label="Date de début" value={formData.dateDebut} onChange={(e) => handleChange('dateDebut', e.target.value)} />
                 <DatePicker label="Date d'expiration" value={formData.dateExpiration} onChange={(e) => handleChange('dateExpiration', e.target.value)} />
               </div>
@@ -1141,30 +1568,76 @@ export const BailleurFormModal = ({ onClose, onSubmit }: BailleurFormModalProps)
             {renderSection('2. TYPE DE MANDAT', (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <Select label="Type de mandat" options={TYPE_MANDAT_OPTIONS} value={formData.typeMandat} onValueChange={(v) => handleChange('typeMandat', v)} />
-                <Select label="Durée du mandat" options={DUREE_MANDAT_OPTIONS} value={formData.dureeMandat} onValueChange={(v) => handleChange('dureeMandat', v)} />
               </div>
             ))}
             {renderSection('3. CLAUSE DE PROTECTION', (
               <div className="space-y-3">
                 <Checkbox label="Activer la clause de protection" checked={formData.clauseProtection} onChange={(checked) => handleChange('clauseProtection', checked)} />
                 {formData.clauseProtection && (
-                  <Input label="Nombre de mois de protection" type="number" min="1" max="24" value={formData.clauseProtectionMois?.toString() || '3'} onChange={(e) => handleChange('clauseProtectionMois', e.target.value ? parseInt(e.target.value) : 3)} placeholder="3" className="max-w-xs" />
+                  <Input label="Nombre de mois de protection" type="number" min="1" max="24" value={formData.clauseProtectionMois?.toString() || ''} onChange={(e) => handleChange('clauseProtectionMois', e.target.value ? parseInt(e.target.value) : undefined)} placeholder="3" className="max-w-xs" />
                 )}
                 <p className="text-xs text-text-secondary">Si le bailleur trouve un locataire par lui-même après expiration, l'agence n'a pas droit à commission.</p>
               </div>
             ))}
             {renderSection('4. PARTIES AU CONTRAT', (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <Input label="Bailleur(s)" value="" placeholder="Pré-rempli depuis le contact" disabled />
+                <Input label="Bailleur(s)" value={selectedContactName} disabled />
                 <Input label="Conjoint" value={formData.conjoint} onChange={(e) => handleChange('conjoint', e.target.value)} placeholder="Nom du conjoint" />
                 <Input label="Société (si SCI)" value={formData.societe} onChange={(e) => handleChange('societe', e.target.value)} placeholder="Raison sociale" />
-                <Select label="Agent désigné" options={[{ value: '', label: 'Sélectionner un agent...' }, ...AGENTS]} value={formData.agentDesigne} onValueChange={(v) => handleChange('agentDesigne', v)} />
+                <Input label="Agent désigné" value={(() => {
+  const raw = formData.agentDesigne || assignmentInfo?.assignedName || '';
+  if (!raw) return '';
+  if (USER_CACHE[raw]) return USER_CACHE[raw];
+  const agent = AGENTS.find(a => a.id === raw);
+  if (agent) return agent.name;
+  const byName = AGENTS.find(a => a.name.toLowerCase() === raw.toLowerCase());
+  return byName ? byName.name : raw;
+})()} disabled />
+                <div>
+                  <label className="block text-sm font-medium text-text mb-1.5">Bien concerné</label>
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1">
+                      <Select
+                        placeholder={editingClient?.id ? (loadingProperties ? 'Chargement...' : 'Sélectionner un bien') : 'Créez d\'abord le client'}
+                        value={formData.bienConcerneId}
+                        onValueChange={(v) => handleChange('bienConcerneId', v)}
+                        options={filteredBailleurProperties.map((p: any) => ({
+                          value: String(p.id),
+                          label: `${p.title || p.reference || `Bien #${p.id}`}${p.city ? ` - ${p.city}` : ''}`,
+                        }))}
+                        disabled={!editingClient?.id || loadingProperties}
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowPropertyTypeModal(true)}
+                      className={`mt-0.5 w-9 h-9 flex items-center justify-center rounded-lg border border-dashed ${isGerant ? 'border-[#905D5D]/40 text-[#905D5D] hover:bg-[#905D5D]/10' : 'border-accent/40 text-accent hover:bg-accent/10'} transition-all shrink-0`}
+                      title="Ajouter une propriété"
+                    >
+                      <Plus size={16} />
+                    </button>
+                  </div>
+                  {!editingClient?.id && (
+                    <p className="text-[11px] text-text-secondary/60 mt-1">Enregistrez le client pour pouvoir associer un bien</p>
+                  )}
+                </div>
               </div>
             ))}
             {renderSection('5. RÉMUNÉRATION DE L\'AGENCE', (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <Select label="Type de rémunération" options={REMUNERATION_TYPE_OPTIONS} value={formData.typeRemuneration} onValueChange={(v) => handleChange('typeRemuneration', v)} />
-                  <Input label="Montant / Pourcentage" type="number" min="0" step="0.1" value={formData.montantRemuneration?.toString() || ''} onChange={(e) => handleChange('montantRemuneration', e.target.value ? parseFloat(e.target.value) : undefined)} placeholder={`Ex: 8% du loyer HC ou 500 ${formData.devise}/mois`} />
+                <div>
+                  <label className="block text-sm font-medium text-text mb-1.5">Montant / Pourcentage</label>
+                  <div className="flex rounded-lg border border-border overflow-hidden">
+                    <button type="button" onClick={() => handleChange('remunerationIsPercentage', false)} className={`flex-1 px-3 py-2 text-sm font-medium transition-colors ${!formData.remunerationIsPercentage ? (isGerant ? 'bg-[#905D5D] text-white' : 'bg-accent text-white') : 'bg-background text-text-secondary hover:text-text'}`}>
+                      Montant ({formData.devise || 'MAD'})
+                    </button>
+                    <button type="button" onClick={() => handleChange('remunerationIsPercentage', true)} className={`flex-1 px-3 py-2 text-sm font-medium transition-colors border-l border-border ${formData.remunerationIsPercentage ? (isGerant ? 'bg-[#905D5D] text-white' : 'bg-accent text-white') : 'bg-background text-text-secondary hover:text-text'}`}>
+                      Pourcentage (%)
+                    </button>
+                  </div>
+                  <Input type="number" min="0" max={formData.remunerationIsPercentage ? 100 : undefined} step={formData.remunerationIsPercentage ? '0.01' : '1'} value={formData.montantRemuneration?.toString() || ''} onChange={(e) => { const v = e.target.value ? parseFloat(e.target.value) : undefined; if (formData.remunerationIsPercentage && v !== undefined && v > 100) return; handleChange('montantRemuneration', v); }} placeholder={formData.remunerationIsPercentage ? 'Ex: 8' : `Ex: 500 ${formData.devise}/mois`} suffix={formData.remunerationIsPercentage ? '%' : formData.devise || 'MAD'} className="mt-2" />
+                </div>
                 <Select label="Condition de paiement" options={CONDITION_PAIEMENT_OPTIONS} value={formData.conditionPaiement} onValueChange={(v) => handleChange('conditionPaiement', v)} />
                 <Input label="Frais de mise en location" type="number" min="0" value={formData.fraisMiseEnLocation?.toString() || ''} onChange={(e) => handleChange('fraisMiseEnLocation', e.target.value ? parseInt(e.target.value) : undefined)} placeholder={`500 ${formData.devise}`} />
                 <Input label="Frais d'état des lieux" type="number" min="0" value={formData.fraisEtatDesLieux?.toString() || ''} onChange={(e) => handleChange('fraisEtatDesLieux', e.target.value ? parseInt(e.target.value) : undefined)} placeholder={`300 ${formData.devise}`} />
@@ -1173,24 +1646,39 @@ export const BailleurFormModal = ({ onClose, onSubmit }: BailleurFormModalProps)
             ))}
             {renderSection('6. DOCUMENTS JUSTIFICATIFS', (
               <div className="space-y-3">
+                <p className="text-xs text-text-secondary">Documents à fournir par le bailleur :</p>
                 {[
-                  { label: "Pièce d'identité du bailleur", required: true },
-                  { label: 'Titre de propriété', required: true },
-                  { label: 'Diagnostic technique (DPE)', required: true },
-                  { label: 'Règlement de copropriété', required: false },
-                  { label: 'Mandat de gestion signé (PDF)', required: true },
-                  { label: "Attestation d'assurance propriétaire non-occupant", required: false },
-                  { label: 'État des lieux (entrant)', required: false },
-                  { label: 'Autre document', required: false },
+                  { label: "Pièce d'identité du bailleur", required: true, inputId: 'bail-doc-identite', field: 'docIdentiteUrl' as const, nameField: 'docIdentiteName' as const, uploaded: formData.docIdentiteUrl, name: formData.docIdentiteName },
+                  { label: 'Titre de propriété', required: true, inputId: 'bail-doc-titre', field: 'docTitreProprieteUrl' as const, nameField: 'docTitreProprieteName' as const, uploaded: formData.docTitreProprieteUrl, name: formData.docTitreProprieteName },
+                  { label: 'Diagnostic technique (DPE)', required: true, inputId: 'bail-doc-diagnostic', field: 'docDiagnosticUrl' as const, nameField: 'docDiagnosticName' as const, uploaded: formData.docDiagnosticUrl, name: formData.docDiagnosticName },
+                  { label: 'Règlement de copropriété', required: false, inputId: 'bail-doc-copropriete', field: 'docCoproprieteUrl' as const, nameField: 'docCoproprieteName' as const, uploaded: formData.docCoproprieteUrl, name: formData.docCoproprieteName },
+                  { label: "Attestation d'assurance propriétaire non-occupant", required: false, inputId: 'bail-doc-assurance', field: 'docAssuranceUrl' as const, nameField: 'docAssuranceName' as const, uploaded: formData.docAssuranceUrl, name: formData.docAssuranceName },
+                  { label: 'État des lieux (entrant)', required: false, inputId: 'bail-doc-etat-lieux', field: 'docEtatDesLieuxUrl' as const, nameField: 'docEtatDesLieuxName' as const, uploaded: formData.docEtatDesLieuxUrl, name: formData.docEtatDesLieuxName },
+                  { label: 'Autre document', required: false, inputId: 'bail-doc-autre', field: 'docAutreUrl' as const, nameField: 'docAutreName' as const, uploaded: formData.docAutreUrl, name: formData.docAutreName },
                 ].map((doc, i) => (
                   <div key={i} className="flex items-center gap-3 p-3 rounded-lg border border-border bg-background/50">
                     <span className="text-sm text-text flex-1">{doc.label}</span>
                     {doc.required ? (
                       <span className="text-xs px-2 py-0.5 rounded bg-error/10 text-error font-medium">Obligatoire</span>
                     ) : (
-                      <span className="text-xs px-2 py-0.5 rounded bg-accent/10 text-accent font-medium">Recommandé</span>
+                      <span className={`text-xs px-2 py-0.5 rounded font-medium ${isGerant ? 'bg-[#905D5D]/10 text-[#905D5D]' : 'bg-accent/10 text-accent'}`}>Recommandé</span>
                     )}
-                    <button type="button" className="text-xs px-3 py-1.5 rounded-lg border border-border bg-card text-text-secondary hover:text-accent hover:border-accent transition-all">Parcourir...</button>
+                    {doc.uploaded ? (
+                      <span className="text-[10px] font-medium text-emerald-600 uppercase bg-emerald-50 px-2 py-0.5 rounded flex items-center gap-1">
+                        <Upload size={10} /> Uploadé
+                      </span>
+                    ) : null}
+                    <div className="relative">
+                      <input id={doc.inputId} type="file" accept=".pdf,.jpg,.jpeg,.png" className="hidden" onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        try {
+                          const urls = await uploadFiles([file]);
+                          if (urls[0]) { handleChange(doc.field, urls[0]); handleChange(doc.nameField, file.name); }
+                        } catch { /* upload failed silently */ }
+                      }} />
+                      <button type="button" onClick={() => document.getElementById(doc.inputId)?.click()} className={`text-xs px-3 py-1.5 rounded-lg border border-border bg-card text-text-secondary ${isGerant ? 'hover:text-[#905D5D] hover:border-[#905D5D]' : 'hover:text-accent hover:border-accent'} transition-all`}>{doc.uploaded ? 'Remplacer' : 'Parcourir...'}</button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -1209,15 +1697,24 @@ export const BailleurFormModal = ({ onClose, onSubmit }: BailleurFormModalProps)
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <DatePicker label="Date de signature" value={formData.dateSignatureMandat} onChange={(e) => handleChange('dateSignatureMandat', e.target.value)} />
-                  <div className="flex items-end">
-                    <div className="flex-1 space-y-1.5">
-                      <p className="text-sm font-medium text-text">Fichier du mandat signé</p>
-                      <div className="flex items-center gap-3 p-3 rounded-lg border border-border bg-background/50">
-                        <span className="text-sm text-text-secondary flex-1">Upload PDF</span>
-                        <button type="button" className="text-xs px-3 py-1.5 rounded-lg border border-border bg-card text-text-secondary hover:text-accent hover:border-accent transition-all">Parcourir...</button>
-                      </div>
-                    </div>
-                  </div>
+                   <div>
+                     <p className="block text-sm font-medium text-text mb-1.5">Fichier du mandat signé</p>
+                     <div className="h-9 flex items-center gap-3 px-3 rounded-lg border border-border bg-background/50">
+                       {formData.mandatSignePdfUrl ? (
+                         <Eye size={14} className="text-emerald-500 shrink-0" />
+                       ) : null}
+                       <span className="text-sm text-text-secondary flex-1 truncate">{formData.mandatSignePdfName || (formData.mandatSignePdfUrl ? 'Fichier uploadé' : 'Aucun fichier')}</span>
+                       <input id="bail-mandat-signe-upload" type="file" accept=".pdf" className="hidden" onChange={async (e) => {
+                         const file = e.target.files?.[0];
+                         if (!file) return;
+                         try {
+                           const urls = await uploadFiles([file]);
+                           if (urls[0]) { handleChange('mandatSignePdfUrl', urls[0]); handleChange('mandatSignePdfName', file.name); }
+                         } catch { /* upload failed silently */ }
+                       }} />
+                       <button type="button" onClick={() => document.getElementById('bail-mandat-signe-upload')?.click()} className={`text-xs px-3 py-1.5 rounded-lg border border-border bg-card text-text-secondary ${isGerant ? 'hover:text-[#905D5D] hover:border-[#905D5D]' : 'hover:text-accent hover:border-accent'} transition-all`}>{formData.mandatSignePdfUrl ? 'Remplacer' : 'Parcourir...'}</button>
+                     </div>
+                   </div>
                 </div>
               </div>
             ))}
@@ -1230,8 +1727,9 @@ export const BailleurFormModal = ({ onClose, onSubmit }: BailleurFormModalProps)
   };
 
   return (
+    <>
     <AnimatePresence>
-      <div className="fixed inset-0 z-50 flex items-start justify-center pt-6 pb-6">
+      {loadingDraft ? null : (<div className="fixed inset-0 z-50 flex items-start justify-center pt-6 pb-6">
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -1244,23 +1742,41 @@ export const BailleurFormModal = ({ onClose, onSubmit }: BailleurFormModalProps)
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 10 }}
           transition={{ duration: 0.2 }}
-          className="relative w-full max-w-5xl mx-4 bg-card rounded-xl border border-border/50 shadow-modal overflow-y-auto max-h-[calc(100vh-48px)]"
+          className="relative w-full max-w-5xl mx-4 bg-card rounded-xl border border-border/50 shadow-modal flex flex-col max-h-[calc(100vh-48px)]"
         >
-          <div className="flex items-center justify-between px-6 py-4 border-b border-border/40 sticky top-0 bg-card z-10">
-            <h2 className="text-lg font-semibold">Nouveau bailleur</h2>
-            <button onClick={onClose} className="w-8 h-8 rounded-lg flex items-center justify-center text-text-secondary hover:text-text hover:bg-background transition-all">
-              <X size={16} />
-            </button>
+          <div className="flex items-center justify-between px-6 py-4 border-b border-border/40 bg-card z-10 shrink-0">
+            <h2 className="text-lg font-semibold">{editingClient ? 'Modifier le bailleur' : 'Nouveau bailleur'}</h2>
+            <div className="flex items-center gap-3">
+              {loadingDraft ? (
+                <span className="text-xs text-text-secondary">Chargement du brouillon...</span>
+              ) : savedDraftId ? (
+                <span className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-emerald-600 bg-emerald-50 rounded-lg">
+                  Auto-sauvegardé
+                </span>
+              ) : !editingClient ? (
+                <button
+                  type="button"
+                  onClick={doSaveDraft}
+                  className="px-3 py-1.5 text-xs rounded-lg border border-border/60 hover:bg-border/20 transition-colors flex items-center gap-1.5"
+                >
+                  Brouillon
+                </button>
+              ) : null}
+              <CompletionRing percent={calcCompletion(formData)} size={32} strokeWidth={3} />
+              <button onClick={onClose} className="w-8 h-8 rounded-lg flex items-center justify-center text-text-secondary hover:text-text hover:bg-background transition-all">
+                <X size={16} />
+              </button>
+            </div>
           </div>
 
           {/* Tabs */}
-          <div className="px-6 py-1 border-b border-border/30 flex gap-1 overflow-x-auto sticky top-[57px] bg-card z-10">
+          <div className="px-6 py-1 border-b border-border/30 flex gap-1 overflow-x-auto bg-card z-10 shrink-0">
             {TABS.map((t) => (
               <button
                 key={t.id}
                 onClick={() => setStep(t.id)}
                 className={`px-3 py-2 text-xs font-medium border-b-2 transition-all whitespace-nowrap ${
-                  step === t.id ? 'text-accent border-accent' : 'text-text-secondary border-transparent hover:text-text'
+                  step === t.id ? (isGerant ? 'text-[#905D5D] border-[#905D5D]' : 'text-accent border-accent') : 'text-text-secondary border-transparent hover:text-text'
                 }`}
               >
                 {t.id === 8 ? 'Mandat' : t.label}
@@ -1268,15 +1784,23 @@ export const BailleurFormModal = ({ onClose, onSubmit }: BailleurFormModalProps)
             ))}
           </div>
 
-          <form onSubmit={handleSubmit} className="p-6 space-y-6">
-            {renderTabContent()}
+          <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0 p-6">
+            <div className="flex-1 overflow-y-auto min-h-0">
+              {renderTabContent()}
+            </div>
 
             {/* Footer */}
-            <div className="flex items-center justify-between pt-4 border-t border-border/30">
-              <div>
+            <div className="flex items-center justify-between pt-4 mt-6 border-t border-border/30 shrink-0">
+              <div className="flex items-center gap-2">
                 {step > 1 && (
                   <Button type="button" variant="outline" onClick={() => setStep(step - 1)}>
                     Précédent
+                  </Button>
+                )}
+                {!savedDraftId && !editingClient && (
+                  <Button type="button" variant="outline" onClick={doSaveDraft}>
+                    <Save size={14} className="inline mr-1" />
+                    Enregistrer comme brouillon
                   </Button>
                 )}
               </div>
@@ -1285,19 +1809,68 @@ export const BailleurFormModal = ({ onClose, onSubmit }: BailleurFormModalProps)
                   Annuler
                 </Button>
                 {step < 8 ? (
-                  <Button type="button" variant="default" onClick={() => setStep(step + 1)}>
+                  <Button type="button" variant="default" className={isGerant ? GERANT_BUTTON_CLASSES : ''} onClick={() => {
+                    if (step === 1 && !formData.contactId) {
+                      setErrors(prev => ({ ...prev, contactId: 'Veuillez sélectionner ou créer un contact' }));
+                      return;
+                    }
+                    setErrors(prev => ({ ...prev, contactId: undefined }));
+                    setStep(step + 1);
+                  }}>
                     Suivant
                   </Button>
                 ) : (
-                  <Button type="submit" variant="default" loading={isSubmitting}>
-                    {isSubmitting ? 'Enregistrement...' : "Créer le bailleur"}
+                  <Button type="button" variant="default" className={isGerant ? GERANT_BUTTON_CLASSES : ''} onClick={submitForm} loading={isSubmitting}>
+                    {isSubmitting ? 'Enregistrement...' : editingClient ? 'Mettre à jour le bailleur' : "Créer le bailleur"}
                   </Button>
                 )}
               </div>
             </div>
           </form>
         </motion.div>
-      </div>
+      </div>)}
+
+      {/* Property Type Selection Modal */}
+      <Dialog isOpen={showPropertyTypeModal} onClose={() => setShowPropertyTypeModal(false)} title="Propriété de bailleur est de type :" size="md">
+        <div className="space-y-3">
+          <p className="text-sm text-text-secondary">Sélectionnez le type de bien à créer :</p>
+          {[
+            { label: 'Résidentiel', desc: 'Appartements, maisons, villas', icon: Home, type: 'Résidentiel' },
+            { label: 'Commercial', desc: 'Bureaux, locaux, boutiques', icon: Briefcase, type: 'Commercial' },
+          ].map((item) => (
+            <button
+              key={item.type}
+              type="button"
+              onClick={() => handlePropertyTypeSelect(item.type)}
+              className={`w-full flex items-center gap-4 p-4 rounded-lg border border-border/50 bg-background/50 ${isGerant ? 'hover:border-[#905D5D] hover:bg-[#905D5D]/5' : 'hover:border-accent hover:bg-accent/5'} transition-all text-left group`}
+            >
+              <div className={`w-10 h-10 rounded-lg ${isGerant ? 'bg-[#905D5D]/10 text-[#905D5D] group-hover:bg-[#905D5D] group-hover:text-white' : 'bg-accent/10 text-accent group-hover:bg-accent group-hover:text-white'} transition-all`}>
+                <item.icon size={20} />
+              </div>
+              <div className="flex-1">
+                <p className="text-sm font-semibold text-text">{item.label}</p>
+                <p className="text-xs text-text-secondary">{item.desc}</p>
+              </div>
+              <ExternalLink size={14} className={`text-text-secondary/40 ${isGerant ? 'group-hover:text-[#905D5D]' : 'group-hover:text-accent'} transition-colors`} />
+            </button>
+          ))}
+        </div>
+      </Dialog>
     </AnimatePresence>
+    {showContactForm && (
+      <ContactFormModal
+        onClose={() => setShowContactForm(false)}
+        onSubmit={async (data) => {
+          try {
+            const created = await createContact(data);
+            refreshContacts();
+            setFormData(prev => ({ ...prev, contactId: String(created.id) }));
+            setShowContactForm(false);
+          } catch {
+          }
+        }}
+      />
+    )}
+    </>
   );
 };

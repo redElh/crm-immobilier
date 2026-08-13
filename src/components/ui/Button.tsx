@@ -35,8 +35,8 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
     )
 
     const variants = {
-      default: "bg-accent text-white hover:bg-accent-hover shadow-sm",
-      primary: "bg-accent text-white hover:bg-accent-hover shadow-sm",
+      default: "border border-[hsl(var(--button-border))] bg-[hsl(var(--button-bg))] text-[hsl(var(--button-text))] shadow-[0_10px_24px_rgba(0,0,0,0.22)] hover:border-[hsl(var(--button-border-hover))] hover:bg-[hsl(var(--button-bg-hover))]",
+      primary: "border border-[hsl(var(--button-border))] bg-[hsl(var(--button-bg))] text-[hsl(var(--button-text))] shadow-[0_10px_24px_rgba(0,0,0,0.22)] hover:border-[hsl(var(--button-border-hover))] hover:bg-[hsl(var(--button-bg-hover))]",
       danger: "bg-error text-white hover:bg-error/90 shadow-sm",
       outline: "border border-border bg-card text-text hover:bg-background hover:border-text-secondary/30",
       secondary: "bg-background text-text-secondary hover:text-text hover:bg-border/50",

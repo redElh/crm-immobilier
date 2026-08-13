@@ -1,10 +1,11 @@
 import type { Prospect } from '../../../types/prospect';
 
-export interface AdminProspect extends Omit<Prospect, 'status'> {
+export interface AdminProspect extends Omit<Prospect, 'status' | 'agentId'> {
   agentId: string;
   mandateStatus: 'actif' | 'expire' | 'en_attente' | 'termine';
   lastContactedAt?: string;
   status: 'Nouveau' | 'Contacté' | 'Qualifié' | 'En attente' | 'Perdu' | 'Converti';
+  originalProspectId?: string | null;
 }
 
 export const AGENTS = [

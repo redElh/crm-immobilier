@@ -57,7 +57,7 @@ export default function VerifyEmailPage() {
           ? "Votre compte est maintenant activé et sécurisé"
           : "Le lien de vérification est invalide ou a expiré"
       }
-      backgroundImage="/auth-bg-4.jpg"
+      backgroundImage="/CRM_Official_Image.jfif"
     >
       <div className="text-center space-y-6">
         {status === 'verifying' && (
@@ -93,7 +93,7 @@ export default function VerifyEmailPage() {
             <Button
               onClick={handleResendEmail}
               variant="default"
-              className="w-full"
+              className="w-full golden-border-animated"
               loading={isResending}
               disabled={countdown > 0}
             >

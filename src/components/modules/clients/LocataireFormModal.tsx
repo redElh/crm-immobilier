@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Plus } from 'react-feather';
+import { X, Plus, Save, Upload, Eye, Search, Home } from 'react-feather';
 import { Client } from '../../../types/client';
 import { DatePicker } from '../../ui/DatePicker';
 import { Input } from '../../ui/Input';
@@ -8,18 +8,40 @@ import { Select } from '../../ui/Select';
 import { Checkbox } from '../../ui/Checkbox';
 import { Textarea } from '../../ui/Textarea';
 import { Button } from '../../ui/Button';
+import { LocationMap } from '../properties/AddPropertyForm/LocationMap';
+import { saveDraft, getDraft, deleteDraft } from '../../../services/clientDraftStorage';
+import { CompletionRing } from '../../ui/CompletionRing';
+import { uploadFiles } from '../../../services/uploadService';
+import { api } from '../../../services/api';
+import { fetchContacts, createContact } from '../../../services/contactService';
+import { ContactFormModal } from '../contacts/ContactFormModal';
+
+const GERANT_BUTTON_CLASSES = 'bg-[#905D5D] hover:bg-[#7D5050] border-[#905D5D] hover:border-[#7D5050] text-white shadow-[0_10px_24px_rgba(144,93,93,0.35)]'
+
+interface AssignmentInfo {
+  assignedType: 'agent' | 'admin';
+  assignedName: string;
+}
 
 interface LocataireFormModalProps {
   onClose: () => void;
   onSubmit: (client: Omit<Client, 'id'>) => void;
+  assignmentInfo?: AssignmentInfo;
+  draftId?: string;
+  userId?: string;
+  onDraftChange?: () => void;
+  client?: Client;
+  selectedContactId?: string;
+  isGerant?: boolean;
 }
 
 const STATUT_METIER_OPTIONS = [
   { value: 'En recherche', label: 'En recherche' },
   { value: 'En visite', label: 'En visite' },
   { value: 'En dossier', label: 'En dossier' },
-  { value: 'Bail signe', label: 'Bail signé' },
-  { value: 'Installe', label: 'Installé' },
+  { value: 'Bail signe', label: 'Bail sign\u00e9' },
+  { value: 'Installe', label: 'Install\u00e9' },
+  { value: 'Loue', label: 'Lou\u00e9' },
   { value: 'Inactif', label: 'Inactif' },
   { value: 'Perdu', label: 'Perdu' },
 ];
@@ -357,6 +379,8 @@ const SITUATION_ACTUELLE_OPTIONS = [
 ];
 
 const STATUT_MANDAT_OPTIONS = [
+  { value: 'Non défini', label: 'Non défini' },
+  { value: 'En attente de signature', label: 'En attente de signature' },
   { value: 'Actif', label: 'Actif' },
   { value: 'Expire', label: 'Expiré' },
   { value: 'Resilie', label: 'Résilié' },
@@ -405,6 +429,10 @@ interface LocataireFormData {
   plan: string;
   localisation: string;
   secteur: string;
+  adresseComplete: string;
+  complementAdresse: string;
+  codePostalVille: string;
+  pays: string;
   categorie: string;
   typeBien: string;
   piecesOperator: string;
@@ -432,6 +460,20 @@ interface LocataireFormData {
   garant: boolean;
   garantNom: string;
   garantRevenus: number | undefined;
+  anciennete: number | undefined;
+  periodeEssai: boolean;
+  nomEmployeur: string;
+  dateFinContrat: string;
+  chiffreAffaires: number | undefined;
+  dernierBilanUrl: string;
+  dernierBilanName: string;
+  dernierAvisImpotUrl: string;
+  dernierAvisImpotName: string;
+  pensionMensuelle: number | undefined;
+  dateRetraite: string;
+  organismeRetraite: string;
+  justificatifSituationUrl: string;
+  justificatifSituationName: string;
   situationActuelle: string;
   dateEmmenagement: string;
   notesComplementaires: string;
@@ -444,12 +486,27 @@ interface LocataireFormData {
   conjoint: string;
   societe: string;
   agentDesigne: string;
-  loyerMaxMandat: number | undefined;
-  surfaceMinMandat: number | undefined;
   honorairesLocation: number | undefined;
+  honorairesLocationIsPercentage: boolean;
   conditionPaiement: string;
   dureeProtection: string;
   mandatPdfUrl: string;
+  mandatPdfName: string;
+  bienRechercheId: string;
+  docIdentiteUrl: string;
+  docIdentiteName: string;
+  docDomicileUrl: string;
+  docDomicileName: string;
+  docFichesDePaieUrl: string;
+  docFichesDePaieName: string;
+  docContratTravailUrl: string;
+  docContratTravailName: string;
+  docRIBUrl: string;
+  docRIBName: string;
+  docGarantUrl: string;
+  docGarantName: string;
+  latitude: number;
+  longitude: number;
 }
 
 const TABS = [
@@ -482,9 +539,8 @@ const formatDate = (date: Date): string => {
 const today = formatDate(new Date());
 const inSixMonths = formatDate(addMonths(new Date(), 6));
 
-export const LocataireFormModal = ({ onClose, onSubmit }: LocataireFormModalProps) => {
-  const [step, setStep] = useState(1);
-  const [formData, setFormData] = useState<LocataireFormData>({
+export function resetLocataireFormData(): LocataireFormData {
+  return {
     actif: true,
     croisementAutomatique: true,
     classification: 'Actif',
@@ -495,6 +551,10 @@ export const LocataireFormModal = ({ onClose, onSubmit }: LocataireFormModalProp
     plan: '',
     localisation: 'Maroc',
     secteur: '',
+    adresseComplete: '',
+    complementAdresse: '',
+    codePostalVille: '',
+    pays: 'Maroc',
     categorie: '',
     typeBien: '',
     piecesOperator: 'ge',
@@ -522,6 +582,20 @@ export const LocataireFormModal = ({ onClose, onSubmit }: LocataireFormModalProp
     garant: false,
     garantNom: '',
     garantRevenus: undefined,
+    anciennete: undefined,
+    periodeEssai: false,
+    nomEmployeur: '',
+    dateFinContrat: '',
+    chiffreAffaires: undefined,
+    dernierBilanUrl: '',
+    dernierBilanName: '',
+    dernierAvisImpotUrl: '',
+    dernierAvisImpotName: '',
+    pensionMensuelle: undefined,
+    dateRetraite: '',
+    organismeRetraite: '',
+    justificatifSituationUrl: '',
+    justificatifSituationName: '',
     situationActuelle: '',
     dateEmmenagement: '',
     notesComplementaires: '',
@@ -529,21 +603,295 @@ export const LocataireFormModal = ({ onClose, onSubmit }: LocataireFormModalProp
     dateSignature: today,
     dateDebut: today,
     dateExpiration: inSixMonths,
-    statutMandat: 'Actif',
-    typeMandat: 'Non-exclusif',
+    statutMandat: 'Non défini',
+    typeMandat: '',
     conjoint: '',
     societe: '',
     agentDesigne: '',
-    loyerMaxMandat: undefined,
-    surfaceMinMandat: undefined,
     honorairesLocation: undefined,
+    honorairesLocationIsPercentage: false,
     conditionPaiement: '',
-    dureeProtection: '3',
+    dureeProtection: '',
     mandatPdfUrl: '',
+    mandatPdfName: '',
+    bienRechercheId: '',
+    docIdentiteUrl: '',
+    docIdentiteName: '',
+    docDomicileUrl: '',
+    docDomicileName: '',
+    docFichesDePaieUrl: '',
+    docFichesDePaieName: '',
+    docContratTravailUrl: '',
+    docContratTravailName: '',
+    docRIBUrl: '',
+    docRIBName: '',
+    docGarantUrl: '',
+    docGarantName: '',
+    latitude: 0,
+    longitude: 0,
+  };
+}
+
+export const LocataireFormModal = ({ onClose, onSubmit, assignmentInfo, draftId: initialDraftId, userId, onDraftChange, client: editingClient, selectedContactId, isGerant = false }: LocataireFormModalProps) => {
+  const [step, setStep] = useState(1);
+  const [contactOptions, setContactOptions] = useState<{value: string; label: string}[]>([]);
+  const [contacts, setContacts] = useState<any[]>([]);
+  const [formData, setFormData] = useState<LocataireFormData>({
+    actif: true,
+    croisementAutomatique: true,
+    classification: 'Actif',
+    statutMetier: 'En recherche',
+    statutOccupation: '',
+    contactId: selectedContactId || '',
+    origine: '',
+    plan: '',
+    localisation: 'Maroc',
+    secteur: '',
+    adresseComplete: '',
+    complementAdresse: '',
+    codePostalVille: '',
+    pays: 'Maroc',
+    categorie: '',
+    typeBien: '',
+    piecesOperator: 'ge',
+    pieces: undefined,
+    chambresOperator: 'ge',
+    chambres: undefined,
+    surfaceMin: undefined,
+    surfaceMax: undefined,
+    loyerMax: undefined,
+    devise: 'MAD',
+    etageOperator: 'ge',
+    etage: undefined,
+    vue: '',
+    exposition: '',
+    etat: '',
+    standing: '',
+    disponibilite: '',
+    attributPrincipal: '',
+    attributsPersonnalises: [],
+    criteres: [],
+    proximites: { transports: [], commerces: [], education: [], sante: [], loisirs: [] },
+    prestations: { exterieur: [], confort: [], electromenager: [], multimedia: [], sport: [] },
+    situationPro: '',
+    revenusMensuels: undefined,
+    garant: false,
+    garantNom: '',
+    garantRevenus: undefined,
+    anciennete: undefined,
+    periodeEssai: false,
+    nomEmployeur: '',
+    dateFinContrat: '',
+    chiffreAffaires: undefined,
+    dernierBilanUrl: '',
+    dernierBilanName: '',
+    dernierAvisImpotUrl: '',
+    dernierAvisImpotName: '',
+    pensionMensuelle: undefined,
+    dateRetraite: '',
+    organismeRetraite: '',
+    justificatifSituationUrl: '',
+    justificatifSituationName: '',
+    situationActuelle: '',
+    dateEmmenagement: '',
+    notesComplementaires: '',
+    numeroMandat: generateMandatNumber(),
+    dateSignature: today,
+    dateDebut: today,
+    dateExpiration: inSixMonths,
+    statutMandat: 'Non défini',
+    typeMandat: '',
+    conjoint: '',
+    societe: '',
+    agentDesigne: '',
+    honorairesLocation: undefined,
+    honorairesLocationIsPercentage: false,
+    conditionPaiement: '',
+    dureeProtection: '',
+    mandatPdfUrl: '',
+    mandatPdfName: '',
+    docIdentiteUrl: '',
+    docIdentiteName: '',
+    docDomicileUrl: '',
+    docDomicileName: '',
+    docFichesDePaieUrl: '',
+    docFichesDePaieName: '',
+    docContratTravailUrl: '',
+    docContratTravailName: '',
+    docRIBUrl: '',
+    docRIBName: '',
+    docGarantUrl: '',
+    docGarantName: '',
+    bienRechercheId: '',
+    latitude: 0,
+    longitude: 0,
   });
+
+  useEffect(() => {
+    fetchContacts().then(allContacts => {
+      setContacts(allContacts);
+      setContactOptions([
+        { value: '', label: 'Sélectionner un contact...' },
+        ...allContacts.map(c => ({ value: String(c.id), label: `${c.civility} ${c.firstName} ${c.lastName}` })),
+      ]);
+    }).catch(() => {});
+  }, []);
+
+  const refreshContacts = () => {
+    fetchContacts().then(allContacts => {
+      setContacts(allContacts);
+      setContactOptions([
+        { value: '', label: 'Sélectionner un contact...' },
+        ...allContacts.map(c => ({ value: String(c.id), label: `${c.civility} ${c.firstName} ${c.lastName}` })),
+      ]);
+    }).catch(() => {});
+  };
+
+  const selectedContactName = formData.contactId ? (contactOptions.find(o => o.value === formData.contactId)?.label || '') : '';
+
+  const [propertySearchQuery, setPropertySearchQuery] = useState('');
+  const [propertySearchResults, setPropertySearchResults] = useState<any[]>([]);
+  const [propertySearching, setPropertySearching] = useState(false);
+  const [selectedProperty, setSelectedProperty] = useState<any>(null);
+
+  useEffect(() => {
+    if (propertySearchQuery.length < 2) {
+      setPropertySearchResults([]);
+      return;
+    }
+    const timer = setTimeout(async () => {
+      setPropertySearching(true);
+      try {
+        const results = await api.get<any[]>('/properties', { search: propertySearchQuery });
+        const filtered = Array.isArray(results) ? results.filter((p: any) =>
+          p.transactionType === 'location_ld' && p.status === 'for_rent'
+        ) : [];
+        setPropertySearchResults(filtered);
+      } catch {
+        setPropertySearchResults([]);
+      } finally {
+        setPropertySearching(false);
+      }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [propertySearchQuery]);
+
+  useEffect(() => {
+    if (!editingClient) return;
+    const c = editingClient as any;
+    setFormData(prev => ({
+      ...prev,
+      actif: editingClient.status === 'Actif',
+      croisementAutomatique: editingClient.croisementAutomatique ?? true,
+      classification: editingClient.classification || 'Actif',
+      statutMetier: editingClient.statutMetier || 'En recherche',
+      contactId: editingClient.contactId || '',
+      origine: editingClient.source || '',
+      secteur: editingClient.secteur || editingClient.area || '',
+      localisation: editingClient.localisation || '',
+      adresseComplete: (editingClient as any).adresseComplete || '',
+      complementAdresse: (editingClient as any).complementAdresse || '',
+      codePostalVille: (editingClient as any).codePostalVille || '',
+      pays: (editingClient as any).pays || 'Maroc',
+      categorie: editingClient.categorie || '',
+      typeBien: editingClient.propertyType || '',
+      piecesOperator: editingClient.piecesOperator || 'ge',
+      pieces: editingClient.pieces,
+      chambresOperator: editingClient.chambresOperator || 'ge',
+      chambres: editingClient.chambres,
+      surfaceMin: editingClient.minSurface,
+      surfaceMax: editingClient.surfaceMax,
+      loyerMax: editingClient.prixMax || editingClient.budget,
+      devise: editingClient.devise || 'MAD',
+      etageOperator: editingClient.etageOperator || 'ge',
+      etage: editingClient.etage,
+      vue: editingClient.vue || '',
+      exposition: editingClient.exposition || '',
+      etat: editingClient.etat || '',
+      standing: editingClient.standing || '',
+      disponibilite: editingClient.disponibilite || '',
+      attributPrincipal: editingClient.attributPrincipal || '',
+      attributsPersonnalises: editingClient.attributsPersonnalises || [],
+      criteres: editingClient.criteres || [],
+      proximites: editingClient.proximites || { transports: [], commerces: [], education: [], sante: [], loisirs: [] },
+      prestations: editingClient.prestations || { exterieur: [], confort: [], electromenager: [], multimedia: [], sport: [] },
+      situationPro: editingClient.employmentStatus || '',
+      revenusMensuels: editingClient.contribution,
+      garant: editingClient.guarantor || false,
+      garantNom: (editingClient as any).guarantorName || '',
+      garantRevenus: (editingClient as any).guarantorRevenus,
+      anciennete: (editingClient as any).anciennete,
+      periodeEssai: (editingClient as any).periodeEssai || false,
+      nomEmployeur: (editingClient as any).nomEmployeur || '',
+      dateFinContrat: (editingClient as any).dateFinContrat || '',
+      chiffreAffaires: (editingClient as any).chiffreAffaires,
+      dernierBilanUrl: (editingClient as any).dernierBilanUrl || '',
+      dernierBilanName: (editingClient as any).dernierBilanName || '',
+      dernierAvisImpotUrl: (editingClient as any).dernierAvisImpotUrl || '',
+      dernierAvisImpotName: (editingClient as any).dernierAvisImpotName || '',
+      pensionMensuelle: (editingClient as any).pensionMensuelle,
+      dateRetraite: (editingClient as any).dateRetraite || '',
+      organismeRetraite: (editingClient as any).organismeRetraite || '',
+      justificatifSituationUrl: (editingClient as any).justificatifSituationUrl || '',
+      justificatifSituationName: (editingClient as any).justificatifSituationName || '',
+      statutOccupation: (editingClient as any).statutOccupation || '',
+      situationActuelle: editingClient.currentSituation || '',
+      dateEmmenagement: editingClient.moveInDate || '',
+      notesComplementaires: editingClient.notes || '',
+      numeroMandat: editingClient.numeroMandat || prev.numeroMandat,
+      dateSignature: editingClient.dateSignature || prev.dateSignature,
+      dateDebut: editingClient.dateDebut || prev.dateDebut,
+      dateExpiration: editingClient.dateExpiration || prev.dateExpiration,
+      statutMandat: editingClient.statutMandat || 'Non défini',
+      typeMandat: editingClient.typeMandat || '',
+      conjoint: editingClient.conjoint || '',
+      societe: editingClient.societe || '',
+      agentDesigne: editingClient.agentDesigne || '',
+      honorairesLocation: editingClient.montantRemuneration,
+      honorairesLocationIsPercentage: editingClient.remunerationIsPercentage ?? false,
+      conditionPaiement: editingClient.conditionPaiement || '',
+      dureeProtection: editingClient.dureeProtection || '',
+      mandatPdfUrl: editingClient.mandatPdfUrl || '',
+      mandatPdfName: editingClient.mandatPdfName || '',
+      docIdentiteUrl: editingClient.docIdentiteUrl || '',
+      docIdentiteName: editingClient.docIdentiteName || '',
+      docDomicileUrl: editingClient.docDomicileUrl || '',
+      docDomicileName: editingClient.docDomicileName || '',
+      docFichesDePaieUrl: editingClient.docRevenusUrl || '',
+      docFichesDePaieName: editingClient.docRevenusName || '',
+      docContratTravailUrl: editingClient.docFinancementUrl || '',
+      docContratTravailName: editingClient.docFinancementName || '',
+      docRIBUrl: editingClient.docBancaireUrl || '',
+      docRIBName: editingClient.docBancaireName || '',
+      docGarantUrl: (editingClient as any).docGarantUrl || '',
+      docGarantName: (editingClient as any).docGarantName || '',
+      bienRechercheId: editingClient.bienRechercheId || '',
+      latitude: c.latitude || 0,
+      longitude: c.longitude || 0,
+    }));
+  }, [editingClient]);
+
+  useEffect(() => {
+    if (editingClient?.bienRechercheId) {
+      api.get<any>(`/properties/${editingClient.bienRechercheId}`).then((p) => {
+        if (p) setSelectedProperty(p);
+      }).catch(() => {});
+    }
+  }, [editingClient]);
+
+  useEffect(() => {
+    if (assignmentInfo?.assignedName && !editingClient) {
+      setFormData(prev => ({ ...prev, agentDesigne: assignmentInfo.assignedName }));
+    }
+  }, [assignmentInfo, editingClient]);
 
   const [errors, setErrors] = useState<Partial<Record<keyof LocataireFormData, string>>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showContactForm, setShowContactForm] = useState(false);
+  const [savedDraftId, setSavedDraftId] = useState<string | undefined>(initialDraftId || undefined);
+  const [loadingDraft, setLoadingDraft] = useState(!!initialDraftId);
+  const formDataRef = useRef(formData);
+  formDataRef.current = formData;
 
   const handleChange = (field: keyof LocataireFormData, value: any) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -580,32 +928,126 @@ export const LocataireFormModal = ({ onClose, onSubmit }: LocataireFormModalProp
     });
   };
 
+  useEffect(() => {
+    if (editingClient) return;
+    const section1 = formData.numeroMandat.trim() && formData.dateDebut.trim() && formData.dateExpiration.trim();
+    const section2 = formData.typeMandat.trim() !== '';
+    const section3 = formData.typeBien.trim() !== '' && formData.loyerMax !== undefined && formData.surfaceMin !== undefined;
+    const section4 = formData.honorairesLocation !== undefined && formData.conditionPaiement !== '';
+    const allFilled = !!(section1 && section2 && section3 && section4);
+    const newStatus = allFilled ? 'En attente de signature' : 'Non défini';
+    setFormData(prev => prev.statutMandat !== newStatus ? { ...prev, statutMandat: newStatus } : prev);
+  }, [
+    editingClient,
+    formData.numeroMandat, formData.dateDebut, formData.dateExpiration,
+    formData.typeMandat,
+    formData.typeBien, formData.loyerMax, formData.surfaceMin,
+    formData.honorairesLocation, formData.conditionPaiement,
+  ]);
+
+  useEffect(() => {
+    if (formData.statutMandat === 'Actif') return;
+    const mapping: Record<string, string> = {
+      'Non défini': 'En recherche',
+      'En attente de signature': 'En recherche',
+      'Actif': 'En visite',
+      'Termine': 'Installe',
+      'Expire': 'Inactif',
+      'Resilie': 'Perdu',
+    };
+    const target = mapping[formData.statutMandat];
+    if (target && formData.statutMetier !== target) {
+      setFormData(prev => ({ ...prev, statutMetier: target }));
+    }
+  }, [formData.statutMandat]);
+
+  useEffect(() => {
+    if (!initialDraftId || !userId) return;
+    const draft = getDraft(userId, initialDraftId);
+    if (draft) {
+      const draftData = draft.data;
+      setFormData(prev => ({ ...prev, ...draftData }));
+      if (draftData._step) setStep(draftData._step);
+    }
+    setLoadingDraft(false);
+  }, []);
+
+  const isFilled = (v: any): boolean => {
+    if (v === undefined || v === null) return false;
+    if (typeof v === 'string') return v.trim() !== '';
+    if (Array.isArray(v)) return v.length > 0;
+    if (typeof v === 'object') {
+      if (v instanceof Date) return true;
+      return Object.values(v).some((a: any) => Array.isArray(a) && a.length > 0);
+    }
+    return true;
+  };
+
+  const calcCompletion = (data: LocataireFormData): number => {
+    const fields = [
+      data.classification, data.statutMetier, data.statutOccupation, data.origine,
+      data.localisation, data.secteur, data.adresseComplete, data.complementAdresse, data.codePostalVille, data.pays, data.categorie, data.typeBien,
+      data.pieces, data.chambres, data.surfaceMin, data.surfaceMax, data.loyerMax,
+      data.etage, data.vue, data.exposition, data.etat, data.standing, data.disponibilite,
+      data.attributPrincipal, data.attributsPersonnalises, data.criteres,
+      data.proximites, data.prestations,
+      data.situationPro, data.revenusMensuels, data.garant, data.garantNom, data.garantRevenus,
+      data.situationActuelle, data.dateEmmenagement, data.notesComplementaires,
+      data.statutMandat, data.numeroMandat, data.typeMandat, data.bienRechercheId,
+      data.dateSignature, data.dateDebut, data.dateExpiration,
+      data.conjoint, data.societe, data.agentDesigne,
+      data.honorairesLocation, data.conditionPaiement, data.dureeProtection,
+      data.mandatPdfUrl,
+      data.docIdentiteUrl, data.docDomicileUrl, data.docFichesDePaieUrl,
+      data.docContratTravailUrl, data.docRIBUrl, data.docGarantUrl,
+    ];
+    const filled = fields.filter(isFilled).length;
+    return Math.min(100, Math.round((filled / fields.length) * 100));
+  };
+
+  const doSaveDraft = () => {
+    if (!userId) return;
+    const data = { ...formDataRef.current, _draftId: savedDraftId, _step: step };
+    const draft = saveDraft(userId, 'Locataire', data, calcCompletion(formDataRef.current));
+    if (!savedDraftId) setSavedDraftId(draft.id);
+    onDraftChange?.();
+  };
+
+  useEffect(() => {
+    if (!savedDraftId) return;
+    const timer = setTimeout(doSaveDraft, 2000);
+    return () => clearTimeout(timer);
+  }, [formData, savedDraftId, step]);
+
   const validate = (): boolean => {
     const newErrors: Partial<Record<keyof LocataireFormData, string>> = {};
-    if (!formData.contactId) newErrors.contactId = 'Le contact est requis';
+    if (!formData.contactId) newErrors.contactId = 'Veuillez sélectionner ou créer un contact';
     if (!formData.origine) newErrors.origine = "L'origine est requise";
     if (!formData.typeBien) newErrors.typeBien = 'Le type de bien est requis';
     if (!formData.categorie) newErrors.categorie = 'La catégorie est requise';
     if (!formData.situationActuelle) newErrors.situationActuelle = 'Ce champ est requis';
+    if (formData.situationPro === 'Sans emploi' && !formData.garant) {
+      newErrors.garant = 'Un garant est obligatoire pour les sans emploi';
+    }
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!validate()) {
-      setStep(1);
-      return;
+  const submitForm = () => {
+    if (isSubmitting) return;
+    if (savedDraftId && userId) {
+      deleteDraft(userId, savedDraftId);
+      onDraftChange?.();
     }
-
     setIsSubmitting(true);
 
     onSubmit({
-      name: '',
+      name: selectedContactName || editingClient?.name || 'Nouveau client',
       type: 'Locataire',
       status: formData.actif ? 'Actif' : 'Inactif',
-      phone: '',
-      email: '',
+      phone: (formData.contactId ? (contacts.find(c => String(c.id) === formData.contactId)?.mobile || '') : '') || editingClient?.phone || '',
+      email: (formData.contactId ? (contacts.find(c => String(c.id) === formData.contactId)?.emailPrincipal || '') : '') || editingClient?.email || '',
+      completion: calcCompletion(formData),
       source: formData.origine,
       notes: formData.notesComplementaires,
       propertyType: formData.typeBien,
@@ -613,6 +1055,7 @@ export const LocataireFormModal = ({ onClose, onSubmit }: LocataireFormModalProp
       minSurface: formData.surfaceMin,
       rooms: formData.pieces?.toString() || '',
       budget: formData.loyerMax,
+      prixMax: formData.loyerMax,
       contribution: formData.revenusMensuels,
       currentSituation: formData.situationActuelle,
       moveInDate: formData.dateEmmenagement,
@@ -621,13 +1064,18 @@ export const LocataireFormModal = ({ onClose, onSubmit }: LocataireFormModalProp
       croisementAutomatique: formData.croisementAutomatique,
       contactId: formData.contactId,
       secteur: formData.secteur,
+      adresseComplete: formData.adresseComplete,
+      complementAdresse: formData.complementAdresse,
+      codePostalVille: formData.codePostalVille,
+      pays: formData.pays,
+      localisation: formData.localisation,
       categorie: formData.categorie,
       piecesOperator: formData.piecesOperator,
       pieces: formData.pieces,
       chambresOperator: formData.chambresOperator,
       chambres: formData.chambres,
       surfaceMax: formData.surfaceMax,
-      prixMin: formData.loyerMax,
+      prixMin: 0,
       devise: formData.devise,
       etageOperator: formData.etageOperator,
       etage: formData.etage,
@@ -646,6 +1094,23 @@ export const LocataireFormModal = ({ onClose, onSubmit }: LocataireFormModalProp
       employmentStatus: formData.situationPro || undefined,
       furnished: formData.criteres.includes('Meuble'),
       guarantor: formData.garant || undefined,
+      guarantorName: formData.garantNom || undefined,
+      guarantorRevenus: formData.garantRevenus,
+      anciennete: formData.anciennete,
+      periodeEssai: formData.periodeEssai || undefined,
+      nomEmployeur: formData.nomEmployeur || undefined,
+      dateFinContrat: formData.dateFinContrat || undefined,
+      chiffreAffaires: formData.chiffreAffaires,
+      dernierBilanUrl: formData.dernierBilanUrl || undefined,
+      dernierBilanName: formData.dernierBilanName || undefined,
+      dernierAvisImpotUrl: formData.dernierAvisImpotUrl || undefined,
+      dernierAvisImpotName: formData.dernierAvisImpotName || undefined,
+      pensionMensuelle: formData.pensionMensuelle,
+      dateRetraite: formData.dateRetraite || undefined,
+      organismeRetraite: formData.organismeRetraite || undefined,
+      justificatifSituationUrl: formData.justificatifSituationUrl || undefined,
+      justificatifSituationName: formData.justificatifSituationName || undefined,
+      statutOccupation: formData.statutOccupation || undefined,
       numeroMandat: formData.numeroMandat,
       dateSignature: formData.dateSignature,
       dateDebut: formData.dateDebut,
@@ -657,19 +1122,39 @@ export const LocataireFormModal = ({ onClose, onSubmit }: LocataireFormModalProp
       agentDesigne: formData.agentDesigne || undefined,
       typeRemuneration: 'Honoraires de location',
       montantRemuneration: formData.honorairesLocation,
+      remunerationIsPercentage: formData.honorairesLocationIsPercentage,
       conditionPaiement: formData.conditionPaiement || undefined,
       dureeProtection: formData.dureeProtection,
+      bienRechercheId: formData.bienRechercheId || undefined,
       mandatPdfUrl: formData.mandatPdfUrl || undefined,
-      createdAt: new Date().toISOString(),
+      mandatPdfName: formData.mandatPdfName || undefined,
+      docIdentiteUrl: formData.docIdentiteUrl || undefined,
+      docIdentiteName: formData.docIdentiteName || undefined,
+      docDomicileUrl: formData.docDomicileUrl || undefined,
+      docDomicileName: formData.docDomicileName || undefined,
+      docRevenusUrl: formData.docFichesDePaieUrl || undefined,
+      docRevenusName: formData.docFichesDePaieName || undefined,
+      docFinancementUrl: formData.docContratTravailUrl || undefined,
+      docFinancementName: formData.docContratTravailName || undefined,
+      docBancaireUrl: formData.docRIBUrl || undefined,
+      docBancaireName: formData.docRIBName || undefined,
+      latitude: formData.latitude || undefined,
+      longitude: formData.longitude || undefined,
+      createdAt: editingClient?.createdAt || new Date().toISOString(),
       updatedAt: new Date().toISOString(),
-      createdBy: 'current-user-id',
+      createdBy: editingClient?.createdBy || 'current-user-id',
     });
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    submitForm();
   };
 
   const renderSection = (title: string, children: React.ReactNode) => (
     <div className="mb-6">
       <h3 className="text-sm font-semibold text-text flex items-center gap-2 mb-4">
-        <span className="w-1 h-4 rounded-full bg-accent" />
+        <span className={`w-1 h-4 rounded-full ${isGerant ? 'bg-[#905D5D]' : 'bg-accent'}`} />
         {title}
       </h3>
       {children}
@@ -694,8 +1179,8 @@ export const LocataireFormModal = ({ onClose, onSubmit }: LocataireFormModalProp
               onClick={() => handleChange(field, opt.value)}
               className={`px-3 py-1.5 text-xs rounded-lg border transition-all ${
                 isSelected
-                  ? 'bg-accent text-white border-accent ring-2 ring-accent/30'
-                  : 'bg-card text-text-secondary border-border hover:border-accent/50'
+                  ? (isGerant ? 'bg-[#905D5D] text-white border-[#905D5D] ring-2 ring-[#905D5D]/30' : 'bg-accent text-white border-accent ring-2 ring-accent/30')
+                  : (isGerant ? 'bg-card text-text-secondary border-border hover:border-[#905D5D]/50' : 'bg-card text-text-secondary border-border hover:border-accent/50')
               }`}
             >
               {opt.label}
@@ -725,8 +1210,8 @@ export const LocataireFormModal = ({ onClose, onSubmit }: LocataireFormModalProp
               onClick={() => onChange(opt.value)}
               className={`px-3 py-1.5 text-xs rounded-lg border transition-all ${
                 isSelected
-                  ? 'bg-accent text-white border-accent'
-                  : 'bg-card text-text-secondary border-border hover:border-accent/50'
+                  ? (isGerant ? 'bg-[#905D5D] text-white border-[#905D5D]' : 'bg-accent text-white border-accent')
+                  : (isGerant ? 'bg-card text-text-secondary border-border hover:border-[#905D5D]/50' : 'bg-card text-text-secondary border-border hover:border-accent/50')
               }`}
             >
               {opt.label}
@@ -756,8 +1241,8 @@ export const LocataireFormModal = ({ onClose, onSubmit }: LocataireFormModalProp
                 onClick={() => handleProximiteCategory(category, opt.value)}
                 className={`px-3 py-1.5 text-xs rounded-lg border transition-all ${
                   isSelected
-                    ? 'bg-accent text-white border-accent'
-                    : 'bg-card text-text-secondary border-border hover:border-accent/50'
+                    ? (isGerant ? 'bg-[#905D5D] text-white border-[#905D5D]' : 'bg-accent text-white border-accent')
+                    : (isGerant ? 'bg-card text-text-secondary border-border hover:border-[#905D5D]/50' : 'bg-card text-text-secondary border-border hover:border-accent/50')
                 }`}
               >
                 {opt.label}
@@ -788,8 +1273,8 @@ export const LocataireFormModal = ({ onClose, onSubmit }: LocataireFormModalProp
                 onClick={() => handlePrestationCategory(category, opt.value)}
                 className={`px-3 py-1.5 text-xs rounded-lg border transition-all ${
                   isSelected
-                    ? 'bg-accent text-white border-accent'
-                    : 'bg-card text-text-secondary border-border hover:border-accent/50'
+                    ? (isGerant ? 'bg-[#905D5D] text-white border-[#905D5D]' : 'bg-accent text-white border-accent')
+                    : (isGerant ? 'bg-card text-text-secondary border-border hover:border-[#905D5D]/50' : 'bg-card text-text-secondary border-border hover:border-accent/50')
                 }`}
               >
                 {opt.label}
@@ -826,18 +1311,13 @@ export const LocataireFormModal = ({ onClose, onSubmit }: LocataireFormModalProp
                   <div className="flex gap-2">
                     <div className="flex-1">
                       <Select
-                        options={[
-                          { value: '', label: 'Sélectionner un contact...' },
-                          { value: 'contact-1', label: 'Jean Dupont' },
-                          { value: 'contact-2', label: 'Marie Martin' },
-                          { value: 'contact-3', label: 'Ahmed Benali' },
-                        ]}
+                        options={contactOptions}
                         value={formData.contactId}
                         onValueChange={(v) => handleChange('contactId', v)}
                         error={errors.contactId}
                       />
                     </div>
-                    <button type="button" className="h-9 w-9 rounded-lg border border-border bg-card flex items-center justify-center text-text-secondary hover:text-accent hover:border-accent transition-all shrink-0" title="Créer un nouveau contact">
+                    <button type="button" className={`h-9 w-9 rounded-lg border border-border bg-card flex items-center justify-center text-text-secondary ${isGerant ? 'hover:text-[#905D5D] hover:border-[#905D5D]' : 'hover:text-accent hover:border-accent'} transition-all shrink-0`} title="Créer un nouveau contact" onClick={() => setShowContactForm(true)}>
                       <Plus size={16} />
                     </button>
                   </div>
@@ -855,11 +1335,17 @@ export const LocataireFormModal = ({ onClose, onSubmit }: LocataireFormModalProp
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="sm:col-span-2">
                   <p className="text-sm font-medium text-text mb-1.5">Plan (Carte interactive)</p>
-                  <div className="w-full h-48 rounded-lg border border-border bg-background flex items-center justify-center text-text-secondary text-sm">
-                    🗺️ Carte interactive (cliquez pour sélectionner)
-                  </div>
+                  <LocationMap
+                    latitude={formData.latitude}
+                    longitude={formData.longitude}
+                    onLatitudeChange={(v: number) => handleChange('latitude', v)}
+                    onLongitudeChange={(v: number) => handleChange('longitude', v)}
+                  />
                 </div>
-                <Select label="Localisation" options={LOCALISATION_OPTIONS} value={formData.localisation} onValueChange={(v) => handleChange('localisation', v)} />
+                <Input label="Adresse complète" value={formData.adresseComplete} onChange={(e) => handleChange('adresseComplete', e.target.value)} placeholder="12 Rue de la Liberté, Casablanca" />
+                <Input label="Complément d'adresse" value={formData.complementAdresse} onChange={(e) => handleChange('complementAdresse', e.target.value)} placeholder="Résidence Les Palmiers, Appt 5" />
+                <Input label="Code postal / Ville" value={formData.codePostalVille} onChange={(e) => handleChange('codePostalVille', e.target.value)} placeholder="20000 Casablanca" />
+                <Select label="Pays" options={LOCALISATION_OPTIONS} value={formData.pays} onValueChange={(v) => handleChange('pays', v)} />
                 <Select label="Secteur" options={SECTEUR_OPTIONS} value={formData.secteur} onValueChange={(v) => handleChange('secteur', v)} />
               </div>
             ))}
@@ -950,8 +1436,8 @@ export const LocataireFormModal = ({ onClose, onSubmit }: LocataireFormModalProp
                           onClick={() => handleChange('attributPrincipal', opt.value)}
                           className={`px-3 py-1.5 text-xs rounded-lg border transition-all ${
                             isSelected
-                              ? 'bg-accent text-white border-accent ring-2 ring-accent/30'
-                              : 'bg-card text-text-secondary border-border hover:border-accent/50'
+                              ? (isGerant ? 'bg-[#905D5D] text-white border-[#905D5D] ring-2 ring-[#905D5D]/30' : 'bg-accent text-white border-accent ring-2 ring-accent/30')
+                              : (isGerant ? 'bg-card text-text-secondary border-border hover:border-[#905D5D]/50' : 'bg-card text-text-secondary border-border hover:border-accent/50')
                           }`}
                         >
                           {opt.label}
@@ -976,8 +1462,8 @@ export const LocataireFormModal = ({ onClose, onSubmit }: LocataireFormModalProp
                         onClick={() => handleCheckboxGroup('criteres', opt.value)}
                         className={`px-3 py-1.5 text-xs rounded-lg border transition-all ${
                           isSelected
-                            ? 'bg-accent text-white border-accent'
-                            : 'bg-card text-text-secondary border-border hover:border-accent/50'
+                            ? (isGerant ? 'bg-[#905D5D] text-white border-[#905D5D]' : 'bg-accent text-white border-accent')
+                            : (isGerant ? 'bg-card text-text-secondary border-border hover:border-[#905D5D]/50' : 'bg-card text-text-secondary border-border hover:border-accent/50')
                         }`}
                       >
                         {opt.label}
@@ -1029,16 +1515,135 @@ export const LocataireFormModal = ({ onClose, onSubmit }: LocataireFormModalProp
                   <Select label="Situation professionnelle" options={[{ value: '', label: 'Sélectionner...' }, ...SITUATION_PRO_OPTIONS]} value={formData.situationPro} onValueChange={(v) => handleChange('situationPro', v)} />
                   <Input label="Revenus mensuels nets" type="number" min="0" value={formData.revenusMensuels?.toString() || ''} onChange={(e) => handleChange('revenusMensuels', e.target.value ? parseInt(e.target.value) : undefined)} placeholder={`15 000 ${formData.devise}`} />
                 </div>
-                <div className="border-t border-border/30 pt-4 space-y-4">
-                  <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider">Garant</p>
-                  <Checkbox label="Le locataire a un garant" checked={formData.garant} onChange={(checked) => handleChange('garant', checked)} />
-                  {formData.garant && (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <Input label="Nom du garant" value={formData.garantNom} onChange={(e) => handleChange('garantNom', e.target.value)} placeholder="Nom complet" />
-                      <Input label="Revenus du garant" type="number" min="0" value={formData.garantRevenus?.toString() || ''} onChange={(e) => handleChange('garantRevenus', e.target.value ? parseInt(e.target.value) : undefined)} placeholder={`20 000 ${formData.devise}`} />
+
+                {formData.situationPro === 'CDI' && (
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <Input label="Ancienneté (ans)" type="number" min="0" value={formData.anciennete?.toString() || ''} onChange={(e) => handleChange('anciennete', e.target.value ? parseInt(e.target.value) : undefined)} placeholder="3" />
+                    <div className="space-y-2">
+                      <p className="text-sm font-medium text-text">Période d'essai</p>
+                      <div className="flex gap-4">
+                        <label className="flex items-center gap-2 text-sm text-text-secondary cursor-pointer">
+                          <input type="radio" name="periodeEssai" checked={formData.periodeEssai === true} onChange={() => handleChange('periodeEssai', true)} className={isGerant ? 'accent-[#905D5D]' : 'accent-accent'} /> Oui
+                        </label>
+                        <label className="flex items-center gap-2 text-sm text-text-secondary cursor-pointer">
+                          <input type="radio" name="periodeEssai" checked={formData.periodeEssai === false} onChange={() => handleChange('periodeEssai', false)} className={isGerant ? 'accent-[#905D5D]' : 'accent-accent'} /> Non
+                        </label>
+                      </div>
                     </div>
-                  )}
-                </div>
+                    <Input label="Nom de l'employeur" value={formData.nomEmployeur} onChange={(e) => handleChange('nomEmployeur', e.target.value)} placeholder="Nom de l'entreprise" />
+                  </div>
+                )}
+
+                {formData.situationPro === 'CDD' && (
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <DatePicker label="Date de fin du contrat" value={formData.dateFinContrat} onChange={(e) => handleChange('dateFinContrat', e.target.value)} />
+                    <Input label="Ancienneté (ans)" type="number" min="0" value={formData.anciennete?.toString() || ''} onChange={(e) => handleChange('anciennete', e.target.value ? parseInt(e.target.value) : undefined)} placeholder="1" />
+                    <Input label="Nom de l'employeur" value={formData.nomEmployeur} onChange={(e) => handleChange('nomEmployeur', e.target.value)} placeholder="Nom de l'entreprise" />
+                  </div>
+                )}
+
+                {formData.situationPro === 'Independant' && (
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <Input label={`Chiffre d'affaires annuel`} type="number" min="0" value={formData.chiffreAffaires?.toString() || ''} onChange={(e) => handleChange('chiffreAffaires', e.target.value ? parseInt(e.target.value) : undefined)} placeholder={`200 000 ${formData.devise}`} suffix={formData.devise || 'MAD'} />
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {[
+                        { label: "Dernier bilan / Kbis", inputId: 'loc-doc-bilan', field: 'dernierBilanUrl' as const, nameField: 'dernierBilanName' as const, uploaded: formData.dernierBilanUrl, name: formData.dernierBilanName },
+                        { label: "Dernier avis d'imposition", inputId: 'loc-doc-impot', field: 'dernierAvisImpotUrl' as const, nameField: 'dernierAvisImpotName' as const, uploaded: formData.dernierAvisImpotUrl, name: formData.dernierAvisImpotName },
+                      ].map((doc, i) => (
+                        <div key={i} className="flex items-center gap-3 p-3 rounded-lg border border-border bg-background/50">
+                          <span className="text-sm text-text flex-1">{doc.label}</span>
+                          {doc.uploaded ? (
+                            <span className="text-[10px] font-medium text-emerald-600 uppercase bg-emerald-50 px-2 py-0.5 rounded flex items-center gap-1">
+                              <Upload size={10} /> Uploadé
+                            </span>
+                          ) : null}
+                          <div className="relative">
+                            <input id={doc.inputId} type="file" accept=".pdf,.jpg,.jpeg,.png" className="hidden" onChange={async (e) => {
+                              const file = e.target.files?.[0];
+                              if (!file) return;
+                              try {
+                                const urls = await uploadFiles([file]);
+                                if (urls[0]) { handleChange(doc.field, urls[0]); handleChange(doc.nameField, file.name); }
+                              } catch { /* upload failed silently */ }
+                            }} />
+                            <button type="button" onClick={() => document.getElementById(doc.inputId)?.click()} className={`text-xs px-3 py-1.5 rounded-lg border border-border bg-card text-text-secondary ${isGerant ? 'hover:text-[#905D5D] hover:border-[#905D5D]' : 'hover:text-accent hover:border-accent'} transition-all`}>{doc.uploaded ? 'Remplacer' : 'Parcourir...'}</button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {formData.situationPro === 'Retraite' && (
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <Input label="Pension mensuelle nette" type="number" min="0" value={formData.pensionMensuelle?.toString() || ''} onChange={(e) => handleChange('pensionMensuelle', e.target.value ? parseInt(e.target.value) : undefined)} placeholder={`8 000 ${formData.devise}`} suffix={formData.devise || 'MAD'} />
+                    <DatePicker label="Date de retraite" value={formData.dateRetraite} onChange={(e) => handleChange('dateRetraite', e.target.value)} />
+                    <Input label="Organisme de retraite" value={formData.organismeRetraite} onChange={(e) => handleChange('organismeRetraite', e.target.value)} placeholder="CNSS, CNRPS..." />
+                  </div>
+                )}
+
+                {formData.situationPro === 'Etudiant' && (
+                  <div className="border-t border-border/30 pt-4 space-y-4">
+                    <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider">Garant (optionnel)</p>
+                    <Checkbox label="Le locataire a un garant" checked={formData.garant} onChange={(checked) => handleChange('garant', checked)} />
+                    {formData.garant && (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <Input label="Nom du garant" value={formData.garantNom} onChange={(e) => handleChange('garantNom', e.target.value)} placeholder="Nom complet" />
+                        <Input label="Revenus du garant" type="number" min="0" value={formData.garantRevenus?.toString() || ''} onChange={(e) => handleChange('garantRevenus', e.target.value ? parseInt(e.target.value) : undefined)} placeholder={`20 000 ${formData.devise}`} />
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {formData.situationPro === 'Sans emploi' && (
+                  <div className="space-y-4">
+                    <div className="border-t border-border/30 pt-4 space-y-4">
+                      <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider">Garant (obligatoire)</p>
+                      <Checkbox label="Le locataire a un garant *" checked={formData.garant} onChange={(checked) => handleChange('garant', checked)} />
+                      {errors.garant && <p className="text-xs text-error">{errors.garant}</p>}
+                      {formData.garant && (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                          <Input label="Nom du garant" value={formData.garantNom} onChange={(e) => handleChange('garantNom', e.target.value)} placeholder="Nom complet" />
+                          <Input label="Revenus du garant" type="number" min="0" value={formData.garantRevenus?.toString() || ''} onChange={(e) => handleChange('garantRevenus', e.target.value ? parseInt(e.target.value) : undefined)} placeholder={`20 000 ${formData.devise}`} />
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-3 p-3 rounded-lg border border-border bg-background/50">
+                      <span className="text-sm text-text flex-1">Justificatif de situation</span>
+                      {formData.justificatifSituationUrl ? (
+                        <span className="text-[10px] font-medium text-emerald-600 uppercase bg-emerald-50 px-2 py-0.5 rounded flex items-center gap-1">
+                          <Upload size={10} /> Uploadé
+                        </span>
+                      ) : null}
+                      <div className="relative">
+                        <input id="loc-doc-situation" type="file" accept=".pdf,.jpg,.jpeg,.png" className="hidden" onChange={async (e) => {
+                          const file = e.target.files?.[0];
+                          if (!file) return;
+                          try {
+                            const urls = await uploadFiles([file]);
+                            if (urls[0]) { handleChange('justificatifSituationUrl', urls[0]); handleChange('justificatifSituationName', file.name); }
+                          } catch { /* upload failed silently */ }
+                        }} />
+                        <button type="button" onClick={() => document.getElementById('loc-doc-situation')?.click()} className={`text-xs px-3 py-1.5 rounded-lg border border-border bg-card text-text-secondary ${isGerant ? 'hover:text-[#905D5D] hover:border-[#905D5D]' : 'hover:text-accent hover:border-accent'} transition-all`}>{formData.justificatifSituationUrl ? 'Remplacer' : 'Parcourir...'}</button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {!formData.situationPro && (
+                  <div className="border-t border-border/30 pt-4 space-y-4">
+                    <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider">Garant</p>
+                    <Checkbox label="Le locataire a un garant" checked={formData.garant} onChange={(checked) => handleChange('garant', checked)} />
+                    {formData.garant && (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <Input label="Nom du garant" value={formData.garantNom} onChange={(e) => handleChange('garantNom', e.target.value)} placeholder="Nom complet" />
+                        <Input label="Revenus du garant" type="number" min="0" value={formData.garantRevenus?.toString() || ''} onChange={(e) => handleChange('garantRevenus', e.target.value ? parseInt(e.target.value) : undefined)} placeholder={`20 000 ${formData.devise}`} />
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             ))}
             {renderSection('NOTES & INFORMATIONS COMPLÉMENTAIRES', (
@@ -1057,7 +1662,7 @@ export const LocataireFormModal = ({ onClose, onSubmit }: LocataireFormModalProp
         return (
           <div>
             <div className="flex items-center gap-2 mb-6">
-              <span className="w-1 h-6 rounded-full bg-accent" />
+              <span className={`w-1 h-6 rounded-full ${isGerant ? 'bg-[#905D5D]' : 'bg-accent'}`} />
               <h2 className="text-base font-semibold text-text">MANDAT DE RECHERCHE DE LOCATION</h2>
             </div>
 
@@ -1065,7 +1670,6 @@ export const LocataireFormModal = ({ onClose, onSubmit }: LocataireFormModalProp
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <Input label="Numéro de mandat" value={formData.numeroMandat} onChange={(e) => handleChange('numeroMandat', e.target.value)} placeholder="MLR-2026-001" />
                 <Select label="Statut du mandat" options={STATUT_MANDAT_OPTIONS} value={formData.statutMandat} onValueChange={(v) => handleChange('statutMandat', v)} />
-                <DatePicker label="Date de signature" value={formData.dateSignature} onChange={(e) => handleChange('dateSignature', e.target.value)} />
                 <DatePicker label="Date de début" value={formData.dateDebut} onChange={(e) => handleChange('dateDebut', e.target.value)} />
                 <DatePicker label="Date d'expiration" value={formData.dateExpiration} onChange={(e) => handleChange('dateExpiration', e.target.value)} />
               </div>
@@ -1073,21 +1677,96 @@ export const LocataireFormModal = ({ onClose, onSubmit }: LocataireFormModalProp
             {renderSection('2. TYPE DE MANDAT', (
               <div>{renderRadioGroup('Type de mandat', 'typeMandat', TYPE_MANDAT_OPTIONS)}</div>
             ))}
-            {renderSection('3. DESCRIPTION DU BIEN RECHERCHÉ', (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="sm:col-span-2">
-                  <p className="text-xs text-text-secondary mb-2">Pré-rempli automatiquement depuis les critères de recherche</p>
+            {renderSection('3. BIEN RECHERCHÉ', (
+              <div className="space-y-4">
+                <p className="text-xs text-text-secondary">Recherchez par nom de bien, référence, ville ou nom du bailleur</p>
+                <div className="relative">
+                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary" />
+                  <input
+                    type="text"
+                    placeholder="Rechercher un bien..."
+                    className={`w-full h-9 pl-9 pr-3 text-sm rounded-lg border border-border bg-card placeholder:text-text-secondary/50 focus:outline-none focus:ring-2 ${isGerant ? 'focus:ring-[#905D5D]/20 focus:border-[#905D5D]' : 'focus:ring-accent/20 focus:border-accent'} transition-all`}
+                    value={propertySearchQuery}
+                    onChange={(e) => {
+                      setPropertySearchQuery(e.target.value);
+                      if (selectedProperty) {
+                        setSelectedProperty(null);
+                        handleChange('bienRechercheId', '');
+                      }
+                    }}
+                  />
+                  {propertySearching && (
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                      <div className={`w-3.5 h-3.5 border-2 ${isGerant ? 'border-[#905D5D]' : 'border-accent'} border-t-transparent rounded-full animate-spin`} />
+                    </div>
+                  )}
+                  {propertySearchResults.length > 0 && (
+                    <div className="absolute left-0 right-0 top-full mt-1 bg-card border border-border/50 rounded-xl shadow-dropdown z-10 max-h-60 overflow-y-auto">
+                      {propertySearchResults.map((p) => (
+                        <button
+                          key={p.id}
+                          type="button"
+                          className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-background/50 transition-colors"
+                          onClick={() => {
+                            setSelectedProperty(p);
+                            handleChange('bienRechercheId', String(p.id));
+                            setPropertySearchQuery('');
+                            setPropertySearchResults([]);
+                          }}
+                        >
+                          <div className={`w-8 h-8 rounded-lg ${isGerant ? 'bg-[#905D5D]/10' : 'bg-accent/10'} flex items-center justify-center shrink-0`}>
+                            <Home size={14} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="text-sm font-medium truncate">{p.title || p.reference || `Bien #${p.id}`}</p>
+                            <p className="text-[11px] text-text-secondary/60 truncate">
+                              {p.reference && <span className="font-mono">{p.reference}</span>}
+                              {p.reference && p.city && ' · '}
+                              {p.city || p.location || ''}
+                            </p>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
-                <Input label="Type de bien" value={formData.typeBien} disabled />
-                <Input label="Localisation" value={`${formData.secteur || ''}${formData.secteur && formData.localisation ? ' - ' : ''}${formData.localisation || ''}`} disabled />
-                <Input label="Loyer maximum" type="number" value={formData.loyerMaxMandat?.toString() || ''} onChange={(e) => handleChange('loyerMaxMandat', e.target.value ? parseInt(e.target.value) : undefined)} placeholder="5 000" />
-                <Input label="Surface minimum" type="number" value={formData.surfaceMinMandat?.toString() || ''} onChange={(e) => handleChange('surfaceMinMandat', e.target.value ? parseInt(e.target.value) : undefined)} placeholder="60 m²" />
+                {selectedProperty && (
+                  <div className={`p-3 rounded-lg ${isGerant ? 'bg-[#905D5D]/5 border-[#905D5D]/20' : 'bg-accent/5 border-accent/20'} border flex items-center justify-between`}>
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className={`w-8 h-8 rounded-lg ${isGerant ? 'bg-[#905D5D]/10' : 'bg-accent/10'} flex items-center justify-center shrink-0`}>
+                        <Home size={14} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium truncate">{selectedProperty.title || selectedProperty.reference || `Bien #${selectedProperty.id}`}</p>
+                        <p className="text-[11px] text-text-secondary/60 truncate">
+                          {selectedProperty.reference && <span className="font-mono">{selectedProperty.reference}</span>}
+                          {selectedProperty.city && ` · ${selectedProperty.city}`}
+                          {selectedProperty.surface ? ` · ${selectedProperty.surface} m²` : ''}
+                        </p>
+                      </div>
+                    </div>
+                    <button type="button" onClick={() => { setSelectedProperty(null); handleChange('bienRechercheId', ''); }} className={`p-1 rounded-md ${isGerant ? 'hover:bg-[#905D5D]/10' : 'hover:bg-accent/10'} transition-colors shrink-0`}>
+                      <X size={14} className="text-text-secondary" />
+                    </button>
+                  </div>
+                )}
               </div>
             ))}
             {renderSection('4. RÉMUNÉRATION DE L\'AGENCE', (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <Input label="Type de rémunération" value="Honoraires de location" disabled />
-                <Input label="Montant / Pourcentage" type="number" min="0" value={formData.honorairesLocation?.toString() || ''} onChange={(e) => handleChange('honorairesLocation', e.target.value ? parseInt(e.target.value) : undefined)} placeholder={`Ex: 3 000 ${formData.devise} ou 5%`} />
+                <div>
+                  <label className="block text-sm font-medium text-text mb-1.5">Montant / Pourcentage</label>
+                  <div className="flex rounded-lg border border-border overflow-hidden">
+                    <button type="button" onClick={() => handleChange('honorairesLocationIsPercentage', false)} className={`flex-1 px-3 py-2 text-sm font-medium transition-colors ${!formData.honorairesLocationIsPercentage ? (isGerant ? 'bg-[#905D5D] text-white' : 'bg-accent text-white') : 'bg-background text-text-secondary hover:text-text'}`}>
+                      Montant ({formData.devise || 'MAD'})
+                    </button>
+                    <button type="button" onClick={() => handleChange('honorairesLocationIsPercentage', true)} className={`flex-1 px-3 py-2 text-sm font-medium transition-colors border-l border-border ${formData.honorairesLocationIsPercentage ? (isGerant ? 'bg-[#905D5D] text-white' : 'bg-accent text-white') : 'bg-background text-text-secondary hover:text-text'}`}>
+                      Pourcentage (%)
+                    </button>
+                  </div>
+                  <Input type="number" min="0" max={formData.honorairesLocationIsPercentage ? 100 : undefined} step={formData.honorairesLocationIsPercentage ? '0.01' : '1'} value={formData.honorairesLocation?.toString() || ''} onChange={(e) => { const v = e.target.value ? parseFloat(e.target.value) : undefined; if (formData.honorairesLocationIsPercentage && v !== undefined && v > 100) return; handleChange('honorairesLocation', v); }} placeholder={formData.honorairesLocationIsPercentage ? 'Ex: 5' : `Ex: 3 000 ${formData.devise}`} suffix={formData.honorairesLocationIsPercentage ? '%' : formData.devise || 'MAD'} className="mt-2" />
+                </div>
                 <Select label="Condition de paiement" options={[{ value: '', label: 'Sélectionner...' }, ...PAIEMENT_CONDITION_OPTIONS]} value={formData.conditionPaiement} onValueChange={(v) => handleChange('conditionPaiement', v)} />
               </div>
             ))}
@@ -1095,21 +1774,36 @@ export const LocataireFormModal = ({ onClose, onSubmit }: LocataireFormModalProp
               <div className="space-y-3">
                 <p className="text-xs text-text-secondary">Documents obligatoires à fournir par le locataire :</p>
                 {[
-                  { label: "Pièce d'identité (passeport ou CIN)", required: true },
-                  { label: 'Justificatif de domicile actuel', required: true },
-                  { label: '3 dernières fiches de paie', required: true },
-                  { label: 'Contrat de travail', required: true },
-                  { label: "Relevé d'identité bancaire (RIB)", required: true },
-                  { label: 'Dossier garant (pièce d\'identité + justificatif de revenus)', required: false },
+                  { label: "Pièce d'identité (passeport ou CIN)", required: true, inputId: 'loc-doc-identite', field: 'docIdentiteUrl' as const, nameField: 'docIdentiteName' as const, uploaded: formData.docIdentiteUrl, name: formData.docIdentiteName },
+                  { label: 'Justificatif de domicile actuel', required: true, inputId: 'loc-doc-domicile', field: 'docDomicileUrl' as const, nameField: 'docDomicileName' as const, uploaded: formData.docDomicileUrl, name: formData.docDomicileName },
+                  { label: '3 dernières fiches de paie', required: true, inputId: 'loc-doc-fiches-paie', field: 'docFichesDePaieUrl' as const, nameField: 'docFichesDePaieName' as const, uploaded: formData.docFichesDePaieUrl, name: formData.docFichesDePaieName },
+                  { label: 'Contrat de travail', required: true, inputId: 'loc-doc-contrat', field: 'docContratTravailUrl' as const, nameField: 'docContratTravailName' as const, uploaded: formData.docContratTravailUrl, name: formData.docContratTravailName },
+                  { label: "Relevé d'identité bancaire (RIB)", required: true, inputId: 'loc-doc-rib', field: 'docRIBUrl' as const, nameField: 'docRIBName' as const, uploaded: formData.docRIBUrl, name: formData.docRIBName },
+                  { label: "Dossier garant (pièce d'identité + justificatif de revenus)", required: false, inputId: 'loc-doc-garant', field: 'docGarantUrl' as const, nameField: 'docGarantName' as const, uploaded: formData.docGarantUrl, name: formData.docGarantName },
                 ].map((doc, i) => (
                   <div key={i} className="flex items-center gap-3 p-3 rounded-lg border border-border bg-background/50">
                     <span className="text-sm text-text flex-1">{doc.label}</span>
                     {doc.required ? (
                       <span className="text-xs px-2 py-0.5 rounded bg-error/10 text-error font-medium">Obligatoire</span>
                     ) : (
-                      <span className="text-xs px-2 py-0.5 rounded bg-accent/10 text-accent font-medium">Recommandé</span>
+                      <span className={`text-xs px-2 py-0.5 rounded ${isGerant ? 'bg-[#905D5D]/10 text-[#905D5D]' : 'bg-accent/10 text-accent'} font-medium`}>Recommandé</span>
                     )}
-                    <button type="button" className="text-xs px-3 py-1.5 rounded-lg border border-border bg-card text-text-secondary hover:text-accent hover:border-accent transition-all">Parcourir...</button>
+                    {doc.uploaded ? (
+                      <span className="text-[10px] font-medium text-emerald-600 uppercase bg-emerald-50 px-2 py-0.5 rounded flex items-center gap-1">
+                        <Upload size={10} /> Uploadé
+                      </span>
+                    ) : null}
+                    <div className="relative">
+                      <input id={doc.inputId} type="file" accept=".pdf,.jpg,.jpeg,.png" className="hidden" onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        try {
+                          const urls = await uploadFiles([file]);
+                          if (urls[0]) { handleChange(doc.field, urls[0]); handleChange(doc.nameField, file.name); }
+                        } catch { /* upload failed silently */ }
+                      }} />
+                      <button type="button" onClick={() => document.getElementById(doc.inputId)?.click()} className={`text-xs px-3 py-1.5 rounded-lg border border-border bg-card text-text-secondary ${isGerant ? 'hover:text-[#905D5D] hover:border-[#905D5D]' : 'hover:text-accent hover:border-accent'} transition-all`}>{doc.uploaded ? 'Remplacer' : 'Parcourir...'}</button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -1129,7 +1823,24 @@ export const LocataireFormModal = ({ onClose, onSubmit }: LocataireFormModalProp
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <DatePicker label="Date de signature" value={formData.dateSignature} onChange={(e) => handleChange('dateSignature', e.target.value)} />
-                  <Input label="Lien vers le PDF du mandat signé" value={formData.mandatPdfUrl} onChange={(e) => handleChange('mandatPdfUrl', e.target.value)} placeholder="https://..." />
+                   <div>
+                     <p className="block text-sm font-medium text-text mb-1.5">Fichier du mandat signé</p>
+                     <div className="h-9 flex items-center gap-3 px-3 rounded-lg border border-border bg-background/50">
+                       {formData.mandatPdfUrl ? (
+                         <Eye size={14} className="text-emerald-500 shrink-0" />
+                       ) : null}
+                       <span className="text-sm text-text-secondary flex-1 truncate">{formData.mandatPdfName || (formData.mandatPdfUrl ? 'Fichier uploadé' : 'Aucun fichier')}</span>
+                       <input id="loc-mandat-upload" type="file" accept=".pdf" className="hidden" onChange={async (e) => {
+                         const file = e.target.files?.[0];
+                         if (!file) return;
+                         try {
+                           const urls = await uploadFiles([file]);
+                           if (urls[0]) { handleChange('mandatPdfUrl', urls[0]); handleChange('mandatPdfName', file.name); }
+                         } catch { /* upload failed silently */ }
+                       }} />
+                       <button type="button" onClick={() => document.getElementById('loc-mandat-upload')?.click()} className={`text-xs px-3 py-1.5 rounded-lg border border-border bg-card text-text-secondary ${isGerant ? 'hover:text-[#905D5D] hover:border-[#905D5D]' : 'hover:text-accent hover:border-accent'} transition-all`}>{formData.mandatPdfUrl ? 'Remplacer' : 'Parcourir...'}</button>
+                     </div>
+                   </div>
                 </div>
               </div>
             ))}
@@ -1141,7 +1852,10 @@ export const LocataireFormModal = ({ onClose, onSubmit }: LocataireFormModalProp
     }
   };
 
+  if (loadingDraft) return null;
+
   return (
+    <>
     <AnimatePresence>
       <div className="fixed inset-0 z-50 flex items-start justify-center pt-6 pb-6">
         <motion.div
@@ -1156,23 +1870,41 @@ export const LocataireFormModal = ({ onClose, onSubmit }: LocataireFormModalProp
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 10 }}
           transition={{ duration: 0.2 }}
-          className="relative w-full max-w-5xl mx-4 bg-card rounded-xl border border-border/50 shadow-modal overflow-y-auto max-h-[calc(100vh-48px)]"
+          className="relative w-full max-w-5xl mx-4 bg-card rounded-xl border border-border/50 shadow-modal flex flex-col max-h-[calc(100vh-48px)]"
         >
-          <div className="flex items-center justify-between px-6 py-4 border-b border-border/40 sticky top-0 bg-card z-10">
-            <h2 className="text-lg font-semibold">Nouveau locataire</h2>
-            <button onClick={onClose} className="w-8 h-8 rounded-lg flex items-center justify-center text-text-secondary hover:text-text hover:bg-background transition-all">
-              <X size={16} />
-            </button>
+          <div className="flex items-center justify-between px-6 py-4 border-b border-border/40 bg-card z-10 shrink-0">
+            <h2 className="text-lg font-semibold">{editingClient ? 'Modifier le locataire' : 'Nouveau locataire'}</h2>
+            <div className="flex items-center gap-3">
+              {loadingDraft ? (
+                <span className="text-xs text-text-secondary">Chargement du brouillon...</span>
+              ) : savedDraftId ? (
+                <span className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-emerald-600 bg-emerald-50 rounded-lg">
+                  Auto-sauvegardé
+                </span>
+              ) : !editingClient ? (
+                <button
+                  type="button"
+                  onClick={doSaveDraft}
+                  className="px-3 py-1.5 text-xs rounded-lg border border-border/60 hover:bg-border/20 transition-colors flex items-center gap-1.5"
+                >
+                  Brouillon
+                </button>
+              ) : null}
+              <CompletionRing percent={calcCompletion(formData)} size={32} strokeWidth={3} />
+              <button onClick={onClose} className="w-8 h-8 rounded-lg flex items-center justify-center text-text-secondary hover:text-text hover:bg-background transition-all">
+                <X size={16} />
+              </button>
+            </div>
           </div>
 
           {/* Tabs */}
-          <div className="px-6 py-1 border-b border-border/30 flex gap-1 overflow-x-auto sticky top-[57px] bg-card z-10">
+          <div className="px-6 py-1 border-b border-border/30 flex gap-1 overflow-x-auto bg-card z-10 shrink-0">
             {TABS.map((t) => (
               <button
                 key={t.id}
                 onClick={() => setStep(t.id)}
                 className={`px-3 py-2 text-xs font-medium border-b-2 transition-all whitespace-nowrap ${
-                  step === t.id ? 'text-accent border-accent' : 'text-text-secondary border-transparent hover:text-text'
+                  step === t.id ? (isGerant ? 'text-[#905D5D] border-[#905D5D]' : 'text-accent border-accent') : 'text-text-secondary border-transparent hover:text-text'
                 }`}
               >
                 {t.id === 8 ? 'Mandat' : t.label}
@@ -1180,15 +1912,23 @@ export const LocataireFormModal = ({ onClose, onSubmit }: LocataireFormModalProp
             ))}
           </div>
 
-          <form onSubmit={handleSubmit} className="p-6 space-y-6">
-            {renderTabContent()}
+          <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0 p-6">
+            <div className="flex-1 overflow-y-auto min-h-0">
+              {renderTabContent()}
+            </div>
 
             {/* Footer */}
-            <div className="flex items-center justify-between pt-4 border-t border-border/30">
-              <div>
+            <div className="flex items-center justify-between pt-4 mt-6 border-t border-border/30 shrink-0">
+              <div className="flex items-center gap-2">
                 {step > 1 && (
                   <Button type="button" variant="outline" onClick={() => setStep(step - 1)}>
                     Précédent
+                  </Button>
+                )}
+                {!savedDraftId && !editingClient && (
+                  <Button type="button" variant="outline" onClick={doSaveDraft}>
+                    <Save size={14} className="inline mr-1" />
+                    Enregistrer comme brouillon
                   </Button>
                 )}
               </div>
@@ -1197,12 +1937,19 @@ export const LocataireFormModal = ({ onClose, onSubmit }: LocataireFormModalProp
                   Annuler
                 </Button>
                 {step < 8 ? (
-                  <Button type="button" variant="default" onClick={() => setStep(step + 1)}>
+                  <Button type="button" variant="default" className={isGerant ? GERANT_BUTTON_CLASSES : ''} onClick={() => {
+                    if (step === 1 && !formData.contactId) {
+                      setErrors(prev => ({ ...prev, contactId: 'Veuillez sélectionner ou créer un contact' }));
+                      return;
+                    }
+                    setErrors(prev => ({ ...prev, contactId: undefined }));
+                    setStep(step + 1);
+                  }}>
                     Suivant
                   </Button>
                 ) : (
-                  <Button type="submit" variant="default" loading={isSubmitting}>
-                    {isSubmitting ? 'Enregistrement...' : "Créer le locataire"}
+                  <Button type="button" variant="default" className={isGerant ? GERANT_BUTTON_CLASSES : ''} onClick={submitForm} loading={isSubmitting}>
+                    {isSubmitting ? 'Enregistrement...' : editingClient ? 'Mettre à jour le locataire' : "Créer le locataire"}
                   </Button>
                 )}
               </div>
@@ -1211,5 +1958,20 @@ export const LocataireFormModal = ({ onClose, onSubmit }: LocataireFormModalProp
         </motion.div>
       </div>
     </AnimatePresence>
+    {showContactForm && (
+      <ContactFormModal
+        onClose={() => setShowContactForm(false)}
+        onSubmit={async (data) => {
+          try {
+            const created = await createContact(data);
+            refreshContacts();
+            setFormData(prev => ({ ...prev, contactId: String(created.id) }));
+            setShowContactForm(false);
+          } catch {
+          }
+        }}
+      />
+    )}
+    </>
   );
 };

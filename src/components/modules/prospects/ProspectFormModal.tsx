@@ -1,15 +1,23 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X } from 'react-feather';
+import { X, Save, CheckCircle } from 'react-feather';
 import { Prospect } from '../../../types/prospect';
 import { Input } from '../../ui/Input';
 import { Select } from '../../ui/Select';
 import { Textarea } from '../../ui/Textarea';
 import { Button } from '../../ui/Button';
+import { DatePicker } from '../../ui/DatePicker';
+import { TimePicker } from '../../ui/TimePicker';
+import { saveDraft, getDraft, deleteDraft } from '../../../services/prospectDraftStorage';
+import { calcProspectCompletion } from '../../../utils/prospectCompletion';
 
 interface ProspectFormModalProps {
   onClose: () => void;
   onSubmit: (data: Omit<Prospect, 'id' | 'createdAt' | 'updatedAt'>) => void;
+  prospect?: Prospect;
+  draftId?: string;
+  userId?: string;
+  onDraftChange?: () => void;
 }
 
 type FormData = Omit<Prospect, 'id' | 'createdAt' | 'updatedAt'>;
@@ -168,37 +176,79 @@ const parsePhone = (value: string) => {
   return { code: '+212', number: value };
 };
 
-const today = new Date().toISOString().slice(0, 16);
+const today = new Date().toISOString().slice(0, 10);
+const nowTime = new Date().toTimeString().slice(0, 5);
 
-export const ProspectFormModal = ({ onClose, onSubmit }: ProspectFormModalProps) => {
+export const ProspectFormModal = ({ onClose, onSubmit, prospect, draftId: initialDraftId, userId, onDraftChange }: ProspectFormModalProps) => {
   const [step, setStep] = useState(1);
   const [errors, setErrors] = useState<Partial<Record<keyof FormData, string>>>({});
 
-  const [formData, setFormData] = useState<FormData>({
-    type: 'Acheter',
-    origin: 'Site web',
-    date: today,
-    message: '',
-    civility: 'M.',
-    firstName: '',
-    lastName: '',
-    email: '',
-    phone: '',
-    mobile: '',
-    spokenLanguage: 'Français',
-    meansOfContact: ['email'],
-    categories: '',
-    propertyTypes: [],
-    location: '',
-    rooms: undefined,
-    bedrooms: undefined,
-    minSurface: undefined,
-    maxPrice: undefined,
-    currency: 'MAD',
-    viewType: '',
-    viewDetail: '',
-    status: 'Nouveau',
+  const initialDate = prospect?.date ? String(prospect.date).split('T')[0] : today;
+  const initialTime = prospect?.date ? String(prospect.date).split('T')[1]?.slice(0, 5) || nowTime : nowTime;
+  const [formDate, setFormDate] = useState(initialDate);
+  const [formTime, setFormTime] = useState(initialTime);
+
+  const [formData, setFormData] = useState<FormData>(() => {
+    if (prospect) {
+      const { id, createdAt, updatedAt, ...rest } = prospect;
+      return rest;
+    }
+    return {
+      type: 'Acheter',
+      origin: 'Site web',
+      date: `${today}T${nowTime}`,
+      message: '',
+      civility: 'M.',
+      firstName: '',
+      lastName: '',
+      email: '',
+      phone: '',
+      mobile: '',
+      spokenLanguage: 'Français',
+      meansOfContact: ['email'],
+      categories: '',
+      propertyTypes: [],
+      location: '',
+      rooms: undefined,
+      bedrooms: undefined,
+      minSurface: undefined,
+      maxPrice: undefined,
+      currency: 'MAD',
+      viewType: '',
+      viewDetail: '',
+      status: 'Nouveau',
+    };
   });
+
+  const [savedDraftId, setSavedDraftId] = useState<string | undefined>(initialDraftId || undefined);
+  const formDataRef = useRef(formData);
+  formDataRef.current = formData;
+
+  // Restore draft on mount
+  useEffect(() => {
+    if (!initialDraftId || !userId) return;
+    const draft = getDraft(userId, initialDraftId);
+    if (draft) {
+      setFormData(prev => ({ ...prev, ...draft.data }));
+      if (draft.data.date) {
+        const parts = String(draft.data.date).split('T');
+        if (parts[0]) setFormDate(parts[0]);
+        if (parts[1]) setFormTime(parts[1].slice(0, 5));
+      }
+    }
+  }, []);
+
+  // Auto-save debounced 2s
+  useEffect(() => {
+    if (!savedDraftId || !userId) return;
+    const timer = setTimeout(() => {
+      const data = formDataRef.current;
+      const completion = calcProspectCompletion(data as Prospect);
+      saveDraft(userId, { ...data, _draftId: savedDraftId }, completion);
+      onDraftChange?.();
+    }, 2000);
+    return () => clearTimeout(timer);
+  }, [formData, savedDraftId]);
 
   const handleChange = (field: keyof FormData, value: any) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -220,6 +270,14 @@ export const ProspectFormModal = ({ onClose, onSubmit }: ProspectFormModalProps)
     });
   };
 
+  const handleSaveDraft = () => {
+    if (!userId) return;
+    const data = { ...formDataRef.current, _draftId: savedDraftId };
+    const draft = saveDraft(userId, data, calcProspectCompletion(formData as Prospect));
+    if (!savedDraftId) setSavedDraftId(draft.id);
+    onDraftChange?.();
+  };
+
   const validate = (): boolean => {
     const newErrors: Partial<Record<keyof FormData, string>> = {};
     if (!formData.firstName.trim()) newErrors.firstName = 'Prénom requis';
@@ -235,6 +293,7 @@ export const ProspectFormModal = ({ onClose, onSubmit }: ProspectFormModalProps)
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!validate()) return;
+    if (savedDraftId && userId) deleteDraft(userId, savedDraftId);
     onSubmit(formData);
   };
 
@@ -302,6 +361,7 @@ export const ProspectFormModal = ({ onClose, onSubmit }: ProspectFormModalProps)
 
   const parsedPhone = parsePhone(formData.phone);
   const parsedMobile = parsePhone(formData.mobile || '');
+  const completion = calcProspectCompletion(formData as Prospect);
 
   return (
     <AnimatePresence>
@@ -320,11 +380,25 @@ export const ProspectFormModal = ({ onClose, onSubmit }: ProspectFormModalProps)
           transition={{ duration: 0.2 }}
           className="relative w-full max-w-2xl mx-4 bg-card rounded-xl border border-border/50 shadow-modal overflow-y-auto max-h-[calc(100vh-80px)]"
         >
-          <div className="flex items-center justify-between px-6 py-4 border-b border-border/40 sticky top-0 bg-card z-10">
-            <h2 className="text-lg font-semibold">Nouveau prospect</h2>
-            <button onClick={onClose} className="w-8 h-8 rounded-lg flex items-center justify-center text-text-secondary hover:text-text hover:bg-background transition-all">
-              <X size={16} />
-            </button>
+          <div className="px-6 py-4 border-b border-border/40 sticky top-0 bg-card z-10">
+            <div className="flex items-center justify-between mb-2">
+              <h2 className="text-lg font-semibold">{prospect ? 'Modifier le prospect' : 'Nouveau prospect'}</h2>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-medium text-text-secondary">{completion}%</span>
+                <button onClick={onClose} className="w-8 h-8 rounded-lg flex items-center justify-center text-text-secondary hover:text-text hover:bg-background transition-all">
+                  <X size={16} />
+                </button>
+              </div>
+            </div>
+            <div className="w-full h-1.5 bg-background rounded-full overflow-hidden">
+              <div
+                className="h-full rounded-full transition-all duration-500 ease-out"
+                style={{
+                  width: `${completion}%`,
+                  backgroundColor: completion === 100 ? '#10b981' : completion >= 60 ? '#6366f1' : '#f59e0b',
+                }}
+              />
+            </div>
           </div>
 
           <div className="px-6 py-1 border-b border-border/30 flex gap-1">
@@ -347,7 +421,24 @@ export const ProspectFormModal = ({ onClose, onSubmit }: ProspectFormModalProps)
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <Select label="Type" options={TYPES} value={formData.type} onValueChange={(v) => handleChange('type', v)} />
                   <Select label="Origine" options={ORIGINS} value={formData.origin} onValueChange={(v) => handleChange('origin', v)} />
-                  <Input label="Date" type="datetime-local" value={formData.date} onChange={(e) => handleChange('date', e.target.value)} />
+                  <DatePicker
+                    label="Date"
+                    value={formDate}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      setFormDate(v);
+                      handleChange('date', `${v}T${formTime}`);
+                    }}
+                  />
+                  <TimePicker
+                    label="Heure"
+                    value={formTime}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      setFormTime(v);
+                      handleChange('date', `${formDate}T${v}`);
+                    }}
+                  />
                 </div>
                 <Textarea label="Message / Notes" value={formData.message} onChange={(e) => handleChange('message', e.target.value)} placeholder="Message initial du prospect..." rows={3} />
               </>
@@ -421,13 +512,23 @@ export const ProspectFormModal = ({ onClose, onSubmit }: ProspectFormModalProps)
 
             <div className="flex items-center justify-between pt-4 border-t border-border/30">
               <div>
+                {!savedDraftId ? (
+                  <Button type="button" variant="ghost" size="sm" icon={<Save size={14} />} onClick={handleSaveDraft}>
+                    Brouillon
+                  </Button>
+                ) : (
+                  <span className="flex items-center gap-1.5 text-[11px] text-emerald-600 font-medium">
+                    <CheckCircle size={12} />
+                    Auto-sauvegarde
+                  </span>
+                )}
+              </div>
+              <div className="flex gap-2">
                 {step > 1 && (
                   <Button type="button" variant="outline" onClick={() => setStep(step - 1)}>
                     Précédent
                   </Button>
                 )}
-              </div>
-              <div className="flex gap-2">
                 <Button type="button" variant="ghost" onClick={onClose}>
                   Annuler
                 </Button>
@@ -437,7 +538,7 @@ export const ProspectFormModal = ({ onClose, onSubmit }: ProspectFormModalProps)
                   </Button>
                 ) : (
                   <Button type="submit" variant="default">
-                    Créer le prospect
+                    {prospect ? 'Enregistrer' : 'Créer le prospect'}
                   </Button>
                 )}
               </div>

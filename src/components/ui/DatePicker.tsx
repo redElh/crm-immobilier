@@ -1,4 +1,5 @@
 import React, { useRef, useState, useEffect, useCallback, useMemo } from 'react'
+import { createPortal } from 'react-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Calendar, ChevronLeft, ChevronRight } from 'react-feather'
 import { cn } from '../../lib/utils'
@@ -28,7 +29,8 @@ function getDaysInMonth(year: number, month: number) {
 
 function parseDate(value?: string): Date | null {
   if (!value) return null
-  const d = new Date(value + 'T00:00:00')
+  const hasTime = /T| /.test(value)
+  const d = hasTime ? new Date(value) : new Date(value + 'T00:00:00')
   return isNaN(d.getTime()) ? null : d
 }
 
@@ -50,6 +52,9 @@ export const DatePicker = React.forwardRef<HTMLInputElement, DatePickerProps>(
     const parsed = useMemo(() => parseDate(currentValue), [currentValue])
     const [viewYear, setViewYear] = useState(parsed ? parsed.getFullYear() : new Date().getFullYear())
     const [viewMonth, setViewMonth] = useState(parsed ? parsed.getMonth() : new Date().getMonth())
+    const [showYearPicker, setShowYearPicker] = useState(false)
+    const currentYear = new Date().getFullYear()
+    const decadeStart = Math.floor(viewYear / 10) * 10
 
     useEffect(() => {
       if (parsed) {
@@ -121,6 +126,7 @@ export const DatePicker = React.forwardRef<HTMLInputElement, DatePickerProps>(
     }
 
     const selectDay = (year: number, month: number, day: number) => {
+      if (isDisabled(year, month, day)) return
       const newVal = formatDate(year, month, day)
       if (!isControlled) {
         setSelectedDate(newVal)
@@ -149,6 +155,23 @@ export const DatePicker = React.forwardRef<HTMLInputElement, DatePickerProps>(
     const isToday = (year: number, month: number, day: number) => {
       const t = new Date()
       return year === t.getFullYear() && month === t.getMonth() && day === t.getDate()
+    }
+
+    const minDate = useMemo(() => {
+      if (min === undefined || min === null || min === '') return null
+      const s = String(min)
+      const hasTime = /T| /.test(s)
+      const d = hasTime ? new Date(s) : new Date(s + 'T00:00:00')
+      return isNaN(d.getTime()) ? null : d
+    }, [min])
+
+    const isDisabled = (year: number, month: number, day: number) => {
+      if (disabled) return true
+      if (minDate) {
+        const d = new Date(year, month, day)
+        if (d.getTime() < minDate.getTime()) return true
+      }
+      return false
     }
 
     const clearDate = (e: React.MouseEvent) => {
@@ -243,72 +266,137 @@ export const DatePicker = React.forwardRef<HTMLInputElement, DatePickerProps>(
           </div>
         </div>
 
-        <AnimatePresence>
-          {isOpen && (
-            <motion.div
-              ref={dropdownRef}
-              key="datepicker-dropdown"
-              initial={{ opacity: 0, y: -8, scale: 0.96 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: -8, scale: 0.96 }}
-              transition={{ duration: 0.15, ease: 'easeOut' }}
-              style={dropdownStyle}
-              className="bg-card rounded-lg border border-border/50 shadow-dropdown p-3 select-none"
-            >
-              <div className="flex items-center justify-between mb-3">
-                <button
-                  type="button"
-                  onClick={prevMonth}
-                  className="p-1 rounded text-text-secondary hover:text-text hover:bg-background transition-colors"
-                >
-                  <ChevronLeft size={16} />
-                </button>
-                <span className="text-sm font-semibold text-text">
-                  {MONTHS[viewMonth]} {viewYear}
-                </span>
-                <button
-                  type="button"
-                  onClick={nextMonth}
-                  className="p-1 rounded text-text-secondary hover:text-text hover:bg-background transition-colors"
-                >
-                  <ChevronRight size={16} />
-                </button>
-              </div>
-
-              <div className="grid grid-cols-7 gap-0.5 mb-1">
-                {DAYS.map((d) => (
-                  <div key={d} className="text-center text-[11px] font-medium text-text-secondary/50 py-1">
-                    {d}
-                  </div>
-                ))}
-              </div>
-
-              <div className="grid grid-cols-7 gap-0.5">
-                {calendarDays.map((cell, idx) => (
-                  <motion.button
-                    key={idx}
-                    initial={{ opacity: 0, scale: 0.85 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    transition={{ duration: 0.1, delay: idx * 0.004 }}
+        {createPortal(
+          <AnimatePresence>
+            {isOpen && (
+              <motion.div
+                ref={dropdownRef}
+                key="datepicker-dropdown"
+                initial={{ opacity: 0, y: -8, scale: 0.96 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: -8, scale: 0.96 }}
+                transition={{ duration: 0.15, ease: 'easeOut' }}
+                style={dropdownStyle}
+                className="bg-card rounded-lg border border-border/50 shadow-dropdown p-3 select-none"
+              >
+                <div className="flex items-center justify-between mb-3">
+                  <button
                     type="button"
-                    disabled={disabled}
-                    onClick={() => selectDay(cell.year, cell.month, cell.day)}
-                    className={cn(
-                      'w-full aspect-square flex items-center justify-center text-xs rounded-md transition-colors',
-                      cell.current
-                        ? 'text-text hover:bg-accent-light/50'
-                        : 'text-text-secondary/20',
-                      isSelected(cell.year, cell.month, cell.day) && 'bg-accent text-white hover:bg-accent font-semibold',
-                      isToday(cell.year, cell.month, cell.day) && !isSelected(cell.year, cell.month, cell.day) && 'ring-1 ring-accent/40',
-                    )}
+                    onClick={prevMonth}
+                    className="p-1 rounded text-text-secondary hover:text-text hover:bg-background transition-colors"
                   >
-                    {cell.day}
-                  </motion.button>
-                ))}
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+                    <ChevronLeft size={16} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowYearPicker(!showYearPicker)}
+                    className="text-sm font-semibold text-text hover:text-accent transition-colors px-2 py-0.5 rounded-md hover:bg-accent-light/50"
+                  >
+                    {MONTHS[viewMonth]} {viewYear}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={nextMonth}
+                    className="p-1 rounded text-text-secondary hover:text-text hover:bg-background transition-colors"
+                  >
+                    <ChevronRight size={16} />
+                  </button>
+                </div>
+
+                <AnimatePresence>
+                  {showYearPicker && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      exit={{ opacity: 0, height: 0 }}
+                      transition={{ duration: 0.2 }}
+                      className="overflow-hidden mb-3"
+                    >
+                      <div className="bg-background rounded-lg border border-border/50 p-3">
+                        <div className="flex items-center justify-between mb-2">
+                          <button
+                            type="button"
+                            onClick={() => setViewYear(y => y - 10)}
+                            className="p-1 rounded text-text-secondary hover:text-text hover:bg-card transition-colors"
+                          >
+                            <ChevronLeft size={14} />
+                          </button>
+                          <span className="text-xs font-semibold text-text-secondary uppercase tracking-wider">
+                            {decadeStart} – {decadeStart + 9}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setViewYear(y => y + 10)}
+                            className="p-1 rounded text-text-secondary hover:text-text hover:bg-card transition-colors"
+                          >
+                            <ChevronRight size={14} />
+                          </button>
+                        </div>
+                        <div className="grid grid-cols-4 gap-1">
+                          {Array.from({ length: 12 }, (_, i) => decadeStart - 1 + i).map((y) => {
+                            const isCurrent = y === currentYear
+                            const isSelected = y === viewYear
+                            const isInRange = y >= decadeStart && y <= decadeStart + 9
+                            return (
+                              <button
+                                key={y}
+                                type="button"
+                                onClick={() => { setViewYear(y); setShowYearPicker(false); }}
+                                className={cn(
+                                  'px-1 py-1.5 text-xs rounded-md transition-all duration-150 font-medium',
+                                  !isInRange && 'text-text-secondary/30',
+                                  isInRange && !isSelected && !isCurrent && 'text-text-secondary hover:bg-card hover:text-text',
+                                  isCurrent && !isSelected && 'bg-accent/10 text-accent ring-1 ring-accent/30',
+                                  isSelected && 'bg-accent text-white shadow-sm',
+                                )}
+                              >
+                                {y}
+                              </button>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                <div className="grid grid-cols-7 gap-0.5 mb-1">
+                  {DAYS.map((d) => (
+                    <div key={d} className="text-center text-[11px] font-medium text-text-secondary/50 py-1">
+                      {d}
+                    </div>
+                  ))}
+                </div>
+
+                <div className="grid grid-cols-7 gap-0.5">
+                  {calendarDays.map((cell, idx) => (
+                    <motion.button
+                      key={idx}
+                      initial={{ opacity: 0, scale: 0.85 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      transition={{ duration: 0.1, delay: idx * 0.004 }}
+                      type="button"
+                      disabled={isDisabled(cell.year, cell.month, cell.day)}
+                      onClick={() => selectDay(cell.year, cell.month, cell.day)}
+                      className={cn(
+                        'w-full aspect-square flex items-center justify-center text-xs rounded-md transition-colors',
+                        cell.current
+                          ? 'text-text hover:bg-accent-light/50'
+                          : 'text-text-secondary/20',
+                        isDisabled(cell.year, cell.month, cell.day) && 'text-text-secondary/20 cursor-not-allowed hover:bg-transparent',
+                        isSelected(cell.year, cell.month, cell.day) && 'bg-accent text-white hover:bg-accent font-semibold',
+                        isToday(cell.year, cell.month, cell.day) && !isSelected(cell.year, cell.month, cell.day) && 'ring-1 ring-accent/40',
+                      )}
+                    >
+                      {cell.day}
+                    </motion.button>
+                  ))}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>,
+          document.body
+        )}
 
         <input
           ref={ref}

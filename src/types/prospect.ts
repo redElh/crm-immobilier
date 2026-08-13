@@ -26,7 +26,15 @@ export interface Prospect {
   viewType?: string;
   viewDetail?: string;
 
-  status: 'Nouveau' | 'Contacté' | 'Qualifié' | 'Perdu' | 'Converti';
+  status: 'Nouveau' | 'Contacté' | 'Qualifié' | 'En attente' | 'Perdu' | 'Converti';
+  reminderDate?: string | null;
+  reminderNote?: string;
+  qualifiedAt?: string | null;
+  contactedAt?: string | null;
+  qualificationData?: Record<string, unknown> | null;
+  agentId?: number | null;
+  contactId?: string | null;
+  originalProspectId?: string | null;
   createdAt: string;
   updatedAt: string;
 }

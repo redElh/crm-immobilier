@@ -1,10 +1,11 @@
 import { useMemo } from 'react'
 import { motion } from 'framer-motion'
-import { CalendarEvent, EVENT_TYPE_CONFIG, formatTime, getEventsForDay, isToday } from '../../../types/calendar'
+import { CalendarEvent, getEventTypeConfig, Agent, getEventUserColor, withAlpha, formatEventRange, getEventsForDay, getEventDayHours, isToday } from '../../../types/calendar'
 
 interface DayViewProps {
   currentDate: Date
   events: CalendarEvent[]
+  agents?: Agent[]
   onEventClick: (event: CalendarEvent) => void
   onSlotClick: (date: Date) => void
 }
@@ -48,7 +49,7 @@ function layoutDayEvents(events: CalendarEvent[]): EventLayout[] {
   return columns.map(c => ({ ...c, cols: maxCol }))
 }
 
-export default function DayView({ currentDate, events, onEventClick, onSlotClick }: DayViewProps) {
+export default function DayView({ currentDate, events, agents, onEventClick, onSlotClick }: DayViewProps) {
   const dayEvents = useMemo(() => {
     return getEventsForDay(events, currentDate).sort((a, b) => a.start.getTime() - b.start.getTime())
   }, [events, currentDate])
@@ -87,9 +88,9 @@ export default function DayView({ currentDate, events, onEventClick, onSlotClick
 
           {/* Events */}
           {eventLayouts.map(({ event, col, cols }) => {
-            const cfg = EVENT_TYPE_CONFIG[event.type]
-            const startH = event.start.getHours() + event.start.getMinutes() / 60
-            const endH = event.end.getHours() + event.end.getMinutes() / 60
+            const cfg = getEventTypeConfig(event.type)
+            const color = getEventUserColor(event, agents)
+            const { startH, endH } = getEventDayHours(event, currentDate)
             const top = (startH / TOTAL_HOURS) * CONTAINER_HEIGHT
             const height = Math.max(((endH - startH) / TOTAL_HOURS) * CONTAINER_HEIGHT, 24)
             const gutter = 64
@@ -101,23 +102,24 @@ export default function DayView({ currentDate, events, onEventClick, onSlotClick
                 key={event.id}
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
-                className={`absolute rounded-md border overflow-hidden text-left cursor-pointer z-10 hover:opacity-85 hover:shadow-md transition-all ${cfg.bgColor} ${cfg.borderColor}`}
+                className="absolute rounded-md border overflow-hidden text-left cursor-pointer z-10 hover:opacity-85 hover:shadow-md transition-all"
                 style={{
                   top,
                   height,
                   width,
                   left,
                   minHeight: 24,
-                  borderLeftWidth: 4,
-                  borderLeftColor: cfg.value === 'office' ? '#6B7280' : undefined,
+                  backgroundColor: withAlpha(color, '1F'),
+                  borderColor: withAlpha(color, '40'),
+                  borderLeft: `4px solid ${color}`,
                 }}
                 onClick={(e) => { e.stopPropagation(); onEventClick(event) }}
               >
                 <div className="px-2 py-1 h-full flex flex-col justify-center">
                   <div className="flex items-center gap-1">
-                    <span className="text-xs">{cfg.icon}</span>
+                    <span className="text-xs inline-flex"><cfg.icon size={12} /></span>
                     <span className={`text-xs font-bold ${cfg.textColor} leading-tight`}>
-                      {formatTime(event.start)} - {formatTime(event.end)}
+                      {formatEventRange(event)}
                     </span>
                   </div>
                   <p className={`text-sm font-semibold leading-tight truncate ${cfg.textColor}`}>

@@ -1,8 +1,12 @@
 import { motion } from 'framer-motion'
+import { useParams } from 'react-router-dom'
 import { Badge } from '../../components/ui/Badge'
 import { Shield, ArrowRight } from 'react-feather'
 
 export default function AdminDashboardProxy() {
+  const { adminId } = useParams<{ adminId: string }>()
+  const basePath = `/admin/${adminId}`
+
   return (
     <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
       <div className="flex items-center gap-3">
@@ -17,9 +21,9 @@ export default function AdminDashboardProxy() {
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {[
-          { label: 'Utilisateurs', desc: 'Gérer les comptes', to: '/admin/users', color: 'bg-amber-50 text-amber-600' },
-          { label: 'Dashboard', desc: 'Voir les statistiques', to: '/admin/dashboard', color: 'bg-accent-light text-accent' },
-          { label: 'Paramètres', desc: 'Configuration système', to: '/admin/settings', color: 'bg-violet-50 text-violet-600' },
+          { label: 'Utilisateurs', desc: 'Gérer les comptes', to: `${basePath}/users`, color: 'bg-amber-50 text-amber-600' },
+          { label: 'Dashboard', desc: 'Voir les statistiques', to: `${basePath}/dashboard`, color: 'bg-accent-light text-accent' },
+          { label: 'Paramètres', desc: 'Configuration système', to: `${basePath}/settings`, color: 'bg-violet-50 text-violet-600' },
         ].map((item) => (
           <a
             key={item.to}

@@ -1,5 +1,4 @@
-import { useState } from 'react'
-import { User, DollarSign, FileText, Shield, Globe, Plus } from 'react-feather'
+import { User, DollarSign, FileText } from 'react-feather'
 import { DocumentCategorySection } from '../documents/DocumentCategorySection'
 import { CLIENT_DOC_CATEGORIES } from '../../../types/document'
 import type { Client } from '../../../types/client'
@@ -9,8 +8,6 @@ const CATEGORY_ICONS: Record<ClientDocumentCategory, React.ReactNode> = {
   identite: <User size={16} />,
   financier: <DollarSign size={16} />,
   mandat: <FileText size={16} />,
-  juridique: <Shield size={16} />,
-  extranet: <Globe size={16} />,
   autre: <FileText size={16} />,
 }
 

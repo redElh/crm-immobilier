@@ -59,10 +59,26 @@ export interface SeasonalOption {
 
 export interface MatchedClient {
   id: string;
+  clientId?: string;
   name: string;
   matchScore: number;
+  score?: number;
   criteria: string;
   type?: string;
+  email?: string;
+  phone?: string;
+  details?: Record<string, number>;
+  budget?: number;
+  minSurface?: number;
+  surfaceMax?: number;
+  pieces?: number;
+  chambres?: number;
+  secteur?: string;
+  area?: string;
+  criteres?: string[];
+  prestations?: any;
+  proximites?: any;
+  attributsPersonnalises?: any;
 }
 
 export interface TimelineEvent {
@@ -116,6 +132,14 @@ export interface Property {
   depotGarantie?: number;
   rentalPrice?: number;
   seasonalPrices?: SeasonalPrice[];
+  seasonalPriceMin?: number;
+  seasonalPriceMax?: number;
+  seasonalPriceWeek?: number;
+  seasonalPriceMonth?: number;
+  priceGrid?: any;
+  calendarStatuses?: Record<string, any>;
+  blockedDates?: string[];
+  contrat?: any;
   devise?: string;
 
   mandateType?: string;
@@ -161,6 +185,7 @@ export interface Property {
   exposition?: string;
   currentUse?: string;
   buildable?: boolean;
+  avna?: boolean;
 
   owner: PropertyOwner;
 
@@ -168,7 +193,12 @@ export interface Property {
   description: string;
   features: string[];
 
+  completion?: number;
+  completionTabs?: Record<string, boolean>;
+  furnishing?: string;
+  constructionType?: string;
   images: string[];
+  photos?: string[];
   videos?: string[];
   brochure?: string;
   virtualTourUrl?: string;

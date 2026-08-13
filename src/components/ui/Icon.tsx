@@ -183,7 +183,10 @@ const iconMap = {
       strokeLinejoin="round"
       d="M3.75 12h16.5m-16.5 3.75h16.5M3.75 19.5h16.5M5.625 4.5h12.75a1.875 1.875 0 010 3.75H5.625a1.875 1.875 0 010-3.75z"
     />
-  )
+  ),
+  check: (
+    <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+  ),
 }
 
 const sizeMap = {

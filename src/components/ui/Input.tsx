@@ -5,10 +5,12 @@ interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   label?: string;
   error?: string;
   icon?: React.ReactNode;
+  suffix?: React.ReactNode;
+  prefix?: string;
 }
 
 export const Input = React.forwardRef<HTMLInputElement, InputProps>(
-  ({ className, type = "text", label, error, icon, ...props }, ref) => {
+  ({ className, type = "text", label, error, icon, suffix, prefix, ...props }, ref) => {
     return (
       <div className="space-y-1.5 w-full">
         {label && (
@@ -17,31 +19,45 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
             {props.required && <span className="text-error ml-0.5">*</span>}
           </label>
         )}
-        <div className="relative">
-          {icon && (
-            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-text-secondary">
-              {icon}
-            </div>
+        <div className="relative flex">
+          {prefix && (
+            <span className="inline-flex items-center px-2.5 text-sm text-text-secondary bg-background border border-r-0 border-border rounded-l-lg whitespace-nowrap select-none">
+              {prefix}
+            </span>
           )}
-          <input
-            type={type}
-            className={cn(
-              "w-full h-9 px-3 py-2 text-sm rounded-lg border bg-card",
-              "placeholder:text-text-secondary/40",
-              "focus:outline-none focus:ring-2 focus:ring-accent/15 focus:border-accent",
-              "disabled:opacity-50 disabled:cursor-not-allowed",
-              "transition-all duration-200 ease-out",
-              "hover:border-text-secondary/30",
-              error
-                ? "border-error focus:ring-error/15 focus:border-error"
-                : "border-border",
-              icon && "pl-10",
-              className
+          <div className="relative flex-1">
+            {icon && (
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-text-secondary">
+                {icon}
+              </div>
             )}
-            ref={ref}
-            {...props}
-          />
-          <div className="absolute inset-0 rounded-lg pointer-events-none ring-0 transition-shadow duration-200 focus-within:ring-2 focus-within:ring-accent/15" />
+            <input
+              type={type}
+              className={cn(
+                "w-full h-9 px-3 py-2 text-sm rounded-lg border bg-card",
+                "placeholder:text-text-secondary/40",
+                "focus:outline-none focus:ring-2 focus:ring-accent/15 focus:border-accent",
+                "disabled:opacity-50 disabled:cursor-not-allowed",
+                "transition-all duration-200 ease-out",
+                "hover:border-text-secondary/30",
+                error
+                  ? "border-error focus:ring-error/15 focus:border-error"
+                  : "border-border",
+                icon && "pl-10",
+                suffix && "pr-10",
+                prefix && "rounded-l-none",
+                className
+              )}
+              ref={ref}
+              {...props}
+            />
+            {suffix && (
+              <div className="absolute inset-y-0 right-0 pr-3 flex items-center text-text-secondary">
+                {suffix}
+              </div>
+            )}
+            <div className="absolute inset-0 rounded-lg pointer-events-none ring-0 transition-shadow duration-200 focus-within:ring-2 focus-within:ring-accent/15" />
+          </div>
         </div>
         {error && (
           <p className="text-xs text-error flex items-center gap-1 mt-1">

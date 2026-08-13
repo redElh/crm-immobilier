@@ -1,9 +1,13 @@
 export type MandatType =
-  | 'vente_exclusif'
-  | 'vente_simple'
+  | 'simple'
+  | 'co_exclusif'
+  | 'exclusif'
+  | 'exclusif_agence'
+  | 'delegation'
+  | 'confrere'
   | 'recherche_achat'
-  | 'recherche_location'
   | 'location_gestion'
+  | 'recherche_location'
   | 'location_saisonniere'
 
 export type TransactionEtape =
@@ -12,7 +16,9 @@ export type TransactionEtape =
   | 'annule'
   | 'cloture'
   | 'actif'
+  | 'en_attente'
   | 'expire'
+  | 'resilie'
 
 export type TransactionRole =
   | 'Vendeur'
@@ -35,7 +41,8 @@ export interface Transaction {
   type: MandatType
   etape: TransactionEtape
   dateReservation?: string
-  dateContracted: string
+  dateContracted?: string
+  dateContrat?: string
   dateExpiration?: string
   montant: string
   agentName: string
@@ -44,11 +51,15 @@ export interface Transaction {
 }
 
 export const MANDAT_TYPE_LABELS: Record<MandatType, string> = {
-  vente_exclusif: 'Vente exclusif',
-  vente_simple: 'Vente simple',
+  simple: 'Simple',
+  co_exclusif: 'Co-exclusif',
+  exclusif: 'Exclusif',
+  exclusif_agence: 'Exclusif agence',
+  delegation: 'Délégation',
+  confrere: 'Confrère',
   recherche_achat: 'Recherche achat',
-  recherche_location: 'Recherche location',
   location_gestion: 'Location gestion',
+  recherche_location: 'Recherche location',
   location_saisonniere: 'Location saisonnière',
 }
 
@@ -58,7 +69,25 @@ export const TRANSACTION_ETAPE_LABELS: Record<TransactionEtape, string> = {
   annule: 'Annulé',
   cloture: 'Clôturé',
   actif: 'Actif',
+  en_attente: 'En attente',
   expire: 'Expiré',
+  resilie: 'Résilié',
+}
+
+export const CLIENT_TYPE_LABELS: Record<string, string> = {
+  Acheteur: 'Acheteur',
+  Vendeur: 'Vendeur',
+  Bailleur: 'Bailleur',
+  Locataire: 'Locataire',
+  Voyageur: 'Voyageur',
+}
+
+export const CLIENT_TYPE_COLORS: Record<string, string> = {
+  Acheteur: 'bg-blue-500/10 text-blue-600 border-blue-500/20',
+  Vendeur: 'bg-purple-500/10 text-purple-600 border-purple-500/20',
+  Bailleur: 'bg-orange-500/10 text-orange-600 border-orange-500/20',
+  Locataire: 'bg-cyan-500/10 text-cyan-600 border-cyan-500/20',
+  Voyageur: 'bg-pink-500/10 text-pink-600 border-pink-500/20',
 }
 
 export const TRANSACTION_ETAPE_COLORS: Record<TransactionEtape, string> = {
@@ -67,7 +96,9 @@ export const TRANSACTION_ETAPE_COLORS: Record<TransactionEtape, string> = {
   annule: 'bg-red-500/10 text-red-500 border-red-500/20',
   cloture: 'bg-blue-500/10 text-blue-500 border-blue-500/20',
   actif: 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20',
+  en_attente: 'bg-orange-500/10 text-orange-500 border-orange-500/20',
   expire: 'bg-text-secondary/10 text-text-secondary border-text-secondary/20',
+  resilie: 'bg-rose-500/10 text-rose-500 border-rose-500/20',
 }
 
 export const mockTransactions: Transaction[] = [
@@ -80,7 +111,7 @@ export const mockTransactions: Transaction[] = [
     propertyTitle: 'Villa luxe avec piscine',
     propertyRef: 'RES-2026-001',
     propertyId: '1',
-    type: 'vente_exclusif',
+    type: 'exclusif',
     etape: 'actif',
     dateContracted: '2026-03-01',
     dateExpiration: '2027-03-01',
@@ -97,7 +128,7 @@ export const mockTransactions: Transaction[] = [
     propertyTitle: 'Villa luxe avec piscine',
     propertyRef: 'RES-2026-001',
     propertyId: '1',
-    type: 'recherche_achat',
+    type: 'simple',
     etape: 'reservation',
     dateReservation: '2026-06-01',
     dateContracted: '2026-05-01',
@@ -114,7 +145,7 @@ export const mockTransactions: Transaction[] = [
     propertyTitle: 'Appartement front de mer avec piscine',
     propertyRef: 'VAC-2026-004',
     propertyId: '4',
-    type: 'vente_simple',
+    type: 'simple',
     etape: 'signe',
     dateContracted: '2026-01-15',
     montant: '1 800 000 MAD',
@@ -130,7 +161,7 @@ export const mockTransactions: Transaction[] = [
     propertyTitle: 'Appartement front de mer avec piscine',
     propertyRef: 'VAC-2026-004',
     propertyId: '4',
-    type: 'location_saisonniere',
+    type: 'simple',
     etape: 'reservation',
     dateReservation: '2026-06-08',
     dateContracted: '2026-06-01',
@@ -147,7 +178,7 @@ export const mockTransactions: Transaction[] = [
     propertyTitle: 'Villa luxe avec piscine',
     propertyRef: 'RES-2026-001',
     propertyId: '1',
-    type: 'recherche_achat',
+    type: 'simple',
     etape: 'signe',
     dateReservation: '2026-05-15',
     dateContracted: '2026-04-20',
@@ -161,7 +192,7 @@ export const mockTransactions: Transaction[] = [
     clientName: 'Sophie Laurent',
     clientType: 'Locataire',
     clientId: '9',
-    type: 'recherche_location',
+    type: 'simple',
     etape: 'actif',
     dateContracted: '2026-04-10',
     montant: '8 000 - 12 000 MAD/mois',
@@ -177,7 +208,7 @@ export const mockTransactions: Transaction[] = [
     propertyTitle: 'Appartement 2 pièces - Casablanca',
     propertyRef: 'RES-2026-008',
     propertyId: '1',
-    type: 'location_gestion',
+    type: 'co_exclusif',
     etape: 'actif',
     dateContracted: '2026-02-20',
     montant: '6 000 MAD/mois',
@@ -192,7 +223,7 @@ export const mockTransactions: Transaction[] = [
     clientId: '6',
     propertyTitle: 'Terrain constructible',
     propertyRef: 'LND-2026-012',
-    type: 'vente_exclusif',
+    type: 'exclusif_agence',
     etape: 'cloture',
     dateContracted: '2025-12-01',
     dateExpiration: '2026-06-01',
@@ -209,7 +240,7 @@ export const mockTransactions: Transaction[] = [
     propertyTitle: 'Appartement front de mer avec piscine',
     propertyRef: 'VAC-2026-004',
     propertyId: '4',
-    type: 'location_saisonniere',
+    type: 'delegation',
     etape: 'annule',
     dateReservation: '2026-05-20',
     dateContracted: '2026-05-10',
@@ -223,7 +254,7 @@ export const mockTransactions: Transaction[] = [
     clientName: 'Marie Lambert',
     clientType: 'Acheteur',
     clientId: '2',
-    type: 'recherche_achat',
+    type: 'confrere',
     etape: 'expire',
     dateContracted: '2025-08-15',
     dateExpiration: '2026-02-15',
@@ -243,6 +274,6 @@ export const getPropertyTransactions = (propertyId: string): Transaction[] => {
 
 export const transactionFilters = {
   types: (Object.keys(MANDAT_TYPE_LABELS) as MandatType[]).map(key => ({ value: key, label: MANDAT_TYPE_LABELS[key] })),
-  etapes: (Object.keys(TRANSACTION_ETAPE_LABELS) as TransactionEtape[]).map(key => ({ value: key, label: TRANSACTION_ETAPE_LABELS[key] })),
+  etapes: (Object.keys(TRANSACTION_ETAPE_LABELS) as TransactionEtape[]).filter(k => k !== 'reservation').map(key => ({ value: key, label: TRANSACTION_ETAPE_LABELS[key] })),
   agents: Array.from(new Set(mockTransactions.map(t => t.agentName))).sort(),
 }

@@ -4,10 +4,11 @@ export interface SwitchProps extends React.ButtonHTMLAttributes<HTMLButtonElemen
   checked?: boolean
   defaultChecked?: boolean
   onCheckedChange?: (checked: boolean) => void
+  checkedClass?: string
 }
 
 const Switch = React.forwardRef<HTMLButtonElement, SwitchProps>(
-  ({ className, checked, defaultChecked, onCheckedChange, ...props }, ref) => {
+  ({ className, checked, defaultChecked, onCheckedChange, checkedClass, ...props }, ref) => {
     const [isChecked, setIsChecked] = React.useState(defaultChecked ?? false)
     const currentChecked = checked ?? isChecked
 
@@ -26,7 +27,7 @@ const Switch = React.forwardRef<HTMLButtonElement, SwitchProps>(
         onClick={handleClick}
         ref={ref}
         className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-all duration-200 ease-out focus:outline-none focus:ring-2 focus:ring-accent/20 focus:ring-offset-2 focus:ring-offset-card disabled:cursor-not-allowed disabled:opacity-50 hover:scale-105 active:scale-95 ${
-          currentChecked ? 'bg-accent' : 'bg-border hover:bg-border/80'
+          currentChecked ? (checkedClass || 'bg-accent') : 'bg-border hover:bg-border/80'
         } ${className || ''}`}
         {...props}
       >

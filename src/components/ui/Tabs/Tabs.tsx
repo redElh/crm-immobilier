@@ -4,16 +4,20 @@ import { AnimatePresence, motion } from "framer-motion";
 const TabsContext = React.createContext<{
   value: string;
   onValueChange: (value: string) => void;
+  accentClass?: string;
+  accentBgClass?: string;
 }>({ value: "", onValueChange: () => {} });
 
-export const Tabs = ({ children, value, onValueChange, className = "" }: {
+export const Tabs = ({ children, value, onValueChange, className = "", accentClass = "", accentBgClass = "" }: {
   children: React.ReactNode;
   value: string;
   onValueChange: (value: string) => void;
   className?: string;
+  accentClass?: string;
+  accentBgClass?: string;
 }) => {
   return (
-    <TabsContext.Provider value={{ value, onValueChange }}>
+    <TabsContext.Provider value={{ value, onValueChange, accentClass, accentBgClass }}>
       <div className={`w-full ${className}`}>{children}</div>
     </TabsContext.Provider>
   );
@@ -33,16 +37,17 @@ export const TabsTrigger = ({ children, value, disabled = false, className = "" 
   disabled?: boolean;
   className?: string;
 }) => {
-  const { value: currentValue, onValueChange } = React.useContext(TabsContext);
+  const { value: currentValue, onValueChange, accentClass = "", accentBgClass = "" } = React.useContext(TabsContext);
   const isActive = currentValue === value;
 
   return (
     <button
+      type="button"
       onClick={() => onValueChange(value)}
       disabled={disabled}
       className={`relative px-4 py-2.5 text-sm font-medium transition-all duration-200 ${
         isActive
-          ? 'text-accent'
+          ? accentClass || 'text-accent'
           : 'text-text-secondary hover:text-text'
       } ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'} ${className}`}
     >
@@ -50,7 +55,7 @@ export const TabsTrigger = ({ children, value, disabled = false, className = "" 
       {isActive && (
         <motion.div
           layoutId="tab-indicator"
-          className="absolute bottom-0 left-0 right-0 h-0.5 bg-accent rounded-full"
+          className={`absolute bottom-0 left-0 right-0 h-0.5 rounded-full ${accentBgClass || 'bg-accent'}`}
           transition={{ type: "spring", stiffness: 500, damping: 35 }}
         />
       )}

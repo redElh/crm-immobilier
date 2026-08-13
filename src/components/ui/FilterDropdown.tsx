@@ -23,12 +23,12 @@ export const FilterDropdown = ({ options, value, onChange, label = "Filter", cla
     if (!buttonRef.current) return {};
     const rect = buttonRef.current.getBoundingClientRect();
     const spaceBelow = window.innerHeight - rect.bottom - 8;
-    const dh = Math.min(options.length * 36 + 8, 192);
+    const dh = Math.min(options.length * 36 + 8, 240);
     const openUp = spaceBelow < dh && rect.top > dh;
     return {
       position: 'fixed' as const,
       left: rect.left + 'px',
-      width: rect.width + 'px',
+      minWidth: Math.max(rect.width, 220) + 'px',
       ...(openUp
         ? { bottom: window.innerHeight - rect.top + 4 + 'px' }
         : { top: rect.bottom + 4 + 'px' }),
@@ -96,7 +96,7 @@ export const FilterDropdown = ({ options, value, onChange, label = "Filter", cla
             exit={{ opacity: 0, y: -8, scale: 0.96 }}
             transition={{ duration: 0.15, ease: "easeOut" }}
             style={dropdownStyle}
-            className="bg-card rounded-lg border border-border/50 shadow-dropdown py-1 overflow-hidden"
+            className="bg-card rounded-lg border border-border/50 shadow-dropdown py-1 overflow-y-auto max-h-60"
           >
             {options.map((option, idx) => (
               <motion.button

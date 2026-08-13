@@ -1,27 +1,28 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { InfoField } from '../../../ui/InfoField';
 import { Button } from '../../../ui/Button';
-import { ClientTimeline } from '../ClientTimeline';
 import { ClientTransactionsTab } from '../ClientTransactionsTab';
-import { ClientDocumentsView } from '../ClientDocumentsView';
+import { NotesActiviteTab } from './NotesActiviteTab';
 import { ClientContractsTab } from '../ClientContractsTab';
-import { ClientMessagesTab } from '../ClientMessagesTab';
 import { Client } from '../../../../types/client';
+import { api } from '../../../../services/api';
+import { useMyPermissions, permissionAllowed } from '../../../../hooks/useMyPermissions';
 import {
   Home, MapPin, Maximize2, Grid, Clock, User, Briefcase, CheckCircle,
   AlertCircle, Calendar, Sliders, Eye, Sun, Tag, Star, Layers, Compass,
   DollarSign, CreditCard, FileText, Download, Trash2, Plus,
-  Mail, RefreshCw, Link, Award, Hexagon
+  Mail, RefreshCw, Link, Award, Hexagon, X, Hash, Shield
 } from 'react-feather';
 
-const renderTagList = (items: string[] | undefined, label: string) => {
+const renderTagList = (items: string[] | undefined, label: string, isGerant: boolean) => {
   if (!items || items.length === 0) return null;
   return (
     <div>
       <p className="text-sm font-medium text-text mb-2">{label}</p>
       <div className="flex flex-wrap gap-1.5">
         {items.map(item => (
-          <span key={item} className="px-2 py-1 text-xs rounded-lg bg-accent/10 text-accent border border-accent/20">
+          <span key={item} className={`px-2 py-1 text-xs rounded-lg ${isGerant ? 'bg-[#905D5D]/10 text-[#905D5D] border border-[#905D5D]/20' : 'bg-accent/10 text-accent border border-accent/20'}`}>
             {item}
           </span>
         ))}
@@ -47,26 +48,67 @@ const renderCategorieGroup = (items: string[] | undefined, label: string) => {
 };
 
 const TABS = [
-  { id: 1, label: 'Infos' },
-  { id: 2, label: 'Caractéristiques' },
-  { id: 3, label: 'Loyer & Charges' },
-  { id: 4, label: 'Proximités' },
-  { id: 5, label: 'Prestations' },
-  { id: 6, label: 'Situation' },
-  { id: 7, label: 'Mandat' },
-  { id: 8, label: 'Documents' },
-  { id: 9, label: 'Transactions' },
-  { id: 10, label: 'Contrats' },
-  { id: 11, label: 'Notes & Activité' },
-  { id: 12, label: 'Messages' },
+  { id: 1, label: 'Infos', slug: 'infos' },
+  { id: 2, label: 'Caractéristiques', slug: 'caracteristiques' },
+  { id: 3, label: 'Loyer & Charges', slug: 'loyer_charges' },
+  { id: 4, label: 'Proximités', slug: 'proximites' },
+  { id: 5, label: 'Prestations', slug: 'prestations' },
+  { id: 6, label: 'Situation', slug: 'situation' },
+  { id: 7, label: 'Mandat', slug: 'mandat' },
+  { id: 8, label: 'Documents', slug: 'documents' },
+  { id: 9, label: 'Transactions', slug: 'transactions' },
+  { id: 10, label: 'Contrats', slug: 'contrats' },
+  { id: 11, label: 'Notes & Activité', slug: 'notes_activite' },
 ];
 
-export const BailleurDetailTabs = ({ client: initialClient }: { client: Client }) => {
-  const [activeTab, setActiveTab] = useState(1);
+export const BailleurDetailTabs = ({ client: initialClient, highlightActivityId, isGerant = false }: { client: Client; highlightActivityId?: number; isGerant?: boolean }) => {
+  const navigate = useNavigate();
   const [client, setClientState] = useState<Client>(initialClient);
-  const [events, setEvents] = useState(client.events || []);
-  const [newActivityType, setNewActivityType] = useState<'email' | 'appel' | 'visite' | 'autre'>('email');
-  const [newActivitySummary, setNewActivitySummary] = useState('');
+  useEffect(() => {
+    setClientState(initialClient);
+  }, [initialClient]);
+  const [bienProp, setBienProp] = useState<any>(null);
+  const [rawViewerUrl, setRawViewerUrl] = useState<string | null>(null);
+  const [viewerTitle, setViewerTitle] = useState('');
+  const viewerUrl = rawViewerUrl ? (rawViewerUrl.startsWith('http') ? rawViewerUrl : `http://localhost:5000${rawViewerUrl}`) : null;
+
+  const perms = useMyPermissions();
+  const canReadContracts = permissionAllowed(perms, 'contrats-lecture');
+  const visibleTabs = canReadContracts ? TABS : TABS.filter(t => t.slug !== 'contrats');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const initialTab = visibleTabs.find(t => t.slug === searchParams.get('tab'))?.id || 1;
+  const [activeTab, setActiveTabState] = useState(initialTab);
+  const setActiveTab = useCallback((id: number) => {
+    setActiveTabState(id);
+    const slug = TABS.find(t => t.id === id)?.slug;
+    if (slug) {
+      setSearchParams(prev => { prev.set('tab', slug); return prev; }, { replace: true });
+    }
+  }, [setSearchParams]);
+
+  const openViewer = useCallback((url: string, title: string) => {
+    setRawViewerUrl(url);
+    setViewerTitle(title);
+  }, []);
+
+  const closeViewer = useCallback(() => {
+    setRawViewerUrl(null);
+    setViewerTitle('');
+  }, []);
+
+  useEffect(() => {
+    if (!viewerUrl) return;
+    const onKeyDown = (e: KeyboardEvent) => { if (e.key === 'Escape') closeViewer(); };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [viewerUrl, closeViewer]);
+
+  useEffect(() => {
+    const c = client as any;
+    if (c.bienConcerneId) {
+      api.get<any>(`/properties/${c.bienConcerneId}`).then(setBienProp).catch(() => {});
+    }
+  }, [(client as any).bienConcerneId]);
 
   const updateClient = (updates: Partial<Client>) => {
     setClientState(prev => ({ ...prev, ...updates }));
@@ -79,9 +121,12 @@ export const BailleurDetailTabs = ({ client: initialClient }: { client: Client }
     </div>
   );
 
+  // ─── TAB 1: INFOS (Localisation & Type) ───
   const renderInfos = () => {
-    const hasData = client.propertyType || client.secteur || client.area || client.categorie ||
-      client.statutMetier || client.classification;
+    const c = client as any;
+    const hasData = client.localisation || c.adresseComplete || c.codePostalVille || client.secteur ||
+      client.categorie || client.propertyType || c.referenceCadastrale || c.lotCopropriete ||
+      c.nbLotsTotal || client.latitude || client.longitude;
 
     if (!hasData) return renderEmpty();
 
@@ -99,71 +144,56 @@ export const BailleurDetailTabs = ({ client: initialClient }: { client: Client }
           {client.classification && (
             <div className="flex items-center gap-2">
               <span className="text-xs font-medium text-text-secondary">Classification:</span>
-              <span className="px-2.5 py-1 text-xs font-medium rounded-lg bg-accent/10 text-accent border border-accent/20">
+              <span className={`px-2.5 py-1 text-xs font-medium rounded-lg ${isGerant ? 'bg-[#905D5D]/10 text-[#905D5D] border border-[#905D5D]/20' : 'bg-accent/10 text-accent border border-accent/20'}`}>
                 {client.classification}
               </span>
             </div>
           )}
+          {client.source && (
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-medium text-text-secondary">Origine:</span>
+              <span className="px-2.5 py-1 text-xs font-medium rounded-lg bg-blue-500/10 text-blue-500 border border-blue-500/20">
+                {client.source}
+              </span>
+            </div>
+          )}
         </div>
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {client.categorie && <InfoField label="Catégorie" value={client.categorie} icon={<Tag size={16} className="text-accent" />} />}
-          {client.propertyType && <InfoField label="Type de bien" value={client.propertyType} icon={<Home size={16} className="text-accent" />} />}
-          <InfoField label="Secteur" value={client.secteur || client.area || 'Non spécifié'} icon={<MapPin size={16} className="text-accent" />} />
-          {(client.minSurface || client.surfaceMax) && (
-            <InfoField label="Surface" value={`${client.minSurface || '?'} ~ ${client.surfaceMax || '?'} m²`} icon={<Maximize2 size={16} className="text-accent" />} />
-          )}
-          {(client.pieces || client.chambres) && (
-            <InfoField label="Pièces / Chambres" value={`${client.pieces || '?'} pièces / ${client.chambres || '?'} chambres`} icon={<Grid size={16} className="text-accent" />} />
-          )}
-          {client.rooms && !client.pieces && (
-            <InfoField label="Nombre de pièces" value={client.rooms} icon={<Grid size={16} className="text-accent" />} />
-          )}
-          {client.etage !== undefined && (
-            <InfoField label="Étage" value={`${client.etageOperator === 'ge' ? '≥ ' : client.etageOperator === 'le' ? '≤ ' : '= '}${client.etage}`} icon={<Layers size={16} className="text-accent" />} />
-          )}
-        </div>
-      </div>
-    );
-  };
-
-  const renderCaracteristiques = () => {
-    const hasData = client.vue || client.exposition || client.etat || client.standing ||
-      client.disponibilite || client.attributPrincipal || client.attributsPersonnalises?.length ||
-      client.criteres?.length;
-
-    if (!hasData) return renderEmpty();
-
-    return (
-      <div className="space-y-5">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {client.vue && <InfoField label="Vue" value={client.vue} icon={<Eye size={16} className="text-accent" />} />}
-          {client.exposition && <InfoField label="Exposition" value={client.exposition} icon={<Sun size={16} className="text-accent" />} />}
-          {client.etat && <InfoField label="État" value={client.etat} icon={<Home size={16} className="text-accent" />} />}
-          {client.standing && <InfoField label="Standing" value={client.standing} icon={<Star size={16} className="text-accent" />} />}
-          {client.disponibilite && <InfoField label="Disponibilité" value={client.disponibilite} icon={<Clock size={16} className="text-accent" />} />}
+          {client.localisation && <InfoField label="Pays" value={client.localisation} icon={<MapPin size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />}
+          {client.categorie && <InfoField label="Catégorie" value={client.categorie} icon={<Tag size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />}
+          {client.propertyType && <InfoField label="Type de bien" value={client.propertyType} icon={<Home size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />}
+          {client.secteur && <InfoField label="Secteur" value={client.secteur} icon={<MapPin size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />}
         </div>
 
-        {client.attributPrincipal && (
-          <div>
-            <p className="text-sm font-medium text-text mb-2">Attribut principal</p>
-            <span className="px-2.5 py-1 text-xs font-medium rounded-lg bg-premium/10 text-premium border border-premium/20">
-              {client.attributPrincipal}
-            </span>
+        {c.adresseComplete && (
+          <InfoField label="Adresse complète" value={c.adresseComplete} icon={<MapPin size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />
+        )}
+        {(c.complementAdresse || c.codePostalVille) && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {c.complementAdresse && <InfoField label="Complément d'adresse" value={c.complementAdresse} icon={<MapPin size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />}
+            {c.codePostalVille && <InfoField label="Code postal & Ville" value={c.codePostalVille} icon={<MapPin size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />}
           </div>
         )}
 
-        {renderTagList(client.attributsPersonnalises, 'Attributs personnalisés')}
+        <div className="border-t border-border/30 pt-4">
+          <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-3">Informations foncières</p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {c.referenceCadastrale && <InfoField label="Référence cadastrale" value={c.referenceCadastrale} icon={<Hash size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />}
+            {c.lotCopropriete && <InfoField label="Lot copropriété" value={`${c.lotCopropriete}`} icon={<Layers size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />}
+            <InfoField label="Syndic présent" value={c.syndicPresent ? 'Oui' : 'Non'} icon={<CheckCircle size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />
+            {c.syndicPresent && c.nbLotsTotal && (
+              <InfoField label="Nombre total de lots" value={`${c.nbLotsTotal}`} icon={<Layers size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />
+            )}
+          </div>
+        </div>
 
-        {client.criteres && client.criteres.length > 0 && (
-          <div className="space-y-2">
-            <h3 className="text-sm font-medium flex items-center gap-2">
-              <CheckCircle size={16} className="text-accent" />
-              Critères de base
-            </h3>
-            <div className="flex flex-wrap gap-1.5">
-              {client.criteres.map(c => (
-                <span key={c} className="px-2 py-1 text-xs rounded-lg bg-accent/10 text-accent border border-accent/20">{c}</span>
-              ))}
+        {(client.latitude || client.longitude) && (
+          <div className="border-t border-border/30 pt-4">
+            <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-3">Géolocalisation</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {client.latitude && <InfoField label="Latitude" value={`${client.latitude}`} icon={<MapPin size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />}
+              {client.longitude && <InfoField label="Longitude" value={`${client.longitude}`} icon={<MapPin size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />}
             </div>
           </div>
         )}
@@ -171,7 +201,77 @@ export const BailleurDetailTabs = ({ client: initialClient }: { client: Client }
     );
   };
 
+  // ─── TAB 2: CARACTÉRISTIQUES ───
+  const renderCaracteristiques = () => {
+    const hasData = client.pieces || client.chambres || client.minSurface || client.surfaceMax ||
+      client.etage !== undefined || client.vue || client.exposition || client.etat ||
+      client.standing || client.disponibilite || client.attributPrincipal ||
+      client.attributsPersonnalises?.length || client.criteres?.length;
+
+    if (!hasData) return renderEmpty();
+
+    return (
+      <div className="space-y-6">
+        {/* Quantitatives */}
+        <div>
+          <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-3">Caractéristiques quantitatives</p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {client.pieces && <InfoField label="Pièces" value={`${client.pieces}`} icon={<Grid size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />}
+            {client.chambres && <InfoField label="Chambres" value={`${client.chambres}`} icon={<Grid size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />}
+            {client.minSurface && <InfoField label="Surface minimale" value={`${client.minSurface} m²`} icon={<Maximize2 size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />}
+            {client.surfaceMax && <InfoField label="Surface maximale" value={`${client.surfaceMax} m²`} icon={<Maximize2 size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />}
+            {client.etage !== undefined && (
+              <InfoField label="Étage" value={`${client.etageOperator === 'ge' ? '≥ ' : client.etageOperator === 'le' ? '≤ ' : '= '}${client.etage}`} icon={<Layers size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />
+            )}
+          </div>
+        </div>
+
+        {/* Qualitatives */}
+        <div className="border-t border-border/30 pt-4">
+          <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-3">Caractéristiques qualitatives</p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {client.vue && <InfoField label="Vue" value={client.vue} icon={<Eye size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />}
+            {client.exposition && <InfoField label="Exposition" value={client.exposition} icon={<Sun size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />}
+            {client.etat && <InfoField label="État" value={client.etat} icon={<Home size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />}
+            {client.standing && <InfoField label="Standing" value={client.standing} icon={<Star size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />}
+            {client.disponibilite && <InfoField label="Disponibilité" value={client.disponibilite} icon={<Clock size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />}
+            {client.attributPrincipal && <InfoField label="Attribut principal" value={client.attributPrincipal} icon={<Sliders size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />}
+          </div>
+        </div>
+
+        {/* Attributs & Critères */}
+        {(client.attributsPersonnalises?.length || client.criteres?.length) && (
+          <div className="border-t border-border/30 pt-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {renderTagList(client.attributsPersonnalises, 'Attributs personnalisés', isGerant)}
+              {client.criteres && client.criteres.length > 0 && (
+                <div>
+                  <h3 className="text-sm font-medium flex items-center gap-2 mb-2">
+                    <CheckCircle size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />
+                    Critères de base
+                  </h3>
+                  <div className="flex flex-wrap gap-1.5">
+                    {client.criteres.map(c => (
+                      <span key={c} className={`px-2 py-1 text-xs rounded-lg ${isGerant ? 'bg-[#905D5D]/10 text-[#905D5D] border border-[#905D5D]/20' : 'bg-accent/10 text-accent border border-accent/20'}`}>{c}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  // ─── TAB 3: LOYER & CHARGES ───
   const renderLoyerCharges = () => {
+    const c = client as any;
+    const hasData = c.loyerHC || c.charges || c.depotGarantie || c.typeLoyer || c.periodiciteLoyer;
+    if (!hasData) return renderEmpty();
+
+    const loyerCC = (c.loyerHC || 0) + (c.charges || 0);
+
     return (
       <div className="space-y-5">
         <div>
@@ -180,24 +280,35 @@ export const BailleurDetailTabs = ({ client: initialClient }: { client: Client }
             Loyer et charges
           </h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <InfoField label="Loyer mensuel (hors charges)" value="Non renseigné" icon={<DollarSign size={16} className="text-premium" />} />
-            <InfoField label="Charges mensuelles" value="Non renseigné" icon={<CreditCard size={16} className="text-premium" />} />
-            <InfoField label="Dépôt de garantie" value="Non renseigné" icon={<CreditCard size={16} className="text-premium" />} />
-            <InfoField label="Type de loyer" value="Non renseigné" icon={<Tag size={16} className="text-premium" />} />
-            <InfoField label="Périodicité" value="Non renseigné" icon={<Calendar size={16} className="text-premium" />} />
-          </div>
-          <div className="p-4 rounded-xl bg-background border border-accent/20 mt-3">
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-medium text-text">Loyer mensuel (charges comprises)</span>
-              <span className="text-lg font-bold text-accent">—</span>
-            </div>
-            <p className="text-xs text-text-secondary mt-1">Calculé: Loyer HC + Charges</p>
+            {c.loyerHC && (
+              <InfoField label="Loyer mensuel (hors charges)" value={`${c.loyerHC.toLocaleString()} ${client.devise || 'MAD'}`} icon={<DollarSign size={16} className="text-premium" />} />
+            )}
+            {c.charges && (
+              <InfoField label="Charges mensuelles" value={`${c.charges.toLocaleString()} ${client.devise || 'MAD'}`} icon={<CreditCard size={16} className="text-premium" />} />
+            )}
+            {c.depotGarantie && (
+              <InfoField label="Dépôt de garantie" value={`${c.depotGarantie.toLocaleString()} ${client.devise || 'MAD'}`} icon={<CreditCard size={16} className="text-premium" />} />
+            )}
+            {c.typeLoyer && (
+              <InfoField label="Type de loyer" value={c.typeLoyer} icon={<Tag size={16} className="text-premium" />} />
+            )}
+            {c.periodiciteLoyer && (
+              <InfoField label="Périodicité du loyer" value={c.periodiciteLoyer} icon={<Calendar size={16} className="text-premium" />} />
+            )}
+            {loyerCC > 0 && (
+              <div className={`p-4 rounded-xl bg-background border ${isGerant ? 'border-[#905D5D]/20' : 'border-accent/20'} flex flex-col justify-center`}>
+                <span className="text-xs font-medium text-text-secondary mb-1">Loyer mensuel (charges comprises)</span>
+                <span className={`text-lg font-bold ${isGerant ? 'text-[#905D5D]' : 'text-accent'}`}>{loyerCC.toLocaleString('fr-FR')} {client.devise || 'MAD'}</span>
+                <p className="text-[10px] text-text-secondary mt-1">Calculé: Loyer HC + Charges</p>
+              </div>
+            )}
           </div>
         </div>
       </div>
     );
   };
 
+  // ─── TAB 4: PROXIMITÉS ───
   const renderProximites = () => {
     const p = client.proximites;
     if (!p) return renderEmpty();
@@ -207,7 +318,7 @@ export const BailleurDetailTabs = ({ client: initialClient }: { client: Client }
     return (
       <div className="space-y-3">
         <h3 className="text-sm font-medium flex items-center gap-2 mb-3">
-          <MapPin size={16} className="text-accent" />
+          <MapPin size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />
           Proximités
         </h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
@@ -221,6 +332,7 @@ export const BailleurDetailTabs = ({ client: initialClient }: { client: Client }
     );
   };
 
+  // ─── TAB 5: PRESTATIONS ───
   const renderPrestations = () => {
     const p = client.prestations;
     if (!p) return renderEmpty();
@@ -230,7 +342,7 @@ export const BailleurDetailTabs = ({ client: initialClient }: { client: Client }
     return (
       <div className="space-y-3">
         <h3 className="text-sm font-medium flex items-center gap-2 mb-3">
-          <Star size={16} className="text-accent" />
+          <Star size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />
           Prestations
         </h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
@@ -244,31 +356,40 @@ export const BailleurDetailTabs = ({ client: initialClient }: { client: Client }
     );
   };
 
+  // ─── TAB 6: SITUATION ───
   const renderSituation = () => {
-    const hasData = client.currentSituation || client.reasonForSelling;
+    const c = client as any;
+    const hasData = client.currentSituation || client.reasonForSelling || c.creditEnCours || c.dateDisponibilite || c.conditionsParticulieres || client.notes;
     if (!hasData) return renderEmpty();
 
     return (
       <div className="space-y-5">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {client.currentSituation && (
-            <InfoField label="Situation actuelle" value={client.currentSituation} icon={<User size={16} className="text-accent" />} />
+            <InfoField label="Situation actuelle" value={client.currentSituation} icon={<User size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />
           )}
           {client.reasonForSelling && (
-            <InfoField label="Raison de la mise en location" value={client.reasonForSelling} icon={<Briefcase size={16} className="text-accent" />} />
+            <InfoField label="Raison de la mise en location" value={client.reasonForSelling} icon={<Briefcase size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />
+          )}
+          {c.creditEnCours !== undefined && (
+            <InfoField label="Crédit en cours sur le bien" value={c.creditEnCours ? 'Oui' : 'Non'} icon={<CreditCard size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />
+          )}
+          {c.creditEnCours && c.creditMontantRestant && (
+            <InfoField label="Montant restant dû" value={`${c.creditMontantRestant.toLocaleString()} ${client.devise || 'MAD'}`} icon={<CreditCard size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />
+          )}
+          {c.dateDisponibilite && (
+            <InfoField label="Date souhaitée de disponibilité" value={new Date(c.dateDisponibilite).toLocaleDateString('fr-FR')} icon={<Calendar size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />
           )}
         </div>
-        <div className="p-4 rounded-xl bg-background border border-border/30">
-          <p className="text-xs font-medium text-text-secondary mb-1">Crédit en cours</p>
-          <p className="text-sm text-text">Non renseigné</p>
-        </div>
-        <div className="p-4 rounded-xl bg-background border border-border/30">
-          <p className="text-xs font-medium text-text-secondary mb-1">Conditions particulières</p>
-          <p className="text-sm text-text">Non renseigné</p>
-        </div>
+        {c.conditionsParticulieres && (
+          <div className="p-4 rounded-xl bg-background border border-border/30">
+            <p className="text-xs font-medium text-text-secondary mb-1">Conditions particulières</p>
+            <p className="text-sm text-text">{c.conditionsParticulieres}</p>
+          </div>
+        )}
         {client.notes && (
           <div className="p-4 rounded-xl bg-background border border-border/30">
-            <p className="text-xs font-medium text-text-secondary mb-1">Notes sur la situation</p>
+            <p className="text-xs font-medium text-text-secondary mb-1">Notes complémentaires</p>
             <p className="text-sm text-text">{client.notes}</p>
           </div>
         )}
@@ -276,149 +397,181 @@ export const BailleurDetailTabs = ({ client: initialClient }: { client: Client }
     );
   };
 
+  // ─── TAB 7: MANDAT ───
   const renderMandat = () => {
     if (!client.numeroMandat) return renderEmpty();
+    const c = client as any;
+    const clauseActive = !!client.dureeProtection;
 
     return (
       <div className="space-y-5">
         <h3 className="text-sm font-medium flex items-center gap-2 mb-3">
-          <Layers size={16} className="text-accent" />
+          <Layers size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />
           Mandat de gestion locative
         </h3>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <InfoField label="Numéro de mandat" value={client.numeroMandat} icon={<Tag size={16} className="text-accent" />} />
-          {client.statutMandat && <InfoField label="Statut du mandat" value={client.statutMandat} icon={<Clock size={16} className="text-accent" />} />}
-          {client.typeMandat && <InfoField label="Type de mandat" value={client.typeMandat} icon={<Compass size={16} className="text-accent" />} />}
-          {client.dateSignature && <InfoField label="Date signature" value={new Date(client.dateSignature).toLocaleDateString('fr-FR')} icon={<Calendar size={16} className="text-accent" />} />}
-          {client.dateDebut && <InfoField label="Date début" value={new Date(client.dateDebut).toLocaleDateString('fr-FR')} icon={<Calendar size={16} className="text-accent" />} />}
-          {client.dateExpiration && <InfoField label="Date expiration" value={new Date(client.dateExpiration).toLocaleDateString('fr-FR')} icon={<Calendar size={16} className="text-accent" />} />}
-          {client.agentDesigne && <InfoField label="Agent désigné" value={client.agentDesigne} icon={<User size={16} className="text-accent" />} />}
-          {client.conjoint && <InfoField label="Conjoint" value={client.conjoint} icon={<User size={16} className="text-accent" />} />}
-          {client.societe && <InfoField label="Société (SCI)" value={client.societe} icon={<Briefcase size={16} className="text-accent" />} />}
-          {client.dureeProtection && <InfoField label="Durée de protection" value={`${client.dureeProtection} mois`} icon={<Clock size={16} className="text-accent" />} />}
+          <InfoField label="Numéro de mandat" value={client.numeroMandat} icon={<Tag size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />
+          {client.typeMandat && <InfoField label="Type de mandat" value={client.typeMandat} icon={<Compass size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />}
+          {client.statutMandat && <InfoField label="Statut du mandat" value={client.statutMandat} icon={<Clock size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />}
+          {client.dateDebut && <InfoField label="Date début" value={new Date(client.dateDebut).toLocaleDateString('fr-FR')} icon={<Calendar size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />}
+          {client.dateExpiration && <InfoField label="Date expiration" value={new Date(client.dateExpiration).toLocaleDateString('fr-FR')} icon={<Calendar size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />}
+          {client.conjoint && <InfoField label="Conjoint" value={client.conjoint} icon={<User size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />}
+          {client.societe && <InfoField label="Société (SCI)" value={client.societe} icon={<Briefcase size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />}
+          {client.agentDesigne && <InfoField label="Agent désigné" value={client.agentDesigne} icon={<User size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />}
+          {c.bienConcerneId && (
+            <div
+              role="button"
+              tabIndex={0}
+              onClick={() => navigate(`/properties/${c.bienConcerneId}`)}
+              onKeyDown={(e) => { if (e.key === 'Enter') navigate(`/properties/${c.bienConcerneId}`); }}
+              className={`p-4 rounded-xl bg-background transition-colors cursor-pointer ${isGerant ? 'hover:bg-[#905D5D]/5' : 'hover:bg-accent/5'}`}
+            >
+              <div className="flex items-center gap-2 text-xs text-text-secondary mb-1">
+                <Layers size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />
+                <span>Bien concerné</span>
+              </div>
+              <p className={`text-sm font-medium ${isGerant ? 'text-[#905D5D]' : 'text-accent'} hover:underline`}>
+                {bienProp ? (
+                  <>{bienProp.title || bienProp.reference || `Bien #${bienProp.id}`}{bienProp.city ? ` - ${bienProp.city}` : ''}</>
+                ) : (
+                  <>Bien #{c.bienConcerneId}</>
+                )}
+              </p>
+            </div>
+          )}
         </div>
 
         <div className="border-t border-border/30 pt-4">
-          <h3 className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-3">Rémunération de l'agence</h3>
+          <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-3">Clause de protection</p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <InfoField
+              label="Clause de protection"
+              value={clauseActive ? 'Activée' : 'Désactivée'}
+              icon={<Shield size={16} className={clauseActive ? 'text-emerald-500' : 'text-text-secondary'} />}
+            />
+            {clauseActive && client.dureeProtection && (
+              <InfoField label="Durée de protection" value={`${client.dureeProtection} mois`} icon={<Clock size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />
+            )}
+          </div>
+          {clauseActive && (
+            <p className="text-xs text-text-secondary mt-2">Si le bailleur trouve un locataire par lui-même après expiration, l'agence n'a pas droit à commission.</p>
+          )}
+        </div>
+
+        <div className="border-t border-border/30 pt-4">
+          <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-3">Rémunération de l'agence</p>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {client.typeRemuneration && <InfoField label="Type de rémunération" value={client.typeRemuneration} icon={<Tag size={16} className="text-premium" />} />}
             {client.montantRemuneration && (
-              <InfoField label="Montant / Pourcentage" value={`${client.montantRemuneration} ${client.devise || 'MAD'}`} icon={<CreditCard size={16} className="text-premium" />} />
+              <InfoField label="Montant / Pourcentage" value={client.remunerationIsPercentage ? `${client.montantRemuneration}%` : `${client.montantRemuneration.toLocaleString()} ${client.devise || 'MAD'}`} icon={<CreditCard size={16} className="text-premium" />} />
             )}
             {client.conditionPaiement && <InfoField label="Condition de paiement" value={client.conditionPaiement} icon={<Award size={16} className="text-premium" />} />}
-            <InfoField label="Frais de mise en location" value="Non renseigné" icon={<CreditCard size={16} className="text-premium" />} />
-            <InfoField label="Frais d'état des lieux" value="Non renseigné" icon={<CreditCard size={16} className="text-premium" />} />
-            <InfoField label="Frais de renouvellement de bail" value="Non renseigné" icon={<CreditCard size={16} className="text-premium" />} />
+            {c.fraisMiseEnLocation && (
+              <InfoField label="Frais de mise en location" value={`${c.fraisMiseEnLocation.toLocaleString()} ${client.devise || 'MAD'}`} icon={<CreditCard size={16} className="text-premium" />} />
+            )}
+            {c.fraisEtatDesLieux && (
+              <InfoField label="Frais d'état des lieux" value={`${c.fraisEtatDesLieux.toLocaleString()} ${client.devise || 'MAD'}`} icon={<CreditCard size={16} className="text-premium" />} />
+            )}
+            {c.fraisRenouvellementBail && (
+              <InfoField label="Frais de renouvellement de bail" value={`${c.fraisRenouvellementBail.toLocaleString()} ${client.devise || 'MAD'}`} icon={<CreditCard size={16} className="text-premium" />} />
+            )}
           </div>
         </div>
 
         {client.mandatPdfUrl && (
-          <div className="flex items-center gap-3 p-3 rounded-lg border border-border bg-background/50">
-            <Link size={16} className="text-accent" />
-            <span className="text-sm text-text flex-1">Mandat signé (PDF)</span>
-            <a href={client.mandatPdfUrl} target="_blank" rel="noopener noreferrer" className="text-xs px-3 py-1.5 rounded-lg bg-accent/10 text-accent border border-accent/20 hover:bg-accent/20 transition-all flex items-center gap-1.5">
-              <Download size={12} /> Ouvrir
-            </a>
+          <div className="border-t border-border/30 pt-4">
+            <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-3">Fichier du mandat signé</p>
+            <div className="flex items-center gap-3 p-3 rounded-lg border border-border bg-card/50">
+              <FileText size={16} className="text-emerald-500" />
+              <span className="text-sm text-text flex-1">{client.mandatPdfName || 'Mandat signé (PDF)'}</span>
+              <span className="text-[10px] font-medium text-emerald-600 uppercase bg-emerald-50 px-2 py-0.5 rounded">Uploadé</span>
+              <button type="button" onClick={() => openViewer(client.mandatPdfUrl!, 'Mandat signé')} className={`text-xs px-3 py-1.5 rounded-lg ${isGerant ? 'bg-[#905D5D]/10 text-[#905D5D] border border-[#905D5D]/20' : 'bg-accent/10 text-accent border border-accent/20'} ${isGerant ? 'hover:bg-[#905D5D]/20' : 'hover:bg-accent/20'} transition-all flex items-center gap-1.5`}>
+                <Eye size={12} /> Voir
+              </button>
+            </div>
           </div>
         )}
       </div>
     );
   };
 
-  const renderDocuments = () => (
-    <ClientDocumentsView client={client} />
-  );
-
-  const renderTransactions = () => (
-    <ClientTransactionsTab clientId={client.id} clientName={client.name} clientType={client.type} />
-  );
-
-  const renderContrats = () => (
-    <ClientContractsTab clientId={client.id} clientName={client.name} />
-  );
-
-  const renderNotesActivite = () => {
-    const handleAddActivity = () => {
-      if (!newActivitySummary.trim()) return;
-      const newEvent = {
-        id: `event-${Date.now()}`,
-        type: newActivityType as 'appel' | 'email' | 'visite' | 'contrat' | 'autre',
-        date: new Date().toISOString(),
-        summary: newActivitySummary.trim(),
-        agent: 'John Doe',
-      };
-      const updated = [newEvent, ...events];
-      setEvents(updated);
-      updateClient({ events: updated });
-      setNewActivitySummary('');
-    };
-
-    const mapType = (t: string): 'email' | 'call' | 'meeting' | 'property_visit' => {
-      switch (t) {
-        case 'appel': return 'call';
-        case 'visite': return 'property_visit';
-        case 'contrat': case 'autre': return 'meeting';
-        default: return 'email';
-      }
-    };
-    const mappedEvents = events.map(e => ({ ...e, type: mapType(e.type) }));
+  // ─── TAB 8: DOCUMENTS ───
+  const renderDocuments = () => {
+    const docs = [
+      { label: "Pièce d'identité du bailleur", required: true, url: client.docIdentiteUrl, name: client.docIdentiteName },
+      { label: 'Titre de propriété', required: true, url: client.docDomicileUrl, name: client.docDomicileName },
+      { label: 'Diagnostic technique (DPE)', required: true, url: client.docDiagnosticUrl, name: client.docDiagnosticName },
+      { label: 'Règlement de copropriété', required: false, url: client.docRevenusUrl, name: client.docRevenusName },
+      { label: "Attestation d'assurance propriétaire non-occupant", required: false, url: client.docAssuranceUrl, name: client.docAssuranceName },
+      { label: 'État des lieux (entrant)', required: false, url: client.docEtatDesLieuxUrl, name: client.docEtatDesLieuxName },
+      { label: 'Autre document', required: false, url: client.docFinancementUrl, name: client.docFinancementName },
+    ];
+    const mandatUploaded = !!client.mandatPdfUrl;
 
     return (
       <div className="space-y-5">
-        <div className="p-4 rounded-xl bg-background border border-border/50">
-          <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-3">Ajouter une activité</p>
-          <div className="flex flex-wrap gap-2 mb-3">
-            {(['email', 'appel', 'visite', 'autre'] as const).map(type => (
-              <button
-                key={type}
-                type="button"
-                onClick={() => setNewActivityType(type)}
-                className={`px-3 py-1.5 text-xs rounded-lg border transition-all ${
-                  newActivityType === type
-                    ? 'bg-accent text-white border-accent'
-                    : 'bg-card text-text-secondary border-border hover:border-accent/50'
-                }`}
-              >
-                {type === 'email' ? 'Email' : type === 'appel' ? 'Appel' : type === 'visite' ? 'Visite' : 'Autre'}
-              </button>
-            ))}
-          </div>
-          <div className="flex gap-2">
-            <input
-              type="text"
-              value={newActivitySummary}
-              onChange={(e) => setNewActivitySummary(e.target.value)}
-              placeholder="Résumé de l'activité..."
-              className="flex-1 h-9 px-3 text-sm rounded-lg border border-border bg-card text-text placeholder:text-text-secondary/50 focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent"
-              onKeyDown={(e) => { if (e.key === 'Enter') handleAddActivity(); }}
-            />
-            <Button size="sm" icon={<Plus size={14} />} onClick={handleAddActivity} disabled={!newActivitySummary.trim()}>
-              Ajouter
-            </Button>
-          </div>
+        <div className="rounded-xl border border-border/50 bg-background/50 p-4 space-y-3">
+          <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider">Documents justificatifs</p>
+          {docs.map((doc, i) => {
+            const uploaded = !!doc.url;
+            return (
+              <div key={i} className="flex items-center gap-3 p-3 rounded-lg border border-border bg-card/50">
+                <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 transition-colors ${uploaded ? 'bg-emerald-500 border-emerald-500' : 'bg-background border-border'}`}>
+                  {uploaded && (
+                    <svg width="12" height="10" viewBox="0 0 10 8" fill="none">
+                      <path d="M1 4L3.5 6.5L9 1" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                    </svg>
+                  )}
+                </div>
+                <span className={`text-sm flex-1 ${uploaded ? 'text-text-secondary' : 'text-text'}`}>{doc.label}</span>
+                {doc.name && <span className="text-[10px] text-text-secondary truncate max-w-[140px]">{doc.name}</span>}
+                {doc.required ? (
+                  <span className="text-[10px] font-medium text-error uppercase">Obligatoire</span>
+                ) : (
+                  <span className={`text-[10px] font-medium ${isGerant ? 'text-[#905D5D]' : 'text-accent'} uppercase`}>Recommandé</span>
+                )}
+                {uploaded && doc.url ? (
+                  <button type="button" onClick={() => openViewer(doc.url!, doc.label)} className={`text-xs px-2.5 py-1 rounded-lg ${isGerant ? 'bg-[#905D5D]/10 text-[#905D5D] border border-[#905D5D]/20' : 'bg-accent/10 text-accent border border-accent/20'} ${isGerant ? 'hover:bg-[#905D5D]/20' : 'hover:bg-accent/20'} transition-all flex items-center gap-1`}>
+                    <Eye size={12} /> Voir
+                  </button>
+                ) : null}
+              </div>
+            );
+          })}
         </div>
 
-        {client.notes && (
-          <div>
-            <h3 className="text-sm font-medium flex items-center gap-2 mb-2">
-              <Tag size={16} className="text-accent" />
-              Notes
-            </h3>
-            <p className="text-sm text-text/80 bg-white/5 p-3 rounded-glass">{client.notes}</p>
+        <div className="rounded-xl border border-border/50 bg-background/50 p-4 space-y-3">
+          <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider">Fichier du mandat signé</p>
+          <div className="flex items-center gap-3 p-3 rounded-lg border border-border bg-card/50">
+            <FileText size={16} className={mandatUploaded ? 'text-emerald-500' : 'text-text-secondary'} />
+            <span className="text-sm text-text flex-1">Mandat signé (PDF)</span>
+            {mandatUploaded ? (
+              <>
+                <span className="text-[10px] font-medium text-emerald-600 uppercase bg-emerald-50 px-2 py-0.5 rounded">Uploadé</span>
+                <button type="button" onClick={() => client.mandatPdfUrl && openViewer(client.mandatPdfUrl, 'Mandat signé')} className={`text-xs px-3 py-1.5 rounded-lg ${isGerant ? 'bg-[#905D5D]/10 text-[#905D5D] border border-[#905D5D]/20' : 'bg-accent/10 text-accent border border-accent/20'} ${isGerant ? 'hover:bg-[#905D5D]/20' : 'hover:bg-accent/20'} transition-all flex items-center gap-1.5`}>
+                  <Eye size={12} /> Voir
+                </button>
+              </>
+            ) : (
+              <span className="text-[10px] font-medium text-text-secondary uppercase bg-background px-2 py-0.5 rounded">Non uploadé</span>
+            )}
           </div>
-        )}
-
-        <div>
-          <ClientTimeline events={mappedEvents} />
         </div>
       </div>
     );
   };
 
-  const renderMessages = () => (
-    <ClientMessagesTab clientId={client.id} clientName={client.name} />
+  const renderTransactions = () => (
+    <ClientTransactionsTab clientId={client.id} clientName={client.name} clientType={client.type} isGerant={isGerant} />
   );
+
+  const renderContrats = () => {
+    if (!canReadContracts) return null;
+    return (
+      <ClientContractsTab clientId={client.id} clientName={client.name} isGerant={isGerant} />
+    );
+  };
 
   const renderTabContent = () => {
     switch (activeTab) {
@@ -432,21 +585,20 @@ export const BailleurDetailTabs = ({ client: initialClient }: { client: Client }
       case 8: return renderDocuments();
       case 9: return renderTransactions();
       case 10: return renderContrats();
-      case 11: return renderNotesActivite();
-      case 12: return renderMessages();
+      case 11: return <NotesActiviteTab client={client} highlightActivityId={highlightActivityId} />;
       default: return null;
     }
   };
 
   return (
     <div className="bg-card rounded-xl border border-border/50 shadow-card mt-4">
-      <div className="px-6 border-b border-border/30 flex gap-1 overflow-x-auto rounded-t-xl">
-        {TABS.map((t) => (
+      <div className="px-6 border-b border-border/30 flex justify-between gap-1 overflow-x-auto rounded-t-xl">
+        {visibleTabs.map((t) => (
           <button
             key={t.id}
             onClick={() => setActiveTab(t.id)}
             className={`px-3 py-3 text-xs font-medium border-b-2 transition-all whitespace-nowrap ${
-              activeTab === t.id ? 'text-accent border-accent' : 'text-text-secondary border-transparent hover:text-text'
+              activeTab === t.id ? (isGerant ? 'text-[#905D5D] border-[#905D5D]' : 'text-accent border-accent') : 'text-text-secondary border-transparent hover:text-text'
             }`}
           >
             {t.label}
@@ -456,6 +608,25 @@ export const BailleurDetailTabs = ({ client: initialClient }: { client: Client }
       <div className="p-5">
         {renderTabContent()}
       </div>
+
+      {/* Document Viewer Modal */}
+      {viewerUrl && (
+        <div className="fixed inset-0 z-50 bg-black/80 flex flex-col items-center justify-center" onClick={(e) => { if (e.target === e.currentTarget) closeViewer(); }}>
+          <div className="flex items-center justify-between w-full max-w-5xl px-4 py-3">
+            <span className="text-white text-sm font-medium truncate">{viewerTitle}</span>
+            <button onClick={closeViewer} className="w-9 h-9 rounded-full bg-white/10 text-white flex items-center justify-center hover:bg-white/20 transition-all shrink-0 ml-4">
+              <X size={18} />
+            </button>
+          </div>
+          <div className="flex-1 w-full max-w-5xl px-4 pb-4 min-h-0">
+            {viewerUrl.endsWith('.pdf') ? (
+              <iframe src={viewerUrl} className="w-full h-full rounded-lg bg-white" title={viewerTitle} />
+            ) : (
+              <img src={viewerUrl} alt={viewerTitle} className="max-w-full max-h-full mx-auto rounded-lg object-contain" />
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -3,6 +3,7 @@ import { Button } from '../../../components/ui/Button'
 import { BackLink } from '../../../components/ui/BackLink'
 import { BookOpen, Video, HelpCircle, Mail, Phone, ChevronRight } from 'react-feather'
 import { motion } from 'framer-motion'
+import { useNavigate, useLocation } from 'react-router-dom'
 
 const helpItems = [
   { icon: BookOpen, title: 'Documentation CRM', description: 'Consultez notre documentation complète' },
@@ -11,6 +12,12 @@ const helpItems = [
 ]
 
 export default function AidePage() {
+  const navigate = useNavigate()
+  const location = useLocation()
+  const settingsPrefix = location.pathname.startsWith('/admin')
+    ? `/admin/${location.pathname.split('/')[2]}/settings`
+    : '/settings'
+
   return (
     <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
       <BackLink />
@@ -94,8 +101,8 @@ export default function AidePage() {
         </div>
 
         <div className="flex gap-3">
-          <Button variant="ghost" size="sm">Conditions d'utilisation</Button>
-          <Button variant="ghost" size="sm">Politique de confidentialité</Button>
+          <Button variant="ghost" size="sm" onClick={() => navigate(`${settingsPrefix}/terms`)}>Conditions d'utilisation</Button>
+          <Button variant="ghost" size="sm" onClick={() => navigate(`${settingsPrefix}/privacy`)}>Politique de confidentialité</Button>
         </div>
       </Card>
     </motion.div>

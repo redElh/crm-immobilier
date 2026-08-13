@@ -8,6 +8,7 @@ interface CalendarTabProps {
   register: any;
   control: any;
   watch: any;
+  isGerant?: boolean;
 }
 
 const DAYS = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
@@ -25,7 +26,7 @@ function getFirstDayOfMonth(year: number, month: number) {
   return day === 0 ? 6 : day - 1;
 }
 
-export function CalendarTab({ register, control, watch }: CalendarTabProps) {
+export function CalendarTab({ register, control, watch, isGerant = false }: CalendarTabProps) {
   const today = new Date();
   const [currentMonth, setCurrentMonth] = useState(today.getMonth());
   const [currentYear, setCurrentYear] = useState(today.getFullYear());
@@ -41,7 +42,7 @@ export function CalendarTab({ register, control, watch }: CalendarTabProps) {
   const statusColors: Record<DayStatus, string> = {
     disponible: 'bg-green-100 text-green-800 border-green-300 hover:bg-green-200',
     reserve: 'bg-red-100 text-red-800 border-red-300 hover:bg-red-200',
-    option: 'bg-amber-100 text-amber-800 border-amber-300 hover:bg-amber-200',
+    option: isGerant ? 'bg-[#E7D5D5] text-[#905D5D] border-[#E0C6C6] hover:bg-[#E7D5D5]/70' : 'bg-amber-100 text-amber-800 border-amber-300 hover:bg-amber-200',
     indisponible: 'bg-gray-100 text-gray-400 border-gray-200 hover:bg-gray-200',
   };
 
@@ -218,7 +219,7 @@ export function CalendarTab({ register, control, watch }: CalendarTabProps) {
                 onMouseDown={(e) => handleDayMouseDown(day, e)}
                 onMouseEnter={() => handleDayMouseEnter(day)}
                 onContextMenu={(e) => handleDayRightClick(day, e)}
-                className={`relative rounded-lg border p-2 text-sm font-medium transition-all duration-200 ${statusColors[status]} ${isToday ? 'ring-2 ring-accent ring-offset-1' : ''} ${isSelected ? 'ring-2 ring-accent ring-offset-1 shadow-md scale-105 z-10' : ''}`}
+                className={`relative rounded-lg border p-2 text-sm font-medium transition-all duration-200 ${statusColors[status]} ${isToday ? `ring-2 ring-offset-1 ${isGerant ? 'ring-[#905D5D]' : 'ring-accent'}` : ''} ${isSelected ? `ring-2 ring-offset-1 shadow-md scale-105 z-10 ${isGerant ? 'ring-[#905D5D]' : 'ring-accent'}` : ''}`}
               >
                 <span>{day}</span>
               </motion.button>

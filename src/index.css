@@ -3,6 +3,139 @@
 @tailwind utilities;
 
 @layer base {
+  :root {
+    --background: 210 40% 96%;
+    --card: 0 0% 100%;
+    --accent: 243 75% 59%;
+    --accent-hover: 245 58% 51%;
+    --accent-light: 226 100% 97%;
+    --text: 222 47% 11%;
+    --text-secondary: 215 16% 47%;
+    --border: 214 32% 91%;
+    --interactive: 160 84% 39%;
+    --premium: 38 92% 50%;
+    --error: 0 84% 60%;
+    --success: 160 84% 39%;
+    --button-bg: 243 75% 59%;
+    --button-bg-hover: 245 58% 51%;
+    --button-text: 0 0% 100%;
+    --button-border: 243 75% 59%;
+    --button-border-hover: 245 58% 51%;
+  }
+
+  .dark {
+    --background: 222 47% 8%;
+    --card: 222 47% 12%;
+    --accent: 243 75% 64%;
+    --accent-hover: 243 75% 70%;
+    --accent-light: 243 60% 22%;
+    --text: 210 40% 96%;
+    --text-secondary: 215 20% 66%;
+    --border: 217 33% 20%;
+    --interactive: 160 84% 45%;
+    --premium: 38 92% 55%;
+    --error: 0 84% 65%;
+    --success: 160 84% 45%;
+    --button-bg: 243 75% 64%;
+    --button-bg-hover: 243 75% 70%;
+    --button-text: 0 0% 100%;
+    --button-border: 243 75% 64%;
+    --button-border-hover: 243 75% 70%;
+  }
+
+  /* Agent side palette: light emerald + gold + warm neutrals on white */
+  .agent-theme {
+    --background: 127 27% 76%;         /* pistachio #B2D3C2 */
+    --card: 0 0% 100%;                 /* #ffffff */
+    --accent: 153 49% 34%;             /* light emerald #2c8264 */
+    --accent-hover: 153 56% 26%;       /* #1d694f */
+    --accent-light: 153 44% 95%;       /* green tint #eef7f3 */
+    --text: 220 39% 11%;               /* #111827 */
+    --text-secondary: 215 14% 34%;     /* #4b5563 */
+    --border: 220 13% 91%;             /* #e5e7eb */
+    --interactive: 160 84% 39%;        /* success #10b981 */
+    --premium: 36 38% 44%;             /* gold #997645 */
+    --premium-light: 40 51% 90%;       /* gold light #f2e8d7 */
+    --error: 0 73% 42%;                /* #b91c1c */
+    --error-light: 0 86% 97%;          /* #fef2f2 */
+    --success: 160 94% 24%;            /* #047857 */
+    --success-light: 152 80% 96%;      /* #ecfdf5 */
+    --warning: 33 93% 37%;             /* #b45309 */
+    --warning-light: 48 100% 96%;      /* #fffbeb */
+    --info: 224 76% 48%;               /* #1d4ed8 */
+    --info-light: 214 100% 97%;        /* #eff6ff */
+  }
+
+  .dark .agent-theme,
+  .agent-theme .dark {
+    --background: 157 100% 4%;         /* #00150f */
+    --card: 155 95% 8%;                /* #01261c */
+    --accent: 153 49% 34%;             /* #2c8264 */
+    --accent-hover: 153 36% 45%;       /* #4a9e7d */
+    --accent-light: 153 56% 26%;       /* #1d694f */
+    --text: 40 25% 93%;                /* warm ivory text */
+    --text-secondary: 40 10% 62%;
+    --border: 158 30% 17%;
+    --interactive: 160 84% 45%;
+    --premium: 38 49% 70%;             /* gold #d8bc8c */
+    --premium-light: 36 45% 24%;       /* deep gold tint */
+    --error: 0 82% 66%;
+    --error-light: 4 45% 22%;
+    --success: 158 60% 55%;
+    --success-light: 158 35% 18%;
+    --warning: 38 92% 60%;
+    --warning-light: 36 40% 20%;
+    --info: 215 90% 68%;
+    --info-light: 217 45% 22%;
+    --button-bg: 154 93% 12%;
+    --button-bg-hover: 154 69% 19%;
+    --button-text: 38 49% 70%;         /* gold #d8bc8c */
+    --button-border: 38 49% 70%;
+    --button-border-hover: 40 60% 78%;
+  }
+
+  /* Admin side palette: amber + warm gray */
+  .admin-theme {
+    --background: 38 29% 94%;
+    --card: 0 0% 100%;
+    --accent: 32 95% 44%;
+    --accent-hover: 26 90% 37%;
+    --accent-light: 48 97% 89%;
+    --text: 221 39% 11%;
+    --text-secondary: 220 9% 46%;
+    --border: 20 6% 90%;
+    --interactive: 160 70% 40%;
+    --premium: 46 65% 52%;
+    --error: 0 84% 60%;
+    --success: 163 70% 38%;
+    --button-bg: 32 95% 44%;
+    --button-bg-hover: 26 90% 37%;
+    --button-text: 0 0% 100%;
+    --button-border: 32 95% 44%;
+    --button-border-hover: 26 90% 37%;
+  }
+
+  .dark .admin-theme,
+  .admin-theme .dark {
+    --background: 24 10% 10%;
+    --card: 12 6% 15%;
+    --accent: 32 95% 44%;
+    --accent-hover: 38 92% 50%;
+    --accent-light: 32 70% 20%;
+    --text: 60 9% 96%;
+    --text-secondary: 24 5% 64%;
+    --border: 30 6% 25%;
+    --interactive: 160 60% 45%;
+    --premium: 35 40% 64%;
+    --error: 0 84% 65%;
+    --success: 163 70% 45%;
+    --button-bg: 160 84% 12%;
+    --button-bg-hover: 160 84% 16%;
+    --button-text: 45 95% 72%;
+    --button-border: 45 88% 58%;
+    --button-border-hover: 45 95% 66%;
+  }
+
   body {
     @apply bg-background text-text font-sans antialiased;
   }
@@ -87,4 +220,862 @@
     background-color: theme('colors.border');
     border-radius: 3px;
   }
+}
+
+.dark .bg-red-100 { background-color: hsl(var(--error) / 0.16); }
+.dark .bg-emerald-50 { background-color: hsl(var(--success) / 0.14); }
+.dark .bg-emerald-100 { background-color: hsl(var(--success) / 0.18); }
+.dark .bg-purple-50 { background-color: hsl(258 80% 70% / 0.16); }
+.dark .bg-amber-50 { background-color: hsl(var(--premium) / 0.14); }
+.dark .bg-sky-50 { background-color: hsl(199 89% 55% / 0.16); }
+.dark .border-emerald-200 { border-color: hsl(var(--success) / 0.35); }
+.dark .border-amber-200 { border-color: hsl(var(--premium) / 0.35); }
+.dark .text-red-500 { color: hsl(0 84% 70%); }
+.dark .text-emerald-600 { color: hsl(160 84% 62%); }
+.dark .text-purple-600 { color: hsl(258 90% 74%); }
+.dark .text-amber-600 { color: hsl(38 92% 65%); }
+.dark .text-sky-600 { color: hsl(199 90% 70%); }
+
+
+/* =====================================================================
+   Agent dark theme - remap hardcoded Tailwind color utilities onto the
+   deep green + gold + ivory palette so every badge/chip/text matches.
+   (Scoped to agent mode only; admin dark is untouched.)
+   ===================================================================== */
+.dark .agent-theme .bg-emerald-50, .agent-theme .dark .bg-emerald-50,
+.dark .agent-theme .bg-green-100, .agent-theme .dark .bg-green-100
+{
+  background-color: hsl(var(--success-light));
+}
+
+.dark .agent-theme .bg-emerald-100, .agent-theme .dark .bg-emerald-100
+{
+  background-color: hsl(158 45% 22%);
+}
+
+.dark .agent-theme .bg-emerald-200, .agent-theme .dark .bg-emerald-200
+{
+  background-color: hsl(158 40% 28%);
+}
+
+.dark .agent-theme .bg-emerald-400, .agent-theme .dark .bg-emerald-400
+{
+  background-color: hsl(160 70% 42%);
+}
+
+.dark .agent-theme .bg-emerald-500, .agent-theme .dark .bg-emerald-500
+{
+  background-color: hsl(160 84% 39%);
+}
+
+.dark .agent-theme .bg-emerald-600, .agent-theme .dark .bg-emerald-600
+{
+  background-color: hsl(160 80% 32%);
+}
+
+.dark .agent-theme .bg-emerald-700, .agent-theme .dark .bg-emerald-700
+{
+  background-color: hsl(158 65% 24%);
+}
+
+.dark .agent-theme .bg-green-400, .agent-theme .dark .bg-green-400
+{
+  background-color: hsl(160 80% 42%);
+}
+
+.dark .agent-theme .hover\:bg-emerald-50, .agent-theme .dark .hover\:bg-emerald-50
+{
+  background-color: hsl(var(--success-light));
+}
+
+.dark .agent-theme .hover\:bg-emerald-100, .agent-theme .dark .hover\:bg-emerald-100
+{
+  background-color: hsl(158 45% 24%);
+}
+
+.dark .agent-theme .hover\:bg-emerald-700, .agent-theme .dark .hover\:bg-emerald-700
+{
+  background-color: hsl(158 65% 26%);
+}
+
+.dark .agent-theme .hover\:bg-green-200, .agent-theme .dark .hover\:bg-green-200
+{
+  background-color: hsl(158 40% 30%);
+}
+
+.dark .agent-theme .text-emerald-100, .agent-theme .dark .text-emerald-100
+{
+  color: hsl(158 40% 80%);
+}
+
+.dark .agent-theme .text-emerald-300, .agent-theme .dark .text-emerald-300
+{
+  color: hsl(158 45% 72%);
+}
+
+.dark .agent-theme .text-emerald-500, .agent-theme .dark .text-emerald-500
+{
+  color: hsl(160 75% 58%);
+}
+
+.dark .agent-theme .text-emerald-600, .agent-theme .dark .text-emerald-600
+{
+  color: hsl(158 70% 60%);
+}
+
+.dark .agent-theme .text-emerald-700, .agent-theme .dark .text-emerald-700
+{
+  color: hsl(158 65% 66%);
+}
+
+.dark .agent-theme .text-emerald-800, .agent-theme .dark .text-emerald-800
+{
+  color: hsl(158 60% 72%);
+}
+
+.dark .agent-theme .text-green-600, .agent-theme .dark .text-green-600
+{
+  color: hsl(158 70% 60%);
+}
+
+.dark .agent-theme .text-green-700, .agent-theme .dark .text-green-700
+{
+  color: hsl(158 65% 66%);
+}
+
+.dark .agent-theme .text-green-800, .agent-theme .dark .text-green-800
+{
+  color: hsl(158 60% 72%);
+}
+
+.dark .agent-theme .text-teal-600, .agent-theme .dark .text-teal-600
+{
+  color: hsl(158 70% 60%);
+}
+
+.dark .agent-theme .text-teal-700, .agent-theme .dark .text-teal-700
+{
+  color: hsl(158 65% 66%);
+}
+
+.dark .agent-theme .hover\:text-emerald-600, .agent-theme .dark .hover\:text-emerald-600
+{
+  color: hsl(158 70% 62%);
+}
+
+.dark .agent-theme .border-emerald-100, .agent-theme .dark .border-emerald-100
+{
+  border-color: hsl(158 40% 30%);
+}
+
+.dark .agent-theme .border-emerald-200, .agent-theme .dark .border-emerald-200
+{
+  border-color: hsl(var(--success) / 0.4);
+}
+
+.dark .agent-theme .border-emerald-300, .agent-theme .dark .border-emerald-300
+{
+  border-color: hsl(var(--success) / 0.55);
+}
+
+.dark .agent-theme .border-emerald-500, .agent-theme .dark .border-emerald-500
+{
+  border-color: hsl(var(--success));
+}
+
+.dark .agent-theme .border-green-200, .agent-theme .dark .border-green-200
+{
+  border-color: hsl(var(--success) / 0.4);
+}
+
+.dark .agent-theme .border-green-300, .agent-theme .dark .border-green-300
+{
+  border-color: hsl(var(--success) / 0.55);
+}
+
+.dark .agent-theme .border-teal-200, .agent-theme .dark .border-teal-200
+{
+  border-color: hsl(var(--success) / 0.4);
+}
+
+.dark .agent-theme .border-teal-100, .agent-theme .dark .border-teal-100
+{
+  border-color: hsl(158 40% 30%);
+}
+
+.dark .agent-theme .hover\:border-emerald-400, .agent-theme .dark .hover\:border-emerald-400
+{
+  border-color: hsl(160 70% 52%);
+}
+
+.dark .agent-theme .hover\:border-emerald-500, .agent-theme .dark .hover\:border-emerald-500
+{
+  border-color: hsl(var(--success));
+}
+
+.dark .agent-theme .hover\:border-teal-400, .agent-theme .dark .hover\:border-teal-400
+{
+  border-color: hsl(160 70% 52%);
+}
+
+.dark .agent-theme .bg-amber-50, .agent-theme .dark .bg-amber-50,
+.dark .agent-theme .bg-orange-50, .agent-theme .dark .bg-orange-50
+{
+  background-color: hsl(var(--premium-light));
+}
+
+.dark .agent-theme .bg-amber-100, .agent-theme .dark .bg-amber-100,
+.dark .agent-theme .bg-orange-100, .agent-theme .dark .bg-orange-100
+{
+  background-color: hsl(38 40% 24%);
+}
+
+.dark .agent-theme .bg-amber-200, .agent-theme .dark .bg-amber-200
+{
+  background-color: hsl(38 38% 30%);
+}
+
+.dark .agent-theme .bg-amber-400, .agent-theme .dark .bg-amber-400
+{
+  background-color: hsl(38 92% 50%);
+}
+
+.dark .agent-theme .bg-amber-500, .agent-theme .dark .bg-amber-500
+{
+  background-color: hsl(38 92% 46%);
+}
+
+.dark .agent-theme .bg-amber-600, .agent-theme .dark .bg-amber-600
+{
+  background-color: hsl(36 80% 38%);
+}
+
+.dark .agent-theme .bg-yellow-400, .agent-theme .dark .bg-yellow-400
+{
+  background-color: hsl(40 92% 52%);
+}
+
+.dark .agent-theme .hover\:bg-amber-50, .agent-theme .dark .hover\:bg-amber-50
+{
+  background-color: hsl(var(--premium-light));
+}
+
+.dark .agent-theme .hover\:bg-amber-100, .agent-theme .dark .hover\:bg-amber-100
+{
+  background-color: hsl(38 40% 26%);
+}
+
+.dark .agent-theme .hover\:bg-amber-200, .agent-theme .dark .hover\:bg-amber-200
+{
+  background-color: hsl(38 38% 32%);
+}
+
+.dark .agent-theme .hover\:bg-amber-600, .agent-theme .dark .hover\:bg-amber-600
+{
+  background-color: hsl(36 80% 40%);
+}
+
+.dark .agent-theme .hover\:bg-orange-50, .agent-theme .dark .hover\:bg-orange-50
+{
+  background-color: hsl(var(--premium-light));
+}
+
+.dark .agent-theme .text-amber-100, .agent-theme .dark .text-amber-100
+{
+  color: hsl(40 60% 84%);
+}
+
+.dark .agent-theme .text-amber-400, .agent-theme .dark .text-amber-400
+{
+  color: hsl(40 90% 68%);
+}
+
+.dark .agent-theme .text-amber-500, .agent-theme .dark .text-amber-500
+{
+  color: hsl(38 85% 62%);
+}
+
+.dark .agent-theme .text-amber-600, .agent-theme .dark .text-amber-600
+{
+  color: hsl(40 80% 70%);
+}
+
+.dark .agent-theme .text-amber-700, .agent-theme .dark .text-amber-700
+{
+  color: hsl(40 75% 74%);
+}
+
+.dark .agent-theme .text-amber-800, .agent-theme .dark .text-amber-800
+{
+  color: hsl(40 70% 78%);
+}
+
+.dark .agent-theme .text-orange-500, .agent-theme .dark .text-orange-500
+{
+  color: hsl(36 90% 62%);
+}
+
+.dark .agent-theme .text-orange-600, .agent-theme .dark .text-orange-600
+{
+  color: hsl(36 85% 68%);
+}
+
+.dark .agent-theme .text-orange-700, .agent-theme .dark .text-orange-700
+{
+  color: hsl(36 80% 72%);
+}
+
+.dark .agent-theme .text-yellow-500, .agent-theme .dark .text-yellow-500
+{
+  color: hsl(40 90% 68%);
+}
+
+.dark .agent-theme .hover\:text-amber-600, .agent-theme .dark .hover\:text-amber-600
+{
+  color: hsl(40 80% 72%);
+}
+
+.dark .agent-theme .hover\:text-orange-600, .agent-theme .dark .hover\:text-orange-600
+{
+  color: hsl(36 85% 70%);
+}
+
+.dark .agent-theme .border-amber-100, .agent-theme .dark .border-amber-100
+{
+  border-color: hsl(38 40% 32%);
+}
+
+.dark .agent-theme .border-amber-200, .agent-theme .dark .border-amber-200
+{
+  border-color: hsl(var(--premium) / 0.4);
+}
+
+.dark .agent-theme .border-amber-300, .agent-theme .dark .border-amber-300
+{
+  border-color: hsl(var(--premium) / 0.55);
+}
+
+.dark .agent-theme .border-amber-500, .agent-theme .dark .border-amber-500
+{
+  border-color: hsl(var(--premium));
+}
+
+.dark .agent-theme .border-orange-100, .agent-theme .dark .border-orange-100
+{
+  border-color: hsl(38 40% 32%);
+}
+
+.dark .agent-theme .border-orange-200, .agent-theme .dark .border-orange-200
+{
+  border-color: hsl(var(--premium) / 0.4);
+}
+
+.dark .agent-theme .border-orange-500, .agent-theme .dark .border-orange-500
+{
+  border-color: hsl(36 85% 58%);
+}
+
+.dark .agent-theme .hover\:border-amber-300, .agent-theme .dark .hover\:border-amber-300
+{
+  border-color: hsl(var(--premium) / 0.6);
+}
+
+.dark .agent-theme .hover\:border-amber-400, .agent-theme .dark .hover\:border-amber-400
+{
+  border-color: hsl(40 85% 62%);
+}
+
+.dark .agent-theme .hover\:border-orange-200, .agent-theme .dark .hover\:border-orange-200
+{
+  border-color: hsl(var(--premium) / 0.45);
+}
+
+.dark .agent-theme .bg-red-50, .agent-theme .dark .bg-red-50,
+.dark .agent-theme .bg-rose-50, .agent-theme .dark .bg-rose-50
+{
+  background-color: hsl(var(--error-light));
+}
+
+.dark .agent-theme .bg-red-100, .agent-theme .dark .bg-red-100,
+.dark .agent-theme .bg-rose-100, .agent-theme .dark .bg-rose-100
+{
+  background-color: hsl(4 45% 24%);
+}
+
+.dark .agent-theme .bg-red-400, .agent-theme .dark .bg-red-400
+{
+  background-color: hsl(0 84% 58%);
+}
+
+.dark .agent-theme .bg-red-500, .agent-theme .dark .bg-red-500
+{
+  background-color: hsl(0 84% 52%);
+}
+
+.dark .agent-theme .bg-rose-400, .agent-theme .dark .bg-rose-400
+{
+  background-color: hsl(0 84% 56%);
+}
+
+.dark .agent-theme .hover\:bg-red-50, .agent-theme .dark .hover\:bg-red-50
+{
+  background-color: hsl(var(--error-light));
+}
+
+.dark .agent-theme .hover\:bg-red-100, .agent-theme .dark .hover\:bg-red-100
+{
+  background-color: hsl(4 45% 26%);
+}
+
+.dark .agent-theme .hover\:bg-red-200, .agent-theme .dark .hover\:bg-red-200
+{
+  background-color: hsl(4 42% 32%);
+}
+
+.dark .agent-theme .hover\:bg-red-500, .agent-theme .dark .hover\:bg-red-500
+{
+  background-color: hsl(0 84% 54%);
+}
+
+.dark .agent-theme .hover\:bg-red-600, .agent-theme .dark .hover\:bg-red-600
+{
+  background-color: hsl(0 78% 46%);
+}
+
+.dark .agent-theme .hover\:bg-rose-100, .agent-theme .dark .hover\:bg-rose-100
+{
+  background-color: hsl(4 45% 26%);
+}
+
+.dark .agent-theme .text-red-100, .agent-theme .dark .text-red-100
+{
+  color: hsl(4 70% 84%);
+}
+
+.dark .agent-theme .text-red-300, .agent-theme .dark .text-red-300
+{
+  color: hsl(4 78% 72%);
+}
+
+.dark .agent-theme .text-red-400, .agent-theme .dark .text-red-400
+{
+  color: hsl(4 82% 68%);
+}
+
+.dark .agent-theme .text-red-500, .agent-theme .dark .text-red-500
+{
+  color: hsl(4 84% 66%);
+}
+
+.dark .agent-theme .text-red-600, .agent-theme .dark .text-red-600
+{
+  color: hsl(4 82% 70%);
+}
+
+.dark .agent-theme .text-red-700, .agent-theme .dark .text-red-700
+{
+  color: hsl(4 80% 75%);
+}
+
+.dark .agent-theme .text-red-800, .agent-theme .dark .text-red-800
+{
+  color: hsl(4 75% 79%);
+}
+
+.dark .agent-theme .text-rose-500, .agent-theme .dark .text-rose-500
+{
+  color: hsl(4 82% 66%);
+}
+
+.dark .agent-theme .text-rose-600, .agent-theme .dark .text-rose-600
+{
+  color: hsl(4 82% 70%);
+}
+
+.dark .agent-theme .text-rose-700, .agent-theme .dark .text-rose-700
+{
+  color: hsl(4 80% 75%);
+}
+
+.dark .agent-theme .text-rose-800, .agent-theme .dark .text-rose-800
+{
+  color: hsl(4 75% 79%);
+}
+
+.dark .agent-theme .text-pink-500, .agent-theme .dark .text-pink-500
+{
+  color: hsl(4 82% 66%);
+}
+
+.dark .agent-theme .text-pink-700, .agent-theme .dark .text-pink-700
+{
+  color: hsl(4 80% 75%);
+}
+
+.dark .agent-theme .hover\:text-red-300, .agent-theme .dark .hover\:text-red-300
+{
+  color: hsl(4 78% 74%);
+}
+
+.dark .agent-theme .hover\:text-red-400, .agent-theme .dark .hover\:text-red-400
+{
+  color: hsl(4 82% 70%);
+}
+
+.dark .agent-theme .hover\:text-red-500, .agent-theme .dark .hover\:text-red-500
+{
+  color: hsl(4 84% 68%);
+}
+
+.dark .agent-theme .hover\:text-red-600, .agent-theme .dark .hover\:text-red-600
+{
+  color: hsl(4 82% 72%);
+}
+
+.dark .agent-theme .hover\:text-red-700, .agent-theme .dark .hover\:text-red-700
+{
+  color: hsl(4 80% 77%);
+}
+
+.dark .agent-theme .border-red-200, .agent-theme .dark .border-red-200
+{
+  border-color: hsl(var(--error) / 0.4);
+}
+
+.dark .agent-theme .border-red-300, .agent-theme .dark .border-red-300
+{
+  border-color: hsl(var(--error) / 0.55);
+}
+
+.dark .agent-theme .border-rose-200, .agent-theme .dark .border-rose-200
+{
+  border-color: hsl(var(--error) / 0.4);
+}
+
+.dark .agent-theme .border-rose-300, .agent-theme .dark .border-rose-300
+{
+  border-color: hsl(var(--error) / 0.55);
+}
+
+.dark .agent-theme .border-pink-200, .agent-theme .dark .border-pink-200
+{
+  border-color: hsl(var(--error) / 0.4);
+}
+
+.dark .agent-theme .border-pink-500, .agent-theme .dark .border-pink-500
+{
+  border-color: hsl(var(--error));
+}
+
+.dark .agent-theme .hover\:border-red-300, .agent-theme .dark .hover\:border-red-300
+{
+  border-color: hsl(var(--error) / 0.6);
+}
+
+.dark .agent-theme .hover\:border-red-500, .agent-theme .dark .hover\:border-red-500
+{
+  border-color: hsl(var(--error));
+}
+
+.dark .agent-theme .bg-blue-50, .agent-theme .dark .bg-blue-50,
+.dark .agent-theme .bg-cyan-50, .agent-theme .dark .bg-cyan-50
+{
+  background-color: hsl(var(--info-light));
+}
+
+.dark .agent-theme .bg-blue-100, .agent-theme .dark .bg-blue-100
+{
+  background-color: hsl(217 45% 24%);
+}
+
+.dark .agent-theme .bg-blue-500, .agent-theme .dark .bg-blue-500
+{
+  background-color: hsl(217 91% 55%);
+}
+
+.dark .agent-theme .bg-blue-600, .agent-theme .dark .bg-blue-600
+{
+  background-color: hsl(224 80% 46%);
+}
+
+.dark .agent-theme .hover\:bg-blue-50, .agent-theme .dark .hover\:bg-blue-50
+{
+  background-color: hsl(var(--info-light));
+}
+
+.dark .agent-theme .hover\:bg-blue-100, .agent-theme .dark .hover\:bg-blue-100
+{
+  background-color: hsl(217 45% 26%);
+}
+
+.dark .agent-theme .hover\:bg-blue-700, .agent-theme .dark .hover\:bg-blue-700
+{
+  background-color: hsl(224 74% 40%);
+}
+
+.dark .agent-theme .text-blue-100, .agent-theme .dark .text-blue-100
+{
+  color: hsl(214 80% 84%);
+}
+
+.dark .agent-theme .text-blue-500, .agent-theme .dark .text-blue-500
+{
+  color: hsl(217 90% 68%);
+}
+
+.dark .agent-theme .text-blue-600, .agent-theme .dark .text-blue-600
+{
+  color: hsl(214 85% 72%);
+}
+
+.dark .agent-theme .text-blue-700, .agent-theme .dark .text-blue-700
+{
+  color: hsl(214 82% 76%);
+}
+
+.dark .agent-theme .text-blue-800, .agent-theme .dark .text-blue-800
+{
+  color: hsl(214 78% 80%);
+}
+
+.dark .agent-theme .text-sky-600, .agent-theme .dark .text-sky-600
+{
+  color: hsl(214 85% 72%);
+}
+
+.dark .agent-theme .text-sky-700, .agent-theme .dark .text-sky-700
+{
+  color: hsl(214 82% 76%);
+}
+
+.dark .agent-theme .text-cyan-500, .agent-theme .dark .text-cyan-500
+{
+  color: hsl(214 90% 68%);
+}
+
+.dark .agent-theme .text-cyan-600, .agent-theme .dark .text-cyan-600
+{
+  color: hsl(214 85% 72%);
+}
+
+.dark .agent-theme .text-cyan-700, .agent-theme .dark .text-cyan-700
+{
+  color: hsl(214 82% 76%);
+}
+
+.dark .agent-theme .hover\:text-blue-600, .agent-theme .dark .hover\:text-blue-600
+{
+  color: hsl(214 85% 74%);
+}
+
+.dark .agent-theme .border-blue-100, .agent-theme .dark .border-blue-100
+{
+  border-color: hsl(217 45% 28%);
+}
+
+.dark .agent-theme .border-blue-200, .agent-theme .dark .border-blue-200
+{
+  border-color: hsl(var(--info) / 0.4);
+}
+
+.dark .agent-theme .border-blue-300, .agent-theme .dark .border-blue-300
+{
+  border-color: hsl(var(--info) / 0.55);
+}
+
+.dark .agent-theme .border-blue-500, .agent-theme .dark .border-blue-500
+{
+  border-color: hsl(var(--info));
+}
+
+.dark .agent-theme .border-sky-100, .agent-theme .dark .border-sky-100
+{
+  border-color: hsl(217 45% 28%);
+}
+
+.dark .agent-theme .border-sky-200, .agent-theme .dark .border-sky-200
+{
+  border-color: hsl(var(--info) / 0.4);
+}
+
+.dark .agent-theme .border-cyan-200, .agent-theme .dark .border-cyan-200
+{
+  border-color: hsl(var(--info) / 0.4);
+}
+
+.dark .agent-theme .border-cyan-500, .agent-theme .dark .border-cyan-500
+{
+  border-color: hsl(var(--info));
+}
+
+.dark .agent-theme .hover\:border-blue-200, .agent-theme .dark .hover\:border-blue-200
+{
+  border-color: hsl(var(--info) / 0.45);
+}
+
+.dark .agent-theme .hover\:border-sky-400, .agent-theme .dark .hover\:border-sky-400
+{
+  border-color: hsl(214 80% 60%);
+}
+
+.dark .agent-theme .bg-violet-50, .agent-theme .dark .bg-violet-50,
+.dark .agent-theme .bg-purple-50, .agent-theme .dark .bg-purple-50,
+.dark .agent-theme .bg-indigo-50, .agent-theme .dark .bg-indigo-50
+{
+  background-color: hsl(262 30% 20%);
+}
+
+.dark .agent-theme .bg-violet-100, .agent-theme .dark .bg-violet-100,
+.dark .agent-theme .bg-purple-100, .agent-theme .dark .bg-purple-100,
+.dark .agent-theme .bg-indigo-100, .agent-theme .dark .bg-indigo-100
+{
+  background-color: hsl(262 28% 24%);
+}
+
+.dark .agent-theme .bg-violet-500, .agent-theme .dark .bg-violet-500,
+.dark .agent-theme .bg-purple-500, .agent-theme .dark .bg-purple-500,
+.dark .agent-theme .bg-indigo-500, .agent-theme .dark .bg-indigo-500
+{
+  background-color: hsl(262 60% 52%);
+}
+
+.dark .agent-theme .bg-violet-600, .agent-theme .dark .bg-violet-600,
+.dark .agent-theme .bg-purple-600, .agent-theme .dark .bg-purple-600
+{
+  background-color: hsl(262 55% 46%);
+}
+
+.dark .agent-theme .bg-purple-400, .agent-theme .dark .bg-purple-400
+{
+  background-color: hsl(262 60% 58%);
+}
+
+.dark .agent-theme .hover\:bg-violet-50, .agent-theme .dark .hover\:bg-violet-50
+{
+  background-color: hsl(262 30% 22%);
+}
+
+.dark .agent-theme .hover\:bg-violet-700, .agent-theme .dark .hover\:bg-violet-700
+{
+  background-color: hsl(262 50% 38%);
+}
+
+.dark .agent-theme .hover\:bg-purple-100, .agent-theme .dark .hover\:bg-purple-100
+{
+  background-color: hsl(262 28% 26%);
+}
+
+.dark .agent-theme .text-violet-500, .agent-theme .dark .text-violet-500,
+.dark .agent-theme .text-purple-500, .agent-theme .dark .text-purple-500,
+.dark .agent-theme .text-indigo-500, .agent-theme .dark .text-indigo-500
+{
+  color: hsl(262 70% 72%);
+}
+
+.dark .agent-theme .text-violet-600, .agent-theme .dark .text-violet-600,
+.dark .agent-theme .text-purple-600, .agent-theme .dark .text-purple-600,
+.dark .agent-theme .text-indigo-600, .agent-theme .dark .text-indigo-600
+{
+  color: hsl(262 66% 76%);
+}
+
+.dark .agent-theme .text-violet-700, .agent-theme .dark .text-violet-700,
+.dark .agent-theme .text-purple-700, .agent-theme .dark .text-purple-700,
+.dark .agent-theme .text-indigo-700, .agent-theme .dark .text-indigo-700
+{
+  color: hsl(262 62% 80%);
+}
+
+.dark .agent-theme .hover\:text-violet-600, .agent-theme .dark .hover\:text-violet-600
+{
+  color: hsl(262 66% 78%);
+}
+
+.dark .agent-theme .border-violet-100, .agent-theme .dark .border-violet-100
+{
+  border-color: hsl(262 28% 32%);
+}
+
+.dark .agent-theme .border-violet-200, .agent-theme .dark .border-violet-200,
+.dark .agent-theme .border-purple-200, .agent-theme .dark .border-purple-200,
+.dark .agent-theme .border-indigo-200, .agent-theme .dark .border-indigo-200
+{
+  border-color: hsl(262 50% 45%);
+}
+
+.dark .agent-theme .border-violet-500, .agent-theme .dark .border-violet-500,
+.dark .agent-theme .border-purple-500, .agent-theme .dark .border-purple-500,
+.dark .agent-theme .border-indigo-500, .agent-theme .dark .border-indigo-500
+{
+  border-color: hsl(262 60% 60%);
+}
+
+.dark .agent-theme .hover\:border-violet-400, .agent-theme .dark .hover\:border-violet-400
+{
+  border-color: hsl(262 55% 62%);
+}
+
+/* Premium touches for the agent theme */
+.agent-theme .btn-primary {
+  border: 1px solid hsl(var(--premium) / 0.4);
+  box-shadow: inset 0 1px 0 hsl(var(--premium) / 0.3), 0 1px 2px rgba(0, 0, 0, 0.06);
+}
+.agent-theme .btn-primary:hover {
+  border-color: hsl(var(--premium) / 0.6);
+  box-shadow: inset 0 1px 0 hsl(var(--premium) / 0.45), 0 4px 10px -2px hsl(var(--premium) / 0.35);
+}
+.agent-theme .tab-active {
+  box-shadow: inset 0 -1px 0 hsl(var(--premium) / 0.9);
+}
+
+
+/* Animated golden border (conic gradient ring) */
+@property --gold-angle {
+  syntax: '<angle>';
+  initial-value: 0deg;
+  inherits: false;
+}
+
+.golden-border-animated {
+  position: relative;
+  isolation: isolate;
+}
+
+.golden-border-animated::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: conic-gradient(
+    from var(--gold-angle),
+    rgba(248, 217, 116, 0.14) 0deg,
+    rgba(255, 241, 184, 0.95) 70deg,
+    rgba(248, 217, 116, 0.85) 130deg,
+    rgba(248, 217, 116, 0.14) 200deg,
+    rgba(255, 241, 184, 0.55) 270deg,
+    rgba(248, 217, 116, 0.14) 340deg,
+    rgba(248, 217, 116, 0.14) 360deg
+  );
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+  animation: gold-angle-spin 7s linear infinite;
+  pointer-events: none;
+}
+
+@keyframes gold-angle-spin {
+  to { --gold-angle: 360deg; }
+}
+
+/* Golden text inside auth form fields */
+.auth-shell input {
+  color: hsl(var(--premium));
+  caret-color: hsl(var(--premium));
+}
+
+.auth-shell input::placeholder {
+  color: hsl(var(--premium) / 0.5);
 }

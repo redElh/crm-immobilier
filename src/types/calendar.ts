@@ -1,4 +1,34 @@
-export type EventType = 'visit' | 'virtual-visit' | 'call' | 'meeting' | 'office' | 'leave' | 'external' | 'matching'
+import {
+  Home, MonitorPlay, Sun, CalendarClock, FileText, Wrench, MoreHorizontal, TrendingUp,
+  ClipboardList, Calculator, ClipboardCheck, Sparkles, GraduationCap, MessageSquare, Clock,
+  User, DoorOpen, FileSignature, Target, Megaphone, PhoneCall, BarChart3, CheckCircle2,
+  type LucideIcon,
+} from 'lucide-react'
+
+export type EventType =
+  | 'administratif'
+  | 'apres-vente'
+  | 'autre'
+  | 'commercial'
+  | 'compte-rendu'
+  | 'conges'
+  | 'estimation'
+  | 'etat-des-lieux'
+  | 'evenement'
+  | 'formation'
+  | 'message'
+  | 'permanence'
+  | 'personnel'
+  | 'portes-ouvertes'
+  | 'proposition'
+  | 'prospection'
+  | 'publicite'
+  | 'relance'
+  | 'rendez-vous'
+  | 'sondage'
+  | 'validation'
+  | 'visite'
+  | 'visite-virtuelle'
 
 export type CalendarView = 'day' | 'week' | 'month' | 'agenda' | 'timeline'
 
@@ -10,6 +40,8 @@ export interface CalendarEvent {
   end: Date
   allDay: boolean
   agentIds: string[]
+  agentNames?: string[]
+  agentId?: string
   clientId?: string
   clientName?: string
   clientPhone?: string
@@ -37,7 +69,7 @@ export interface Agent {
 export interface EventTypeConfig {
   value: EventType
   label: string
-  icon: string
+  icon: LucideIcon
   color: string
   bgColor: string
   borderColor: string
@@ -45,92 +77,306 @@ export interface EventTypeConfig {
 }
 
 export const EVENT_TYPE_CONFIG: Record<EventType, EventTypeConfig> = {
-  visit: {
-    value: 'visit',
-    label: 'Visite terrain',
-    icon: '🏠',
-    color: 'blue',
-    bgColor: 'bg-blue-50',
-    borderColor: 'border-blue-200',
-    textColor: 'text-blue-700',
-  },
-  'virtual-visit': {
-    value: 'virtual-visit',
-    label: 'Visite virtuelle',
-    icon: '🎥',
-    color: 'sky',
-    bgColor: 'bg-sky-50',
-    borderColor: 'border-sky-200',
-    textColor: 'text-sky-700',
-  },
-  call: {
-    value: 'call',
-    label: 'Appel / Phoning',
-    icon: '📞',
-    color: 'green',
-    bgColor: 'bg-emerald-50',
-    borderColor: 'border-emerald-200',
-    textColor: 'text-emerald-700',
-  },
-  meeting: {
-    value: 'meeting',
-    label: 'Réunion interne',
-    icon: '✏️',
-    color: 'violet',
-    bgColor: 'bg-violet-50',
-    borderColor: 'border-violet-200',
-    textColor: 'text-violet-700',
-  },
-  office: {
-    value: 'office',
-    label: 'Bureau / Admin',
-    icon: '📄',
+  administratif: {
+    value: 'administratif',
+    label: 'Administratif',
+    icon: FileText,
     color: 'gray',
     bgColor: 'bg-gray-50',
     borderColor: 'border-gray-200',
     textColor: 'text-gray-700',
   },
-  leave: {
-    value: 'leave',
-    label: 'Congé',
-    icon: '🌴',
+  'apres-vente': {
+    value: 'apres-vente',
+    label: 'Après-vente',
+    icon: Wrench,
     color: 'orange',
-    bgColor: 'bg-amber-50',
-    borderColor: 'border-amber-200',
-    textColor: 'text-amber-700',
+    bgColor: 'bg-orange-50',
+    borderColor: 'border-orange-200',
+    textColor: 'text-orange-700',
   },
-  external: {
-    value: 'external',
-    label: 'Rendez-vous externe',
-    icon: '🤝',
-    color: 'yellow',
-    bgColor: 'bg-yellow-50',
-    borderColor: 'border-yellow-200',
-    textColor: 'text-yellow-700',
+  autre: {
+    value: 'autre',
+    label: 'Autre',
+    icon: MoreHorizontal,
+    color: 'zinc',
+    bgColor: 'bg-zinc-50',
+    borderColor: 'border-zinc-200',
+    textColor: 'text-zinc-700',
   },
-  matching: {
-    value: 'matching',
-    label: 'Croisement',
-    icon: '🔄',
+  commercial: {
+    value: 'commercial',
+    label: 'Commercial',
+    icon: TrendingUp,
+    color: 'emerald',
+    bgColor: 'bg-emerald-50',
+    borderColor: 'border-emerald-200',
+    textColor: 'text-emerald-700',
+  },
+  'compte-rendu': {
+    value: 'compte-rendu',
+    label: 'Compte-rendu',
+    icon: ClipboardList,
     color: 'cyan',
     bgColor: 'bg-cyan-50',
     borderColor: 'border-cyan-200',
     textColor: 'text-cyan-700',
   },
+  conges: {
+    value: 'conges',
+    label: 'Congés',
+    icon: Sun,
+    color: 'amber',
+    bgColor: 'bg-amber-50',
+    borderColor: 'border-amber-200',
+    textColor: 'text-amber-700',
+  },
+  estimation: {
+    value: 'estimation',
+    label: 'Estimation',
+    icon: Calculator,
+    color: 'indigo',
+    bgColor: 'bg-indigo-50',
+    borderColor: 'border-indigo-200',
+    textColor: 'text-indigo-700',
+  },
+  'etat-des-lieux': {
+    value: 'etat-des-lieux',
+    label: 'État des lieux',
+    icon: ClipboardCheck,
+    color: 'teal',
+    bgColor: 'bg-teal-50',
+    borderColor: 'border-teal-200',
+    textColor: 'text-teal-700',
+  },
+  evenement: {
+    value: 'evenement',
+    label: 'Évènement',
+    icon: Sparkles,
+    color: 'pink',
+    bgColor: 'bg-pink-50',
+    borderColor: 'border-pink-200',
+    textColor: 'text-pink-700',
+  },
+  formation: {
+    value: 'formation',
+    label: 'Formation',
+    icon: GraduationCap,
+    color: 'blue',
+    bgColor: 'bg-blue-50',
+    borderColor: 'border-blue-200',
+    textColor: 'text-blue-700',
+  },
+  message: {
+    value: 'message',
+    label: 'Message',
+    icon: MessageSquare,
+    color: 'sky',
+    bgColor: 'bg-sky-50',
+    borderColor: 'border-sky-200',
+    textColor: 'text-sky-700',
+  },
+  permanence: {
+    value: 'permanence',
+    label: 'Permanence',
+    icon: Clock,
+    color: 'violet',
+    bgColor: 'bg-violet-50',
+    borderColor: 'border-violet-200',
+    textColor: 'text-violet-700',
+  },
+  personnel: {
+    value: 'personnel',
+    label: 'Personnel',
+    icon: User,
+    color: 'purple',
+    bgColor: 'bg-purple-50',
+    borderColor: 'border-purple-200',
+    textColor: 'text-purple-700',
+  },
+  'portes-ouvertes': {
+    value: 'portes-ouvertes',
+    label: 'Portes Ouvertes',
+    icon: DoorOpen,
+    color: 'fuchsia',
+    bgColor: 'bg-fuchsia-50',
+    borderColor: 'border-fuchsia-200',
+    textColor: 'text-fuchsia-700',
+  },
+  proposition: {
+    value: 'proposition',
+    label: 'Proposition',
+    icon: FileSignature,
+    color: 'green',
+    bgColor: 'bg-green-50',
+    borderColor: 'border-green-200',
+    textColor: 'text-green-700',
+  },
+  prospection: {
+    value: 'prospection',
+    label: 'Prospection',
+    icon: Target,
+    color: 'rose',
+    bgColor: 'bg-rose-50',
+    borderColor: 'border-rose-200',
+    textColor: 'text-rose-700',
+  },
+  publicite: {
+    value: 'publicite',
+    label: 'Publicité',
+    icon: Megaphone,
+    color: 'yellow',
+    bgColor: 'bg-yellow-50',
+    borderColor: 'border-yellow-200',
+    textColor: 'text-yellow-700',
+  },
+  relance: {
+    value: 'relance',
+    label: 'Relance',
+    icon: PhoneCall,
+    color: 'red',
+    bgColor: 'bg-red-50',
+    borderColor: 'border-red-200',
+    textColor: 'text-red-700',
+  },
+  'rendez-vous': {
+    value: 'rendez-vous',
+    label: 'Rendez-vous',
+    icon: CalendarClock,
+    color: 'lime',
+    bgColor: 'bg-lime-50',
+    borderColor: 'border-lime-200',
+    textColor: 'text-lime-700',
+  },
+  sondage: {
+    value: 'sondage',
+    label: 'Sondage',
+    icon: BarChart3,
+    color: 'stone',
+    bgColor: 'bg-stone-50',
+    borderColor: 'border-stone-200',
+    textColor: 'text-stone-700',
+  },
+  validation: {
+    value: 'validation',
+    label: 'Validation',
+    icon: CheckCircle2,
+    color: 'slate',
+    bgColor: 'bg-slate-50',
+    borderColor: 'border-slate-200',
+    textColor: 'text-slate-700',
+  },
+  visite: {
+    value: 'visite',
+    label: 'Visite',
+    icon: Home,
+    color: 'blue',
+    bgColor: 'bg-blue-50',
+    borderColor: 'border-blue-200',
+    textColor: 'text-blue-700',
+  },
+  'visite-virtuelle': {
+    value: 'visite-virtuelle',
+    label: 'Visite virtuelle',
+    icon: MonitorPlay,
+    color: 'sky',
+    bgColor: 'bg-sky-50',
+    borderColor: 'border-sky-200',
+    textColor: 'text-sky-700',
+  },
+}
+
+export function getEventTypeConfig(type: string): EventTypeConfig {
+  return EVENT_TYPE_CONFIG[type as EventType] ?? EVENT_TYPE_CONFIG['autre']
+}
+
+export const AGENT_COLOR_PALETTE = ['#4F46E5', '#2563EB', '#059669', '#0891B2', '#D97706', '#DC2626', '#7C3AED', '#0F766E']
+
+export function getAgentColor(id: string): string {
+  let hash = 0
+  for (let i = 0; i < id.length; i++) hash = (hash * 31 + id.charCodeAt(i)) >>> 0
+  return AGENT_COLOR_PALETTE[hash % AGENT_COLOR_PALETTE.length]
+}
+
+export function withAlpha(hex: string, alpha: string): string {
+  return /^#[0-9a-f]{6}$/i.test(hex) ? `${hex}${alpha}` : hex
+}
+
+export function getEventUserColor(event: CalendarEvent, agents?: Agent[]): string {
+  const catalog = agents && agents.length > 0 ? agents : AGENTS
+  const byId = (id: string) => catalog.find(a => a.id === id)?.color
+  const norm = (name: string) => name.replace(/\s+/g, ' ').trim()
+  const byName = (name: string) => catalog.find(a => norm(a.name) === norm(name))?.color
+  for (const id of event.agentIds) {
+    const color = byId(id)
+    if (color) return color
+  }
+  if (event.createdBy) {
+    const color = byId(event.createdBy) || byName(event.createdBy)
+    if (color) return color
+  }
+  if (event.agentId) {
+    const color = byId(String(event.agentId))
+    if (color) return color
+  }
+  return EVENT_TYPE_COLORS[event.type] ?? '#6B7280'
+}
+
+function normalizeAgentName(name: string): string {
+  return String(name || '').replace(/\s+/g, ' ').trim().toLowerCase()
+}
+
+export function eventMatchesSelectedAgents(
+  event: CalendarEvent,
+  selectedAgents: string[],
+  agents?: Agent[]
+): boolean {
+  if (selectedAgents.length === 0) return true
+  if (event.agentIds.some(id => selectedAgents.includes(String(id)))) return true
+  if (event.agentId && selectedAgents.includes(String(event.agentId))) return true
+  if (event.createdBy) {
+    const creator = (agents || []).find(
+      a => normalizeAgentName(a.name) === normalizeAgentName(event.createdBy)
+    )
+    if (creator && selectedAgents.includes(creator.id)) return true
+  }
+  return false
 }
 
 export const AGENTS: Agent[] = [
-  { id: 'myriam', name: 'Myriam ABABOU', color: '#4F46E5', initials: 'MA' },
-  { id: 'dimitri', name: 'Dimitri DJEDJE', color: '#0891B2', initials: 'DD' },
-  { id: 'hayat', name: 'Hayat OUAKRIM', color: '#D97706', initials: 'HO' },
-  { id: 'yasmine', name: 'Yasmine AATIC', color: '#059669', initials: 'YA' },
-  { id: 'square', name: 'Square Meter AGENCE', color: '#7C3AED', initials: 'SM' },
+  { id: 'agent-1', name: 'Myriam ABABOU', color: getAgentColor('agent-1'), initials: 'MA' },
+  { id: 'agent-2', name: 'Karim ELOUI', color: getAgentColor('agent-2'), initials: 'KE' },
+  { id: 'agent-3', name: 'Yasmine AATIC', color: getAgentColor('agent-3'), initials: 'YA' },
+  { id: 'agent-4', name: 'Dimitri DJEDJE', color: getAgentColor('agent-4'), initials: 'DD' },
+  { id: 'agent-5', name: 'Hayat OUAKRIM', color: getAgentColor('agent-5'), initials: 'HO' },
+  { id: 'myriam', name: 'Myriam ABABOU', color: getAgentColor('myriam'), initials: 'MA' },
+  { id: 'dimitri', name: 'Dimitri DJEDJE', color: getAgentColor('dimitri'), initials: 'DD' },
+  { id: 'hayat', name: 'Hayat OUAKRIM', color: getAgentColor('hayat'), initials: 'HO' },
+  { id: 'yasmine', name: 'Yasmine AATIC', color: getAgentColor('yasmine'), initials: 'YA' },
+  { id: 'square', name: 'Square Meter AGENCE', color: getAgentColor('square'), initials: 'SM' },
 ]
 
 export const EVENT_TYPE_OPTIONS = Object.values(EVENT_TYPE_CONFIG).map(c => ({
   value: c.value,
-  label: `${c.icon} ${c.label}`,
+  label: c.label,
+  icon: c.icon,
 }))
+
+export function isDbEvent(event: CalendarEvent): boolean {
+  return /^\d+$/.test(event.id)
+}
+
+export function getEventAgentNames(event: CalendarEvent): string[] {
+  if (isDbEvent(event) && event.agentNames && event.agentNames.length > 0) return event.agentNames
+  if (isDbEvent(event) && event.createdBy) return [event.createdBy]
+  return event.agentIds
+    .map(id => AGENTS.find(a => a.id === id)?.name)
+    .filter((n): n is string => Boolean(n))
+}
+
+export function getInitials(name: string): string {
+  return name.split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0].toUpperCase()).join('')
+}
 
 export const REMINDER_OPTIONS = [
   { value: '15min', label: '15 minutes avant' },
@@ -143,14 +389,29 @@ export const REMINDER_OPTIONS = [
 ]
 
 export const EVENT_TYPE_COLORS: Record<EventType, string> = {
-  visit: '#3B82F6',
-  'virtual-visit': '#0EA5E9',
-  call: '#10B981',
-  meeting: '#8B5CF6',
-  office: '#6B7280',
-  leave: '#F59E0B',
-  external: '#EAB308',
-  matching: '#06B6D4',
+  administratif: '#6B7280',
+  'apres-vente': '#F97316',
+  autre: '#71717A',
+  commercial: '#10B981',
+  'compte-rendu': '#06B6D4',
+  conges: '#F59E0B',
+  estimation: '#6366F1',
+  'etat-des-lieux': '#14B8A6',
+  evenement: '#EC4899',
+  formation: '#3B82F6',
+  message: '#0EA5E9',
+  permanence: '#8B5CF6',
+  personnel: '#A855F7',
+  'portes-ouvertes': '#D946EF',
+  proposition: '#22C55E',
+  prospection: '#F43F5E',
+  publicite: '#EAB308',
+  relance: '#EF4444',
+  'rendez-vous': '#84CC16',
+  sondage: '#78716C',
+  validation: '#64748B',
+  visite: '#3B82F6',
+  'visite-virtuelle': '#0EA5E9',
 }
 
 export function getEventsForDate(events: CalendarEvent[], date: Date): CalendarEvent[] {
@@ -166,31 +427,55 @@ export function getEventsForDate(events: CalendarEvent[], date: Date): CalendarE
 }
 
 export function getEventsForDay(events: CalendarEvent[], date: Date): CalendarEvent[] {
+  const dayStart = new Date(date)
+  dayStart.setHours(0, 0, 0, 0)
+  const dayEnd = new Date(dayStart)
+  dayEnd.setDate(dayEnd.getDate() + 1)
   return events.filter(e => {
     const start = new Date(e.start)
-    return start.getFullYear() === date.getFullYear() &&
-      start.getMonth() === date.getMonth() &&
-      start.getDate() === date.getDate()
+    const end = new Date(e.end)
+    return end > dayStart && start < dayEnd
   })
 }
 
 export function getEventsForWeek(events: CalendarEvent[], date: Date): CalendarEvent[] {
   const weekStart = getWeekStart(date)
   const weekEnd = new Date(weekStart)
-  weekEnd.setDate(weekEnd.getDate() + 6)
-  weekEnd.setHours(23, 59, 59, 999)
+  weekEnd.setDate(weekEnd.getDate() + 7)
   return events.filter(e => {
     const start = new Date(e.start)
-    return start >= weekStart && start <= weekEnd
+    const end = new Date(e.end)
+    return end > weekStart && start < weekEnd
   })
 }
 
 export function getEventsForMonth(events: CalendarEvent[], date: Date): CalendarEvent[] {
+  const monthStart = new Date(date.getFullYear(), date.getMonth(), 1)
+  const monthEnd = new Date(date.getFullYear(), date.getMonth() + 1, 1)
   return events.filter(e => {
     const start = new Date(e.start)
-    return start.getFullYear() === date.getFullYear() &&
-      start.getMonth() === date.getMonth()
+    const end = new Date(e.end)
+    return end >= monthStart && start < monthEnd
   })
+}
+
+export function getEventDayOverlap(event: CalendarEvent, day: Date): { start: Date; end: Date } {
+  const dayStart = new Date(day)
+  dayStart.setHours(0, 0, 0, 0)
+  const dayEnd = new Date(dayStart)
+  dayEnd.setDate(dayEnd.getDate() + 1)
+  const start = new Date(Math.max(event.start.getTime(), dayStart.getTime()))
+  const end = new Date(Math.min(event.end.getTime(), dayEnd.getTime()))
+  return { start, end }
+}
+
+export function getEventDayHours(event: CalendarEvent, day: Date): { startH: number; endH: number } {
+  const { start, end } = getEventDayOverlap(event, day)
+  const dayStart = new Date(day)
+  dayStart.setHours(0, 0, 0, 0)
+  const startH = (start.getTime() - dayStart.getTime()) / 3600000
+  const endH = (end.getTime() - dayStart.getTime()) / 3600000
+  return { startH, endH }
 }
 
 export function getWeekStart(date: Date): Date {
@@ -280,6 +565,15 @@ export function formatTime(date: Date): string {
   return date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
 }
 
+export function formatEventRange(event: CalendarEvent): string {
+  const shortDate = (date: Date) => date.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' })
+  const sameDay = event.start.toDateString() === event.end.toDateString()
+  if (sameDay) {
+    return `${shortDate(event.start)} ${formatTime(event.start)} - ${formatTime(event.end)}`
+  }
+  return `${shortDate(event.start)} ${formatTime(event.start)} → ${shortDate(event.end)} ${formatTime(event.end)}`
+}
+
 export function formatDateInput(date: Date): string {
   return date.toLocaleDateString('fr-CA')
 }
@@ -304,22 +598,22 @@ export function createMockEvents(): CalendarEvent[] {
 
   return [
     {
-      id: 'evt-1', type: 'meeting', title: 'Réunion équipe', start: makeDate(day, 9, 0), end: makeDate(day, 10, 30),
+      id: 'evt-1', type: 'compte-rendu', title: 'Réunion équipe', start: makeDate(day, 9, 0), end: makeDate(day, 10, 30),
       allDay: false, agentIds: ['myriam', 'dimitri'], reminders: [{ label: '15 minutes avant' }],
       createdAt: makeDate(day, 8, 0), createdBy: 'Myriam ABABOU',
     },
     {
-      id: 'evt-2', type: 'office', title: 'Suivi administratif', start: makeDate(day, 14, 0), end: makeDate(day, 16, 0),
+      id: 'evt-2', type: 'administratif', title: 'Suivi administratif', start: makeDate(day, 14, 0), end: makeDate(day, 16, 0),
       allDay: false, agentIds: ['myriam'], reminders: [],
       createdAt: makeDate(day, 8, 0), createdBy: 'Myriam ABABOU',
     },
     {
-      id: 'evt-3', type: 'call', title: 'Appels clients (5)', start: makeDate(day + 1, 9, 0), end: makeDate(day + 1, 11, 0),
+      id: 'evt-3', type: 'relance', title: 'Appels clients (5)', start: makeDate(day + 1, 9, 0), end: makeDate(day + 1, 11, 0),
       allDay: false, agentIds: ['yasmine'], reminders: [{ label: '30 minutes avant' }],
       createdAt: makeDate(day, 8, 0), createdBy: 'Yasmine AATIC',
     },
     {
-      id: 'evt-4', type: 'visit', title: 'Visite appartement - Client Martin', start: makeDate(day + 1, 10, 0), end: makeDate(day + 1, 11, 30),
+      id: 'evt-4', type: 'visite', title: 'Visite appartement - Client Martin', start: makeDate(day + 1, 10, 0), end: makeDate(day + 1, 11, 30),
       allDay: false, agentIds: ['myriam'], clientName: 'Ahmed Benali', clientPhone: '+212 6 12 34 56 78', clientEmail: 'ahmed@email.com',
       propertyName: 'Villa Marrakech', propertyRef: 'RES-2026-001', location: '15 Rue de la Liberté, Casablanca',
       keysInfo: 'Disponible - Boîte à clés code 1234',
@@ -328,82 +622,82 @@ export function createMockEvents(): CalendarEvent[] {
       createdAt: makeDate(day, 8, 0), createdBy: 'Myriam ABABOU',
     },
     {
-      id: 'evt-5', type: 'matching', title: 'Session croisements', start: makeDate(day + 2, 10, 0), end: makeDate(day + 2, 12, 0),
+      id: 'evt-5', type: 'commercial', title: 'Session croisements', start: makeDate(day + 2, 10, 0), end: makeDate(day + 2, 12, 0),
       allDay: false, agentIds: ['dimitri'], reminders: [],
       createdAt: makeDate(day, 8, 0), createdBy: 'Dimitri DJEDJE',
     },
     {
-      id: 'evt-6', type: 'visit', title: 'Visite villa - Client Dubois', start: makeDate(day + 2, 15, 0), end: makeDate(day + 2, 17, 0),
+      id: 'evt-6', type: 'visite', title: 'Visite villa - Client Dubois', start: makeDate(day + 2, 15, 0), end: makeDate(day + 2, 17, 0),
       allDay: false, agentIds: ['myriam'], reminders: [{ label: '1 heure avant' }],
       createdAt: makeDate(day, 8, 0), createdBy: 'Myriam ABABOU',
     },
     {
-      id: 'evt-7', type: 'visit', title: 'Visite Client X', start: makeDate(day + 1, 10, 0), end: makeDate(day + 1, 11, 0),
+      id: 'evt-7', type: 'visite', title: 'Visite Client X', start: makeDate(day + 1, 10, 0), end: makeDate(day + 1, 11, 0),
       allDay: false, agentIds: ['dimitri'], reminders: [],
       createdAt: makeDate(day, 8, 0), createdBy: 'Dimitri DJEDJE',
     },
     {
-      id: 'evt-8', type: 'visit', title: 'Visite Client Y', start: makeDate(day + 1, 14, 0), end: makeDate(day + 1, 15, 30),
+      id: 'evt-8', type: 'visite', title: 'Visite Client Y', start: makeDate(day + 1, 14, 0), end: makeDate(day + 1, 15, 30),
       allDay: false, agentIds: ['dimitri'], reminders: [],
       createdAt: makeDate(day, 8, 0), createdBy: 'Dimitri DJEDJE',
     },
     {
-      id: 'evt-9', type: 'external', title: 'Rendez-vous notaire', start: makeDate(day + 1, 9, 30), end: makeDate(day + 1, 11, 0),
+      id: 'evt-9', type: 'rendez-vous', title: 'Rendez-vous notaire', start: makeDate(day + 1, 9, 30), end: makeDate(day + 1, 11, 0),
       allDay: false, agentIds: ['hayat'], reminders: [{ label: '1 jour avant' }],
       createdAt: makeDate(day, 8, 0), createdBy: 'Hayat OUAKRIM',
     },
     {
-      id: 'evt-10', type: 'visit', title: 'Visite Client W', start: makeDate(day + 2, 14, 0), end: makeDate(day + 2, 15, 30),
+      id: 'evt-10', type: 'visite', title: 'Visite Client W', start: makeDate(day + 2, 14, 0), end: makeDate(day + 2, 15, 30),
       allDay: false, agentIds: ['hayat'], reminders: [],
       createdAt: makeDate(day, 8, 0), createdBy: 'Hayat OUAKRIM',
     },
     {
-      id: 'evt-11', type: 'visit', title: 'Visite Client U', start: makeDate(day + 3, 10, 0), end: makeDate(day + 3, 11, 30),
+      id: 'evt-11', type: 'visite', title: 'Visite Client U', start: makeDate(day + 3, 10, 0), end: makeDate(day + 3, 11, 30),
       allDay: false, agentIds: ['hayat'], reminders: [],
       createdAt: makeDate(day, 8, 0), createdBy: 'Hayat OUAKRIM',
     },
     {
-      id: 'evt-12', type: 'meeting', title: 'Réunion commerciale', start: makeDate(day + 3, 9, 0), end: makeDate(day + 3, 10, 30),
+      id: 'evt-12', type: 'compte-rendu', title: 'Réunion commerciale', start: makeDate(day + 3, 9, 0), end: makeDate(day + 3, 10, 30),
       allDay: false, agentIds: ['yasmine'], reminders: [{ label: '15 minutes avant' }],
       createdAt: makeDate(day, 8, 0), createdBy: 'Yasmine AATIC',
     },
     {
-      id: 'evt-13', type: 'visit', title: 'Visite Tanger', start: makeDate(day + 4, 9, 0), end: makeDate(day + 4, 12, 0),
+      id: 'evt-13', type: 'visite', title: 'Visite Tanger', start: makeDate(day + 4, 9, 0), end: makeDate(day + 4, 12, 0),
       allDay: false, agentIds: ['myriam'], reminders: [{ label: '1 heure avant' }, { label: '1 jour avant' }],
       createdAt: makeDate(day, 8, 0), createdBy: 'Myriam ABABOU',
     },
     {
-      id: 'evt-14', type: 'call', title: 'Appel Client V', start: makeDate(day + 4, 15, 0), end: makeDate(day + 4, 15, 30),
+      id: 'evt-14', type: 'relance', title: 'Appel Client V', start: makeDate(day + 4, 15, 0), end: makeDate(day + 4, 15, 30),
       allDay: false, agentIds: ['hayat'], reminders: [],
       createdAt: makeDate(day, 8, 0), createdBy: 'Hayat OUAKRIM',
     },
     {
-      id: 'evt-15', type: 'visit', title: 'Visite Client B', start: makeDate(day + 4, 16, 0), end: makeDate(day + 4, 17, 30),
+      id: 'evt-15', type: 'visite', title: 'Visite Client B', start: makeDate(day + 4, 16, 0), end: makeDate(day + 4, 17, 30),
       allDay: false, agentIds: ['yasmine'], reminders: [],
       createdAt: makeDate(day, 8, 0), createdBy: 'Yasmine AATIC',
     },
     {
-      id: 'evt-16', type: 'visit', title: 'Visite Client T', start: makeDate(day + 5, 10, 0), end: makeDate(day + 5, 11, 30),
+      id: 'evt-16', type: 'visite', title: 'Visite Client T', start: makeDate(day + 5, 10, 0), end: makeDate(day + 5, 11, 30),
       allDay: false, agentIds: ['hayat'], reminders: [],
       createdAt: makeDate(day, 8, 0), createdBy: 'Hayat OUAKRIM',
     },
     {
-      id: 'evt-17', type: 'leave', title: 'Congé', start: makeDate(day + 10, 0, 0), end: makeDate(day + 14, 23, 59),
+      id: 'evt-17', type: 'conges', title: 'Congé', start: makeDate(day + 10, 0, 0), end: makeDate(day + 14, 23, 59),
       allDay: true, agentIds: ['dimitri'], reminders: [{ label: '1 jour avant' }],
       createdAt: makeDate(day, 8, 0), createdBy: 'Dimitri DJEDJE',
     },
     {
-      id: 'evt-18', type: 'visit', title: 'Visite Client A', start: makeDate(day, 14, 0), end: makeDate(day, 15, 30),
+      id: 'evt-18', type: 'visite', title: 'Visite Client A', start: makeDate(day, 14, 0), end: makeDate(day, 15, 30),
       allDay: false, agentIds: ['yasmine'], reminders: [],
       createdAt: makeDate(day, 8, 0), createdBy: 'Yasmine AATIC',
     },
     {
-      id: 'evt-19', type: 'visit', title: 'Visite Bouznika', start: makeDate(day + 2, 9, 0), end: makeDate(day + 2, 11, 0),
+      id: 'evt-19', type: 'visite', title: 'Visite Bouznika', start: makeDate(day + 2, 9, 0), end: makeDate(day + 2, 11, 0),
       allDay: false, agentIds: ['myriam'], reminders: [],
       createdAt: makeDate(day, 8, 0), createdBy: 'Myriam ABABOU',
     },
     {
-      id: 'evt-20', type: 'visit', title: 'Visite Client Z', start: makeDate(day + 3, 11, 0), end: makeDate(day + 3, 12, 30),
+      id: 'evt-20', type: 'visite', title: 'Visite Client Z', start: makeDate(day + 3, 11, 0), end: makeDate(day + 3, 12, 30),
       allDay: false, agentIds: ['dimitri'], reminders: [],
       createdAt: makeDate(day, 8, 0), createdBy: 'Dimitri DJEDJE',
     },

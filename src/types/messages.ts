@@ -1,7 +1,20 @@
+export type MessageParticipantType = 'client' | 'agent' | 'admin' | 'lead' | 'group'
+
+export type PresenceStatus = 'online' | 'away' | 'offline'
+
+export type MessageStatus = 'sent' | 'delivered' | 'read'
+
+export type MessageKind = 'text' | 'image' | 'video' | 'audio' | 'file' | 'call' | 'system'
+
 export interface MessageParticipant {
   id: string
   name: string
-  type: 'client' | 'agent' | 'lead'
+  type: MessageParticipantType
+  email?: string
+  role?: string
+  presence?: PresenceStatus
+  lastSeen?: string
+  picture?: string
 }
 
 export interface MessageAttachment {
@@ -9,6 +22,20 @@ export interface MessageAttachment {
   name: string
   size: string
   url: string
+  kind?: 'image' | 'video' | 'audio' | 'document'
+}
+
+export interface MessageReaction {
+  emoji: string
+  count: number
+  mine: boolean
+  users?: string[]
+}
+
+export interface MessageReactionPreview {
+  name: string
+  emoji: string
+  message: string
 }
 
 export interface Message {
@@ -21,6 +48,16 @@ export interface Message {
   sentAt: string
   isRead: boolean
   isInternalNote: boolean
+  kind?: MessageKind
+  duration?: string
+  audioUrl?: string
+  attachmentUrl?: string
+  deleted?: boolean
+  callType?: 'audio' | 'video'
+  callDirection?: 'incoming' | 'outgoing' | 'missed'
+  status?: MessageStatus
+  readAt?: string
+  reactions?: MessageReaction[]
 }
 
 export interface Conversation {
@@ -28,11 +65,14 @@ export interface Conversation {
   participants: MessageParticipant[]
   subject: string
   preview: string
+  previewReaction?: MessageReactionPreview | null
   relatedPropertyId?: string
   relatedPropertyTitle?: string
   relatedClientId?: string
   folder: string
   isStarred: boolean
+  isPinned?: boolean
+  isGroup?: boolean
   createdAt: string
   lastActivityAt: string
   messages: Message[]
@@ -64,6 +104,18 @@ export interface MessagingSettings {
   autoReplyEnabled: boolean
   autoReplyMessage: string
   outOfOfficeUntil: string
+  pushNotifications: boolean
+  smsNotifications: boolean
+  notificationSounds: boolean
+  showReadReceipts: boolean
+  showOthersReadReceipts: boolean
+  disableReadReceipts: boolean
+  readReceiptsEnabledAt?: string | null
+  readReceiptsDisabledAt?: string | null
+  showOthersReadReceiptsEnabledAt?: string | null
+  theme: 'light' | 'dark' | 'system'
+  messageSize: 'small' | 'medium' | 'large'
+  showEmojis: boolean
 }
 
 export const FOLDERS: MessageFolder[] = [
@@ -74,33 +126,77 @@ export const FOLDERS: MessageFolder[] = [
   { id: 'trash', name: 'Corbeille', icon: 'Trash2', isSystem: true },
 ]
 
-const myriam: MessageParticipant = { id: 'agent-2', name: 'Myriam Ababou', type: 'agent' }
-const sophie: MessageParticipant = { id: 'p1', name: 'Pierre Martin', type: 'client' }
-const youssef: MessageParticipant = { id: 'p2', name: 'Marie Lambert', type: 'client' }
-const ahmed: MessageParticipant = { id: 'p3', name: 'Karim Benali', type: 'client' }
-const nadia: MessageParticipant = { id: 'p4', name: 'Hassan El Fassi', type: 'client' }
-const leila: MessageParticipant = { id: 'agent-1', name: 'Leila Benbrahim', type: 'agent' }
-const marc: MessageParticipant = { id: 'p5', name: 'Fatima Zahra Bennani', type: 'client' }
-const thomas: MessageParticipant = { id: 'p6', name: 'Omar Tazi', type: 'client' }
-const david: MessageParticipant = { id: 'p7', name: 'David Cohen', type: 'client' }
-const nadiaClient: MessageParticipant = { id: 'p8', name: 'Nadia El Fassi', type: 'client' }
-const dimitri: MessageParticipant = { id: 'agent-3', name: 'Dimitri Djedje', type: 'agent' }
-const hayat: MessageParticipant = { id: 'agent-4', name: 'Hayat Ouakrim', type: 'agent' }
+const myriam: MessageParticipant = {
+  id: 'agent-2', name: 'Myriam Ababou', type: 'agent', role: 'Agent senior',
+  email: 'myriam@squaremeter.com', presence: 'online',
+}
+const sophie: MessageParticipant = {
+  id: 'p1', name: 'Pierre Martin', type: 'client', role: 'Client',
+  email: 'pierre.martin@gmail.com', presence: 'online',
+}
+const youssef: MessageParticipant = {
+  id: 'p2', name: 'Marie Lambert', type: 'client', role: 'Client',
+  email: 'marie.lambert@gmail.com', presence: 'offline',
+}
+const ahmed: MessageParticipant = {
+  id: 'p3', name: 'Karim Benali', type: 'client', role: 'Client',
+  email: 'karim.benali@gmail.com', presence: 'away',
+}
+const nadia: MessageParticipant = {
+  id: 'p4', name: 'Hassan El Fassi', type: 'client', role: 'Client',
+  email: 'hassan.elfassi@gmail.com', presence: 'offline',
+}
+const leila: MessageParticipant = {
+  id: 'agent-1', name: 'Leila Benbrahim', type: 'agent', role: 'Agent',
+  email: 'leila@squaremeter.com', presence: 'away',
+}
+const marc: MessageParticipant = {
+  id: 'p5', name: 'Fatima Zahra Bennani', type: 'client', role: 'Client',
+  email: 'fatima@gmail.com', presence: 'offline',
+}
+const thomas: MessageParticipant = {
+  id: 'p6', name: 'Omar Tazi', type: 'client', role: 'Client',
+  email: 'omar.tazi@gmail.com', presence: 'offline',
+}
+const david: MessageParticipant = {
+  id: 'p7', name: 'David Cohen', type: 'client', role: 'Client',
+  email: 'david.cohen@gmail.com', presence: 'offline',
+}
+const nadiaClient: MessageParticipant = {
+  id: 'p8', name: 'Nadia El Fassi', type: 'client', role: 'Client',
+  email: 'nadia.elfassi@gmail.com', presence: 'online',
+}
+const dimitri: MessageParticipant = {
+  id: 'agent-3', name: 'Dimitri Djedje', type: 'agent', role: 'Agent',
+  email: 'dimitri@squaremeter.com', presence: 'online',
+}
+const hayat: MessageParticipant = {
+  id: 'agent-4', name: 'Hayat Ouakrim', type: 'agent', role: 'Agent',
+  email: 'hayat@squaremeter.com', presence: 'offline',
+}
+const rachid: MessageParticipant = {
+  id: 'admin-1', name: 'Rachid Baassid', type: 'admin', role: 'Administrateur',
+  email: 'rachid@squaremeter.com', presence: 'online',
+}
+const groupTeam: MessageParticipant = {
+  id: 'group-1', name: 'Équipe Square Meter', type: 'group', role: '4 membres',
+}
 
 export const mockConversations: Conversation[] = [
   {
     id: 'conv-1',
     participants: [sophie, myriam],
     subject: 'Villa Marrakech #1234',
-    preview: 'Mercredi 14h me convient parfaitement. Je confirme ma visite !',
+    preview: 'Appel vidéo manqué',
     relatedPropertyId: '1',
     relatedPropertyTitle: 'Villa Marrakech #1234',
     relatedClientId: '1',
     folder: 'inbox',
     isStarred: true,
+    isPinned: true,
     createdAt: '2026-06-13T14:30:00Z',
     lastActivityAt: '2026-06-16T09:45:00Z',
-    unreadCount: 1,
+    unreadCount: 2,
     createdBy: 'myriam',
     messages: [
       {
@@ -113,6 +209,8 @@ export const mockConversations: Conversation[] = [
         sentAt: '2026-06-15T14:32:00Z',
         isRead: true,
         isInternalNote: false,
+        kind: 'text',
+        status: 'read',
       },
       {
         id: 'msg-2',
@@ -121,23 +219,160 @@ export const mockConversations: Conversation[] = [
         recipients: [sophie],
         body: 'Bonjour Pierre, merci pour votre message. La villa est toujours disponible. Je peux vous proposer une visite mercredi à 14h.\n\nVoici la brochure en pièce jointe.',
         attachments: [
-          { id: 'att-1', name: 'brochure_villa_marrakech.pdf', size: '2.4 Mo', url: '#' },
-          { id: 'att-2', name: 'plan_acces.pdf', size: '1.2 Mo', url: '#' },
+          { id: 'att-1', name: 'brochure_villa_marrakech.pdf', size: '2.4 Mo', url: '#', kind: 'document' },
+          { id: 'att-2', name: 'plan_acces.pdf', size: '1.2 Mo', url: '#', kind: 'document' },
         ],
         sentAt: '2026-06-15T15:00:00Z',
         isRead: true,
         isInternalNote: false,
+        kind: 'text',
+        status: 'read',
+      },
+      {
+        id: 'msg-2b',
+        conversationId: 'conv-1',
+        sender: myriam,
+        recipients: [sophie],
+        body: '',
+        attachments: [],
+        sentAt: '2026-06-15T15:02:00Z',
+        isRead: true,
+        isInternalNote: false,
+        kind: 'audio',
+        duration: '0:42',
+        status: 'read',
       },
       {
         id: 'msg-3',
         conversationId: 'conv-1',
         sender: sophie,
         recipients: [myriam],
+        body: 'Merci ! Voici une photo de la villa prise depuis le jardin.',
+        attachments: [
+          { id: 'att-3', name: 'visite_villa.jpg', size: '1.8 Mo', url: '#', kind: 'image' },
+        ],
+        sentAt: '2026-06-16T09:15:00Z',
+        isRead: false,
+        isInternalNote: false,
+        kind: 'image',
+      },
+      {
+        id: 'msg-4',
+        conversationId: 'conv-1',
+        sender: sophie,
+        recipients: [myriam],
         body: 'Mercredi 14h me convient parfaitement. Je confirme ma visite ! À mercredi !',
+        attachments: [],
+        sentAt: '2026-06-16T09:40:00Z',
+        isRead: false,
+        isInternalNote: false,
+        kind: 'text',
+      },
+      {
+        id: 'msg-5',
+        conversationId: 'conv-1',
+        sender: sophie,
+        recipients: [myriam],
+        body: '',
         attachments: [],
         sentAt: '2026-06-16T09:45:00Z',
         isRead: false,
         isInternalNote: false,
+        kind: 'call',
+        callType: 'video',
+        callDirection: 'missed',
+        duration: '0:00',
+      },
+    ],
+  },
+  {
+    id: 'conv-11',
+    participants: [groupTeam, myriam, dimitri, hayat, rachid],
+    subject: 'Équipe Square Meter',
+    preview: 'Rachid Baassid : Merci, j\'ajouterai le point sécurité à l\'ordre du jour.',
+    folder: 'inbox',
+    isStarred: false,
+    isPinned: true,
+    isGroup: true,
+    createdAt: '2026-06-15T08:00:00Z',
+    lastActivityAt: '2026-06-17T10:00:00Z',
+    unreadCount: 2,
+    createdBy: 'rachid',
+    messages: [
+      {
+        id: 'msg-40',
+        conversationId: 'conv-11',
+        sender: dimitri,
+        recipients: [myriam, hayat, rachid],
+        body: 'Réunion demain à 10h pour le déploiement des nouveaux outils CRM. Vous êtes dispo ?',
+        attachments: [],
+        sentAt: '2026-06-17T09:00:00Z',
+        isRead: false,
+        isInternalNote: false,
+        kind: 'text',
+      },
+      {
+        id: 'msg-41',
+        conversationId: 'conv-11',
+        sender: hayat,
+        recipients: [myriam, dimitri, rachid],
+        body: 'OK pour moi, je prépare l\'ordre du jour.',
+        attachments: [],
+        sentAt: '2026-06-17T09:30:00Z',
+        isRead: false,
+        isInternalNote: false,
+        kind: 'text',
+      },
+      {
+        id: 'msg-42',
+        conversationId: 'conv-11',
+        sender: rachid,
+        recipients: [myriam, dimitri, hayat],
+        body: 'Merci. J\'ajouterai le point sécurité à l\'ordre du jour.',
+        attachments: [],
+        sentAt: '2026-06-17T10:00:00Z',
+        isRead: true,
+        isInternalNote: false,
+        kind: 'text',
+      },
+    ],
+  },
+  {
+    id: 'conv-12',
+    participants: [rachid, myriam],
+    subject: 'Réunion équipe - Nouveaux outils CRM',
+    preview: 'On se fait une réunion demain pour discuter des nouveaux outils CRM.',
+    folder: 'inbox',
+    isStarred: false,
+    createdAt: '2026-06-16T08:00:00Z',
+    lastActivityAt: '2026-06-16T09:30:00Z',
+    unreadCount: 1,
+    createdBy: 'rachid',
+    messages: [
+      {
+        id: 'msg-50',
+        conversationId: 'conv-12',
+        sender: rachid,
+        recipients: [myriam],
+        body: 'Bonjour Myriam,\n\nOn se fait une réunion demain pour discuter des nouveaux outils CRM ? Je pense qu\'il faut qu\'on fasse un point avant le déploiement.',
+        attachments: [],
+        sentAt: '2026-06-16T08:00:00Z',
+        isRead: false,
+        isInternalNote: false,
+        kind: 'text',
+      },
+      {
+        id: 'msg-51',
+        conversationId: 'conv-12',
+        sender: myriam,
+        recipients: [rachid],
+        body: 'Bonne idée Rachid ! Je suis disponible à 10h demain.',
+        attachments: [],
+        sentAt: '2026-06-16T09:30:00Z',
+        isRead: true,
+        isInternalNote: false,
+        kind: 'text',
+        status: 'read',
       },
     ],
   },
@@ -152,25 +387,26 @@ export const mockConversations: Conversation[] = [
     folder: 'inbox',
     isStarred: false,
     createdAt: '2026-06-12T09:15:00Z',
-    lastActivityAt: '2026-06-14T09:15:00Z',
+    lastActivityAt: '2026-06-14T10:30:00Z',
     unreadCount: 0,
     createdBy: 'myriam',
     messages: [
       {
-        id: 'msg-4',
+        id: 'msg-6',
         conversationId: 'conv-2',
         sender: youssef,
         recipients: [myriam],
         body: 'Bonjour Myriam,\n\nLe mandat pour l\'appartement à Casablanca a bien été signé. Vous trouverez une copie ci-jointe.\n\nCordialement,\nMarie Lambert',
         attachments: [
-          { id: 'att-3', name: 'mandat_signe_casablanca.pdf', size: '1.8 Mo', url: '#' },
+          { id: 'att-4', name: 'mandat_signe_casablanca.pdf', size: '1.8 Mo', url: '#', kind: 'document' },
         ],
         sentAt: '2026-06-14T09:15:00Z',
         isRead: true,
         isInternalNote: false,
+        kind: 'text',
       },
       {
-        id: 'msg-5',
+        id: 'msg-7',
         conversationId: 'conv-2',
         sender: myriam,
         recipients: [youssef],
@@ -179,6 +415,8 @@ export const mockConversations: Conversation[] = [
         sentAt: '2026-06-14T10:30:00Z',
         isRead: true,
         isInternalNote: false,
+        kind: 'text',
+        status: 'read',
       },
     ],
   },
@@ -198,18 +436,19 @@ export const mockConversations: Conversation[] = [
     createdBy: 'myriam',
     messages: [
       {
-        id: 'msg-6',
+        id: 'msg-8',
         conversationId: 'conv-3',
         sender: ahmed,
         recipients: [myriam],
-        body: 'Bonjour,\n\nJe souhaiterais avoir plus d\'informations sur l\'appartement à Rabat. Est-ce qu\'il est toujours en vente ?\n\nCordialement,\nAhmed Benali',
+        body: 'Bonjour,\n\nJe souhaiterais avoir plus d\'informations sur l\'appartement à Rabat. Est-ce qu\'il est toujours en vente ?\n\nCordialement,\nKarim Benali',
         attachments: [],
         sentAt: '2026-06-13T16:45:00Z',
         isRead: true,
         isInternalNote: false,
+        kind: 'text',
       },
       {
-        id: 'msg-7',
+        id: 'msg-9',
         conversationId: 'conv-3',
         sender: myriam,
         recipients: [ahmed],
@@ -218,6 +457,8 @@ export const mockConversations: Conversation[] = [
         sentAt: '2026-06-13T17:45:00Z',
         isRead: true,
         isInternalNote: false,
+        kind: 'text',
+        status: 'read',
       },
     ],
   },
@@ -237,20 +478,22 @@ export const mockConversations: Conversation[] = [
     createdBy: 'myriam',
     messages: [
       {
-        id: 'msg-8',
+        id: 'msg-10',
         conversationId: 'conv-4',
         sender: myriam,
         recipients: [nadia],
         body: 'Bonjour Hassan,\n\nVeuillez trouver ci-joint le mandat de gestion pour votre résidence à Oasis. Vous pouvez le signer électroniquement.\n\nCordialement,\nMyriam Ababou',
         attachments: [
-          { id: 'att-4', name: 'mandat_gestion_oasis.pdf', size: '1.2 Mo', url: '#' },
+          { id: 'att-5', name: 'mandat_gestion_oasis.pdf', size: '1.2 Mo', url: '#', kind: 'document' },
         ],
         sentAt: '2026-06-10T10:00:00Z',
         isRead: true,
         isInternalNote: false,
+        kind: 'text',
+        status: 'delivered',
       },
       {
-        id: 'msg-9',
+        id: 'msg-11',
         conversationId: 'conv-4',
         sender: nadia,
         recipients: [myriam],
@@ -259,6 +502,7 @@ export const mockConversations: Conversation[] = [
         sentAt: '2026-06-10T11:00:00Z',
         isRead: true,
         isInternalNote: false,
+        kind: 'text',
       },
     ],
   },
@@ -275,7 +519,7 @@ export const mockConversations: Conversation[] = [
     createdBy: 'leila',
     messages: [
       {
-        id: 'msg-10',
+        id: 'msg-12',
         conversationId: 'conv-5',
         sender: leila,
         recipients: [myriam],
@@ -284,9 +528,10 @@ export const mockConversations: Conversation[] = [
         sentAt: '2026-06-09T08:00:00Z',
         isRead: true,
         isInternalNote: false,
+        kind: 'text',
       },
       {
-        id: 'msg-11',
+        id: 'msg-13',
         conversationId: 'conv-5',
         sender: myriam,
         recipients: [leila],
@@ -295,6 +540,8 @@ export const mockConversations: Conversation[] = [
         sentAt: '2026-06-09T09:30:00Z',
         isRead: true,
         isInternalNote: false,
+        kind: 'text',
+        status: 'read',
       },
     ],
   },
@@ -314,7 +561,7 @@ export const mockConversations: Conversation[] = [
     createdBy: 'myriam',
     messages: [
       {
-        id: 'msg-12',
+        id: 'msg-14',
         conversationId: 'conv-6',
         sender: marc,
         recipients: [myriam],
@@ -323,6 +570,7 @@ export const mockConversations: Conversation[] = [
         sentAt: '2026-06-08T14:00:00Z',
         isRead: true,
         isInternalNote: false,
+        kind: 'text',
       },
     ],
   },
@@ -342,7 +590,7 @@ export const mockConversations: Conversation[] = [
     createdBy: 'myriam',
     messages: [
       {
-        id: 'msg-13',
+        id: 'msg-15',
         conversationId: 'conv-7',
         sender: thomas,
         recipients: [myriam],
@@ -351,6 +599,7 @@ export const mockConversations: Conversation[] = [
         sentAt: '2026-06-05T10:00:00Z',
         isRead: true,
         isInternalNote: false,
+        kind: 'text',
       },
     ],
   },
@@ -370,7 +619,7 @@ export const mockConversations: Conversation[] = [
     createdBy: 'dimitri',
     messages: [
       {
-        id: 'msg-14',
+        id: 'msg-16',
         conversationId: 'conv-8',
         sender: david,
         recipients: [dimitri],
@@ -379,9 +628,10 @@ export const mockConversations: Conversation[] = [
         sentAt: '2026-06-16T08:00:00Z',
         isRead: false,
         isInternalNote: false,
+        kind: 'text',
       },
       {
-        id: 'msg-15',
+        id: 'msg-17',
         conversationId: 'conv-8',
         sender: david,
         recipients: [dimitri],
@@ -390,6 +640,7 @@ export const mockConversations: Conversation[] = [
         sentAt: '2026-06-16T08:30:00Z',
         isRead: false,
         isInternalNote: false,
+        kind: 'text',
       },
     ],
   },
@@ -409,7 +660,7 @@ export const mockConversations: Conversation[] = [
     createdBy: 'hayat',
     messages: [
       {
-        id: 'msg-16',
+        id: 'msg-18',
         conversationId: 'conv-9',
         sender: nadiaClient,
         recipients: [hayat],
@@ -418,20 +669,22 @@ export const mockConversations: Conversation[] = [
         sentAt: '2026-06-17T09:00:00Z',
         isRead: false,
         isInternalNote: false,
+        kind: 'text',
       },
       {
-        id: 'msg-17',
+        id: 'msg-19',
         conversationId: 'conv-9',
         sender: hayat,
         recipients: [nadiaClient],
         body: 'Bonjour Nadia,\n\nOui, l\'appartement est libre pour ces dates. Je vous envoie le contrat de location et le devis.\n\nBien cordialement,\nHayat Ouakrim',
         attachments: [
-          { id: 'att-5', name: 'contrat_location_agadir.pdf', size: '1.5 Mo', url: '#' },
-          { id: 'att-6', name: 'devis_sejour_agadir.pdf', size: '0.8 Mo', url: '#' },
+          { id: 'att-6', name: 'contrat_location_agadir.pdf', size: '1.5 Mo', url: '#', kind: 'document' },
+          { id: 'att-7', name: 'devis_sejour_agadir.pdf', size: '0.8 Mo', url: '#', kind: 'document' },
         ],
         sentAt: '2026-06-17T10:00:00Z',
         isRead: false,
         isInternalNote: false,
+        kind: 'text',
       },
     ],
   },
@@ -449,20 +702,22 @@ export const mockConversations: Conversation[] = [
     createdBy: 'myriam',
     messages: [
       {
-        id: 'msg-18',
+        id: 'msg-20',
         conversationId: 'conv-10',
         sender: myriam,
         recipients: [dimitri],
         body: 'Bonjour Dimitri,\n\nJe te transfère le dossier de Pierre Martin. Il est intéressé par les appartements à Casablanca.\n\nMerci !',
         attachments: [
-          { id: 'att-7', name: 'dossier_pierre_martin.pdf', size: '3.2 Mo', url: '#' },
+          { id: 'att-8', name: 'dossier_pierre_martin.pdf', size: '3.2 Mo', url: '#', kind: 'document' },
         ],
         sentAt: '2026-06-12T08:00:00Z',
         isRead: true,
         isInternalNote: false,
+        kind: 'text',
+        status: 'read',
       },
       {
-        id: 'msg-19',
+        id: 'msg-21',
         conversationId: 'conv-10',
         sender: dimitri,
         recipients: [myriam],
@@ -471,6 +726,7 @@ export const mockConversations: Conversation[] = [
         sentAt: '2026-06-12T09:00:00Z',
         isRead: true,
         isInternalNote: false,
+        kind: 'text',
       },
     ],
   },
@@ -519,6 +775,16 @@ export const mockTemplates: MessageTemplate[] = [
   },
 ]
 
+let extraConversations: Conversation[] = []
+
+export function pushConversation(conversation: Conversation): void {
+  extraConversations = [conversation, ...extraConversations]
+}
+
+export function getExtraConversations(): Conversation[] {
+  return extraConversations
+}
+
 export function getUnreadCount(): number {
   return mockConversations
     .filter(c => c.folder === 'inbox')
@@ -539,4 +805,16 @@ export const defaultSettings: MessagingSettings = {
   autoReplyEnabled: false,
   autoReplyMessage: 'Je suis actuellement absent(e) jusqu\'au [__/__/____]. Je vous répondrai à mon retour. Pour toute urgence, contactez l\'agence au +212 6 12 34 56 78.',
   outOfOfficeUntil: '',
+  pushNotifications: true,
+  smsNotifications: false,
+  notificationSounds: true,
+  showReadReceipts: true,
+  showOthersReadReceipts: true,
+  disableReadReceipts: false,
+  readReceiptsEnabledAt: null,
+  readReceiptsDisabledAt: null,
+  showOthersReadReceiptsEnabledAt: null,
+  theme: 'light',
+  messageSize: 'medium',
+  showEmojis: true,
 }

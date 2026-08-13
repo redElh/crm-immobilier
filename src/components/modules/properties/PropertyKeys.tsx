@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { Badge } from '../../ui/Badge';
 import { Select } from '../../ui/Select';
@@ -8,9 +8,13 @@ import { Key, Clock, Eye, EyeOff, Plus, Trash2, Edit2, Save } from 'react-feathe
 import type { Property, KeyMovement } from '../../../types/property';
 import { useConfidential } from '../confidentiality/ConfidentialContext';
 import { ConfidentialValue } from '../confidentiality/ConfidentialField';
+import { updateProperty } from '../../../services/propertyService';
+import { useToast } from '../../ui/Toast';
 
 interface PropertyKeysProps {
   property: Property;
+  onUpdated?: (property: Property) => void;
+  isGerant?: boolean;
 }
 
 type KeysFormData = {
@@ -68,6 +72,11 @@ const keysStatusConfig: Record<string, { label: string; className: string }> = {
   lost: { label: 'Perdue', className: 'bg-red-50 text-red-700 border-red-200' },
 };
 
+const gerantKeysStatusConfig: Record<string, { label: string; className: string }> = {
+  ...keysStatusConfig,
+  in_visit: { label: 'En visite', className: 'bg-[#F0E2E2] text-[#7D5050] border-[#E0C6C6]' },
+};
+
 const container = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.04 } } };
 const item = { hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0 } };
 
@@ -101,8 +110,9 @@ function initFormData(keys: Property['keys']): KeysFormData {
   };
 }
 
-export function PropertyKeys({ property }: PropertyKeysProps) {
+export function PropertyKeys({ property, onUpdated, isGerant = false }: PropertyKeysProps) {
   const { revealed } = useConfidential();
+  const { toast } = useToast();
   const [isEditing, setIsEditing] = useState(false);
   const [keys, setKeys] = useState<KeysFormData>(() => initFormData(property.keys));
   const [contactType, setContactType] = useState(keys.contactType);
@@ -110,8 +120,9 @@ export function PropertyKeys({ property }: PropertyKeysProps) {
   const [showCode, setShowCode] = useState(false);
   const [history, setHistory] = useState<KeyMovement[]>(keys.history);
   const [newMovement, setNewMovement] = useState({ date: '', action: '', person: '', reason: '' });
+  const [saving, setSaving] = useState(false);
 
-  const statusConfig = keys.status ? keysStatusConfig[keys.status] : null;
+  const statusConfig = keys.status ? (isGerant ? gerantKeysStatusConfig[keys.status] : keysStatusConfig[keys.status]) : null;
 
   const addMovement = () => {
     if (!newMovement.date || !newMovement.action || !newMovement.person) return;
@@ -119,10 +130,21 @@ export function PropertyKeys({ property }: PropertyKeysProps) {
     setNewMovement({ date: '', action: '', person: '', reason: '' });
   };
 
-  const handleSave = () => {
-    console.log('Saving keys:', { ...keys, history });
-    setIsEditing(false);
-  };
+  const handleSave = useCallback(async () => {
+    setSaving(true);
+    try {
+      const updated = await updateProperty(property.id, {
+        keys: { ...keys, history },
+      });
+      if (onUpdated) onUpdated(updated);
+      toast('success', 'Clés mises à jour avec succès');
+      setIsEditing(false);
+    } catch (e: any) {
+      toast('error', e.message || 'Erreur lors de la sauvegarde des clés');
+    } finally {
+      setSaving(false);
+    }
+  }, [property.id, keys, history, onUpdated, toast]);
 
   return (
     <motion.div variants={container} initial="hidden" animate="show" className="space-y-5">
@@ -133,9 +155,10 @@ export function PropertyKeys({ property }: PropertyKeysProps) {
           <button
             type="button"
             onClick={handleSave}
-            className="inline-flex items-center gap-2 h-9 px-4 text-sm font-medium rounded-lg bg-accent text-white hover:bg-accent/90 transition-all active:scale-[0.98]"
+            disabled={saving}
+            className={`inline-flex items-center gap-2 h-9 px-4 text-sm font-medium rounded-lg text-white transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed ${isGerant ? 'bg-[#905D5D] hover:bg-[#905D5D]/90' : 'bg-accent hover:bg-accent/90'}`}
           >
-            <Save size={14} /> Enregistrer
+            <Save size={14} /> {saving ? 'Enregistrement...' : 'Enregistrer'}
           </button>
         ) : (
           <button
@@ -151,7 +174,7 @@ export function PropertyKeys({ property }: PropertyKeysProps) {
       {/* ZONE 1 : ÉTAT DES CLÉS */}
       <motion.div variants={item} className="bg-card rounded-xl border border-border/50 shadow-card p-5">
         <div className="flex items-center gap-2 mb-4">
-          <Key size={16} className="text-accent" />
+          <Key size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />
           <h3 className="font-semibold">État des clés</h3>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -187,7 +210,7 @@ export function PropertyKeys({ property }: PropertyKeysProps) {
       {/* ZONE 2 : PERSONNE À CONTACTER */}
       <motion.div variants={item} className="bg-card rounded-xl border border-border/50 shadow-card p-5">
         <div className="flex items-center gap-2 mb-4">
-          <Key size={16} className="text-accent" />
+          <Key size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />
           <h3 className="font-semibold">Personne à contacter</h3>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -235,7 +258,7 @@ export function PropertyKeys({ property }: PropertyKeysProps) {
       {/* ZONE 3 : EMPLACEMENT PRÉCIS */}
       <motion.div variants={item} className="bg-card rounded-xl border border-border/50 shadow-card p-5">
         <div className="flex items-center gap-2 mb-4">
-          <Key size={16} className="text-accent" />
+          <Key size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />
           <h3 className="font-semibold">Emplacement précis</h3>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -264,7 +287,7 @@ export function PropertyKeys({ property }: PropertyKeysProps) {
                   onChange={(e) => setKeys(prev => ({ ...prev, code: e.target.value }))}
                   placeholder="1234"
                   disabled={!isEditing}
-                  className="w-full h-9 pl-3 pr-9 py-2 text-sm rounded-lg border border-border bg-card text-text placeholder:text-text-secondary/30 focus:outline-none focus:ring-2 focus:ring-accent/15 focus:border-accent transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  className={`w-full h-9 pl-3 pr-9 py-2 text-sm rounded-lg border border-border bg-card text-text placeholder:text-text-secondary/30 focus:outline-none focus:ring-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed ${isGerant ? 'focus:ring-[#905D5D]/15 focus:border-[#905D5D]' : 'focus:ring-accent/15 focus:border-accent'}`}
                 />
                 <button
                   type="button"
@@ -282,7 +305,7 @@ export function PropertyKeys({ property }: PropertyKeysProps) {
       {/* ZONE 4 : INSTRUCTIONS */}
       <motion.div variants={item} className="bg-card rounded-xl border border-border/50 shadow-card p-5">
         <div className="flex items-center gap-2 mb-4">
-          <Key size={16} className="text-accent" />
+          <Key size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />
           <h3 className="font-semibold">Instructions</h3>
         </div>
         {!isEditing && !revealed ? (
@@ -301,7 +324,7 @@ export function PropertyKeys({ property }: PropertyKeysProps) {
       {/* HISTORIQUE DES MOUVEMENTS */}
       <motion.div variants={item} className="bg-card rounded-xl border border-border/50 shadow-card p-5">
         <div className="flex items-center gap-2 mb-4">
-          <Clock size={16} className="text-accent" />
+          <Clock size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />
           <h3 className="font-semibold">Historique des mouvements</h3>
         </div>
 
@@ -312,12 +335,12 @@ export function PropertyKeys({ property }: PropertyKeysProps) {
               type="datetime-local"
               value={newMovement.date}
               onChange={(e) => setNewMovement({ ...newMovement, date: e.target.value })}
-              className="w-full h-9 px-3 text-sm rounded-lg border border-border bg-card text-text focus:outline-none focus:ring-2 focus:ring-accent/15 focus:border-accent transition-all"
+              className={`w-full h-9 px-3 text-sm rounded-lg border border-border bg-card text-text focus:outline-none focus:ring-2 transition-all ${isGerant ? 'focus:ring-[#905D5D]/15 focus:border-[#905D5D]' : 'focus:ring-accent/15 focus:border-accent'}`}
             />
             <select
               value={newMovement.action}
               onChange={(e) => setNewMovement({ ...newMovement, action: e.target.value, person: '' })}
-              className="w-full h-9 px-3 text-sm rounded-lg border border-border bg-card text-text appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-accent/15 focus:border-accent transition-all"
+              className={`w-full h-9 px-3 text-sm rounded-lg border border-border bg-card text-text appearance-none cursor-pointer focus:outline-none focus:ring-2 transition-all ${isGerant ? 'focus:ring-[#905D5D]/15 focus:border-[#905D5D]' : 'focus:ring-accent/15 focus:border-accent'}`}
             >
               {ACTION_OPTIONS.map(o => (
                 <option key={o.value} value={o.value}>{o.label}</option>
@@ -326,7 +349,7 @@ export function PropertyKeys({ property }: PropertyKeysProps) {
             <select
               value={newMovement.person}
               onChange={(e) => setNewMovement({ ...newMovement, person: e.target.value })}
-              className="w-full h-9 px-3 text-sm rounded-lg border border-border bg-card text-text appearance-none cursor-pointer focus:outline-none focus:ring-2 focus:ring-accent/15 focus:border-accent transition-all"
+              className={`w-full h-9 px-3 text-sm rounded-lg border border-border bg-card text-text appearance-none cursor-pointer focus:outline-none focus:ring-2 transition-all ${isGerant ? 'focus:ring-[#905D5D]/15 focus:border-[#905D5D]' : 'focus:ring-accent/15 focus:border-accent'}`}
             >
               <option value="">Personne concernée</option>
               {PERSON_OPTIONS.map(o => (
@@ -336,7 +359,7 @@ export function PropertyKeys({ property }: PropertyKeysProps) {
             <button
               type="button"
               onClick={addMovement}
-              className="inline-flex items-center justify-center gap-2 h-9 px-4 text-sm font-medium rounded-lg bg-accent text-white hover:bg-accent/90 transition-all active:scale-[0.98] disabled:opacity-40"
+              className={`inline-flex items-center justify-center gap-2 h-9 px-4 text-sm font-medium rounded-lg text-white transition-all active:scale-[0.98] disabled:opacity-40 ${isGerant ? 'bg-[#905D5D] hover:bg-[#905D5D]/90' : 'bg-accent hover:bg-accent/90'}`}
               disabled={!newMovement.date || !newMovement.action || !newMovement.person}
             >
               <Plus size={14} /> Ajouter

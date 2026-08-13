@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useCallback, type ReactNode } from 'react'
+import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from 'react'
 
 interface ConfidentialContextType {
   revealed: boolean
@@ -9,13 +9,16 @@ interface ConfidentialContextType {
 
 const ConfidentialContext = createContext<ConfidentialContextType | null>(null)
 
+const STORAGE_KEY = 'confidential_revealed'
+
 export function ConfidentialProvider({ children }: { children: ReactNode }) {
-  const [revealed, setRevealed] = useState(false)
+  const [revealed, setRevealed] = useState(() => localStorage.getItem(STORAGE_KEY) === 'true')
 
-  const reveal = useCallback(() => {
-    setRevealed(true)
-  }, [])
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY, String(revealed))
+  }, [revealed])
 
+  const reveal = useCallback(() => setRevealed(true), [])
   const hide = useCallback(() => setRevealed(false), [])
   const toggle = useCallback(() => setRevealed(prev => !prev), [])
 

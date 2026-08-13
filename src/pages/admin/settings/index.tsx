@@ -1,18 +1,8 @@
 import { motion, AnimatePresence } from 'framer-motion'
 import Card from '../../../components/ui/Card'
 import { Badge } from '../../../components/ui/Badge'
-import { NavLink } from 'react-router-dom'
+import { NavLink, useParams } from 'react-router-dom'
 import { Settings, User, Mail, Bell, Paperclip, Users, Download, HelpCircle, ArrowRight } from 'react-feather'
-
-const settingsCategories = [
-  { title: "Mon Compte", description: "Profil, sécurité et préférences", icon: User, to: "/admin/settings/compte/profil" },
-  { title: "Communication", description: "Signature email, réponses automatiques", icon: Mail, to: "/admin/settings/communication/signature" },
-  { title: "Notifications", description: "Configurez vos préférences de notification", icon: Bell, to: "/admin/settings/notifications" },
-  { title: "Intégrations", description: "Google Calendar, API", icon: Paperclip, to: "/admin/settings/integrations" },
-  { title: "Équipe", description: "Gestion des membres et permissions", icon: Users, to: "/admin/settings/equipe", badge: "Admin" },
-  { title: "Données", description: "Import, export et sauvegarde", icon: Download, to: "/admin/settings/donnees" },
-  { title: "Aide & Support", description: "Centre d'aide, support et à propos", icon: HelpCircle, to: "/admin/settings/aide" },
-]
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -28,6 +18,18 @@ const itemVariants = {
 }
 
 export default function AdminSettingsPage() {
+  const { adminId } = useParams<{ adminId: string }>()
+
+  const settingsCategories = [
+    { title: "Mon Compte", description: "Profil, sécurité et préférences", icon: User, to: `/admin/${adminId}/settings/compte/profil` },
+    { title: "Communication", description: "Signature email, réponses automatiques", icon: Mail, to: `/admin/${adminId}/settings/communication/signature` },
+    { title: "Notifications", description: "Configurez vos préférences de notification", icon: Bell, to: `/admin/${adminId}/settings/notifications` },
+    { title: "Intégrations", description: "Google Calendar, API", icon: Paperclip, to: `/admin/${adminId}/settings/integrations` },
+    { title: "Équipe", description: "Gestion des membres et permissions", icon: Users, to: `/admin/${adminId}/settings/equipe`, badge: "Admin" },
+    { title: "Données", description: "Import, export et sauvegarde", icon: Download, to: `/admin/${adminId}/settings/donnees` },
+    { title: "Aide & Support", description: "Centre d'aide, support et à propos", icon: HelpCircle, to: `/admin/${adminId}/settings/aide` },
+  ]
+
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-3">

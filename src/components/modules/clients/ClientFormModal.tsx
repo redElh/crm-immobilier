@@ -7,10 +7,13 @@ import { Select } from '../../ui/Select';
 import { Checkbox } from '../../ui/Checkbox';
 import { Textarea } from '../../ui/Textarea';
 
+const GERANT_BUTTON_CLASSES = 'bg-[#905D5D] hover:bg-[#7D5050] border-[#905D5D] hover:border-[#7D5050] text-white shadow-[0_10px_24px_rgba(144,93,93,0.35)]'
+
 interface ClientFormModalProps {
   onClose: () => void;
   onSubmit: (client: Omit<Client, 'id'>) => void;
   clientType: 'Acheteur' | 'Vendeur' | 'Bailleur' | 'Locataire' | 'Voyageur';
+  isGerant?: boolean;
 }
 
 type FormData = Omit<Client, 'id' | 'createdAt' | 'updatedAt' | 'createdBy' | 'updatedBy' | 'events' | 'lastContact'> & {
@@ -109,7 +112,7 @@ const CURRENCIES = [
   { value: 'CHF', label: 'CHF' },
 ];
 
-export const ClientFormModal = ({ onClose, onSubmit, clientType }: ClientFormModalProps) => {
+export const ClientFormModal = ({ onClose, onSubmit, clientType, isGerant = false }: ClientFormModalProps) => {
   const [formData, setFormData] = useState<FormData>({
     name: '',
     type: clientType,
@@ -212,14 +215,12 @@ export const ClientFormModal = ({ onClose, onSubmit, clientType }: ClientFormMod
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!validate()) return;
-    
     setIsSubmitting(true);
     onSubmit({
       ...formData,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
-      createdBy: 'current-user-id' // You should get this from your auth system
+      createdBy: 'current-user-id'
     });
   };
 
@@ -845,7 +846,7 @@ export const ClientFormModal = ({ onClose, onSubmit, clientType }: ClientFormMod
           </button>
           <button
             type="submit"
-            className="px-4 py-2 bg-primary hover:bg-primary-dark text-white rounded text-sm"
+            className={`px-4 py-2 rounded text-sm ${isGerant ? GERANT_BUTTON_CLASSES : 'bg-primary hover:bg-primary-dark text-white'}`}
             disabled={isSubmitting}
           >
             {isSubmitting ? 'Enregistrement...' : 'Enregistrer'}

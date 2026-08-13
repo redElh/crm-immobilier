@@ -1,17 +1,43 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Plus } from 'react-feather';
+import { X, Plus, Save, Upload, Eye, ExternalLink, Home, Briefcase, MapPin, Star } from 'react-feather';
+import { useNavigate, useParams } from 'react-router-dom';
 import { Client } from '../../../types/client';
+import { AGENTS } from '../../../types/calendar';
 import { DatePicker } from '../../ui/DatePicker';
 import { Input } from '../../ui/Input';
 import { Select } from '../../ui/Select';
 import { Checkbox } from '../../ui/Checkbox';
 import { Textarea } from '../../ui/Textarea';
 import { Button } from '../../ui/Button';
+import { Dialog } from '../../ui/Dialog';
+import { LocationMap } from '../properties/AddPropertyForm/LocationMap';
+import { saveDraft, getDraft, deleteDraft } from '../../../services/clientDraftStorage';
+import { CompletionRing } from '../../ui/CompletionRing';
+import { api } from '../../../services/api';
+import { uploadFiles } from '../../../services/uploadService';
+import { fetchContacts, createContact } from '../../../services/contactService';
+import { ContactFormModal } from '../contacts/ContactFormModal';
+
+const USER_CACHE: Record<string, string> = {};
+
+const GERANT_BUTTON_CLASSES = 'bg-[#905D5D] hover:bg-[#7D5050] border-[#905D5D] hover:border-[#7D5050] text-white shadow-[0_10px_24px_rgba(144,93,93,0.35)]'
+
+interface AssignmentInfo {
+  assignedType: 'agent' | 'admin';
+  assignedName: string;
+}
 
 interface SellerFormModalProps {
   onClose: () => void;
   onSubmit: (client: Omit<Client, 'id'>) => void;
+  assignmentInfo?: AssignmentInfo;
+  draftId?: string;
+  userId?: string;
+  onDraftChange?: () => void;
+  client?: Client;
+  selectedContactId?: string;
+  isGerant?: boolean;
 }
 
 const STATUT_METIER_OPTIONS = [
@@ -344,7 +370,10 @@ const SITUATION_ACTUELLE_OPTIONS = [
   { value: 'Autre', label: 'Autre' },
 ];
 
+
 const STATUT_MANDAT_OPTIONS = [
+  { value: 'Non défini', label: 'Non défini' },
+  { value: 'En attente de signature', label: 'En attente de signature' },
   { value: 'Actif', label: 'Actif' },
   { value: 'Expire', label: 'Expiré' },
   { value: 'Resilie', label: 'Résilié' },
@@ -358,19 +387,6 @@ const TYPE_MANDAT_OPTIONS = [
   { value: 'Exclusif agence', label: 'Exclusif agence' },
   { value: 'Delegation', label: 'Délégation' },
   { value: 'Confrere', label: 'Confrère' },
-];
-
-const DUREE_MANDAT_OPTIONS = [
-  { value: '1', label: '1 mois' },
-  { value: '2', label: '2 mois' },
-  { value: '3', label: '3 mois (Recommandé)' },
-  { value: '6', label: '6 mois' },
-];
-
-const AGENTS = [
-  { value: 'agent-1', label: 'Agent 1' },
-  { value: 'agent-2', label: 'Agent 2' },
-  { value: 'agent-3', label: 'Agent 3' },
 ];
 
 interface ProximiteCategorie {
@@ -391,7 +407,6 @@ interface PrestationCategorie {
 
 interface SellerFormData {
   actif: boolean;
-  croisementAutomatique: boolean;
   classification: string;
   statutMetier: string;
   contactId: string;
@@ -462,6 +477,18 @@ interface SellerFormData {
   signatureAgent: string;
   dateSignatureMandat: string;
   mandatSignePdfUrl: string;
+  mandatSignePdfName: string;
+  docIdentiteUrl: string;
+  docIdentiteName: string;
+  docTitreProprieteUrl: string;
+  docTitreProprieteName: string;
+  docCoproprieteUrl: string;
+  docCoproprieteName: string;
+  docAutreUrl: string;
+  docAutreName: string;
+  latitude: number;
+  longitude: number;
+  bienConcerneId: string;
 }
 
 const TABS = [
@@ -494,11 +521,11 @@ const formatDate = (date: Date): string => {
 const today = formatDate(new Date());
 const inThreeMonths = formatDate(addMonths(new Date(), 3));
 
-export const SellerFormModal = ({ onClose, onSubmit }: SellerFormModalProps) => {
-  const [step, setStep] = useState(1);
-  const [formData, setFormData] = useState<SellerFormData>({
+export function resetSellerFormData(): SellerFormData {
+  const today = formatDate(new Date());
+  const inThreeMonths = formatDate(addMonths(new Date(), 3));
+  return {
     actif: true,
-    croisementAutomatique: true,
     classification: 'Actif',
     statutMetier: 'En attente de signature',
     contactId: '',
@@ -530,11 +557,11 @@ export const SellerFormModal = ({ onClose, onSubmit }: SellerFormModalProps) => 
     disponibilite: '',
     devise: 'MAD',
     prixNetVendeur: undefined,
-    typeHonoraires: 'inclus',
-    modeCalculHonoraires: 'pourcentage',
+    typeHonoraires: '',
+    modeCalculHonoraires: '',
     valeurHonoraires: undefined,
     prixVenteFAI: undefined,
-    commissionCoAgencement: 50,
+    commissionCoAgencement: undefined,
     dpeDate: '',
     dpeClasse: '',
     constatsRisquesDate: '',
@@ -551,43 +578,449 @@ export const SellerFormModal = ({ onClose, onSubmit }: SellerFormModalProps) => 
     dateSouhaiteeVente: '',
     notesComplementaires: '',
     numeroMandat: generateMandatNumber(),
-    statutMandat: 'Actif',
+    statutMandat: 'Non défini',
     dateSignature: today,
     dateDebut: today,
     dateExpiration: inThreeMonths,
-    typeMandat: 'Simple',
-    dureeMandat: '3',
+    typeMandat: '',
+    dureeMandat: '',
     clauseProtection: false,
     clauseProtectionMois: 3,
     conjoint: '',
     agentDesigne: '',
     prixNetVendeurMandat: undefined,
-    typeHonorairesMandat: 'inclus',
+    typeHonorairesMandat: '',
     montantHonoraires: undefined,
-    commissionCoAgencementMandat: 50,
+    commissionCoAgencementMandat: undefined,
     signatureVendeur: '',
     signatureAgent: '',
     dateSignatureMandat: today,
     mandatSignePdfUrl: '',
+    mandatSignePdfName: '',
+    docIdentiteUrl: '',
+    docIdentiteName: '',
+    docTitreProprieteUrl: '',
+    docTitreProprieteName: '',
+    docCoproprieteUrl: '',
+    docCoproprieteName: '',
+    docAutreUrl: '',
+    docAutreName: '',
+    latitude: 0,
+    longitude: 0,
+    bienConcerneId: '',
+  };
+}
+
+export const SellerFormModal = ({ onClose, onSubmit, assignmentInfo, draftId: initialDraftId, userId, onDraftChange, client: editingClient, selectedContactId, isGerant = false }: SellerFormModalProps) => {
+  const [step, setStep] = useState(1);
+  const [contacts, setContacts] = useState<any[]>([]);
+  const [contactOptions, setContactOptions] = useState<{value: string; label: string}[]>([]);
+  const [formData, setFormData] = useState<SellerFormData>({
+    actif: true,
+    classification: 'Actif',
+    statutMetier: 'En attente de signature',
+    contactId: selectedContactId || '',
+    origine: '',
+    plan: '',
+    adresseComplete: '',
+    complementAdresse: '',
+    codePostalVille: '',
+    pays: 'Maroc',
+    secteur: '',
+    categorie: '',
+    typeBien: '',
+    referenceCadastrale: '',
+    lotCopropriete: undefined,
+    syndicPresent: false,
+    nbLotsTotal: undefined,
+    piecesOperator: 'ge',
+    pieces: undefined,
+    chambresOperator: 'ge',
+    chambres: undefined,
+    surfaceMin: undefined,
+    surfaceMax: undefined,
+    etageOperator: 'ge',
+    etage: undefined,
+    vue: '',
+    exposition: '',
+    etat: '',
+    standing: '',
+    disponibilite: '',
+    devise: 'MAD',
+    prixNetVendeur: undefined,
+    typeHonoraires: '',
+    modeCalculHonoraires: '',
+    valeurHonoraires: undefined,
+    prixVenteFAI: undefined,
+    commissionCoAgencement: undefined,
+    dpeDate: '',
+    dpeClasse: '',
+    constatsRisquesDate: '',
+    diagnosticPlombDate: '',
+    autresDiagnostics: '',
+    attributPrincipal: '',
+    attributsPersonnalises: [],
+    criteres: [],
+    proximites: { transports: [], commerces: [], education: [], sante: [], loisirs: [] },
+    prestations: { exterieur: [], confort: [], electromenager: [], multimedia: [], sport: [] },
+    situationActuelle: '',
+    raisonVente: '',
+    creditRestantDu: undefined,
+    dateSouhaiteeVente: '',
+    notesComplementaires: '',
+    numeroMandat: generateMandatNumber(),
+    statutMandat: 'Non défini',
+    dateSignature: today,
+    dateDebut: today,
+    dateExpiration: inThreeMonths,
+    typeMandat: '',
+    dureeMandat: '',
+    clauseProtection: false,
+    clauseProtectionMois: 3,
+    conjoint: '',
+    agentDesigne: '',
+    prixNetVendeurMandat: undefined,
+    typeHonorairesMandat: '',
+    montantHonoraires: undefined,
+    commissionCoAgencementMandat: undefined,
+    signatureVendeur: '',
+    signatureAgent: '',
+    dateSignatureMandat: today,
+    mandatSignePdfUrl: '',
+    mandatSignePdfName: '',
+    docIdentiteUrl: '',
+    docIdentiteName: '',
+    docTitreProprieteUrl: '',
+    docTitreProprieteName: '',
+    docCoproprieteUrl: '',
+    docCoproprieteName: '',
+    docAutreUrl: '',
+    docAutreName: '',
+    latitude: 0,
+    longitude: 0,
+    bienConcerneId: '',
   });
+
+  useEffect(() => {
+    fetchContacts().then(allContacts => {
+      setContacts(allContacts);
+      setContactOptions([
+        { value: '', label: 'Sélectionner un contact...' },
+        ...allContacts.map(c => ({ value: String(c.id), label: `${c.civility} ${c.firstName} ${c.lastName}` })),
+      ]);
+    }).catch(() => {});
+  }, []);
+
+  const refreshContacts = () => {
+    fetchContacts().then(allContacts => {
+      setContacts(allContacts);
+      setContactOptions([
+        { value: '', label: 'Sélectionner un contact...' },
+        ...allContacts.map(c => ({ value: String(c.id), label: `${c.civility} ${c.firstName} ${c.lastName}` })),
+      ]);
+    }).catch(() => {});
+  };
+
+  const selectedContactName = formData.contactId ? (contactOptions.find(o => o.value === formData.contactId)?.label || '') : '';
+
+  useEffect(() => {
+    if (!editingClient) return;
+    const c = editingClient as any;
+    setFormData(prev => ({
+      ...prev,
+      actif: editingClient.status === 'Actif',
+      classification: editingClient.classification || 'Actif',
+      statutMetier: editingClient.statutMetier || 'En attente de signature',
+      contactId: editingClient.contactId || '',
+      origine: editingClient.source || '',
+      pays: editingClient.localisation || prev.pays,
+      secteur: editingClient.secteur || editingClient.area || '',
+      categorie: editingClient.categorie || '',
+      typeBien: editingClient.propertyType || '',
+      referenceCadastrale: c.referenceCadastrale || '',
+      piecesOperator: editingClient.piecesOperator || 'ge',
+      pieces: editingClient.pieces,
+      chambresOperator: editingClient.chambresOperator || 'ge',
+      chambres: editingClient.chambres,
+      surfaceMin: editingClient.minSurface,
+      surfaceMax: editingClient.surfaceMax,
+      etageOperator: editingClient.etageOperator || 'ge',
+      etage: editingClient.etage,
+      vue: editingClient.vue || '',
+      exposition: editingClient.exposition || '',
+      etat: editingClient.etat || '',
+      standing: editingClient.standing || '',
+      disponibilite: editingClient.disponibilite || '',
+      attributPrincipal: editingClient.attributPrincipal || '',
+      attributsPersonnalises: editingClient.attributsPersonnalises || [],
+      criteres: editingClient.criteres || [],
+      proximites: editingClient.proximites || { transports: [], commerces: [], education: [], sante: [], loisirs: [] },
+      prestations: editingClient.prestations || { exterieur: [], confort: [], electromenager: [], multimedia: [], sport: [] },
+      raisonVente: editingClient.reasonForSelling || '',
+      notesComplementaires: c.notesComplementaires || editingClient.notes || '',
+      creditRestantDu: c.creditRestantDu,
+      dateSouhaiteeVente: c.dateSouhaiteeVente || '',
+      situationActuelle: editingClient.currentSituation || '',
+      adresseComplete: c.adresseComplete || '',
+      complementAdresse: c.complementAdresse || '',
+      codePostalVille: c.codePostalVille || '',
+      lotCopropriete: c.lotCopropriete,
+      syndicPresent: c.syndicPresent || false,
+      nbLotsTotal: c.nbLotsTotal,
+      prixNetVendeur: c.prixNetVendeur,
+      modeCalculHonoraires: c.modeCalculHonoraires || '',
+      commissionCoAgencement: c.commissionCoAgencement,
+      numeroMandat: editingClient.numeroMandat || prev.numeroMandat,
+      dateSignature: editingClient.dateSignature || prev.dateSignature,
+      dateDebut: editingClient.dateDebut || prev.dateDebut,
+      dateExpiration: editingClient.dateExpiration || prev.dateExpiration,
+      statutMandat: editingClient.statutMandat || 'Non défini',
+      typeMandat: editingClient.typeMandat || '',
+      conjoint: editingClient.conjoint || '',
+      agentDesigne: editingClient.agentDesigne || editingClient.agentId || '',
+      typeHonoraires: editingClient.typeRemuneration || '',
+      montantRemuneration: editingClient.montantRemuneration,
+      valeurHonoraires: editingClient.montantRemuneration,
+      clauseProtection: !!editingClient.dureeProtection,
+      clauseProtectionMois: editingClient.dureeProtection ? parseInt(editingClient.dureeProtection) || 0 : 0,
+      mandatSignePdfUrl: c.mandatPdfUrl || c.mandatSignePdfUrl || '',
+      mandatSignePdfName: c.mandatPdfName || '',
+      docIdentiteUrl: c.docIdentiteUrl || '',
+      docIdentiteName: c.docIdentiteName || '',
+      docTitreProprieteUrl: c.docTitreProprieteUrl || '',
+      docTitreProprieteName: c.docTitreProprieteName || '',
+      docCoproprieteUrl: c.docCoproprieteUrl || '',
+      docCoproprieteName: c.docCoproprieteName || '',
+      docAutreUrl: c.docAutreUrl || '',
+      docAutreName: c.docAutreName || '',
+      latitude: c.latitude || 0,
+      longitude: c.longitude || 0,
+      bienConcerneId: c.bienConcerneId || '',
+    }));
+  }, [editingClient]);
+
+  useEffect(() => {
+    if (assignmentInfo?.assignedName && !editingClient) {
+      setFormData(prev => ({ ...prev, agentDesigne: assignmentInfo.assignedName }));
+    }
+  }, [assignmentInfo, editingClient]);
+
+  const [, setUsersFetched] = useState(false);
+  useEffect(() => {
+    api.get<any>('/auth/me').then((u: any) => {
+      if (u) {
+        const name = [u.first_name || '', u.last_name || ''].filter(Boolean).join(' ').trim() || u.email || 'Inconnu';
+        USER_CACHE[String(u.id)] = name;
+      }
+    }).catch(() => {});
+    api.get<any[]>('/admin/users').then((list: any[]) => {
+      if (Array.isArray(list)) {
+        for (const u of list) {
+          const name = [u.first_name || '', u.last_name || ''].filter(Boolean).join(' ').trim() || u.email || 'Inconnu';
+          USER_CACHE[String(u.id)] = name;
+        }
+      }
+      setUsersFetched(true);
+    }).catch(() => { setUsersFetched(true); });
+  }, []);
+
+  const navigate = useNavigate();
+  const { adminId, agentId } = useParams<{ adminId?: string; agentId?: string }>();
+
+  const [sellerProperties, setSellerProperties] = useState<any[]>([]);
+  const [loadingProperties, setLoadingProperties] = useState(false);
+  const [showPropertyTypeModal, setShowPropertyTypeModal] = useState(false);
+
+  useEffect(() => {
+    setLoadingProperties(true);
+    api.get<any[]>('/properties')
+      .then((res) => setSellerProperties(Array.isArray(res) ? res : []))
+      .catch(() => setSellerProperties([]))
+      .finally(() => setLoadingProperties(false));
+  }, []);
+
+  const filteredSellerProperties = useMemo(() => {
+    const contact = contacts.find((c: any) => String(c.id) === formData.contactId);
+    const contactFirstName = (contact?.firstName || '').toLowerCase().trim();
+    const contactLastName = (contact?.lastName || '').toLowerCase().trim();
+    const stripCivility = (s: string) => s
+      .replace(/^(mme?|mlle?|dr|maitre|maitresse|me|maître)\s+/i, '')
+      .replace(/\s+(mme?|mlle?|dr|maitre|maitresse|me|maître)$/i, '')
+      .trim();
+    const stripCivilityAndClean = (s: string) => stripCivility(s).toLowerCase().replace(/\s+/g, ' ').trim();
+    return sellerProperties.filter((p: any) => {
+      if (p.status !== 'for_sale') return false;
+      if (!contactFirstName && !contactLastName) return false;
+      const ownerName = stripCivilityAndClean(p.owner?.name || '');
+      const matchesFirst = !contactFirstName || ownerName.includes(contactFirstName);
+      const matchesLast = !contactLastName || ownerName.includes(contactLastName);
+      return matchesFirst && matchesLast;
+    });
+  }, [sellerProperties, contacts, formData.contactId]);
+
+  const propertyTypeRouteMap: Record<string, string> = {
+    'Résidentiel': 'residential',
+    'Commercial': 'commercial',
+    'Terrain': 'land',
+    'Luxe': 'luxury',
+  };
+
+  const handlePropertyTypeSelect = (typeName: string) => {
+    const routeType = propertyTypeRouteMap[typeName] || 'residential';
+    const basePath = adminId ? `/admin/${adminId}` : agentId ? `/${agentId}` : '';
+    setShowPropertyTypeModal(false);
+    window.open(`${basePath}/properties/type/${routeType}/add?transactionType=vente`, '_blank');
+  };
 
   const [errors, setErrors] = useState<Partial<Record<keyof SellerFormData, string>>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showContactForm, setShowContactForm] = useState(false);
+
+  const [savedDraftId, setSavedDraftId] = useState<string | undefined>(initialDraftId || undefined);
+  const [loadingDraft, setLoadingDraft] = useState(!!initialDraftId);
+  const formDataRef = useRef(formData);
+  formDataRef.current = formData;
 
   const prixFAICalcule = useMemo(() => {
-    if (!formData.prixNetVendeur) return 0;
-    if (formData.typeHonoraires === 'inclus' && formData.modeCalculHonoraires === 'pourcentage' && formData.valeurHonoraires) {
-      const taux = formData.valeurHonoraires / 100;
-      return Math.round(formData.prixNetVendeur / (1 - taux));
-    }
-    if (formData.typeHonoraires === 'inclus' && formData.modeCalculHonoraires === 'montant_fixe' && formData.valeurHonoraires) {
-      return formData.prixNetVendeur + formData.valeurHonoraires;
-    }
+    if (!formData.prixNetVendeur || !formData.valeurHonoraires) return 0;
     if (formData.typeHonoraires === 'en_sus') {
-      return formData.prixNetVendeur + (formData.valeurHonoraires || 0);
+      if (formData.modeCalculHonoraires === 'montant_fixe') {
+        return formData.prixNetVendeur + formData.valeurHonoraires;
+      }
+      if (formData.modeCalculHonoraires === 'pourcentage') {
+        return Math.round(formData.prixNetVendeur * (1 + formData.valeurHonoraires / 100));
+      }
+    }
+    if (formData.typeHonoraires === 'inclus' && formData.modeCalculHonoraires === 'pourcentage') {
+      return Math.round(formData.prixNetVendeur / (1 - formData.valeurHonoraires / 100));
     }
     return formData.prixNetVendeur;
-  }, [formData.prixNetVendeur, formData.typeHonoraires, formData.modeCalculHonoraires, formData.valeurHonoraires]);
+  }, [formData.prixNetVendeur, formData.valeurHonoraires, formData.typeHonoraires, formData.modeCalculHonoraires]);
+
+  const montantHonorairesCalcule = useMemo(() => {
+    if (!formData.prixNetVendeur || !formData.valeurHonoraires) return 0;
+    if (formData.typeHonoraires === 'en_sus') {
+      if (formData.modeCalculHonoraires === 'montant_fixe') return formData.valeurHonoraires;
+      if (formData.modeCalculHonoraires === 'pourcentage') return Math.round(formData.prixNetVendeur * formData.valeurHonoraires / 100);
+    }
+    if (formData.typeHonoraires === 'inclus' && formData.modeCalculHonoraires === 'pourcentage') {
+      const fai = formData.prixNetVendeur / (1 - formData.valeurHonoraires / 100);
+      return Math.round(fai - formData.prixNetVendeur);
+    }
+    return 0;
+  }, [formData.prixNetVendeur, formData.valeurHonoraires, formData.typeHonoraires, formData.modeCalculHonoraires]);
+
+  useEffect(() => {
+    if (formData.typeHonoraires === 'inclus' && formData.modeCalculHonoraires === 'montant_fixe') {
+      setFormData(prev => ({ ...prev, modeCalculHonoraires: 'pourcentage', valeurHonoraires: undefined }));
+    }
+  }, [formData.typeHonoraires]);
+
+  useEffect(() => {
+    if (editingClient) return;
+    const section1 = formData.numeroMandat.trim() && formData.dateDebut.trim() && formData.dateExpiration.trim();
+    const section2 = formData.typeMandat.trim() !== '';
+    const section3 = !formData.clauseProtection || (formData.clauseProtection && (formData.clauseProtectionMois ?? 0) > 0);
+    const section4 = formData.conjoint.trim() !== '' || (assignmentInfo?.assignedName?.trim() ?? '') !== '';
+    const section5 = formData.prixNetVendeur !== undefined && formData.typeHonoraires !== '' && formData.valeurHonoraires !== undefined && formData.commissionCoAgencement !== undefined;
+    const allFilled = section1 && section2 && section3 && section4 && section5;
+    const newStatus = allFilled ? 'En attente de signature' : 'Non défini';
+    setFormData(prev => prev.statutMandat !== newStatus ? { ...prev, statutMandat: newStatus } : prev);
+  }, [
+    editingClient,
+    formData.numeroMandat, formData.dateDebut, formData.dateExpiration,
+    formData.typeMandat,
+    formData.clauseProtection, formData.clauseProtectionMois,
+    formData.conjoint, assignmentInfo?.assignedName,
+    formData.prixNetVendeur, formData.typeHonoraires, formData.valeurHonoraires, formData.commissionCoAgencement,
+  ]);
+
+  useEffect(() => {
+    if (formData.statutMandat === 'Actif') return;
+    const mapping: Record<string, string> = {
+      'Non défini': 'En attente de signature',
+      'En attente de signature': 'En attente de signature',
+      'Termine': 'Vendu',
+      'Expire': 'Inactif',
+      'Resilie': 'Perdu',
+    };
+    const target = mapping[formData.statutMandat];
+    if (target && formData.statutMetier !== target) {
+      setFormData(prev => ({ ...prev, statutMetier: target }));
+    }
+  }, [formData.statutMandat]);
+
+  useEffect(() => {
+    if (!initialDraftId || !userId) return;
+    const draft = getDraft(userId, initialDraftId);
+    if (draft) {
+      const draftData = draft.data;
+      setFormData(prev => ({ ...prev, ...draftData }));
+      if (draftData._step) setStep(draftData._step);
+    }
+    setLoadingDraft(false);
+  }, []);
+
+  const isFilled = (v: any): boolean => {
+    if (v === undefined || v === null) return false;
+    if (typeof v === 'string') return v.trim() !== '';
+    if (Array.isArray(v)) return v.length > 0;
+    if (typeof v === 'object') {
+      if (v instanceof Date) return true;
+      return Object.values(v).some((a: any) => Array.isArray(a) && a.length > 0);
+    }
+    return true;
+  };
+
+  const calcCompletion = (data: SellerFormData): number => {
+    const fields = [
+      // Général
+      data.classification, data.statutMetier, data.origine,
+      // Localisation & Type
+      data.adresseComplete, data.codePostalVille, data.pays, data.secteur,
+      data.categorie, data.typeBien, data.referenceCadastrale,
+      // Caractéristiques
+      data.pieces, data.chambres, data.surfaceMin, data.surfaceMax, data.etage,
+      data.vue, data.exposition, data.etat, data.standing, data.disponibilite,
+      // Prix & Honoraires
+      data.prixNetVendeur, data.typeHonoraires, data.modeCalculHonoraires,
+      data.valeurHonoraires, data.commissionCoAgencement,
+      // Attributs & Critères
+      data.attributPrincipal, data.attributsPersonnalises, data.criteres,
+      // Proximités (each sub-category)
+      data.proximites?.transports, data.proximites?.commerces,
+      data.proximites?.education, data.proximites?.sante, data.proximites?.loisirs,
+      // Prestations (each sub-category)
+      data.prestations?.exterieur, data.prestations?.confort,
+      data.prestations?.electromenager, data.prestations?.multimedia, data.prestations?.sport,
+      // Situation & Notes
+      data.situationActuelle, data.creditRestantDu, data.raisonVente,
+      data.dateSouhaiteeVente, data.notesComplementaires,
+      // Mandat
+      data.numeroMandat, data.statutMandat, data.typeMandat,
+      data.dateDebut, data.dateExpiration, data.conjoint, data.agentDesigne,
+      data.bienConcerneId, data.dateSignatureMandat,
+      // Documents
+      data.mandatSignePdfUrl, data.docIdentiteUrl, data.docTitreProprieteUrl,
+      data.docCoproprieteUrl, data.docAutreUrl,
+    ];
+    const filled = fields.filter(isFilled).length;
+    return Math.min(100, Math.round((filled / fields.length) * 100));
+  };
+
+  const doSaveDraft = () => {
+    if (!userId) return;
+    const data = { ...formDataRef.current, _draftId: savedDraftId, _step: step };
+    const draft = saveDraft(userId, 'Vendeur', data, calcCompletion(formDataRef.current));
+    if (!savedDraftId) setSavedDraftId(draft.id);
+    onDraftChange?.();
+  };
+
+  useEffect(() => {
+    if (!savedDraftId) return;
+    const timer = setTimeout(doSaveDraft, 2000);
+    return () => clearTimeout(timer);
+  }, [formData, savedDraftId, step]);
 
   const handleChange = (field: keyof SellerFormData, value: any) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -626,7 +1059,7 @@ export const SellerFormModal = ({ onClose, onSubmit }: SellerFormModalProps) => 
 
   const validate = (): boolean => {
     const newErrors: Partial<Record<keyof SellerFormData, string>> = {};
-    if (!formData.contactId) newErrors.contactId = 'Le contact est requis';
+    if (!formData.contactId) newErrors.contactId = 'Veuillez sélectionner ou créer un contact';
     if (!formData.origine) newErrors.origine = "L'origine est requise";
     if (!formData.typeBien) newErrors.typeBien = 'Le type de bien est requis';
     if (!formData.categorie) newErrors.categorie = 'La catégorie est requise';
@@ -634,74 +1067,68 @@ export const SellerFormModal = ({ onClose, onSubmit }: SellerFormModalProps) => 
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!validate()) {
-      setStep(1);
-      return;
+  const submitForm = () => {
+    if (isSubmitting) return;
+    if (savedDraftId && userId) {
+      deleteDraft(userId, savedDraftId);
+      onDraftChange?.();
     }
-
     setIsSubmitting(true);
 
     onSubmit({
-      name: '',
-      type: 'Vendeur',
-      status: formData.actif ? 'Actif' : 'Inactif',
-      phone: '',
-      email: '',
+      ...formData,
+      name: selectedContactName || editingClient?.name || 'Nouveau client',
+      type: 'Vendeur' as const,
+      status: (formData.actif ? 'Actif' : 'Inactif') as 'Actif' | 'Inactif',
+      phone: (formData.contactId ? (contacts.find(c => String(c.id) === formData.contactId)?.mobile || '') : '') || editingClient?.phone || '',
+      email: (formData.contactId ? (contacts.find(c => String(c.id) === formData.contactId)?.emailPrincipal || '') : '') || editingClient?.email || '',
+      completion: calcCompletion(formData),
       source: formData.origine,
-      notes: formData.notesComplementaires,
-      propertyType: formData.typeBien,
-      area: formData.secteur || formData.adresseComplete,
-      minSurface: formData.surfaceMin,
-      rooms: formData.pieces?.toString() || '',
-      currentSituation: formData.situationActuelle,
-      classification: formData.classification,
-      statutMetier: formData.statutMetier,
-      croisementAutomatique: formData.croisementAutomatique,
-      contactId: formData.contactId,
+      localisation: formData.pays,
       secteur: formData.secteur,
       categorie: formData.categorie,
-      piecesOperator: formData.piecesOperator,
-      pieces: formData.pieces,
-      chambresOperator: formData.chambresOperator,
-      chambres: formData.chambres,
-      surfaceMax: formData.surfaceMax,
-      etageOperator: formData.etageOperator,
-      etage: formData.etage,
-      vue: formData.vue,
-      exposition: formData.exposition,
-      etat: formData.etat,
-      standing: formData.standing,
-      disponibilite: formData.disponibilite,
-      attributPrincipal: formData.attributPrincipal,
-      attributsPersonnalises: formData.attributsPersonnalises.length > 0 ? formData.attributsPersonnalises : undefined,
-      criteres: formData.criteres.length > 0 ? formData.criteres : undefined,
-      proximites: formData.proximites.transports.length > 0 || formData.proximites.commerces.length > 0 || formData.proximites.education.length > 0 || formData.proximites.sante.length > 0 || formData.proximites.loisirs.length > 0
-        ? formData.proximites : undefined,
-      prestations: formData.prestations.exterieur.length > 0 || formData.prestations.confort.length > 0 || formData.prestations.electromenager.length > 0 || formData.prestations.multimedia.length > 0 || formData.prestations.sport.length > 0
-        ? formData.prestations : undefined,
-      devise: formData.devise,
-      reasonForSelling: formData.raisonVente || undefined,
-      numeroMandat: formData.numeroMandat,
-      dateSignature: formData.dateSignature,
-      dateDebut: formData.dateDebut,
-      dateExpiration: formData.dateExpiration,
+      propertyType: formData.typeBien,
+      classification: formData.classification,
+      notes: formData.notesComplementaires,
+      statutMetier: formData.statutMetier,
       statutMandat: formData.statutMandat,
-      typeMandat: formData.typeMandat,
-      conjoint: formData.conjoint || undefined,
+      prixVenteFAI: prixFAICalcule || undefined,
+      minSurface: formData.surfaceMin,
+      currentSituation: formData.situationActuelle,
+      reasonForSelling: formData.raisonVente,
+      dureeProtection: formData.clauseProtection ? (formData.clauseProtectionMois?.toString() || '') : '',
+      typeRemuneration: formData.typeHonoraires,
+      montantRemuneration: formData.valeurHonoraires,
+      remunerationIsPercentage: formData.modeCalculHonoraires === 'pourcentage',
+      agentId: formData.agentDesigne || undefined,
       agentDesigne: formData.agentDesigne || undefined,
       mandatPdfUrl: formData.mandatSignePdfUrl || undefined,
-      createdAt: new Date().toISOString(),
+      mandatPdfName: formData.mandatSignePdfName || undefined,
+      docIdentiteUrl: formData.docIdentiteUrl || undefined,
+      docIdentiteName: formData.docIdentiteName || undefined,
+      docDomicileUrl: formData.docCoproprieteUrl || undefined,
+      docDomicileName: formData.docCoproprieteName || undefined,
+      docRevenusUrl: formData.docTitreProprieteUrl || undefined,
+      docRevenusName: formData.docTitreProprieteName || undefined,
+      docFinancementUrl: formData.docAutreUrl || undefined,
+      docFinancementName: formData.docAutreName || undefined,
+      docBancaireUrl: undefined,
+      bienConcerneId: formData.bienConcerneId || undefined,
+      createdAt: editingClient?.createdAt || new Date().toISOString(),
       updatedAt: new Date().toISOString(),
-      createdBy: 'current-user-id',
+      createdBy: editingClient?.createdBy || 'current-user-id',
     });
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    submitForm();
   };
 
   const renderSection = (title: string, children: React.ReactNode) => (
     <div className="mb-6">
       <h3 className="text-sm font-semibold text-text flex items-center gap-2 mb-4">
-        <span className="w-1 h-4 rounded-full bg-accent" />
+        <span className={`w-1 h-4 rounded-full ${isGerant ? 'bg-[#905D5D]' : 'bg-accent'}`} />
         {title}
       </h3>
       {children}
@@ -726,8 +1153,8 @@ export const SellerFormModal = ({ onClose, onSubmit }: SellerFormModalProps) => 
               onClick={() => handleChange(field, opt.value)}
               className={`px-3 py-1.5 text-xs rounded-lg border transition-all ${
                 isSelected
-                  ? 'bg-accent text-white border-accent ring-2 ring-accent/30'
-                  : 'bg-card text-text-secondary border-border hover:border-accent/50'
+                  ? (isGerant ? 'bg-[#905D5D] text-white border-[#905D5D] ring-2 ring-[#905D5D]/30' : 'bg-accent text-white border-accent ring-2 ring-accent/30')
+                  : (isGerant ? 'bg-card text-text-secondary border-border hover:border-[#905D5D]/50' : 'bg-card text-text-secondary border-border hover:border-accent/50')
               }`}
             >
               {opt.label}
@@ -757,8 +1184,8 @@ export const SellerFormModal = ({ onClose, onSubmit }: SellerFormModalProps) => 
               onClick={() => onChange(opt.value)}
               className={`px-3 py-1.5 text-xs rounded-lg border transition-all ${
                 isSelected
-                  ? 'bg-accent text-white border-accent'
-                  : 'bg-card text-text-secondary border-border hover:border-accent/50'
+                  ? (isGerant ? 'bg-[#905D5D] text-white border-[#905D5D]' : 'bg-accent text-white border-accent')
+                  : (isGerant ? 'bg-card text-text-secondary border-border hover:border-[#905D5D]/50' : 'bg-card text-text-secondary border-border hover:border-accent/50')
               }`}
             >
               {opt.label}
@@ -842,10 +1269,14 @@ export const SellerFormModal = ({ onClose, onSubmit }: SellerFormModalProps) => 
               <div className="space-y-4">
                 <div className="flex flex-wrap gap-6">
                   <Checkbox label="Actif" checked={formData.actif} onChange={(checked) => handleChange('actif', checked)} />
-                  <Checkbox label="Croisement automatique" checked={formData.croisementAutomatique} onChange={(checked) => handleChange('croisementAutomatique', checked)} />
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <Select label="Statut métier" options={STATUT_METIER_OPTIONS} value={formData.statutMetier} onValueChange={(v) => handleChange('statutMetier', v)} />
+                  <Select
+                    label="Statut métier"
+                    options={STATUT_METIER_OPTIONS}
+                    value={formData.statutMetier}
+                    onValueChange={(v) => handleChange('statutMetier', v)}
+                  />
                   <Select label="Classification" options={CLASSIFICATION_OPTIONS} value={formData.classification} onValueChange={(v) => handleChange('classification', v)} />
                 </div>
               </div>
@@ -857,18 +1288,13 @@ export const SellerFormModal = ({ onClose, onSubmit }: SellerFormModalProps) => 
                   <div className="flex gap-2">
                     <div className="flex-1">
                       <Select
-                        options={[
-                          { value: '', label: 'Sélectionner un contact...' },
-                          { value: 'contact-1', label: 'Jean Dupont' },
-                          { value: 'contact-2', label: 'Marie Martin' },
-                          { value: 'contact-3', label: 'Ahmed Benali' },
-                        ]}
+                        options={contactOptions}
                         value={formData.contactId}
                         onValueChange={(v) => handleChange('contactId', v)}
                         error={errors.contactId}
                       />
                     </div>
-                    <button type="button" className="h-9 w-9 rounded-lg border border-border bg-card flex items-center justify-center text-text-secondary hover:text-accent hover:border-accent transition-all shrink-0" title="Créer un nouveau contact">
+                    <button type="button" className="h-9 w-9 rounded-lg border border-border bg-card flex items-center justify-center text-text-secondary hover:text-accent hover:border-accent transition-all shrink-0" title="Créer un nouveau contact" onClick={() => setShowContactForm(true)}>
                       <Plus size={16} />
                     </button>
                   </div>
@@ -886,9 +1312,12 @@ export const SellerFormModal = ({ onClose, onSubmit }: SellerFormModalProps) => 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="sm:col-span-2">
                   <p className="text-sm font-medium text-text mb-1.5">Plan (Carte interactive)</p>
-                  <div className="w-full h-48 rounded-lg border border-border bg-background flex items-center justify-center text-text-secondary text-sm">
-                    🗺️ Carte interactive (cliquez pour sélectionner)
-                  </div>
+                  <LocationMap
+                    latitude={formData.latitude}
+                    longitude={formData.longitude}
+                    onLatitudeChange={(v: number) => handleChange('latitude', v)}
+                    onLongitudeChange={(v: number) => handleChange('longitude', v)}
+                  />
                 </div>
                 <Input label="Adresse complète" value={formData.adresseComplete} onChange={(e) => handleChange('adresseComplete', e.target.value)} placeholder="12 Rue de la Liberté, Casablanca" />
                 <Input label="Complément d'adresse" value={formData.complementAdresse} onChange={(e) => handleChange('complementAdresse', e.target.value)} placeholder="Résidence Les Palmiers, Appt 5" />
@@ -1006,7 +1435,7 @@ export const SellerFormModal = ({ onClose, onSubmit }: SellerFormModalProps) => 
                       </div>
                       <span className="text-sm text-text">Pourcentage</span>
                     </label>
-                    <label className="flex items-center gap-2 cursor-pointer">
+                    <label className={`flex items-center gap-2 cursor-pointer ${formData.typeHonoraires === 'inclus' ? 'opacity-40 pointer-events-none' : ''}`}>
                       <input type="radio" name="modeCalculHonoraires" className="sr-only" checked={formData.modeCalculHonoraires === 'montant_fixe'} onChange={() => handleChange('modeCalculHonoraires', 'montant_fixe')} />
                       <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${formData.modeCalculHonoraires === 'montant_fixe' ? 'border-accent' : 'border-border'}`}>
                         {formData.modeCalculHonoraires === 'montant_fixe' && <div className="w-2 h-2 rounded-full bg-accent" />}
@@ -1035,7 +1464,7 @@ export const SellerFormModal = ({ onClose, onSubmit }: SellerFormModalProps) => 
                     placeholder="50"
                   />
                 </div>
-                <div className="p-4 rounded-lg border border-accent/20 bg-accent/5">
+                <div className="p-4 rounded-lg border border-accent/20 bg-accent/5 space-y-2">
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-medium text-text">Prix de vente FAI</span>
                     <span className="text-lg font-bold text-accent">
@@ -1044,28 +1473,19 @@ export const SellerFormModal = ({ onClose, onSubmit }: SellerFormModalProps) => 
                         : '—'}
                     </span>
                   </div>
+                  {prixFAICalcule > 0 && montantHonorairesCalcule > 0 && (
+                    <div className="flex items-center justify-between text-xs text-text-secondary">
+                      <span>Dont honoraires</span>
+                      <span>{montantHonorairesCalcule.toLocaleString('fr-FR')} {formData.devise}</span>
+                    </div>
+                  )}
                   <p className="text-xs text-text-secondary mt-1">
                     {formData.typeHonoraires === 'inclus'
-                      ? `Calculé: Prix net vendeur / (1 - ${formData.modeCalculHonoraires === 'pourcentage' ? '% honoraires/100' : 'honoraires'})`
-                      : 'Calculé: Prix net vendeur + honoraires'}
+                      ? 'Calculé: Prix net vendeur / (1 - % honoraires)'
+                      : formData.modeCalculHonoraires === 'pourcentage'
+                        ? 'Calculé: Prix net vendeur + (% × Prix net vendeur)'
+                        : 'Calculé: Prix net vendeur + honoraires'}
                   </p>
-                </div>
-              </div>
-            ))}
-            {renderSection('DIAGNOSTICS OBLIGATOIRES', (
-              <div className="space-y-4">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <DatePicker label="DPE - Date de réalisation" value={formData.dpeDate} onChange={(e) => handleChange('dpeDate', e.target.value)} />
-                  <Select label="DPE - Classe énergétique" options={[{ value: '', label: 'Non défini' }, ...DPE_CLASSE_OPTIONS]} value={formData.dpeClasse} onValueChange={(v) => handleChange('dpeClasse', v)} />
-                  <DatePicker label="Constats risques - Date" value={formData.constatsRisquesDate} onChange={(e) => handleChange('constatsRisquesDate', e.target.value)} />
-                  <DatePicker label="Diagnostic plomb - Date" value={formData.diagnosticPlombDate} onChange={(e) => handleChange('diagnosticPlombDate', e.target.value)} />
-                </div>
-                <div>
-                  <Textarea label="Autres diagnostics" value={formData.autresDiagnostics} onChange={(e) => handleChange('autresDiagnostics', e.target.value)} placeholder="Précisez les autres diagnostics disponibles..." rows={2} />
-                  <div className="mt-2 flex items-center gap-3 p-3 rounded-lg border border-border bg-background/50">
-                    <span className="text-sm text-text-secondary flex-1">Documents de diagnostics (PDF)</span>
-                    <button type="button" className="text-xs px-3 py-1.5 rounded-lg border border-border bg-card text-text-secondary hover:text-accent hover:border-accent transition-all">Parcourir...</button>
-                  </div>
                 </div>
               </div>
             ))}
@@ -1115,8 +1535,8 @@ export const SellerFormModal = ({ onClose, onSubmit }: SellerFormModalProps) => 
                         onClick={() => handleCheckboxGroup('criteres', opt.value)}
                         className={`px-3 py-1.5 text-xs rounded-lg border transition-all ${
                           isSelected
-                            ? 'bg-accent text-white border-accent'
-                            : 'bg-card text-text-secondary border-border hover:border-accent/50'
+                    ? (isGerant ? 'bg-[#905D5D] text-white border-[#905D5D]' : 'bg-accent text-white border-accent')
+                    : (isGerant ? 'bg-card text-text-secondary border-border hover:border-[#905D5D]/50' : 'bg-card text-text-secondary border-border hover:border-accent/50')
                         }`}
                       >
                         {opt.label}
@@ -1194,7 +1614,6 @@ export const SellerFormModal = ({ onClose, onSubmit }: SellerFormModalProps) => 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <Input label="Numéro de mandat" value={formData.numeroMandat} onChange={(e) => handleChange('numeroMandat', e.target.value)} placeholder="MV-2026-001" />
                 <Select label="Statut du mandat" options={STATUT_MANDAT_OPTIONS} value={formData.statutMandat} onValueChange={(v) => handleChange('statutMandat', v)} />
-                <DatePicker label="Date de signature" value={formData.dateSignature} onChange={(e) => handleChange('dateSignature', e.target.value)} />
                 <DatePicker label="Date de début" value={formData.dateDebut} onChange={(e) => handleChange('dateDebut', e.target.value)} />
                 <DatePicker label="Date d'expiration" value={formData.dateExpiration} onChange={(e) => handleChange('dateExpiration', e.target.value)} />
               </div>
@@ -1202,42 +1621,76 @@ export const SellerFormModal = ({ onClose, onSubmit }: SellerFormModalProps) => 
             {renderSection('2. TYPE DE MANDAT', (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <Select label="Type de mandat" options={TYPE_MANDAT_OPTIONS} value={formData.typeMandat} onValueChange={(v) => handleChange('typeMandat', v)} />
-                <Select label="Durée du mandat" options={DUREE_MANDAT_OPTIONS} value={formData.dureeMandat} onValueChange={(v) => handleChange('dureeMandat', v)} />
               </div>
             ))}
             {renderSection('3. CLAUSE DE PROTECTION', (
               <div className="space-y-3">
                 <Checkbox label="Activer la clause de protection" checked={formData.clauseProtection} onChange={(checked) => handleChange('clauseProtection', checked)} />
                 {formData.clauseProtection && (
-                  <Input label="Nombre de mois de protection" type="number" min="1" max="24" value={formData.clauseProtectionMois?.toString() || '3'} onChange={(e) => handleChange('clauseProtectionMois', e.target.value ? parseInt(e.target.value) : 3)} placeholder="3" className="max-w-xs" />
+                  <Input label="Nombre de mois de protection" type="number" min="1" max="24" value={formData.clauseProtectionMois?.toString() || ''} onChange={(e) => handleChange('clauseProtectionMois', e.target.value ? parseInt(e.target.value) : undefined)} placeholder="3" className="max-w-xs" />
                 )}
                 <p className="text-xs text-text-secondary">Si l'acquéreur visitant pendant le mandat achète après expiration, l'agence conserve droit à commission.</p>
               </div>
             ))}
             {renderSection('4. PARTIES AU CONTRAT', (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <Input label="Vendeur(s)" value="" placeholder="Pré-rempli depuis le contact" disabled />
+                <Input label="Vendeur(s)" value={selectedContactName} disabled />
                 <Input label="Conjoint" value={formData.conjoint} onChange={(e) => handleChange('conjoint', e.target.value)} placeholder="Nom du conjoint" />
-                <Select label="Agent désigné" options={[{ value: '', label: 'Sélectionner un agent...' }, ...AGENTS]} value={formData.agentDesigne} onValueChange={(v) => handleChange('agentDesigne', v)} />
+                <div>
+                  <label className="block text-sm font-medium text-text mb-1.5">Bien concerné</label>
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1">
+                      <Select
+                        placeholder={editingClient?.id ? (loadingProperties ? 'Chargement...' : 'Sélectionner un bien') : 'Créez d\'abord le client'}
+                        value={formData.bienConcerneId}
+                        onValueChange={(v) => handleChange('bienConcerneId', v)}
+                        options={filteredSellerProperties.map((p: any) => ({
+                          value: String(p.id),
+                          label: `${p.title || p.reference || `Bien #${p.id}`}${p.city ? ` - ${p.city}` : ''}`,
+                        }))}
+                        disabled={!editingClient?.id || loadingProperties}
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowPropertyTypeModal(true)}
+                      className="mt-0.5 w-9 h-9 flex items-center justify-center rounded-lg border border-dashed border-accent/40 text-accent hover:bg-accent/10 transition-all shrink-0"
+                      title="Ajouter une propriété"
+                    >
+                      <Plus size={16} />
+                    </button>
+                  </div>
+                  {!editingClient?.id && (
+                    <p className="text-[11px] text-text-secondary/60 mt-1">Enregistrez le client pour pouvoir associer un bien</p>
+                  )}
+                </div>
+                <Input label="Agent désigné" value={(() => {
+                  const raw = formData.agentDesigne || assignmentInfo?.assignedName || '';
+                  if (!raw) return '';
+                  if (USER_CACHE[raw]) return USER_CACHE[raw];
+                  const agent = AGENTS.find(a => a.id === raw);
+                  if (agent) return agent.name;
+                  const byName = AGENTS.find(a => a.name.toLowerCase() === raw.toLowerCase());
+                  return byName ? byName.name : raw;
+                })()} disabled />
               </div>
             ))}
             {renderSection('5. INFORMATIONS FINANCIÈRES', (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <Input label="Prix net vendeur (repris de la section 3)" type="number" value={formData.prixNetVendeur?.toString() || ''} disabled placeholder="Défini dans la section Caractéristiques" />
-                <Select label="Type d'honoraires" options={[{ value: 'inclus', label: 'Inclus dans le prix' }, { value: 'en_sus', label: 'En sus du prix' }]} value={formData.typeHonorairesMandat} onValueChange={(v) => handleChange('typeHonorairesMandat', v)} />
-                <Input label="Montant des honoraires (% ou fixe)" type="number" min="0" step="0.1" value={formData.montantHonoraires?.toString() || ''} onChange={(e) => handleChange('montantHonoraires', e.target.value ? parseFloat(e.target.value) : undefined)} placeholder="5 ou 50000" />
-                <Input label="Commission de co-agencement" type="number" min="0" max="100" value={formData.commissionCoAgencementMandat?.toString() || ''} onChange={(e) => handleChange('commissionCoAgencementMandat', e.target.value ? parseInt(e.target.value) : undefined)} placeholder="50%" />
+                <Input label="Prix net vendeur" type="number" value={formData.prixNetVendeur?.toString() || ''} disabled placeholder="Défini dans la section Caractéristiques" />
+                <Input label="Type d'honoraires" value={formData.typeHonoraires === 'inclus' ? 'Inclus dans le prix' : formData.typeHonoraires === 'en_sus' ? 'En sus du prix' : ''} disabled placeholder="Défini dans la section Caractéristiques" />
+                <Input label="Montant des honoraires" type="number" value={formData.valeurHonoraires?.toString() || ''} disabled placeholder="Défini dans la section Caractéristiques" />
+                <Input label="Commission de co-agencement" type="number" value={formData.commissionCoAgencement?.toString() || ''} disabled placeholder="Défini dans la section Caractéristiques" />
               </div>
             ))}
             {renderSection('6. DOCUMENTS JUSTIFICATIFS', (
               <div className="space-y-3">
+                <p className="text-xs text-text-secondary">Documents à fournir par le vendeur :</p>
                 {[
-                  { label: "Pièce d'identité du vendeur", required: true },
-                  { label: 'Titre de propriété', required: true },
-                  { label: 'Diagnostic technique (DPE)', required: true },
-                  { label: 'Règlement de copropriété', required: false },
-                  { label: 'Mandat signé (PDF)', required: true },
-                  { label: 'Autre document', required: false },
+                  { label: "Pièce d'identité du vendeur", required: true, inputId: 'doc-identite', field: 'docIdentiteUrl' as const, nameField: 'docIdentiteName' as const, uploaded: formData.docIdentiteUrl, name: formData.docIdentiteName },
+                  { label: 'Titre de propriété', required: true, inputId: 'doc-titre', field: 'docTitreProprieteUrl' as const, nameField: 'docTitreProprieteName' as const, uploaded: formData.docTitreProprieteUrl, name: formData.docTitreProprieteName },
+                  { label: 'Règlement de copropriété', required: false, inputId: 'doc-copropriete', field: 'docCoproprieteUrl' as const, nameField: 'docCoproprieteName' as const, uploaded: formData.docCoproprieteUrl, name: formData.docCoproprieteName },
+                  { label: 'Autre document', required: false, inputId: 'doc-autre', field: 'docAutreUrl' as const, nameField: 'docAutreName' as const, uploaded: formData.docAutreUrl, name: formData.docAutreName },
                 ].map((doc, i) => (
                   <div key={i} className="flex items-center gap-3 p-3 rounded-lg border border-border bg-background/50">
                     <span className="text-sm text-text flex-1">{doc.label}</span>
@@ -1246,7 +1699,22 @@ export const SellerFormModal = ({ onClose, onSubmit }: SellerFormModalProps) => 
                     ) : (
                       <span className="text-xs px-2 py-0.5 rounded bg-accent/10 text-accent font-medium">Recommandé</span>
                     )}
-                    <button type="button" className="text-xs px-3 py-1.5 rounded-lg border border-border bg-card text-text-secondary hover:text-accent hover:border-accent transition-all">Parcourir...</button>
+                    {doc.uploaded ? (
+                      <span className="text-[10px] font-medium text-emerald-600 uppercase bg-emerald-50 px-2 py-0.5 rounded flex items-center gap-1">
+                        <Upload size={10} /> Uploadé
+                      </span>
+                    ) : null}
+                    <div className="relative">
+                      <input id={doc.inputId} type="file" accept=".pdf,.jpg,.jpeg,.png" className="hidden" onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        try {
+                          const urls = await uploadFiles([file]);
+                          if (urls[0]) { handleChange(doc.field, urls[0]); handleChange(doc.nameField, file.name); }
+                        } catch { /* upload failed silently */ }
+                      }} />
+                      <button type="button" onClick={() => document.getElementById(doc.inputId)?.click()} className="text-xs px-3 py-1.5 rounded-lg border border-border bg-card text-text-secondary hover:text-accent hover:border-accent transition-all">{doc.uploaded ? 'Remplacer' : 'Parcourir...'}</button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -1255,23 +1723,32 @@ export const SellerFormModal = ({ onClose, onSubmit }: SellerFormModalProps) => 
               <div className="space-y-4">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="p-4 rounded-lg border border-border bg-background/50">
-                    <p className="text-sm font-medium text-text mb-2">✍️ Signature du vendeur</p>
+                    <p className="text-sm font-medium text-text mb-2">Signature du vendeur</p>
                     <div className="h-16 rounded border border-dashed border-text-secondary/30 flex items-center justify-center text-text-secondary text-xs">Champ de signature électronique</div>
                   </div>
                   <div className="p-4 rounded-lg border border-border bg-background/50">
-                    <p className="text-sm font-medium text-text mb-2">✍️ Signature de l'agent</p>
+                    <p className="text-sm font-medium text-text mb-2">Signature de l'agent</p>
                     <div className="h-16 rounded border border-dashed border-text-secondary/30 flex items-center justify-center text-text-secondary text-xs">Champ de signature électronique</div>
                   </div>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <DatePicker label="Date de signature" value={formData.dateSignatureMandat} onChange={(e) => handleChange('dateSignatureMandat', e.target.value)} />
-                  <div className="flex items-end">
-                    <div className="flex-1 space-y-1.5">
-                      <p className="text-sm font-medium text-text">Fichier du mandat signé</p>
-                      <div className="flex items-center gap-3 p-3 rounded-lg border border-border bg-background/50">
-                        <span className="text-sm text-text-secondary flex-1">Upload PDF</span>
-                        <button type="button" className="text-xs px-3 py-1.5 rounded-lg border border-border bg-card text-text-secondary hover:text-accent hover:border-accent transition-all">Parcourir...</button>
-                      </div>
+                  <div>
+                    <p className="block text-sm font-medium text-text mb-1.5">Fichier du mandat signé</p>
+                    <div className="h-9 flex items-center gap-3 px-3 rounded-lg border border-border bg-background/50">
+                      {formData.mandatSignePdfUrl ? (
+                        <Eye size={14} className="text-emerald-500 shrink-0" />
+                      ) : null}
+                      <span className="text-sm text-text-secondary flex-1 truncate">{formData.mandatSignePdfName || (formData.mandatSignePdfUrl ? 'Fichier uploadé' : 'Aucun fichier')}</span>
+                      <input id="mandat-signe-upload" type="file" accept=".pdf" className="hidden" onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        try {
+                          const urls = await uploadFiles([file]);
+                          if (urls[0]) { handleChange('mandatSignePdfUrl', urls[0]); handleChange('mandatSignePdfName', file.name); }
+                        } catch { /* upload failed silently */ }
+                      }} />
+                      <button type="button" onClick={() => document.getElementById('mandat-signe-upload')?.click()} className="text-xs px-3 py-1.5 rounded-lg border border-border bg-card text-text-secondary hover:text-accent hover:border-accent transition-all">{formData.mandatSignePdfUrl ? 'Remplacer' : 'Parcourir...'}</button>
                     </div>
                   </div>
                 </div>
@@ -1286,7 +1763,9 @@ export const SellerFormModal = ({ onClose, onSubmit }: SellerFormModalProps) => 
   };
 
   return (
+    <>
     <AnimatePresence>
+      {loadingDraft ? null : (
       <div className="fixed inset-0 z-50 flex items-start justify-center pt-6 pb-6">
         <motion.div
           initial={{ opacity: 0 }}
@@ -1300,17 +1779,35 @@ export const SellerFormModal = ({ onClose, onSubmit }: SellerFormModalProps) => 
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 10 }}
           transition={{ duration: 0.2 }}
-          className="relative w-full max-w-5xl mx-4 bg-card rounded-xl border border-border/50 shadow-modal overflow-y-auto max-h-[calc(100vh-48px)]"
+          className="relative w-full max-w-5xl mx-4 bg-card rounded-xl border border-border/50 shadow-modal flex flex-col max-h-[calc(100vh-48px)]"
         >
-          <div className="flex items-center justify-between px-6 py-4 border-b border-border/40 sticky top-0 bg-card z-10">
-            <h2 className="text-lg font-semibold">Nouveau vendeur</h2>
-            <button onClick={onClose} className="w-8 h-8 rounded-lg flex items-center justify-center text-text-secondary hover:text-text hover:bg-background transition-all">
-              <X size={16} />
-            </button>
+          <div className="flex items-center justify-between px-6 py-4 border-b border-border/40 bg-card z-10 shrink-0">
+            <h2 className="text-lg font-semibold">{editingClient ? 'Modifier le vendeur' : 'Nouveau vendeur'}</h2>
+            <div className="flex items-center gap-3">
+              {loadingDraft ? (
+                <span className="text-xs text-text-secondary">Chargement du brouillon...</span>
+              ) : savedDraftId ? (
+                <span className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-emerald-600 bg-emerald-50 rounded-lg">
+                  Auto-sauvegardé
+                </span>
+              ) : !editingClient ? (
+                <button
+                  type="button"
+                  onClick={doSaveDraft}
+                  className="px-3 py-1.5 text-xs rounded-lg border border-border/60 hover:bg-border/20 transition-colors flex items-center gap-1.5"
+                >
+                  Brouillon
+                </button>
+              ) : null}
+              <CompletionRing percent={calcCompletion(formData)} size={32} strokeWidth={3} />
+              <button onClick={onClose} className="w-8 h-8 rounded-lg flex items-center justify-center text-text-secondary hover:text-text hover:bg-background transition-all">
+                <X size={16} />
+              </button>
+            </div>
           </div>
 
           {/* Tabs */}
-          <div className="px-6 py-1 border-b border-border/30 flex gap-1 overflow-x-auto sticky top-[57px] bg-card z-10">
+          <div className="px-6 py-1 border-b border-border/30 flex gap-1 overflow-x-auto bg-card z-10 shrink-0">
             {TABS.map((t) => (
               <button
                 key={t.id}
@@ -1324,15 +1821,23 @@ export const SellerFormModal = ({ onClose, onSubmit }: SellerFormModalProps) => 
             ))}
           </div>
 
-          <form onSubmit={handleSubmit} className="p-6 space-y-6">
-            {renderTabContent()}
+          <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0 p-6">
+            <div className="flex-1 overflow-y-auto min-h-0">
+              {renderTabContent()}
+            </div>
 
             {/* Footer */}
-            <div className="flex items-center justify-between pt-4 border-t border-border/30">
-              <div>
+            <div className="flex items-center justify-between pt-4 mt-6 border-t border-border/30 shrink-0">
+              <div className="flex items-center gap-2">
                 {step > 1 && (
                   <Button type="button" variant="outline" onClick={() => setStep(step - 1)}>
                     Précédent
+                  </Button>
+                )}
+                {!savedDraftId && !editingClient && (
+                  <Button type="button" variant="outline" onClick={doSaveDraft}>
+                    <Save size={14} className="inline mr-1" />
+                    Enregistrer comme brouillon
                   </Button>
                 )}
               </div>
@@ -1341,12 +1846,19 @@ export const SellerFormModal = ({ onClose, onSubmit }: SellerFormModalProps) => 
                   Annuler
                 </Button>
                 {step < 8 ? (
-                  <Button type="button" variant="default" onClick={() => setStep(step + 1)}>
+                  <Button type="button" variant="default" onClick={() => {
+                    if (step === 1 && !formData.contactId) {
+                      setErrors(prev => ({ ...prev, contactId: 'Veuillez sélectionner ou créer un contact' }));
+                      return;
+                    }
+                    setErrors(prev => ({ ...prev, contactId: undefined }));
+                    setStep(step + 1);
+                  }}>
                     Suivant
                   </Button>
                 ) : (
-                  <Button type="submit" variant="default" loading={isSubmitting}>
-                    {isSubmitting ? 'Enregistrement...' : "Créer le vendeur"}
+                  <Button type="button" variant="default" onClick={submitForm} loading={isSubmitting}>
+                    {isSubmitting ? 'Enregistrement...' : editingClient ? 'Mettre à jour le vendeur' : "Créer le vendeur"}
                   </Button>
                 )}
               </div>
@@ -1354,6 +1866,51 @@ export const SellerFormModal = ({ onClose, onSubmit }: SellerFormModalProps) => 
           </form>
         </motion.div>
       </div>
+      )}
+
+      {/* Property Type Selection Modal */}
+      <Dialog isOpen={showPropertyTypeModal} onClose={() => setShowPropertyTypeModal(false)} title="Propriété de vendeur est de type :" size="md">
+        <div className="space-y-3">
+          <p className="text-sm text-text-secondary">Sélectionnez le type de bien à créer :</p>
+          {[
+            { label: 'Résidentiel', desc: 'Appartements, maisons, villas', icon: Home, type: 'Résidentiel' },
+            { label: 'Commercial', desc: 'Bureaux, locaux, boutiques', icon: Briefcase, type: 'Commercial' },
+            { label: 'Terrain', desc: 'Terrains constructibles, agricoles', icon: MapPin, type: 'Terrain' },
+            { label: 'Luxe', desc: 'Biens haut de gamme', icon: Star, type: 'Luxe' },
+          ].map((item) => (
+            <button
+              key={item.type}
+              type="button"
+              onClick={() => handlePropertyTypeSelect(item.type)}
+              className="w-full flex items-center gap-4 p-4 rounded-lg border border-border/50 bg-background/50 hover:border-accent hover:bg-accent/5 transition-all text-left group"
+            >
+              <div className="w-10 h-10 rounded-lg bg-accent/10 flex items-center justify-center text-accent group-hover:bg-accent group-hover:text-white transition-all">
+                <item.icon size={20} />
+              </div>
+              <div className="flex-1">
+                <p className="text-sm font-semibold text-text">{item.label}</p>
+                <p className="text-xs text-text-secondary">{item.desc}</p>
+              </div>
+              <ExternalLink size={14} className="text-text-secondary/40 group-hover:text-accent transition-colors" />
+            </button>
+          ))}
+        </div>
+      </Dialog>
     </AnimatePresence>
+    {showContactForm && (
+      <ContactFormModal
+        onClose={() => setShowContactForm(false)}
+        onSubmit={async (data) => {
+          try {
+            const created = await createContact(data);
+            refreshContacts();
+            setFormData(prev => ({ ...prev, contactId: String(created.id) }));
+            setShowContactForm(false);
+          } catch {
+          }
+        }}
+      />
+    )}
+    </>
   );
 };

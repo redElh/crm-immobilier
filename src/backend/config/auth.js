@@ -1,5 +1,6 @@
 import dotenv from 'dotenv';
 import jwt from 'jsonwebtoken';
+import crypto from 'crypto';
 
 dotenv.config();
 
@@ -7,6 +8,7 @@ export const jwtConfig = {
   secret: process.env.JWT_SECRET || 'your-secret-key',
   expiresIn: process.env.JWT_EXPIRES_IN || '1d',
   cookieExpires: parseInt(process.env.JWT_COOKIE_EXPIRES) || 90, // in days
+  refreshExpiresDays: parseInt(process.env.JWT_REFRESH_EXPIRES) || 30, // refresh token validity in days
 };
 
 export const generateToken = (payload) => {
@@ -35,4 +37,12 @@ export const clearTokenCookie = (res) => {
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'strict',
   });
+};
+
+export const generateRefreshToken = () => {
+  return crypto.randomBytes(40).toString('hex');
+};
+
+export const getRefreshTokenExpiry = () => {
+  return new Date(Date.now() + jwtConfig.refreshExpiresDays * 24 * 60 * 60 * 1000);
 };

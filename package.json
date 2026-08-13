@@ -25,6 +25,7 @@
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
     "dotenv": "^17.2.1",
+    "emoji-picker-react": "^4.19.1",
     "express": "^5.1.0",
     "framer-motion": "^12.23.5",
     "jsonwebtoken": "^9.0.2",
@@ -44,10 +45,13 @@
     "react-leaflet": "^5.0.0",
     "react-router-dom": "^7.6.3",
     "react-scripts": "^5.0.1",
+    "react-to-print": "^3.3.0",
+    "recharts": "^3.10.1",
     "sequelize": "^6.37.7",
     "tailwind-merge": "^3.3.1",
     "typescript": "^4.9.5",
     "web-vitals": "^2.1.4",
+    "ws": "^7.5.10",
     "zod": "^4.0.5"
   },
   "scripts": {

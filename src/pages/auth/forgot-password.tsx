@@ -3,21 +3,31 @@ import { Link } from 'react-router-dom'
 import { AuthFormContainer } from '../../components/auth/AuthFormContainer'
 import { Input } from '../../components/ui/Input'
 import { Button } from '../../components/ui/Button'
-import { Icon } from '../../components/ui/Icon'
+import { Mail } from 'react-feather'
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('')
   const [isSubmitted, setIsSubmitted] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState('')
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
-    // Simulate API call
-    setTimeout(() => {
+    setError('')
+
+    try {
+      const response = await fetch('http://localhost:5000/api/auth/forgot-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      })
+      const data = await response.json()
+      if (!response.ok) { setError(data.error || 'Une erreur est survenue'); return }
       setIsSubmitted(true)
-      setIsLoading(false)
-    }, 1500)
+    } catch (err) {
+      setError('Une erreur inattendue est survenue.')
+    } finally { setIsLoading(false) }
   }
 
   return (
@@ -28,12 +38,12 @@ export default function ForgotPasswordPage() {
           ? "Consultez votre boîte mail pour les instructions"
           : "Entrez votre email pour recevoir un lien de réinitialisation"
       }
-      backgroundImage="/images/auth-bg.jpg"
+      backgroundImage="/CRM_Official_Image.jfif"
     >
       {isSubmitted ? (
         <div className="text-center space-y-6">
           <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-green-100">
-            <Icon name="mail" className="h-6 w-6 text-green-600" />
+            <Mail size={24} className="text-green-600" />
           </div>
           <p className="text-sm text-gray-600">
             Nous avons envoyé un email à <span className="font-medium">{email}</span> avec un lien
@@ -57,21 +67,26 @@ export default function ForgotPasswordPage() {
         </div>
       ) : (
         <form onSubmit={handleSubmit} className="space-y-6">
+          {error && (
+            <div className="p-3 bg-error/5 border border-error/20 rounded-lg">
+              <p className="text-sm text-error font-medium">{error}</p>
+            </div>
+          )}
+
           <Input
             label="Email professionnel"
             type="email"
-            placeholder="votre@email.com"
+            placeholder="agent@email.com"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
-            icon="mail"
           />
 
           <Button
             type="submit"
             variant="default"
             size="lg"
-            className="w-full"
+            className="w-full golden-border-animated"
             loading={isLoading}
           >
             Envoyer les instructions

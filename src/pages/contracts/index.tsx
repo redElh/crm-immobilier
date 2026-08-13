@@ -1,53 +1,95 @@
-import { useState, useMemo } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useState, useEffect, useMemo } from 'react'
+import { useNavigate, useParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
-import { FileText, Search, X, ChevronRight, Home, User } from 'react-feather'
-import { Button } from '../../components/ui/Button'
+import { FileText, Search, X, Home, User, Briefcase, Tag, CheckCircle, Shield, Clock, DollarSign, Lock } from 'react-feather'
 import { Badge } from '../../components/ui/Badge'
 import Card from '../../components/ui/Card'
+import { Button } from '../../components/ui/Button'
 import { Select } from '../../components/ui/Select'
 import { DatePicker } from '../../components/ui/DatePicker'
+import { ConfirmDialog } from '../../components/ui/ConfirmDialog'
+import { ContractActionsMenu } from '../../components/ui/ContractActionsMenu'
+import { useToast } from '../../components/ui/Toast'
+import { fetchContracts, deleteContract } from '../../services/contractService'
+import { api } from '../../services/api'
+import { useMyPermissions, permissionAllowed } from '../../hooks/useMyPermissions'
 import {
-  mockContracts,
-  contractFilters,
   CONTRACT_TYPE_LABELS,
   CONTRACT_STATUS_LABELS,
   CONTRACT_STATUS_COLORS,
-  VENTE_ETAPE_LABELS,
-  VENTE_ETAPE_COLORS,
-  partyRoleColor,
+  contractFilters,
 } from '../../types/contract'
-import type { ContractType, ContractStatus, Contract } from '../../types/contract'
-
-const CURRENT_AGENT = 'Karim Eloui'
+import type { ContractType, ContractStatus } from '../../types/contract'
 
 export default function ContractsPage() {
   const navigate = useNavigate()
+  const { agentId } = useParams()
+  const { toast } = useToast()
+  const perms = useMyPermissions()
+  const canViewDetails = permissionAllowed(perms, 'contrats-info-privees')
+  const canDeleteContract = permissionAllowed(perms, 'contrats-supprimer')
+  const basePath = agentId ? `/${agentId}` : ''
+  const [contracts, setContracts] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [currentUser, setCurrentUser] = useState<any>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [filterType, setFilterType] = useState<ContractType | ''>('')
   const [filterStatus, setFilterStatus] = useState<ContractStatus | ''>('')
   const [dateRange, setDateRange] = useState({ from: '', to: '' })
+  const [deleteTarget, setDeleteTarget] = useState<any>(null)
+  const [deleting, setDeleting] = useState(false)
+
+  useEffect(() => {
+    api.get<any>('/auth/me').then(setCurrentUser).catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    if (!currentUser) return
+    setLoading(true)
+    fetchContracts({ agent_id: String(currentUser.id) })
+      .then(data => setContracts(Array.isArray(data) ? data : []))
+      .catch(() => setContracts([]))
+      .finally(() => setLoading(false))
+  }, [currentUser])
+
+  const currentUserName = currentUser
+    ? [currentUser.first_name, currentUser.last_name].filter(Boolean).join(' ') || currentUser.email
+    : ''
+
+  const handleDelete = async () => {
+    if (!deleteTarget || !canDeleteContract) return
+    setDeleting(true)
+    try {
+      await deleteContract(deleteTarget.id)
+      setContracts(prev => prev.filter(c => c.id !== deleteTarget.id))
+      toast('success', `Contrat ${deleteTarget.reference || ''} supprimé`)
+    } catch {
+      toast('error', 'Erreur lors de la suppression du contrat')
+    } finally {
+      setDeleting(false)
+      setDeleteTarget(null)
+    }
+  }
 
   const filtered = useMemo(() => {
-    return mockContracts.filter(c => {
-      if (c.agentPrincipal !== CURRENT_AGENT) return false
+    return contracts.filter(c => {
       if (searchQuery) {
         const q = searchQuery.toLowerCase()
         const matchesSearch =
-          c.reference.toLowerCase().includes(q) ||
-          c.partieA.name.toLowerCase().includes(q) ||
-          c.partieB.name.toLowerCase().includes(q) ||
-          c.propertyTitle.toLowerCase().includes(q) ||
-          c.propertyRef.toLowerCase().includes(q)
+          c.reference?.toLowerCase().includes(q) ||
+          c.clientName?.toLowerCase().includes(q) ||
+          c.propertyTitle?.toLowerCase().includes(q) ||
+          c.propertyRef?.toLowerCase().includes(q) ||
+          c.agentName?.toLowerCase().includes(q)
         if (!matchesSearch) return false
       }
-      if (filterType && c.type !== filterType) return false
+      if (filterType && c.contractType !== filterType) return false
       if (filterStatus && c.status !== filterStatus) return false
-      if (dateRange.from && c.dateCreation < dateRange.from) return false
-      if (dateRange.to && c.dateCreation > dateRange.to) return false
+      if (dateRange.from && c.createdAt && new Date(c.createdAt).toISOString().slice(0, 10) < dateRange.from) return false
+      if (dateRange.to && c.createdAt && new Date(c.createdAt).toISOString().slice(0, 10) > dateRange.to) return false
       return true
     })
-  }, [searchQuery, filterType, filterStatus, dateRange])
+  }, [contracts, searchQuery, filterType, filterStatus, dateRange])
 
   const clearFilters = () => {
     setSearchQuery('')
@@ -58,25 +100,69 @@ export default function ContractsPage() {
 
   const hasActiveFilters = searchQuery || filterType || filterStatus || dateRange.from || dateRange.to
 
-  const totalAmount = (c: Contract) => {
-    if (c.type === 'vente') return c.prixVente
-    if (c.type === 'location_classique') return c.loyerMensuelHC
-    if (c.type === 'location_saisonniere') return c.prixTotalSejour
-    return undefined
+  const formatPrice = (p: number) =>
+    new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'MAD', maximumFractionDigits: 0 }).format(p)
+
+  const formatDate = (d: string) => {
+    if (!d) return '—'
+    return new Date(d).toLocaleDateString('fr-FR')
   }
 
-  const formatPrice = (p: number, devise: string) =>
-    new Intl.NumberFormat('fr-FR', { style: 'currency', currency: devise, maximumFractionDigits: 0 }).format(p)
+  const kpiData = useMemo(() => {
+    const total = contracts.length
+    const ventes = contracts.filter(c => c.contractType === 'vente').length
+    const locations = contracts.filter(c => c.contractType === 'location_classique').length
+    const saisonniers = contracts.filter(c => c.contractType === 'location_saisonniere').length
+    const actifs = contracts.filter(c => c.status === 'confirme_actif').length
+    const termines = contracts.filter(c => c.status === 'finalise_termine').length
+    const enCours = contracts.filter(c => c.status === 'en_cours').length
+    const caTotal = contracts.reduce((s, c) => s + (c.amount || 0), 0)
+    return { total, ventes, locations, saisonniers, actifs, termines, enCours, caTotal }
+  }, [contracts])
+
+  const kpiCards = [
+    { label: 'Total contrats', value: kpiData.total, icon: FileText, color: 'text-accent', bg: 'bg-accent-light' },
+    { label: 'Ventes', value: kpiData.ventes, icon: Home, color: 'text-blue-600', bg: 'bg-blue-50' },
+    { label: 'Locations classiques', value: kpiData.locations, icon: Briefcase, color: 'text-emerald-600', bg: 'bg-emerald-50' },
+    { label: 'Locations saisonnières', value: kpiData.saisonniers, icon: Tag, color: 'text-amber-600', bg: 'bg-amber-50' },
+    { label: 'Confirmés / Actifs', value: kpiData.actifs, icon: CheckCircle, color: 'text-emerald-600', bg: 'bg-emerald-50' },
+    { label: 'Finalisés / Terminés', value: kpiData.termines, icon: Shield, color: 'text-blue-600', bg: 'bg-blue-50' },
+    { label: 'En cours', value: kpiData.enCours, icon: Clock, color: 'text-amber-600', bg: 'bg-amber-50' },
+    { label: 'CA total', value: formatPrice(kpiData.caTotal), icon: DollarSign, color: 'text-accent', bg: 'bg-accent-light' },
+  ]
 
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-bold">Contrats</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">Contrats - Vue d'ensemble</h1>
           <p className="text-sm text-text-secondary mt-1">
-            {filtered.length} contrat{filtered.length !== 1 ? 's' : ''} enregistré{filtered.length !== 1 ? 's' : ''}
+            {kpiData.total} contrats enregistrés · {kpiData.actifs} actifs · {kpiData.termines} terminés · {kpiData.enCours} en cours
           </p>
         </div>
+      </div>
+
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        {kpiCards.map((kpi, i) => {
+          const Icon = kpi.icon
+          return (
+            <motion.div
+              key={kpi.label}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: i * 0.05 }}
+              className="bg-card rounded-xl border border-border/50 shadow-card p-4 hover:shadow-card-hover transition-all"
+            >
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-xs text-text-secondary font-medium uppercase tracking-wider">{kpi.label}</p>
+                <div className={`p-2 rounded-lg ${kpi.bg}`}>
+                  <Icon size={14} className={kpi.color} />
+                </div>
+              </div>
+              <p className="text-2xl font-bold">{kpi.value}</p>
+            </motion.div>
+          )
+        })}
       </div>
 
       <Card className="p-4">
@@ -111,11 +197,12 @@ export default function ContractsPage() {
             className="min-w-[140px]"
           />
 
-          {/* Current agent info */}
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-accent/5 border border-accent/20 text-xs text-accent font-medium">
-            <User size={12} />
-            Agent: {CURRENT_AGENT}
-          </div>
+          {currentUser && (
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-accent/5 border border-accent/20 text-xs text-accent font-medium">
+              <User size={12} />
+              Agent: {currentUserName}
+            </div>
+          )}
 
           <div className="flex items-center gap-2">
             <DatePicker
@@ -160,7 +247,14 @@ export default function ContractsPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-border/50">
-              {filtered.length === 0 ? (
+              {loading ? (
+                <tr>
+                  <td colSpan={10} className="px-4 py-16 text-center text-text-secondary">
+                    <div className="animate-spin rounded-full h-8 w-8 border-2 border-accent/20 border-t-accent mx-auto mb-3" />
+                    <p className="text-sm">Chargement des contrats...</p>
+                  </td>
+                </tr>
+              ) : filtered.length === 0 ? (
                 <tr>
                   <td colSpan={10} className="px-4 py-16 text-center text-text-secondary">
                     <FileText size={32} className="mx-auto mb-3 opacity-40" />
@@ -169,74 +263,78 @@ export default function ContractsPage() {
                   </td>
                 </tr>
               ) : (
-                filtered.map((contract, index) => {
-                  const amount = totalAmount(contract)
-                  return (
-                    <motion.tr
-                      key={contract.id}
-                      initial={{ opacity: 0, y: 8 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: index * 0.02, duration: 0.2 }}
-                      className="hover:bg-background/50 transition-colors cursor-pointer"
-                      onClick={() => navigate(`/contracts/${contract.id}`)}
-                    >
-                      <td className="px-4 py-3">
-                        <span className="font-mono text-xs text-text-secondary">{contract.reference}</span>
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className="text-xs font-medium text-text">{CONTRACT_TYPE_LABELS[contract.type]}</span>
-                      </td>
-                      <td className="px-4 py-3">
-                        <Badge className={CONTRACT_STATUS_COLORS[contract.status]}>
-                          {CONTRACT_STATUS_LABELS[contract.status]}
-                        </Badge>
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-2">
-                          <User size={12} className="text-text-secondary/60 shrink-0" />
-                          <div className="min-w-0">
-                            <p className="text-sm text-text truncate max-w-[140px]">{contract.partieA.name}</p>
-                            <span className={`inline-block px-1.5 py-0.5 text-[10px] font-medium rounded border ${partyRoleColor(contract.partieA.type)}`}>
-                              {contract.partieA.type}
-                            </span>
-                          </div>
+                filtered.map((c, index) => (
+                  <motion.tr
+                    key={c.id}
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: index * 0.02, duration: 0.2 }}
+                    className={`transition-colors ${canViewDetails ? 'hover:bg-background/50 cursor-pointer' : 'cursor-not-allowed opacity-60'}`}
+                    onClick={() => canViewDetails && navigate(`/contracts/${c.id}`)}
+                  >
+                    <td className="px-4 py-3">
+                      <span className="font-mono text-xs text-text-secondary">{c.reference}</span>
+                      {!canViewDetails && (
+                        <span className="ml-1.5 inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-medium rounded bg-background border border-border/60 text-text-secondary">
+                          <Lock size={9} /> Verrouillé
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className="text-xs font-medium text-text">{CONTRACT_TYPE_LABELS[c.contractType as keyof typeof CONTRACT_TYPE_LABELS] ?? c.contractType}</span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <Badge className={CONTRACT_STATUS_COLORS[c.status as keyof typeof CONTRACT_STATUS_COLORS] ?? ''}>
+                        {CONTRACT_STATUS_LABELS[c.status as keyof typeof CONTRACT_STATUS_LABELS] ?? c.status}
+                      </Badge>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        <User size={12} className="text-text-secondary/60 shrink-0" />
+                        <div className="min-w-0">
+                          <p className="text-sm text-text truncate max-w-[140px]">{c.clientName || '—'}</p>
+                          {c.clientType && (
+                            <span className="text-[10px] text-text-secondary/60">{c.clientType}</span>
+                          )}
                         </div>
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-2">
-                          <User size={12} className="text-text-secondary/60 shrink-0" />
-                          <div className="min-w-0">
-                            <p className="text-sm text-text truncate max-w-[140px]">{contract.partieB.name}</p>
-                            <span className={`inline-block px-1.5 py-0.5 text-[10px] font-medium rounded border ${partyRoleColor(contract.partieB.type)}`}>
-                              {contract.partieB.type}
-                            </span>
-                          </div>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className="text-text-secondary/60 text-xs">—</span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        <Home size={12} className="text-text-secondary/60 shrink-0" />
+                        <div className="min-w-0">
+                          <p className="text-sm text-text truncate max-w-[160px]">{c.propertyTitle || '—'}</p>
+                          {c.propertyRef && <p className="text-[10px] text-text-secondary/60 font-mono">{c.propertyRef}</p>}
                         </div>
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex items-center gap-2">
-                          <Home size={12} className="text-text-secondary/60 shrink-0" />
-                          <div className="min-w-0">
-                            <p className="text-sm text-text truncate max-w-[160px]">{contract.propertyTitle}</p>
-                            <p className="text-[10px] text-text-secondary/60 font-mono">{contract.propertyRef}</p>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 text-right font-medium text-text text-sm">
-                        {amount ? formatPrice(amount, contract.devise) : <span className="text-text-secondary/60">—</span>}
-                        {contract.type === 'location_classique' && <span className="text-[10px] text-text-secondary/60">/mois</span>}
-                        {contract.type === 'location_saisonniere' && <span className="text-[10px] text-text-secondary/60 ml-0.5">/séjour</span>}
-                      </td>
-                      <td className="px-4 py-3 text-text-secondary text-xs">
-                        {new Date(contract.dateCreation).toLocaleDateString('fr-FR')}
-                      </td>
-                      <td className="px-4 py-3 text-text-secondary text-xs">{contract.agentPrincipal}</td>
-                      <td className="px-4 py-3 text-right">
-                        <Button variant="ghost" size="sm" icon={<ChevronRight size={14} />} onClick={(e) => { e.stopPropagation(); navigate(`/contracts/${contract.id}`) }} />
-                      </td>
-                    </motion.tr>
-                  )
-                })
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-right font-medium text-text text-sm">
+                      {c.amount ? (
+                        <>
+                          {formatPrice(c.amount)}
+                          {c.contractType === 'location_classique' && <span className="text-[10px] text-text-secondary/60">/mois</span>}
+                          {c.contractType === 'location_saisonniere' && <span className="text-[10px] text-text-secondary/60 ml-0.5">/séjour</span>}
+                        </>
+                      ) : (
+                        <span className="text-text-secondary/60">—</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-text-secondary text-xs">
+                      {formatDate(c.createdAt)}
+                    </td>
+                    <td className="px-4 py-3 text-text-secondary text-xs">{currentUserName || '—'}</td>
+                    <td className="px-4 py-3 text-right whitespace-nowrap">
+                      <ContractActionsMenu
+                        contract={c}
+                        basePath={basePath}
+                        onDelete={(contract) => setDeleteTarget(contract)}
+                      />
+                    </td>
+                  </motion.tr>
+                ))
               )}
             </tbody>
           </table>
@@ -251,6 +349,15 @@ export default function ContractsPage() {
           </div>
         </div>
       </div>
+
+      <ConfirmDialog
+        isOpen={!!deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={handleDelete}
+        title="Supprimer le contrat"
+        message={deleteTarget ? `Cette action est irréversible. Le contrat ${deleteTarget.reference || ''} sera définitivement supprimé.` : ''}
+        confirmLabel={deleting ? 'Suppression...' : 'Supprimer'}
+      />
     </div>
   )
 }

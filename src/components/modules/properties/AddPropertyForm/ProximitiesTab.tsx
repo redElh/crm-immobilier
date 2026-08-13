@@ -7,26 +7,22 @@ import { Select } from '../../../ui/Select';
 import { proximiteItems } from './constants';
 
 const container = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.02 } } };
-const item = { hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0 } };
+const motionItem = { hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0 } };
 
 interface ProximitiesTabProps {
   register: any;
   control: any;
+  isGerant?: boolean;
 }
 
-export function ProximitiesTab({ register, control }: ProximitiesTabProps) {
-  const rows = [];
-  for (let i = 0; i < proximiteItems.length; i += 3) {
-    rows.push(proximiteItems.slice(i, i + 3));
-  }
-
+export function ProximitiesTab({ register, control, isGerant = false }: ProximitiesTabProps) {
   return (
     <MotionCard initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.25, ease: "easeOut" }} className="p-0 overflow-hidden">
       <Accordion type="multiple" defaultValue={['proximities']} className="space-y-0">
         <AccordionItem value="proximities" className="border-0">
           <AccordionTrigger className="px-6 py-4 hover:bg-background/50 transition-colors duration-200">
             <div className="flex items-center gap-3">
-              <div className="w-1.5 h-1.5 rounded-full bg-accent" />
+              <div className={`w-1.5 h-1.5 rounded-full ${isGerant ? 'bg-[#905D5D]' : 'bg-accent'}`} />
               <span className="font-medium text-text">Proximités</span>
             </div>
           </AccordionTrigger>
@@ -35,31 +31,32 @@ export function ProximitiesTab({ register, control }: ProximitiesTabProps) {
               <table className="w-full border-collapse text-sm">
                 <thead>
                   <tr className="bg-background/50 border-y border-border/40">
-                    <th className="pl-4 py-3 text-left text-xs font-semibold text-text-secondary uppercase tracking-wider">Élément</th>
-                    <th className="px-3 py-3 text-left text-xs font-semibold text-text-secondary uppercase tracking-wider">Distance</th>
-                    <th className="pr-4 py-3 text-left text-xs font-semibold text-text-secondary uppercase tracking-wider">Unité</th>
+                    <th className="pl-4 py-3 text-left text-xs font-semibold text-text-secondary uppercase tracking-wider w-44">Élément</th>
+                    <th className="px-3 py-3 text-left text-xs font-semibold text-text-secondary uppercase tracking-wider w-28">Distance</th>
+                    <th className="pr-4 py-3 text-left text-xs font-semibold text-text-secondary uppercase tracking-wider w-28">Unité</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/30">
-                  {rows.map((row, rowIdx) => (
-                    <motion.tr key={rowIdx} variants={item} className="hover:bg-background/30 transition-colors">
-                      {row.map((item) => (
-                        <td key={item} className="py-2.5 px-3">
-                          <div className="flex items-center gap-3">
-                            <span className="font-medium text-text w-36 text-sm">{item}</span>
-                            <Input {...register(`proximites.${item.toLowerCase().replace(/[/\s]+/g, '_')}.distance`)} className="w-20" />
-                            <Controller name={`proximites.${item.toLowerCase().replace(/[/\s]+/g, '_')}.unite`} control={control} render={({ field }) => (
-                              <Select options={[
-                                { value: 'm', label: 'm' },
-                                { value: 'km', label: 'km' },
-                                { value: 'min', label: 'min' },
-                              ]} value={field.value} onValueChange={(v) => field.onChange(v)} className="w-20" />
-                            )} />
-                          </div>
+                  {proximiteItems.map((prox, idx) => {
+                    const key = prox.toLowerCase().replace(/[/\s]+/g, '_')
+                    return (
+                      <motion.tr key={idx} variants={motionItem} className="hover:bg-background/30 transition-colors">
+                        <td className="pl-4 py-2.5 font-medium text-text text-sm">{prox}</td>
+                        <td className="px-3 py-2.5">
+                          <Input {...register(`proximites.${key}.distance`)} type="number" className="w-24" />
                         </td>
-                      ))}
-                    </motion.tr>
-                  ))}
+                        <td className="pr-4 py-2.5">
+                          <Controller name={`proximites.${key}.unite`} control={control} render={({ field }) => (
+                            <Select options={[
+                              { value: 'm', label: 'm' },
+                              { value: 'km', label: 'km' },
+                              { value: 'min', label: 'min' },
+                            ]} value={field.value || 'km'} onValueChange={(v) => field.onChange(v)} className="w-24" />
+                          )} />
+                        </td>
+                      </motion.tr>
+                    )
+                  })}
                 </tbody>
               </table>
             </motion.div>

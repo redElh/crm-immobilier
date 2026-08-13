@@ -2,13 +2,18 @@ import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { X } from 'react-feather'
 import {
-  CalendarEvent, EventType, AGENTS,
+  CalendarEvent, EventType, AGENTS, Agent,
   EVENT_TYPE_OPTIONS, REMINDER_OPTIONS,
   generateEventId, formatDateInput, formatTimeInput,
 } from '../../../types/calendar'
 import { Select } from '../../../components/ui/Select'
 import { DatePicker } from '../../../components/ui/DatePicker'
 import { TimePicker } from '../../../components/ui/TimePicker'
+import SearchSelect from './SearchSelect'
+import { fetchContacts } from '../../../services/contactService'
+import { fetchProperties } from '../../../services/propertyService'
+import type { Contact } from '../../../types/contact'
+import type { Property } from '../../../types/property'
 
 interface EventFormModalProps {
   isOpen: boolean
@@ -16,6 +21,12 @@ interface EventFormModalProps {
   onSave: (event: CalendarEvent) => void
   editEvent?: CalendarEvent | null
   defaultDate?: Date
+  currentAgentId?: string
+  currentAgentName?: string
+  agentUserId?: string
+  agents?: Agent[]
+  adminUserId?: string
+  adminUserName?: string
 }
 
 interface FormData {
@@ -38,10 +49,12 @@ interface FormData {
   reminders: string[]
 }
 
-export default function EventFormModal({ isOpen, onClose, onSave, editEvent, defaultDate }: EventFormModalProps) {
-  const [form, setForm] = useState<FormData>(() => getDefaultForm(defaultDate))
+export default function EventFormModal({ isOpen, onClose, onSave, editEvent, defaultDate, currentAgentId, currentAgentName, agentUserId, agents, adminUserId, adminUserName }: EventFormModalProps) {
+  const [form, setForm] = useState<FormData>(() => getDefaultForm(defaultDate, currentAgentId))
+  const [selfAssign, setSelfAssign] = useState(false)
 
   useEffect(() => {
+    setSelfAssign(false)
     if (editEvent) {
       setForm({
         type: editEvent.type,
@@ -50,7 +63,7 @@ export default function EventFormModal({ isOpen, onClose, onSave, editEvent, def
         startTime: formatTimeInput(editEvent.start),
         endDate: formatDateInput(editEvent.end),
         endTime: formatTimeInput(editEvent.end),
-        allDay: editEvent.allDay,
+        allDay: false,
         agentIds: [...editEvent.agentIds],
         clientName: editEvent.clientName || '',
         clientPhone: editEvent.clientPhone || '',
@@ -60,26 +73,34 @@ export default function EventFormModal({ isOpen, onClose, onSave, editEvent, def
         location: editEvent.location || '',
         description: editEvent.description || '',
         googleSync: editEvent.googleSync || false,
-        reminders: editEvent.reminders.map(r => r.label),
+        reminders: editEvent.reminders.map(r => {
+          const opt = REMINDER_OPTIONS.find(o => o.label === r.label)
+          return opt ? opt.value : r.label
+        }),
       })
-    } else if (defaultDate && !editEvent) {
-      setForm(getDefaultForm(defaultDate))
+      if (adminUserId) {
+        setSelfAssign(editEvent.agentIds.includes(adminUserId))
+      }
+    } else if (defaultDate) {
+      setForm(getDefaultForm(defaultDate, currentAgentId))
+    } else {
+      setForm(getDefaultForm(undefined, currentAgentId))
     }
-  }, [editEvent, defaultDate, isOpen])
+  }, [editEvent, defaultDate, isOpen, currentAgentId, adminUserId])
 
-  function getDefaultForm(date?: Date): FormData {
+  function getDefaultForm(date?: Date, agentId?: string): FormData {
     const d = date || new Date()
     const end = new Date(d)
     end.setHours(end.getHours() + 1)
     return {
-      type: 'visit',
+      type: 'visite',
       title: '',
       startDate: formatDateInput(d),
       startTime: formatTimeInput(d),
       endDate: formatDateInput(end),
       endTime: formatTimeInput(end),
       allDay: false,
-      agentIds: [],
+      agentIds: agentId ? [agentId] : [],
       clientName: '',
       clientPhone: '',
       clientEmail: '',
@@ -103,17 +124,19 @@ export default function EventFormModal({ isOpen, onClose, onSave, editEvent, def
     }
   }
 
+  const agentDisplayName = currentAgentName || AGENTS.find(a => a.id === currentAgentId)?.name || ''
+
   const handleSave = () => {
+    const isSelf = !!adminUserId && selfAssign
+    const ownId = currentAgentId || agentUserId || ''
     const event: CalendarEvent = {
       id: editEvent?.id || generateEventId(),
       type: form.type,
       title: form.title,
       start: new Date(`${form.startDate}T${form.startTime}`),
-      end: form.allDay
-        ? new Date(`${form.endDate}T23:59:59`)
-        : new Date(`${form.endDate}T${form.endTime}`),
-      allDay: form.allDay,
-      agentIds: form.agentIds,
+      end: new Date(`${form.endDate}T${form.endTime}`),
+      allDay: false,
+      agentIds: isSelf ? [adminUserId] : (ownId ? [ownId] : form.agentIds),
       clientName: form.clientName || undefined,
       clientPhone: form.clientPhone || undefined,
       clientEmail: form.clientEmail || undefined,
@@ -124,7 +147,7 @@ export default function EventFormModal({ isOpen, onClose, onSave, editEvent, def
       googleSync: form.googleSync,
       reminders: form.reminders.map(r => ({ label: REMINDER_OPTIONS.find(o => o.value === r)?.label || r })),
       createdAt: editEvent?.createdAt || new Date(),
-      createdBy: editEvent?.createdBy || 'Myriam ABABOU',
+      createdBy: editEvent?.createdBy || agentDisplayName || adminUserName || 'Myriam ABABOU',
     }
     onSave(event)
     onClose()
@@ -181,52 +204,101 @@ export default function EventFormModal({ isOpen, onClose, onSave, editEvent, def
                     <label className="text-sm font-medium text-text block mb-1.5">Démarre le</label>
                     <DatePicker
                       value={form.startDate}
+                      min={editEvent ? undefined : formatDateInput(new Date())}
                       onChange={e => update('startDate', e.target.value)}
                     />
-                  </div>
-                  {!form.allDay && (
-                    <div>
-                      <label className="text-sm font-medium text-text block mb-1.5">à</label>
+                    <div className="mt-2">
                       <TimePicker
                         value={form.startTime}
                         onChange={e => update('startTime', e.target.value)}
                       />
                     </div>
-                  )}
+                  </div>
                   <div>
                     <label className="text-sm font-medium text-text block mb-1.5">Termine le</label>
                     <DatePicker
                       value={form.endDate}
                       onChange={e => update('endDate', e.target.value)}
                     />
+                    <div className="mt-2">
+                      <TimePicker
+                        value={form.endTime}
+                        onChange={e => update('endTime', e.target.value)}
+                      />
+                    </div>
                   </div>
-                {!form.allDay && (
-                  <div>
-                    <label className="text-sm font-medium text-text block mb-1.5">à</label>
-                    <TimePicker
-                      value={form.endTime}
-                      onChange={e => update('endTime', e.target.value)}
-                    />
-                  </div>
-                )}
               </div>
 
-              <label className="flex items-center gap-2 cursor-pointer">
-                <div className={`w-4 h-4 rounded border-2 flex items-center justify-center transition-all duration-200 ${form.allDay ? 'bg-accent border-accent' : 'border-border'}`}>
-                  {form.allDay && (
-                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                      <polyline points="20 6 9 17 4 12" />
-                    </svg>
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-sm font-medium text-text">
+                    {adminUserId ? 'Responsable(s) concerné(s)' : currentAgentId ? 'Agent concerné' : 'Agent(s) concerné(s)'}
+                  </label>
+                  {adminUserId && !currentAgentId && (
+                    <div
+                      className="flex items-center gap-2 cursor-pointer group select-none"
+                      onClick={() => {
+                        if (selfAssign) {
+                          update('agentIds', form.agentIds.filter(id => id !== adminUserId))
+                        } else {
+                          update('agentIds', [])
+                        }
+                        setSelfAssign(!selfAssign)
+                      }}
+                    >
+                      <div
+                        className="w-4 h-4 rounded border-2 flex items-center justify-center transition-all duration-200"
+                        style={{
+                          borderColor: selfAssign ? '#D97706' : undefined,
+                          backgroundColor: selfAssign ? '#D97706' : undefined,
+                        }}
+                      >
+                        {selfAssign && (
+                          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                            <polyline points="20 6 9 17 4 12" />
+                          </svg>
+                        )}
+                      </div>
+                      <span className="text-xs text-text-secondary group-hover:text-text transition-colors">
+                        Cet événement vous concerne ?
+                      </span>
+                    </div>
                   )}
                 </div>
-                <span className="text-sm text-text">Journée entière</span>
-              </label>
-
-              <div>
-                <label className="text-sm font-medium text-text block mb-1.5">Agent(s) concerné(s)</label>
+                {selfAssign ? (
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 rounded border-2 flex items-center justify-center bg-accent border-accent">
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="20 6 9 17 4 12" />
+                      </svg>
+                    </div>
+                    <span className="text-sm text-text font-medium">{adminUserName || 'Vous'}</span>
+                  </div>
+                ) : currentAgentId ? (
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 rounded border-2 flex items-center justify-center bg-accent border-accent">
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="20 6 9 17 4 12" />
+                      </svg>
+                    </div>
+                    <span className="text-sm text-text font-medium">{agentDisplayName}</span>
+                  </div>
+                ) : (
                 <div className="grid grid-cols-2 gap-2">
-                  {AGENTS.map(agent => (
-                    <label key={agent.id} className="flex items-center gap-2 cursor-pointer group">
+                  {(agents && agents.length > 0 ? agents : AGENTS).map(agent => (
+                    <label
+                      key={agent.id}
+                      className="flex items-center gap-2 cursor-pointer group"
+                      onClick={() => {
+                        if (adminUserId && String(agent.id) === String(adminUserId)) return
+                        setSelfAssign(false)
+                        if (form.agentIds.includes(agent.id)) {
+                          update('agentIds', form.agentIds.filter(a => a !== agent.id))
+                        } else {
+                          update('agentIds', [...form.agentIds, agent.id])
+                        }
+                      }}
+                    >
                       <div
                         className="w-4 h-4 rounded border-2 flex items-center justify-center transition-all duration-200"
                         style={{
@@ -244,25 +316,60 @@ export default function EventFormModal({ isOpen, onClose, onSave, editEvent, def
                     </label>
                   ))}
                 </div>
+                )}
               </div>
 
               <div>
-                <label className="text-sm font-medium text-text block mb-1.5">Client / Contact lié (optionnel)</label>
-                <input
+                <label className="text-sm font-medium text-text block mb-1.5">Client / Contact lié</label>
+                <SearchSelect<Contact>
                   value={form.clientName}
-                  onChange={e => update('clientName', e.target.value)}
-                  placeholder="Ahmed Benali"
-                  className="w-full h-9 px-3 py-2 text-sm rounded-lg border border-border bg-card placeholder:text-text-secondary/40 focus:outline-none focus:ring-2 focus:ring-accent/15 focus:border-accent"
+                  placeholder="Rechercher un client..."
+                  onSelect={(contact) => {
+                    if (!contact) {
+                      update('clientName', '')
+                      update('clientPhone', '')
+                      update('clientEmail', '')
+                      return
+                    }
+                    update('clientName', `${contact.civility || ''} ${contact.firstName} ${contact.lastName}`.trim())
+                    update('clientPhone', contact.mobile || '')
+                    update('clientEmail', contact.emailPrincipal || '')
+                  }}
+                  fetchOptions={async (q) => {
+                    const contacts = await fetchContacts(q ? { search: q } : {})
+                    return contacts.filter(c => c.mandats && c.mandats.length > 0)
+                  }}
+                  getLabel={(c) => `${c.civility || ''} ${c.firstName} ${c.lastName}`.trim()}
+                  getSubLabel={(c) => [c.mobile, c.emailPrincipal].filter(Boolean).join(' • ')}
+                  getKey={(c) => c.id}
                 />
               </div>
 
               <div>
-                <label className="text-sm font-medium text-text block mb-1.5">Bien lié (optionnel)</label>
-                <input
+                <label className="text-sm font-medium text-text block mb-1.5">Bien lié</label>
+                <SearchSelect<Property>
                   value={form.propertyName}
-                  onChange={e => update('propertyName', e.target.value)}
-                  placeholder="Villa Marrakech"
-                  className="w-full h-9 px-3 py-2 text-sm rounded-lg border border-border bg-card placeholder:text-text-secondary/40 focus:outline-none focus:ring-2 focus:ring-accent/15 focus:border-accent"
+                  placeholder="Rechercher un bien..."
+                  onSelect={(property) => {
+                    if (!property) {
+                      update('propertyName', '')
+                      update('propertyRef', '')
+                      return
+                    }
+                    update('propertyName', property.title || property.reference || '')
+                    update('propertyRef', property.reference || '')
+                    const loc = [property.address, property.city].filter(Boolean).join(', ')
+                    if (loc) update('location', loc)
+                  }}
+                  fetchOptions={async (q) => {
+                    const params: Record<string, string> = {}
+                    if (agentUserId) params.agent_id = agentUserId
+                    if (q) params.search = q
+                    return fetchProperties(params)
+                  }}
+                  getLabel={(p) => `${p.title || ''}${p.reference ? ` (${p.reference})` : ''}`}
+                  getSubLabel={(p) => [p.address, p.city].filter(Boolean).join(', ')}
+                  getKey={(p) => p.id}
                 />
               </div>
 
@@ -288,7 +395,10 @@ export default function EventFormModal({ isOpen, onClose, onSave, editEvent, def
               </div>
 
               <div>
-                <label className="flex items-center gap-2 cursor-pointer">
+                <label
+                  className="flex items-center gap-2 cursor-pointer"
+                  onClick={(e) => { e.preventDefault(); update('googleSync', !form.googleSync) }}
+                >
                   <div className={`w-4 h-4 rounded border-2 flex items-center justify-center transition-all duration-200 ${form.googleSync ? 'bg-accent border-accent' : 'border-border'}`}>
                     {form.googleSync && (
                       <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">

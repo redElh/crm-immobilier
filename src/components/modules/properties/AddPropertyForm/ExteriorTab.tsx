@@ -11,6 +11,7 @@ interface ExteriorTabProps {
   control: any;
   register: any;
   propertyType: string;
+  isGerant?: boolean;
 }
 
 const container = {
@@ -26,7 +27,7 @@ const item = {
   show: { opacity: 1, y: 0 }
 };
 
-export function ExteriorTab({ control, register, propertyType }: ExteriorTabProps) {
+export function ExteriorTab({ control, register, propertyType, isGerant = false }: ExteriorTabProps) {
   const isCommercial = propertyType === 'commercial';
   const isLuxury = propertyType === 'luxury';
   const isLand = propertyType === 'land';
@@ -43,7 +44,7 @@ export function ExteriorTab({ control, register, propertyType }: ExteriorTabProp
           <AccordionItem value="exterior-features" className="border-0">
             <AccordionTrigger className="px-6 py-4 hover:bg-background/50 transition-colors duration-200">
               <div className="flex items-center gap-3">
-                <div className="w-1.5 h-1.5 rounded-full bg-accent" />
+                <div className={`w-1.5 h-1.5 rounded-full ${isGerant ? 'bg-[#905D5D]' : 'bg-accent'}`} />
                 <span className="font-medium text-text">Terrain</span>
               </div>
             </AccordionTrigger>
@@ -100,7 +101,7 @@ export function ExteriorTab({ control, register, propertyType }: ExteriorTabProp
           <AccordionItem value="exterior-features" className="border-0">
             <AccordionTrigger className="px-6 py-4 hover:bg-background/50 transition-colors duration-200">
               <div className="flex items-center gap-3">
-                <div className="w-1.5 h-1.5 rounded-full bg-accent" />
+                <div className={`w-1.5 h-1.5 rounded-full ${isGerant ? 'bg-[#905D5D]' : 'bg-accent'}`} />
                 <span className="font-medium text-text">Caractéristiques extérieures</span>
               </div>
             </AccordionTrigger>
@@ -300,7 +301,7 @@ export function ExteriorTab({ control, register, propertyType }: ExteriorTabProp
                     <thead>
                       <tr className="bg-background/50">
                         <th className="p-3 text-left text-xs font-semibold text-text-secondary uppercase tracking-wider">Pièce</th>
-                        <th className="p-3 text-left text-xs font-semibold text-text-secondary uppercase tracking-wider">Surface</th>
+                        <th className="p-3 text-left text-xs font-semibold text-text-secondary uppercase tracking-wider">Surface (m²)</th>
                         <th className="p-3 text-left text-xs font-semibold text-text-secondary uppercase tracking-wider">Revêtement sol</th>
                         <th className="p-3 text-left text-xs font-semibold text-text-secondary uppercase tracking-wider">État</th>
                         <th className="p-3 text-left text-xs font-semibold text-text-secondary uppercase tracking-wider">Commentaires</th>
@@ -311,7 +312,7 @@ export function ExteriorTab({ control, register, propertyType }: ExteriorTabProp
                         <tr key={space} className="hover:bg-background/30 transition-colors">
                           <td className="p-3 font-medium text-text">{space}</td>
                           <td className="p-3">
-                            <Input {...register(`exteriorSpaces.${space.toLowerCase()}.surface`)} />
+                            <Input type="number" {...register(`exteriorSpaces.${space.toLowerCase()}.surface`)} />
                           </td>
                           <td className="p-3">
                             <Input {...register(`exteriorSpaces.${space.toLowerCase()}.floorCovering`)} />
@@ -348,7 +349,7 @@ export function ExteriorTab({ control, register, propertyType }: ExteriorTabProp
         <AccordionItem value="exterior-features" className="border-0">
           <AccordionTrigger className="px-6 py-4 hover:bg-background/50 transition-colors duration-200">
             <div className="flex items-center gap-3">
-              <div className="w-1.5 h-1.5 rounded-full bg-accent" />
+              <div className={`w-1.5 h-1.5 rounded-full ${isGerant ? 'bg-[#905D5D]' : 'bg-accent'}`} />
               <span className="font-medium text-text">Caractéristiques extérieures</span>
             </div>
           </AccordionTrigger>
@@ -562,7 +563,7 @@ export function ExteriorTab({ control, register, propertyType }: ExteriorTabProp
                   <thead>
                     <tr className="bg-background/50">
                       <th className="p-3 text-left text-xs font-semibold text-text-secondary uppercase tracking-wider">Pièce</th>
-                      <th className="p-3 text-left text-xs font-semibold text-text-secondary uppercase tracking-wider">Surface</th>
+                      <th className="p-3 text-left text-xs font-semibold text-text-secondary uppercase tracking-wider">Surface (m²)</th>
                       <th className="p-3 text-left text-xs font-semibold text-text-secondary uppercase tracking-wider">Revêtement sol</th>
                       <th className="p-3 text-left text-xs font-semibold text-text-secondary uppercase tracking-wider">État</th>
                       <th className="p-3 text-left text-xs font-semibold text-text-secondary uppercase tracking-wider">Commentaires</th>
@@ -573,7 +574,7 @@ export function ExteriorTab({ control, register, propertyType }: ExteriorTabProp
                       <tr key={space} className="hover:bg-background/30 transition-colors">
                         <td className="p-3 font-medium text-text">{space}</td>
                         <td className="p-3">
-                          <Input {...register(`exteriorSpaces.${space.toLowerCase()}.surface`)} />
+                            <Input type="number" {...register(`exteriorSpaces.${space.toLowerCase()}.surface`)} />
                         </td>
                         <td className="p-3">
                           <Input {...register(`exteriorSpaces.${space.toLowerCase()}.floorCovering`)} />

@@ -1,141 +1,30 @@
 import { useParams, useNavigate } from 'react-router-dom';
-import { useState, useEffect, createElement } from 'react';
+import { useState, useEffect, createElement, useCallback } from 'react';
 import Card from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
+import { Dialog } from '../../components/ui/Dialog';
 import { BackLink } from '../../components/ui/BackLink';
+import { Carousel } from '../../components/ui/Carousel';
 import type { Contact, Mandat } from '../../types/contact';
+import { useToast } from '../../components/ui/Toast';
+import { CompletionRing } from '../../components/ui/CompletionRing';
+import { calcContactCompletion } from '../../utils/contactCompletion';
+import { fetchContactById, deleteContact, updateContact } from '../../services/contactService';
+import { fetchClientsByContactId } from '../../services/clientService';
+import { useMyPermissions, permissionAllowed } from '../../hooks/useMyPermissions';
+import { ContactFormModal } from '../../components/modules/contacts/ContactFormModal';
+import { MandatChoiceModal } from '../../components/modules/contacts/MandatChoiceModal';
 import {
   User, Phone, Mail, Calendar, Globe, Tag, Plus,
   TrendingUp, Key, ShoppingCart, Home, Compass,
   Clock, Archive, MessageSquare, MapPin, Briefcase,
   Star, Award, Heart, Users, Link, FileText,
-  Map, CreditCard, Book, Monitor,
+  Map, CreditCard, Book, Monitor, ChevronLeft, ChevronRight as ChevronRightIcon,
   Gift, CheckCircle, X, ChevronRight,
-  DollarSign, Maximize2, Grid, Eye
+  DollarSign, Maximize2, Grid, Eye, Edit3, ExternalLink, Trash2, Share2,
+  Shield, Hash, Percent, UserCheck, File, AlertCircle, Lock
 } from 'react-feather';
-
-const mockContacts: Contact[] = [
-  {
-    id: 'c1',
-    type: 'Particulier',
-    civility: 'M.',
-    firstName: 'Ahmed',
-    lastName: 'Benali',
-    emailPrincipal: 'ahmed.benali@email.com',
-    emailSecondaire: 'a.benali@protonmail.com',
-    mobile: '+212 6 12 34 56 78',
-    telephoneFixe: '+212 5 22 33 44 55',
-    profession: 'Ingénieur en génie civil',
-    lieuNaissance: 'Marrakech',
-    dateNaissance: '1985-03-15',
-    nationalite: 'Marocaine',
-    numeroFiscal: 'FR12345678901',
-    adresse: '12 Avenue Mohammed V',
-    adresse2: 'Résidence Al Ward, Appt 5',
-    codePostal: '40000',
-    ville: 'Marrakech',
-    pays: 'Maroc',
-    moyenContactPrefere: 'Email',
-    langueParlee: ['Français', 'Arabe', 'Anglais'],
-    devisePreferee: 'MAD',
-    situationFamiliale: 'Marié',
-    nombreEnfants: 2,
-    prescripteur: 'Mustapha El Fassi (client référent)',
-    regimeMatrimonial: 'Communauté universelle',
-    siteInternet: 'www.ahmedbenali.ma',
-    commentairePrive: 'Client très exigeant. Préfère les échanges par email. A déjà visité 4 biens sans suite. Relancer dans 2 semaines.',
-    originalProspectId: 'p1',
-    mandats: [
-      { id: 'm1', clientType: 'Acheteur', status: 'Actif', startDate: '2025-06-10', propertyType: 'Appartement', area: 'Marrakech', notes: 'Recherche 3 pièces avec balcon, budget 1.2M MAD max' },
-    ],
-    createdAt: '2025-06-10T10:00:00Z',
-    updatedAt: '2025-06-10T10:00:00Z',
-  },
-  {
-    id: 'c2',
-    type: 'Particulier',
-    civility: 'Mme',
-    firstName: 'Sophie',
-    lastName: 'Martin',
-    emailPrincipal: 'sophie.martin@email.com',
-    mobile: '+33 6 98 76 54 32',
-    profession: 'Avocate',
-    nationalite: 'Française',
-    adresse: '45 Rue des Orangers',
-    ville: 'Casablanca',
-    pays: 'Maroc',
-    moyenContactPrefere: 'Email',
-    langueParlee: ['Français'],
-    devisePreferee: 'EUR',
-    situationFamiliale: 'Célibataire',
-    mandats: [
-      { id: 'm2', clientType: 'Vendeur', status: 'Actif', startDate: '2025-05-01', propertyType: 'Maison', area: 'Casablanca', notes: 'Villa 4 pièces, jardin 200m2' },
-      { id: 'm3', clientType: 'Acheteur', status: 'Actif', startDate: '2025-06-01', propertyType: 'Appartement', area: 'Rabat' },
-    ],
-    createdAt: '2025-05-01T14:30:00Z',
-    updatedAt: '2025-06-04T09:00:00Z',
-  },
-  {
-    id: 'c3',
-    type: 'Professionnel',
-    civility: 'M.',
-    firstName: 'Youssef',
-    lastName: 'Amrani',
-    emailPrincipal: 'y.amrani@email.com',
-    mobile: '+212 6 54 32 10 98',
-    telephoneFixe: '+212 5 37 68 90 12',
-    profession: 'Promoteur immobilier',
-    nationalite: 'Marocaine',
-    adresse: 'Immeuble Al Majd, Bât B',
-    codePostal: '10000',
-    ville: 'Rabat',
-    pays: 'Maroc',
-    moyenContactPrefere: 'Téléphone',
-    langueParlee: ['Arabe', 'Français'],
-    devisePreferee: 'MAD',
-    situationFamiliale: 'Marié',
-    nombreEnfants: 3,
-    commentairePrive: 'Client récurrent. A déjà vendu 2 biens via nous. Contact prioritaire.',
-    originalProspectId: 'p3',
-    mandats: [
-      { id: 'm4', clientType: 'Bailleur', status: 'Actif', startDate: '2025-04-15', propertyType: 'Appartement', area: 'Rabat', notes: 'Appartement meublé, 2 chambres, mise en location' },
-    ],
-    createdAt: '2025-04-15T08:15:00Z',
-    updatedAt: '2025-06-05T08:15:00Z',
-  },
-  {
-    id: 'c4',
-    type: 'Indivision / Succession',
-    civility: 'Mlle',
-    firstName: 'Fatima',
-    lastName: 'Zahra',
-    emailPrincipal: 'f.zahra@email.com',
-    emailSecondaire: 'fatima.zahra@family.ma',
-    mobile: '+212 6 45 67 89 01',
-    telephoneFixe: '+212 5 22 99 88 77',
-    lieuNaissance: 'Fès',
-    dateNaissance: '1990-11-22',
-    nationalite: 'Marocaine',
-    adresse: '17 Rue de la Liberté',
-    ville: 'Casablanca',
-    pays: 'Maroc',
-    moyenContactPrefere: 'WhatsApp',
-    langueParlee: ['Français', 'Anglais', 'Espagnol'],
-    devisePreferee: 'MAD',
-    situationFamiliale: 'Divorcé',
-    nombreEnfants: 1,
-    prescripteur: 'Me Bennani (notaire)',
-    regimeMatrimonial: 'Séparation de biens',
-    commentairePrive: 'Dossier succession en cours. Attend les documents de la banque. Relancer notaire.',
-    mandats: [
-      { id: 'm5', clientType: 'Locataire', status: 'Expiré', startDate: '2024-01-01', endDate: '2024-12-31', propertyType: 'Appartement', area: 'Casablanca' },
-      { id: 'm6', clientType: 'Voyageur', status: 'Actif', startDate: '2025-07-01', endDate: '2025-07-15', area: 'Marrakech', notes: 'Séjour familial, 4 personnes, riad 3 chambres' },
-    ],
-    createdAt: '2024-01-01T10:00:00Z',
-    updatedAt: '2025-06-01T10:00:00Z',
-  },
-];
 
 const mandatIcons: Record<string, React.FC<{ size?: number; className?: string }>> = {
   Vendeur: TrendingUp, Bailleur: Key, Acheteur: ShoppingCart, Locataire: Home, Voyageur: Compass,
@@ -189,6 +78,12 @@ const typeColors: Record<string, string> = {
   'Indivision / Succession': 'bg-orange-50 text-orange-700',
 };
 
+const TYPE_CONFIG: Record<string, { accent: string; border: string; avatarBg: string; avatarRing: string }> = {
+  Particulier: { accent: 'text-blue-600', border: 'border-l-blue-500', avatarBg: 'bg-blue-50', avatarRing: 'ring-blue-200' },
+  Professionnel: { accent: 'text-purple-600', border: 'border-l-purple-500', avatarBg: 'bg-purple-50', avatarRing: 'ring-purple-200' },
+  'Indivision / Succession': { accent: 'text-orange-600', border: 'border-l-orange-500', avatarBg: 'bg-orange-50', avatarRing: 'ring-orange-200' },
+};
+
 function SectionCard({ title, icon: Icon, children, className }: { title: string; icon: React.FC<{ size?: number; className?: string }>; children: React.ReactNode; className?: string }) {
   return (
     <Card className={'p-5 ' + (className || '')}>
@@ -222,74 +117,314 @@ function FieldGrid({ children }: { children: React.ReactNode }) {
   return <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-1">{children}</div>;
 }
 
-function MandatCard({ mandat }: { mandat: Mandat }) {
-  const Icon = mandatIcons[mandat.clientType] || Tag;
-  const colors = mandatColors[mandat.clientType] || mandatColors.Acheteur;
+function MandatDetailRow({ icon: Icon, label, value }: { icon: React.FC<{ size?: number; className?: string }>; label: string; value?: string | number | null | boolean }) {
+  if (value === null || value === undefined || value === '') return null;
+  const display = typeof value === 'boolean' ? (value ? 'Oui' : 'Non') : typeof value === 'number' ? value.toLocaleString('fr-FR') : value;
   return (
-    <div className={'rounded-xl border p-5 transition-shadow hover:shadow-card-hover ' + (mandat.status === 'Expiré' ? 'opacity-70 border-dashed' : 'border-border')}>
-      <div className="flex items-center justify-between mb-4">
-        <div className={'flex items-center gap-2.5 ' + colors.bg + ' px-3 py-1.5 rounded-lg'}>
-          <Icon size={18} className={colors.text} />
-          <span className={'font-semibold text-sm ' + colors.text}>{mandat.clientType}</span>
-        </div>
-        <Badge variant={mandat.status === 'Actif' ? 'success' : 'secondary'}>{mandat.status}</Badge>
-      </div>
-      <div className="space-y-2 text-sm">
-        {mandat.propertyType && (
-          <div className="flex items-center gap-2 text-text-secondary">
-            <Home size={14} />
-            <span>{mandat.propertyType}</span>
-          </div>
-        )}
-        {mandat.area && (
-          <div className="flex items-center gap-2 text-text-secondary">
-            <MapPin size={14} />
-            <span>{mandat.area}</span>
-          </div>
-        )}
-        <div className="flex items-center gap-2 text-text-secondary">
-          <Calendar size={14} />
-          <span>{mandat.startDate + (mandat.endDate ? ' - ' + mandat.endDate : '')}</span>
-        </div>
-        {mandat.notes && (
-          <div className="flex items-start gap-2 text-text-secondary mt-2 pt-2 border-t border-border">
-            <MessageSquare size={14} className="mt-0.5 shrink-0" />
-            <span>{mandat.notes}</span>
-          </div>
-        )}
+    <div className="flex items-start gap-2 py-1">
+      <Icon size={13} className="text-text-tertiary shrink-0 mt-0.5" />
+      <div className="min-w-0">
+        <p className="text-[10px] text-text-tertiary uppercase tracking-wider leading-none mb-0.5">{label}</p>
+        <p className="text-xs font-medium text-text-primary leading-snug">{display}</p>
       </div>
     </div>
   );
 }
 
-function MandatSection({ title, icon: Icon, mandats, emptyText }: { title: string; icon: React.FC<{ size?: number; className?: string }>; mandats: Mandat[]; emptyText: string }) {
+function MandatInfoBlock({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="pt-3 border-t border-border/30">
+      <p className="text-[10px] font-semibold text-text-secondary uppercase tracking-wider mb-2">{title}</p>
+      {children}
+    </div>
+  );
+}
+
+function StatutBadge({ mandat }: { mandat: Mandat }) {
+  const s = mandat.statutMandat || mandat.statutReservation || '';
+  const variant = s === 'Actif' ? 'success' : ['Expire', 'Resilie', 'Termine', 'Annulee', 'Inactif'].includes(s) ? 'secondary' : 'warning';
+  if (!s) return null;
+  return <Badge variant={variant} size="sm">{s}</Badge>;
+}
+
+function MetierBadge({ mandat }: { mandat: Mandat }) {
+  const s = mandat.statutMetier;
+  if (!s) return null;
+  const variant = ['En mandat', 'Confirmé', 'Payé', 'Vendu', 'Loué', 'Installé', 'En séjour'].includes(s) ? 'success' : 'warning';
+  return <Badge variant={variant} size="sm">{s}</Badge>;
+}
+
+function RichMandatCard({ mandat, index, total }: { mandat: Mandat; index: number; total: number }) {
+  const Icon = mandatIcons[mandat.clientType] || Tag;
+  const colors = mandatColors[mandat.clientType] || mandatColors.Acheteur;
+  const isVoyageur = mandat.clientType === 'Voyageur';
+  const isActive = mandat.status === 'Actif';
+  const isExpired = mandat.status === 'Expiré';
+
+  const sectionTitle: Record<string, string> = {
+    Vendeur: 'Mandat de vente',
+    Acheteur: 'Mandat de recherche',
+    Bailleur: 'Mandat de gestion',
+    Locataire: 'Mandat de recherche location',
+    Voyageur: 'Informations de réservation',
+  };
+
   return (
     <div>
-      <div className="flex items-center gap-2 mb-4">
-        <Icon size={18} className="text-text-secondary" />
-        <h3 className="font-semibold text-text-primary">{title}</h3>
-        <span className="text-xs text-text-tertiary ml-1">({mandats.length})</span>
-      </div>
-      {mandats.length === 0 ? (
-        <p className="text-sm text-text-tertiary italic py-4">{emptyText}</p>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {mandats.map((m) => <MandatCard key={m.id} mandat={m} />)}
+      <div className={`rounded-2xl border transition-all ${isExpired ? 'opacity-60 border-dashed border-border' : 'border-border/60 hover:shadow-lg hover:border-border'}`}>
+        <div className={`h-1.5 rounded-t-2xl ${isActive ? 'bg-gradient-to-r from-emerald-400 to-emerald-500' : isExpired ? 'bg-gray-300' : 'bg-gradient-to-r from-amber-400 to-amber-500'}`} />
+        <div className="p-5 space-y-4">
+
+          {/* Header */}
+          <div className="flex items-start justify-between">
+            <div className="flex items-center gap-3">
+              <div className={`w-10 h-10 rounded-xl ${colors.bg} ring-1 ${colors.text.replace('text-', 'ring-')}/20 flex items-center justify-center`}>
+                <Icon size={18} className={colors.text} />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className={`text-sm font-bold ${colors.text}`}>{mandat.clientType}</span>
+                  <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-background-secondary text-text-secondary">
+                    {isVoyageur ? (mandat.numeroReservation || mandat.numeroMandat) : mandat.numeroMandat}
+                  </span>
+                </div>
+                <div className="flex items-center gap-1.5 mt-0.5">
+                  <StatutBadge mandat={mandat} />
+                  <MetierBadge mandat={mandat} />
+                </div>
+              </div>
+            </div>
+            <span className="text-[10px] text-text-tertiary font-mono">{index + 1}/{total}</span>
+          </div>
+
+          {/* Section title */}
+          <div className="bg-background-secondary/40 rounded-lg px-3 py-2">
+            <p className="text-xs font-medium text-text-secondary">{sectionTitle[mandat.clientType] || 'Mandat'}</p>
+          </div>
+
+          {/* Mandat Identity */}
+          <MandatInfoBlock title="Informations du mandat">
+            <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+              {mandat.numeroMandat && <MandatDetailRow icon={Hash} label="Numéro" value={mandat.numeroMandat} />}
+              {mandat.typeMandat && <MandatDetailRow icon={FileText} label="Type" value={mandat.typeMandat} />}
+              {mandat.dateSignature && <MandatDetailRow icon={Calendar} label="Date signature" value={mandat.dateSignature} />}
+              {mandat.startDate && <MandatDetailRow icon={Calendar} label={isVoyageur ? 'Arrivée' : 'Date début'} value={mandat.startDate} />}
+              {mandat.endDate && <MandatDetailRow icon={Calendar} label={isVoyageur ? 'Départ' : 'Date expiration'} value={mandat.endDate} />}
+              {mandat.conjoint && <MandatDetailRow icon={Users} label="Conjoint" value={mandat.conjoint} />}
+              {mandat.societe && <MandatDetailRow icon={Briefcase} label={mandat.clientType === 'Bailleur' ? 'Société (SCI)' : 'Société'} value={mandat.societe} />}
+              {mandat.agentDesigne && <MandatDetailRow icon={UserCheck} label="Agent désigné" value={mandat.agentDesigne} />}
+            </div>
+          </MandatInfoBlock>
+
+          {/* Voyageur: Séjour details */}
+          {isVoyageur && (
+            <MandatInfoBlock title="Détails du séjour">
+              {mandat.bienReserve && (
+                <div className="flex items-center gap-2 bg-background-secondary/50 rounded-lg px-3 py-2 mb-2">
+                  <Home size={14} className="text-text-secondary" />
+                  <span className="text-text-primary font-medium text-xs">{mandat.bienReserve}</span>
+                </div>
+              )}
+              <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+                {mandat.nbNuits != null && mandat.nbNuits > 0 && <MandatDetailRow icon={Hash} label="Nuits" value={mandat.nbNuits} />}
+                {mandat.nbAdultes != null && <MandatDetailRow icon={Users} label="Adultes" value={mandat.nbAdultes} />}
+                {mandat.nbEnfants != null && mandat.nbEnfants > 0 && <MandatDetailRow icon={Users} label="Enfants" value={mandat.nbEnfants} />}
+                {mandat.checkInHeure && <MandatDetailRow icon={Clock} label="Check-in" value={mandat.checkInHeure} />}
+                {mandat.checkOutHeure && <MandatDetailRow icon={Clock} label="Check-out" value={mandat.checkOutHeure} />}
+                {mandat.conditionAnnulation && <MandatDetailRow icon={Shield} label="Annulation" value={mandat.conditionAnnulation} />}
+                {mandat.animauxAcceptes != null && <MandatDetailRow icon={Tag} label="Animaux" value={mandat.animauxAcceptes} />}
+                {mandat.fumeur != null && <MandatDetailRow icon={Tag} label="Fumeur" value={!mandat.fumeur ? 'Non-fumeur' : 'Fumeur'} />}
+              </div>
+              {mandat.optionsSelectionnees && mandat.optionsSelectionnees.length > 0 && (
+                <div className="flex flex-wrap gap-1 mt-2">
+                  {mandat.optionsSelectionnees.map((opt, i) => (
+                    <span key={i} className="text-[10px] px-1.5 py-0.5 rounded bg-accent-light text-accent font-medium">{opt}</span>
+                  ))}
+                </div>
+              )}
+            </MandatInfoBlock>
+          )}
+
+          {/* Voyageur: Paiement */}
+          {isVoyageur && (
+            <MandatInfoBlock title="Paiement">
+              <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+                {mandat.tarifNuit != null && <MandatDetailRow icon={DollarSign} label="€/nuit" value={mandat.tarifNuit} />}
+                {mandat.montantTotalHorsOptions != null && <MandatDetailRow icon={DollarSign} label="Total hors opts" value={mandat.montantTotalHorsOptions} />}
+                {mandat.montantTotalAvecOptions != null && <MandatDetailRow icon={DollarSign} label="Total avec opts" value={mandat.montantTotalAvecOptions} />}
+                {mandat.acompteMontant != null && <MandatDetailRow icon={DollarSign} label="Acompte" value={mandat.acompteMontant} />}
+                {mandat.soldeRestant != null && <MandatDetailRow icon={CreditCard} label="Solde restant" value={mandat.soldeRestant} />}
+                {mandat.cautionMontant != null && <MandatDetailRow icon={Shield} label="Caution" value={mandat.cautionMontant} />}
+              </div>
+            </MandatInfoBlock>
+          )}
+
+          {/* Non-voyageur: Clause de protection */}
+          {!isVoyageur && mandat.dureeProtection && (
+            <MandatInfoBlock title="Clause de protection">
+              <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+                <MandatDetailRow icon={Shield} label="Clause" value="Activée" />
+                <MandatDetailRow icon={Clock} label="Durée" value={`${mandat.dureeProtection} mois`} />
+              </div>
+            </MandatInfoBlock>
+          )}
+
+          {/* Non-voyageur: Rémunération */}
+          {!isVoyageur && (
+            <MandatInfoBlock title="Rémunération">
+              <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+                {mandat.typeRemuneration && <MandatDetailRow icon={DollarSign} label="Type" value={mandat.typeRemuneration} />}
+                {mandat.montantRemuneration != null && (
+                  <MandatDetailRow
+                    icon={mandat.remunerationIsPercentage ? Percent : DollarSign}
+                    label={mandat.remunerationIsPercentage ? 'Taux' : 'Montant'}
+                    value={mandat.remunerationIsPercentage ? `${mandat.montantRemuneration}%` : `${mandat.montantRemuneration} MAD`}
+                  />
+                )}
+                {mandat.conditionPaiement && <MandatDetailRow icon={CreditCard} label="Condition paiement" value={mandat.conditionPaiement} />}
+                {mandat.clientType === 'Bailleur' && mandat.fraisMiseEnLocation != null && <MandatDetailRow icon={DollarSign} label="Frais mise en location" value={`${mandat.fraisMiseEnLocation} MAD`} />}
+                {mandat.clientType === 'Bailleur' && mandat.fraisEtatDesLieux != null && <MandatDetailRow icon={DollarSign} label="Frais état des lieux" value={`${mandat.fraisEtatDesLieux} MAD`} />}
+                {mandat.clientType === 'Bailleur' && mandat.fraisRenouvellementBail != null && <MandatDetailRow icon={DollarSign} label="Frais renouvellement" value={`${mandat.fraisRenouvellementBail} MAD`} />}
+              </div>
+            </MandatInfoBlock>
+          )}
+
+          {/* Mandat PDF */}
+          {(mandat.mandatPdfUrl || mandat.contratPdfUrl) && (
+            <div className="pt-3 border-t border-border/30">
+              <a
+                href={mandat.mandatPdfUrl || mandat.contratPdfUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 text-xs text-accent hover:underline"
+              >
+                <File size={14} />
+                {mandat.mandatPdfName || (isVoyageur ? 'Contrat signé (PDF)' : 'Mandat signé (PDF)')}
+              </a>
+            </div>
+          )}
+
         </div>
-      )}
+      </div>
     </div>
+  );
+}
+
+function MandatsSection({ mandats, onAddMandat }: { mandats: Mandat[]; onAddMandat: () => void }) {
+  const activeMandats = mandats.filter((m) => m.status === 'Actif');
+  const pendingMandats = mandats.filter((m) => m.status === 'En attente');
+  const expiredMandats = mandats.filter((m) => m.status === 'Expiré');
+  const allMandats = [...activeMandats, ...pendingMandats, ...expiredMandats];
+  const hasMultiple = allMandats.length > 1;
+
+  const renderMandatCard = (m: Mandat, i: number) => (
+    <RichMandatCard key={m.id} mandat={m} index={i} total={allMandats.length} />
+  );
+
+  return (
+    <SectionCard title="MANDATS" icon={FileText}>
+      <div className="space-y-5">
+        {hasMultiple && (
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-medium text-text-secondary">{allMandats.length} mandat{allMandats.length > 1 ? 's' : ''}</span>
+              {activeMandats.length > 0 && <span className="text-[10px] text-emerald-600 font-medium">{activeMandats.length} actif{activeMandats.length > 1 ? 's' : ''}</span>}
+              {pendingMandats.length > 0 && <span className="text-[10px] text-amber-600 font-medium">{pendingMandats.length} en attente</span>}
+            </div>
+            <div className="flex items-center gap-1 text-[10px] text-text-tertiary">
+              <ChevronLeft size={12} />
+              <span>Glisser</span>
+              <ChevronRightIcon size={12} />
+            </div>
+          </div>
+        )}
+
+        {allMandats.length === 0 ? (
+          <div className="text-center py-8">
+            <div className="w-12 h-12 rounded-2xl bg-background-secondary mx-auto flex items-center justify-center mb-3">
+              <FileText size={20} className="text-text-tertiary" />
+            </div>
+            <p className="text-sm text-text-tertiary">Aucun mandat</p>
+            <p className="text-xs text-text-tertiary/60 mt-1">Ajoutez un mandat pour suivre l'activité</p>
+          </div>
+        ) : hasMultiple ? (
+          <div>
+            <Carousel autoPlay={false} showControls showIndicators>
+              {allMandats.map((m, i) => (
+                <div key={m.id} className="px-1">{renderMandatCard(m, i)}</div>
+              ))}
+            </Carousel>
+          </div>
+        ) : (
+          <div className="max-w-md">{renderMandatCard(allMandats[0], 0)}</div>
+        )}
+
+        <Button variant="ghost" className="w-full border border-dashed border-border" onClick={onAddMandat}>
+          <Plus size={16} /> Ajouter un mandat
+        </Button>
+      </div>
+    </SectionCard>
   );
 }
 
 export default function ContactPage() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { toast } = useToast();
+  const perms = useMyPermissions();
+  const canRead = permissionAllowed(perms, 'contacts-lecture');
+  const canWrite = permissionAllowed(perms, 'contacts-ecriture');
+  const canDelete = permissionAllowed(perms, 'contacts-supprimer');
+  const canInfo = permissionAllowed(perms, 'contacts-info-privees');
+  const canExport = permissionAllowed(perms, 'contacts-general-export');
+  const permsLoaded = perms !== null;
   const [contact, setContact] = useState<Contact | null>(null);
+  const [linkedClients, setLinkedClients] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [liked, setLiked] = useState(false);
+  const [showEditForm, setShowEditForm] = useState(false);
+  const [showMandatChoice, setShowMandatChoice] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState('');
+
+  const loadContact = useCallback(async () => {
+    if (!id) return;
+    try {
+      setLoading(true);
+      const data = await fetchContactById(id);
+      setContact(data);
+      try {
+        const clients = await fetchClientsByContactId(id);
+        setLinkedClients(clients);
+      } catch {
+        setLinkedClients([]);
+      }
+    } catch {
+      toast('error', 'Contact introuvable');
+    } finally {
+      setLoading(false);
+    }
+  }, [id, toast]);
+
   useEffect(() => {
-    const timer = setTimeout(() => { setContact(mockContacts.find((c) => c.id === id) || null); setLoading(false); }, 300);
-    return () => clearTimeout(timer);
-  }, [id]);
+    if (permsLoaded && canRead && canInfo) loadContact();
+  }, [loadContact, permsLoaded, canRead, canInfo]);
+
+  if (permsLoaded && (!canRead || !canInfo)) {
+    return (
+      <div className="flex flex-col items-center justify-center py-24 text-center">
+        <div className="w-16 h-16 rounded-2xl bg-border/40 flex items-center justify-center mb-4">
+          <Lock size={28} className="text-text-secondary" />
+        </div>
+        <h2 className="text-lg font-semibold">Contact verrouillé</h2>
+        <p className="text-sm text-text-secondary mt-1 max-w-sm">
+          Vous n'avez pas la permission d'accéder aux informations privées de ce contact. Contactez votre administrateur.
+        </p>
+        <Button variant="outline" className="mt-6" onClick={() => navigate('/contacts')}>Retour aux contacts</Button>
+      </div>
+    );
+  }
+
   if (loading) {
     return (
       <div className="flex justify-center items-center h-64">
@@ -306,41 +441,69 @@ export default function ContactPage() {
     );
   }
   const activeMandats = contact.mandats.filter((m) => m.status === 'Actif');
+  const pendingMandats = contact.mandats.filter((m) => m.status === 'En attente');
   const expiredMandats = contact.mandats.filter((m) => m.status === 'Expiré');
+  const allDisplayMandats = [...activeMandats, ...pendingMandats, ...expiredMandats];
+  const mandatClientTypes = Array.from(new Set([
+    ...allDisplayMandats.map((m) => m.clientType),
+    ...linkedClients.map((c) => c.clientType || c.type),
+  ]));
   const typeColor = typeColors[contact.type] || 'bg-background-secondary text-text-secondary';
+  const typeConfig = TYPE_CONFIG[contact.type] || TYPE_CONFIG['Particulier'];
+  const completion = calcContactCompletion(contact);
   const productData = contact.originalProspectId ? prospectProductData[contact.originalProspectId] : undefined;
   return (
     <div className="space-y-6">
       <BackLink to="/contacts" />
 
       {/* Header */}
-      <Card className="p-5">
+      <Card className={`p-5 border-l-[3px] ${typeConfig.border}`}>
         <div className="flex items-start justify-between flex-wrap gap-4">
           <div className="flex items-center gap-4">
-            <div className="w-14 h-14 rounded-full bg-accent-light flex items-center justify-center">
-              <User size={24} className="text-accent" />
+            <div className={`w-14 h-14 rounded-xl ${typeConfig.avatarBg} ring-2 ${typeConfig.avatarRing} flex items-center justify-center`}>
+              <User size={24} className={typeConfig.accent} />
             </div>
             <div>
               <div className="flex items-center gap-3 flex-wrap">
                 <h1 className="text-xl font-bold text-text-primary">{contact.civility} {contact.firstName} {contact.lastName}</h1>
                 <span className={'text-xs font-semibold px-2.5 py-1 rounded-full ' + typeColor}>{contact.type}</span>
               </div>
-              <div className="flex items-center gap-2 mt-2">
-                {contact.mandats.map((m) => {
-                  const colors = mandatColors[m.clientType];
+              <div className="flex items-center gap-2 mt-2 flex-wrap">
+                {mandatClientTypes.map((ct) => {
+                  const colors = mandatColors[ct];
                   return (
-                    <span key={m.id} className={'inline-flex items-center gap-1 px-2 py-0.5 text-xs font-medium rounded-full ' + colors.bg + ' ' + colors.text}>
-                      {createElement(mandatIcons[m.clientType] || Tag, { size: 12 })}
-                      {m.clientType}
+                    <span key={ct} className={'inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold rounded-lg border ' + colors.bg + ' ' + colors.text + ' border-current/10'}>
+                      {createElement(mandatIcons[ct] || Tag, { size: 12 })}
+                      {ct}
                     </span>
                   );
                 })}
+                {allDisplayMandats.length > 0 && (
+                  <span className="text-[10px] text-text-tertiary">
+                    {allDisplayMandats.length} mandat{allDisplayMandats.length > 1 ? 's' : ''}
+                  </span>
+                )}
               </div>
             </div>
           </div>
-          <div className="flex gap-2">
-            <Button variant="outline"><MessageSquare size={16} /> Contacter</Button>
-            <Button variant="outline">Modifier</Button>
+          <div className="flex items-center gap-3">
+            <CompletionRing percent={completion} size={52} strokeWidth={4} />
+            <Button
+              variant={liked ? 'default' : 'outline'}
+              onClick={() => setLiked(!liked)}
+              className={liked ? 'bg-red-50 text-red-500 hover:bg-red-100 border-red-200' : ''}
+            >
+              <Heart size={16} className={liked ? 'fill-current' : ''} />
+            </Button>
+            {canWrite && <Button variant="outline" onClick={() => setShowEditForm(true)}><Edit3 size={16} /> Modifier</Button>}
+            {canExport && <Button variant="outline"><Share2 size={16} /> Partager</Button>}
+            {canDelete && (
+              <Button variant="outline" className="text-error hover:bg-error/5 border-error/20 hover:border-error/40" onClick={() => {
+                if (!id) return;
+                setShowDeleteDialog(true);
+                setDeleteConfirm('');
+              }}><Trash2 size={16} /></Button>
+            )}
           </div>
         </div>
       </Card>
@@ -437,6 +600,9 @@ export default function ContactPage() {
             </div>
           </SectionCard>
 
+          {/* Mandats */}
+          <MandatsSection mandats={allDisplayMandats} onAddMandat={() => setShowMandatChoice(true)} />
+
           {productData && <SectionCard title="PRODUIT" icon={Home}>
             <FieldGrid>
               <FieldRow label="Catégorie" value={productData.categories} icon={Tag} />
@@ -457,20 +623,65 @@ export default function ContactPage() {
         </div>
       </div>
 
-      {/* Section 7: Mandats */}
-      <Card className="p-5">
-        <div className="flex items-center gap-2 mb-5">
-          <FileText size={18} className="text-accent" />
-          <h2 className="font-semibold text-text-primary">MANDATS</h2>
-        </div>
-        <div className="space-y-8">
-          <MandatSection title="Mandats actifs" icon={Clock} mandats={activeMandats} emptyText="Aucun mandat actif" />
-          <MandatSection title="Mandats expirés" icon={Archive} mandats={expiredMandats} emptyText="Aucun mandat expiré" />
-          <Button variant="ghost" className="w-full border border-dashed border-border">
-            <Plus size={16} /> Ajouter un mandat
-          </Button>
-        </div>
-      </Card>
+      {showEditForm && contact && (
+        <ContactFormModal
+          onClose={() => setShowEditForm(false)}
+          onSubmit={async (data) => {
+            try {
+              const updated = await updateContact(contact.id, data);
+              setContact(updated);
+              setShowEditForm(false);
+              toast('success', 'Contact modifié avec succès');
+            } catch {
+              toast('error', 'Erreur lors de la modification');
+            }
+          }}
+          contact={contact}
+        />
+      )}
+
+      {showMandatChoice && contact && (
+        <MandatChoiceModal
+          contact={contact}
+          onClose={() => setShowMandatChoice(false)}
+        />
+      )}
+
+      <Dialog isOpen={showDeleteDialog} onClose={() => setShowDeleteDialog(false)} title="Supprimer le contact" size="sm">
+        {contact && (
+          <div className="space-y-4">
+            <p className="text-sm text-text-secondary">
+              Voulez-vous vraiment supprimer <span className="font-semibold text-text-primary">{contact.firstName} {contact.lastName}</span> ?
+            </p>
+            <p className="text-xs text-text-secondary/70">Cette action est irréversible.</p>
+            <div>
+              <label className="text-sm font-medium mb-1.5 block">Confirmation</label>
+              <input
+                type="text"
+                className="w-full h-10 px-3 text-sm rounded-lg border border-border bg-card placeholder:text-text-secondary/50 focus:outline-none focus:ring-2 focus:ring-error/20 focus:border-error transition-all"
+                placeholder='Tapez "SUPPRIMER" pour confirmer'
+                value={deleteConfirm}
+                onChange={(e) => setDeleteConfirm(e.target.value)}
+              />
+            </div>
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <Button variant="ghost" onClick={() => setShowDeleteDialog(false)}>Annuler</Button>
+              <Button variant="danger" disabled={deleteConfirm !== 'SUPPRIMER'} onClick={async () => {
+                if (!id || deleteConfirm !== 'SUPPRIMER') return;
+                try {
+                  await deleteContact(id);
+                  toast('success', 'Contact supprimé');
+                  navigate('/contacts');
+                } catch { toast('error', 'Erreur lors de la suppression'); }
+                setShowDeleteDialog(false);
+                setDeleteConfirm('');
+              }}>
+                Confirmer la suppression
+              </Button>
+            </div>
+          </div>
+        )}
+      </Dialog>
 
     </div>
   );

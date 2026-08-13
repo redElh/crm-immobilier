@@ -6,12 +6,11 @@ import { Textarea } from '../../../components/ui/Textarea'
 import { Switch } from '../../../components/ui/Switch'
 import { BackLink } from '../../../components/ui/BackLink'
 import { motion } from 'framer-motion'
-import { Save, Plus, Edit3, MessageSquare, FileText } from 'react-feather'
+import { Save, Plus, Edit3, MessageSquare } from 'react-feather'
 
 const commTabs = [
   { label: 'Signature', icon: Edit3, to: '/settings/communication/signature' },
   { label: 'Réponses auto', icon: MessageSquare, to: '/settings/communication/reponses-automatiques' },
-  { label: 'Modèles', icon: FileText, to: '/messages/templates' },
 ]
 
 const VARIABLES = [

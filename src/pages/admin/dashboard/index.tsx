@@ -1,17 +1,41 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
-import Card from '../../../components/ui/Card'
+import { api } from '../../../services/api'
+import {
+  Users, Shield, TrendingUp, ArrowUpRight, ArrowDownRight,
+  Calendar, Home, DollarSign, FileText, Settings, AlertTriangle,
+  Target, Edit3, Clock, Award, BarChart2, Globe,
+  CheckCircle, Zap, UserPlus, Download,
+  ChevronRight, Layout, Monitor, Grid, Filter, Crosshair
+} from 'react-feather'
 import { Badge } from '../../../components/ui/Badge'
 import { Button } from '../../../components/ui/Button'
 import {
-  Users, Shield, Activity, TrendingUp, ArrowUpRight, ArrowDownRight,
-  Calendar, Home, DollarSign, FileText, Settings, AlertTriangle,
-  Target, Edit3, Clock, Award, BarChart2, Globe,
-  CheckCircle, Crosshair, Zap, UserPlus, Download,
-  ChevronRight, Layout, Monitor
-} from 'react-feather'
+  DashboardTabs, TabContent, StatCard, DashboardPanel,
+  DashboardLinkRow, BarChartCard, TrendChart, DonutCard,
+  AnimatedNumber, useThemeColors
+} from '../../../components/dashboard'
+import type { DashboardTab } from '../../../components/dashboard'
 
 type Period = 'today' | 'week' | 'month' | 'quarter' | 'year'
+
+const tabs: DashboardTab[] = [
+  { id: 'overview', label: 'Vue d\'ensemble', icon: Grid },
+  { id: 'team', label: 'Équipe', icon: Users },
+  { id: 'performance', label: 'Performance', icon: TrendingUp },
+  { id: 'pipeline', label: 'Pipeline', icon: Filter },
+  { id: 'market', label: 'Marché', icon: Globe },
+  { id: 'crm', label: 'CRM', icon: Monitor },
+]
+
+const subtitles: Record<string, string> = {
+  overview: 'Vue globale de votre agence - Square Meter',
+  team: 'Performance et activité de vos agents',
+  performance: 'Analyse financière et répartition',
+  pipeline: 'Suivi global du cycle de vente',
+  market: 'Portails partenaires et performance par type de bien',
+  crm: 'Santé et activité des modules CRM',
+}
 
 const periods: { key: Period; label: string }[] = [
   { key: 'today', label: "Aujourd'hui" },
@@ -21,12 +45,44 @@ const periods: { key: Period; label: string }[] = [
   { key: 'year', label: 'Cette année' },
 ]
 
-const kpiCards = [
-  { icon: Users, label: 'Agents', value: '12', trend: '+8%', trendUp: true, iconBg: 'bg-blue-50', iconColor: 'text-blue-600', vs: 'vs mois dernier' },
-  { icon: Crosshair, label: 'Prospects', value: '156', trend: '+12%', trendUp: true, iconBg: 'bg-accent-light', iconColor: 'text-accent', vs: 'vs mois dernier' },
-  { icon: Home, label: 'Biens en stock', value: '89', trend: '-3%', trendUp: false, iconBg: 'bg-amber-50', iconColor: 'text-amber-600', vs: 'vs mois dernier' },
-  { icon: TrendingUp, label: 'Ventes ce mois', value: '12', trend: '+20%', trendUp: true, iconBg: 'bg-emerald-50', iconColor: 'text-emerald-600', vs: 'vs mois dernier' },
-  { icon: DollarSign, label: 'CA ce mois', value: '342 500', trend: '+15%', trendUp: true, iconBg: 'bg-violet-50', iconColor: 'text-violet-600', vs: 'vs mois dernier' },
+const ROSE_TAUPE = '#905D5D'
+
+function gColor(isGerant: boolean, color: string): string {
+  return isGerant && (color === '#f59e0b' || color === '#f97316') ? ROSE_TAUPE : color
+}
+
+interface AlertItem {
+  icon: React.ComponentType<{ size?: number | string; className?: string }>
+  text: string
+  variant: 'error' | 'warning'
+}
+
+const alerts: AlertItem[] = [
+  { icon: FileText, text: '14 Mandats expirés', variant: 'error' },
+  { icon: Target, text: '7 Croisements à faire', variant: 'error' },
+  { icon: Clock, text: '3 Prospects non contactés (+7j)', variant: 'error' },
+  { icon: Home, text: '2 Biens sans photo principale', variant: 'error' },
+  { icon: Users, text: '1 Agent inactif (30j)', variant: 'warning' },
+  { icon: Edit3, text: '2 Signatures de documents attendues', variant: 'error' },
+]
+
+const activityData = [
+  { label: 'L', appels: 6, visites: 2, signatures: 1 },
+  { label: 'M', appels: 8, visites: 1, signatures: 1 },
+  { label: 'M', appels: 7, visites: 3, signatures: 2 },
+  { label: 'J', appels: 10, visites: 1, signatures: 0 },
+  { label: 'V', appels: 8, visites: 3, signatures: 2 },
+  { label: 'S', appels: 4, visites: 2, signatures: 1 },
+  { label: 'D', appels: 2, visites: 0, signatures: 1 },
+]
+
+const salesData = [
+  { label: 'Jan', ventes: 6, ca: 210 },
+  { label: 'Fév', ventes: 8, ca: 245 },
+  { label: 'Mar', ventes: 7, ca: 230 },
+  { label: 'Avr', ventes: 10, ca: 280 },
+  { label: 'Mai', ventes: 9, ca: 298 },
+  { label: 'Juin', ventes: 12, ca: 343 },
 ]
 
 const agentRankings = [
@@ -37,43 +93,32 @@ const agentRankings = [
   { rank: 5, name: 'Hayat OUAKRIM', initials: 'HO', ventes: 2, volume: 22, ca: 30000, tauxConv: 12, trend: 'up', trendVal: '+3%' },
 ]
 
-const alerts = [
-  { icon: FileText, text: '14 Mandats expirés', priority: 'Haute', variant: 'error' as const },
-  { icon: Target, text: '7 Croisements a faire', priority: 'Haute', variant: 'error' as const },
-  { icon: Clock, text: '3 Prospects non contactés (+7j)', priority: 'Haute', variant: 'error' as const },
-  { icon: Home, text: '2 Biens sans photo principale', priority: 'Haute', variant: 'error' as const },
-  { icon: Users, text: '1 Agent inactif (30j)', priority: 'Moyenne', variant: 'warning' as const },
-  { icon: Edit3, text: '2 Signatures de documents attendues', priority: 'Haute', variant: 'error' as const },
-]
-
-const barData = [
-  { day: 'L', calls: 6, visits: 2, signatures: 1 },
-  { day: 'M', calls: 8, visits: 1, signatures: 1 },
-  { day: 'M', calls: 7, visits: 3, signatures: 2 },
-  { day: 'J', calls: 10, visits: 1, signatures: 0 },
-  { day: 'V', calls: 8, visits: 3, signatures: 2 },
-  { day: 'S', calls: 4, visits: 2, signatures: 1 },
-  { day: 'D', calls: 2, visits: 0, signatures: 1 },
-]
-
 const pipelineStages = [
-  { label: 'Prospects', value: 156, trend: '+18%' },
-  { label: 'En qualification', value: 98, trend: '+12%' },
-  { label: 'En recherche', value: 56, trend: '+8%' },
-  { label: 'En négociation', value: 24, trend: '+20%' },
-  { label: 'En compromis', value: 12, trend: '+33%' },
-  { label: 'Vendus', value: 28, trend: '+22%' },
+  { label: 'Prospects', value: 156, trend: '+18%', color: '#8b5cf6' },
+  { label: 'En qualification', value: 98, trend: '+12%', color: '#6366f1' },
+  { label: 'En recherche', value: 56, trend: '+8%', color: '#3b82f6' },
+  { label: 'En négociation', value: 24, trend: '+20%', color: '#f59e0b' },
+  { label: 'En compromis', value: 12, trend: '+33%', color: '#f97316' },
+  { label: 'Vendus', value: 28, trend: '+22%', color: '#10b981' },
+]
+
+const statusRepartition = [
+  { label: 'En recherche', pct: 36, color: '#3b82f6' },
+  { label: 'En qualification', pct: 27, color: '#6366f1' },
+  { label: 'En négociation', pct: 16, color: '#f59e0b' },
+  { label: 'En compromis', pct: 8, color: '#f97316' },
+  { label: 'Vendus', pct: 13, color: '#10b981' },
 ]
 
 const portalData = [
-  { name: 'Mubawab', clics: 142, prospects: 12, pct: 45, color: 'bg-blue-500' },
-  { name: 'Properstar', clics: 98, prospects: 8, pct: 30, color: 'bg-emerald-500' },
-  { name: 'Green-Acres', clics: 45, prospects: 3, pct: 15, color: 'bg-amber-500' },
-  { name: 'Avito', clics: 32, prospects: 2, pct: 10, color: 'bg-violet-500' },
+  { name: 'Mubawab', clics: 142, prospects: 12, pct: 45, color: '#3b82f6' },
+  { name: 'Properstar', clics: 98, prospects: 8, pct: 30, color: '#10b981' },
+  { name: 'Green-Acres', clics: 45, prospects: 3, pct: 15, color: '#f59e0b' },
+  { name: 'Avito', clics: 32, prospects: 2, pct: 10, color: '#8b5cf6' },
 ]
 
 const propertyTypeData = [
-  { type: 'Residentiel', ventes: 8, ca: 220000, duree: 45, rotation: 12 },
+  { type: 'Résidentiel', ventes: 8, ca: 220000, duree: 45, rotation: 12 },
   { type: 'Luxe', ventes: 3, ca: 180000, duree: 90, rotation: 6 },
   { type: 'Commercial', ventes: 2, ca: 75000, duree: 60, rotation: 8 },
   { type: 'Terrains', ventes: 1, ca: 25000, duree: 30, rotation: 15 },
@@ -95,683 +140,621 @@ const recentUsers = [
 ]
 
 const appointmentData = [
-  { time: '14h30', type: 'Visite', agent: 'Myriam', client: 'Villa Marrakech', badgeVariant: 'primary' as const },
-  { time: '10h00', type: 'Appel proposition', agent: 'Karim', client: 'Proposition commerciale', badgeVariant: 'success' as const },
-  { time: '16h00', type: 'Signature mandat', agent: 'Yasmine', client: 'Mandat de vente', badgeVariant: 'warning' as const },
-  { time: '11h30', type: 'Visite terrain', agent: 'Dimitri', client: 'Terrain Rabat', badgeVariant: 'primary' as const },
-  { time: '09h00', type: 'Réunion équipe', agent: 'Toute l\'agence', client: 'Réunion hebdomadaire', badgeVariant: 'secondary' as const },
+  { time: '14h30', type: 'Visite', agent: 'Myriam', client: 'Villa Marrakech', variant: 'primary' as const },
+  { time: '10h00', type: 'Appel proposition', agent: 'Karim', client: 'Proposition commerciale', variant: 'success' as const },
+  { time: '16h00', type: 'Signature mandat', agent: 'Yasmine', client: 'Mandat de vente', variant: 'warning' as const },
+  { time: '11h30', type: 'Visite terrain', agent: 'Dimitri', client: 'Terrain Rabat', variant: 'primary' as const },
+  { time: '09h00', type: 'Réunion équipe', agent: 'Toute l\'agence', client: 'Réunion hebdomadaire', variant: 'secondary' as const },
 ]
 
 const modulePcts = [
-  { name: 'Prospects', pct: 35, color: 'bg-accent' },
-  { name: 'Clients', pct: 20, color: 'bg-emerald-500' },
-  { name: 'Biens', pct: 18, color: 'bg-amber-500' },
-  { name: 'Contrats', pct: 12, color: 'bg-violet-500' },
-  { name: 'Documents', pct: 10, color: 'bg-blue-500' },
-  { name: 'Autre', pct: 5, color: 'bg-slate-400' },
+  { name: 'Prospects', value: 35, color: '#2c8264' },
+  { name: 'Clients', value: 20, color: '#10b981' },
+  { name: 'Biens', value: 18, color: '#f59e0b' },
+  { name: 'Contrats', value: 12, color: '#8b5cf6' },
+  { name: 'Documents', value: 10, color: '#3b82f6' },
+  { name: 'Autre', value: 5, color: '#94a3b8' },
 ]
 
-const maxBarTotal = Math.max(...barData.map(d => d.calls + d.visits + d.signatures), 1)
-const maxPortalPct = Math.max(...portalData.map(p => p.pct), 1)
-
-const containerVariants = {
-  hidden: {},
-  show: { transition: { staggerChildren: 0.05, delayChildren: 0.03 } },
-}
-
-const itemVariants = {
-  hidden: { opacity: 0, y: 16 },
-  show: { opacity: 1, y: 0, transition: { duration: 0.35, ease: [0, 0, 0.58, 1] as [number, number, number, number] } },
-}
+const quickActions = [
+  { icon: UserPlus, label: 'Ajouter un agent', color: 'bg-accent-light text-accent' },
+  { icon: Users, label: 'Inviter un collaborateur', color: 'bg-emerald-50 text-emerald-600' },
+  { icon: Download, label: 'Exporter le rapport', color: 'bg-violet-50 text-violet-600' },
+  { icon: Settings, label: 'Configurer l\'agence', color: 'bg-amber-50 text-amber-600' },
+  { icon: FileText, label: 'Voir les logs système', color: 'bg-blue-50 text-blue-600' },
+]
 
 function formatCurrency(val: number): string {
   return val.toLocaleString('fr-FR') + ' MAD'
 }
 
-export default function AdminDashboard() {
-  const [period, setPeriod] = useState<Period>('month')
-
+function TabIntro({ title, subtitle }: { title: string; subtitle: string }) {
   return (
-    <motion.div
-      className="space-y-6"
-      variants={containerVariants}
-      initial="hidden"
-      animate="show"
-    >
-      {/* Header */}
-      <motion.div variants={itemVariants} className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center">
-            <Shield size={20} className="text-amber-700" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight">Administration</h1>
-            <p className="text-sm text-text-secondary mt-0.5">Vue d'ensemble de votre agence - Square Meter</p>
-          </div>
-        </div>
-        <div className="flex items-center gap-2 bg-card rounded-lg border border-border/50 p-1 shadow-sm">
-          <Calendar size={14} className="text-text-secondary ml-1" />
-          {periods.map(p => (
-            <button
-              key={p.key}
-              onClick={() => setPeriod(p.key)}
-              className={`px-2.5 py-1.5 text-xs font-medium rounded-md transition-colors ${
-                period === p.key
-                  ? 'bg-accent text-white shadow-sm'
-                  : 'text-text-secondary hover:text-text hover:bg-background'
-              }`}
-            >
-              {p.label}
-            </button>
-          ))}
-        </div>
-      </motion.div>
+    <div>
+      <h2 className="text-lg font-semibold tracking-tight">{title}</h2>
+      <p className="mt-0.5 text-sm text-text-secondary">{subtitle}</p>
+    </div>
+  )
+}
 
-      {/* KPI Stratégiques */}
-      <motion.div variants={itemVariants}>
-        <Card className="p-5">
-          <div className="flex items-center gap-2 mb-4">
-            <BarChart2 size={16} className="text-text" />
-            <h2 className="font-semibold">KPI Stratégiques</h2>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-5 gap-4">
-            {kpiCards.map((kpi, i) => {
-              const Icon = kpi.icon
-              const TrendIcon = kpi.trendUp ? ArrowUpRight : ArrowDownRight
-              return (
-                <div key={i} className="p-4 rounded-xl border border-border/50 hover:shadow-card-hover transition-all group">
-                  <div className="flex items-start justify-between mb-2">
-                    <div className={`p-2.5 rounded-lg ${kpi.iconBg} ${kpi.iconColor}`}>
-                      <Icon size={18} />
-                    </div>
-                    <span className={`inline-flex items-center gap-0.5 text-xs font-medium ${
-                      kpi.trendUp ? 'text-emerald-600' : 'text-error'
-                    }`}>
-                      <TrendIcon size={11} />
-                      {kpi.trend}
-                    </span>
-                  </div>
-                  <p className="text-2xl font-semibold tracking-tight">{kpi.value}</p>
-                  <p className="text-sm text-text-secondary mt-0.5">{kpi.label}</p>
-                  <p className="text-[11px] text-text-secondary/60 mt-0.5">{kpi.vs}</p>
-                </div>
-              )
-            })}
-          </div>
-        </Card>
-      </motion.div>
+function OverviewTab({ isGerant }: { isGerant: boolean }) {
+  const colors = useThemeColors()
+  const accent = isGerant ? ROSE_TAUPE : colors.accent
+  return (
+    <>
+      <TabIntro title="Vue d'ensemble" subtitle={subtitles.overview} />
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
+        <StatCard icon={Users} label="Agents" value={12} trend="+8%" iconBg="bg-blue-50" iconColor="text-blue-600" spark={[8, 9, 8, 10, 11, 12]} sparkColor="#3b82f6" />
+        <StatCard icon={Crosshair} label="Prospects" value={156} trend="+12%" iconBg={isGerant ? 'bg-[#E7D5D5]' : 'bg-accent-light'} iconColor={isGerant ? 'text-[#905D5D]' : 'text-accent'} spark={[120, 130, 128, 140, 148, 156]} sparkColor={accent} delay={0.05} />
+        <StatCard icon={Home} label="Biens en stock" value={89} trend="-3%" trendUp={false} iconBg={isGerant ? 'bg-[#E7D5D5]' : 'bg-amber-50'} iconColor={isGerant ? 'text-[#905D5D]' : 'text-amber-600'} spark={[95, 92, 94, 91, 90, 89]} sparkColor={gColor(isGerant, '#f59e0b')} delay={0.1} />
+        <StatCard icon={TrendingUp} label="Ventes ce mois" value={12} trend="+20%" iconBg="bg-emerald-50" iconColor="text-emerald-600" spark={[6, 8, 7, 10, 9, 12]} sparkColor="#10b981" delay={0.15} />
+        <StatCard icon={DollarSign} label="CA ce mois" value={342} suffix="K" trend="+15%" iconBg="bg-violet-50" iconColor="text-violet-600" spark={[210, 245, 230, 280, 298, 343]} sparkColor="#8b5cf6" delay={0.2} />
+      </div>
 
-      {/* Performance de l'Équipe */}
-      <motion.div variants={itemVariants}>
-        <Card className="p-5">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <Award size={16} className="text-text" />
-              <h2 className="font-semibold">Performance de l'Équipe</h2>
-            </div>
-            <Badge variant="primary" size="sm">Ce mois</Badge>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-border/30 text-left text-xs text-text-secondary">
-                  <th className="pb-3 font-medium w-8">#</th>
-                  <th className="pb-3 font-medium">Agent</th>
-                  <th className="pb-3 font-medium text-right">Ventes</th>
-                  <th className="pb-3 font-medium text-right">Volume</th>
-                  <th className="pb-3 font-medium text-right">CA généré</th>
-                  <th className="pb-3 font-medium text-right">Taux conv.</th>
-                  <th className="pb-3 font-medium text-right">Tendance</th>
-                </tr>
-              </thead>
-              <tbody>
-                {agentRankings.map((agent) => (
-                  <tr key={agent.rank} className="border-b border-border/20 hover:bg-background/50 transition-colors">
-                    <td className="py-3">
-                      <div className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-bold ${
-                        agent.rank === 1 ? 'bg-amber-100 text-amber-700' :
-                        agent.rank === 2 ? 'bg-slate-100 text-slate-600' :
-                        agent.rank === 3 ? 'bg-orange-100 text-orange-700' :
-                        'bg-background text-text-secondary'
-                      }`}>
-                        {agent.rank}
-                      </div>
-                    </td>
-                    <td className="py-3">
-                      <div className="flex items-center gap-3">
-                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold ${
-                          agent.rank <= 3 ? 'bg-accent-light text-accent' : 'bg-background text-text-secondary'
-                        }`}>
-                          {agent.initials}
-                        </div>
-                        <span className="font-medium">{agent.name}</span>
-                      </div>
-                    </td>
-                    <td className="py-3 text-right font-medium">{agent.ventes}</td>
-                    <td className="py-3 text-right text-text-secondary">{agent.volume}</td>
-                    <td className="py-3 text-right font-medium">{formatCurrency(agent.ca)}</td>
-                    <td className="py-3 text-right">
-                      <span className={`font-medium ${
-                        agent.tauxConv >= 20 ? 'text-emerald-600' : agent.tauxConv >= 15 ? 'text-amber-600' : 'text-text-secondary'
-                      }`}>
-                        {agent.tauxConv}%
-                      </span>
-                    </td>
-                    <td className="py-3 text-right">
-                      <span className={`inline-flex items-center gap-0.5 text-xs font-medium ${
-                        agent.trend === 'up' ? 'text-emerald-600' :
-                        agent.trend === 'down' ? 'text-error' : 'text-text-secondary'
-                      }`}>
-                        {agent.trend === 'up' && <ArrowUpRight size={12} />}
-                        {agent.trend === 'down' && <ArrowDownRight size={12} />}
-                        {agent.trendVal}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <button className="mt-4 text-sm text-accent hover:text-accent-hover font-medium transition-colors inline-flex items-center gap-1">
-            Voir le detail des performances
-            <ChevronRight size={14} />
-          </button>
-        </Card>
-      </motion.div>
-
-      {/* Alertes + Activité Récente */}
-      <motion.div variants={itemVariants} className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <Card className="p-5">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <AlertTriangle size={16} className="text-text" />
-              <h2 className="font-semibold">Alertes et Actions</h2>
-            </div>
-            <Badge variant="error" size="sm">{alerts.length} alertes</Badge>
-          </div>
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+        <DashboardPanel title="Alertes et Actions" icon={AlertTriangle} badge={<Badge variant="error">{alerts.length} alertes</Badge>}>
           <div className="space-y-1">
             {alerts.map((alert, i) => {
               const AlertIcon = alert.icon
               return (
-                <div key={i} className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-background transition-colors group cursor-default">
-                  <div className={`w-7 h-7 rounded-md flex items-center justify-center flex-shrink-0 ${
-                    alert.variant === 'error' ? 'bg-error/5 text-error' : 'bg-amber-50 text-amber-600'
-                  }`}>
+                <div key={i} className="flex items-center gap-3 rounded-lg px-3 py-2.5 transition-colors hover:bg-background">
+                  <div className={`flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-md ${alert.variant === 'error' ? 'bg-error/5 text-error' : isGerant ? 'bg-[#E7D5D5] text-[#905D5D]' : 'bg-amber-50 text-amber-600'}`}>
                     <AlertIcon size={13} />
                   </div>
                   <span className="flex-1 text-sm">{alert.text}</span>
-                  <Badge variant={alert.variant} size="sm">{alert.priority}</Badge>
+                  <Badge variant={alert.variant}>{alert.variant === 'error' ? 'Haute' : 'Moyenne'}</Badge>
                 </div>
               )
             })}
           </div>
-          <button className="mt-4 text-sm text-accent hover:text-accent-hover font-medium transition-colors inline-flex items-center gap-1">
-            Voir toutes les alertes
-            <ChevronRight size={14} />
-          </button>
-        </Card>
+          <DashboardLinkRow label="Voir toutes les alertes" />
+        </DashboardPanel>
 
-        <Card className="p-5">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <Activity size={16} className="text-text" />
-              <h2 className="font-semibold">Activité Récente</h2>
-            </div>
-            <Badge variant="primary" size="sm">7 derniers jours</Badge>
-          </div>
-          <div className="flex items-end justify-between h-[140px] pt-2 pb-1 px-1">
-            {barData.map((day) => {
-              const total = day.calls + day.visits + day.signatures
-              const colPct = (total / maxBarTotal) * 100
-              const callsPct = total > 0 ? (day.calls / total) * 100 : 0
-              const visitsPct = total > 0 ? (day.visits / total) * 100 : 0
-              const sigsPct = total > 0 ? (day.signatures / total) * 100 : 0
-              return (
-                <div key={day.day} className="flex flex-col items-center gap-1.5 flex-1 h-full justify-end">
-                  <div
-                    className="w-[70%] max-w-[28px] flex flex-col justify-end rounded-sm overflow-hidden transition-all duration-300 hover:opacity-80"
-                    style={{ height: `${colPct}%` }}
-                  >
-                    {day.signatures > 0 && (
-                      <div className="w-full bg-amber-400" style={{ height: `${sigsPct}%` }} />
-                    )}
-                    {day.visits > 0 && (
-                      <div className="w-full bg-emerald-400" style={{ height: `${visitsPct}%` }} />
-                    )}
-                    {day.calls > 0 && (
-                      <div className="w-full bg-accent" style={{ height: `${callsPct}%` }} />
-                    )}
-                  </div>
-                  <span className="text-[11px] text-text-secondary font-medium">{day.day}</span>
-                </div>
-              )
-            })}
-          </div>
-          <div className="flex items-center justify-center gap-5 mt-3 pt-3 border-t border-border/30">
-            <div className="flex items-center gap-1.5 text-xs text-text-secondary">
-              <span className="w-2.5 h-2.5 rounded-sm bg-accent" />
-              Appels
-            </div>
-            <div className="flex items-center gap-1.5 text-xs text-text-secondary">
-              <span className="w-2.5 h-2.5 rounded-sm bg-emerald-400" />
-              Visites
-            </div>
-            <div className="flex items-center gap-1.5 text-xs text-text-secondary">
-              <span className="w-2.5 h-2.5 rounded-sm bg-amber-400" />
-              Signatures
-            </div>
-          </div>
-          <div className="grid grid-cols-3 gap-3 mt-4">
-            <div className="bg-accent-light/50 rounded-lg p-3 text-center">
-              <p className="text-lg font-semibold text-accent">156</p>
-              <p className="text-[11px] text-text-secondary">appels cette semaine</p>
-            </div>
-            <div className="bg-emerald-50 rounded-lg p-3 text-center">
-              <p className="text-lg font-semibold text-emerald-600">42</p>
-              <p className="text-[11px] text-text-secondary">visites terrain</p>
-            </div>
-            <div className="bg-amber-50 rounded-lg p-3 text-center">
-              <p className="text-lg font-semibold text-amber-600">28</p>
-              <p className="text-[11px] text-text-secondary">documents signés</p>
-            </div>
-          </div>
-        </Card>
-      </motion.div>
-
-      {/* Pipeline Global */}
-      <motion.div variants={itemVariants}>
-        <Card className="p-5">
-          <div className="flex items-center gap-2 mb-5">
-            <TrendingUp size={16} className="text-text" />
-            <h2 className="font-semibold">Pipeline Global</h2>
-          </div>
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-            {pipelineStages.map((stage, i) => (
-              <div key={stage.label} className="relative">
-                <div className="p-4 rounded-xl border border-border/50 bg-card text-center hover:shadow-card-hover transition-all">
-                  <div className="w-12 h-12 rounded-full bg-accent-light text-accent flex items-center justify-center text-lg font-bold mx-auto mb-2">
-                    {stage.value}
-                  </div>
-                  <p className="text-sm text-text-secondary">{stage.label}</p>
-                  <span className="text-xs font-medium text-emerald-600 inline-flex items-center gap-0.5 mt-1">
-                    <ArrowUpRight size={10} />
-                    {stage.trend}
-                  </span>
-                </div>
-                {i < pipelineStages.length - 1 && (
-                  <ChevronRight
-                    size={16}
-                    className="hidden lg:block absolute -right-2.5 top-1/2 -translate-y-1/2 text-text-secondary/20 z-10"
-                  />
-                )}
+        <DashboardPanel title="Activité Récente" icon={BarChart2} badge={<Badge variant="primary">7 derniers jours</Badge>}>
+          <BarChartCard
+            data={activityData}
+            series={[
+              { dataKey: 'appels', name: 'Appels', color: accent, stackId: 'a' },
+              { dataKey: 'visites', name: 'Visites', color: '#10b981', stackId: 'a' },
+              { dataKey: 'signatures', name: 'Signatures', color: gColor(isGerant, '#f59e0b'), stackId: 'a', radius: true },
+            ]}
+            height={180}
+          />
+          <div className="grid grid-cols-3 gap-3">
+            {[
+              { value: '156', label: 'appels cette semaine' },
+              { value: '42', label: 'visites terrain' },
+              { value: '28', label: 'documents signés' },
+            ].map(s => (
+              <div key={s.label} className="rounded-lg bg-background p-3 text-center">
+                <p className="text-lg font-semibold" style={{ color: accent }}>{s.value}</p>
+                <p className="text-[11px] text-text-secondary">{s.label}</p>
               </div>
             ))}
           </div>
-          <div className="flex flex-wrap items-center gap-4 mt-5 pt-4 border-t border-border/30">
-            <div className="flex items-center gap-2 text-sm">
-              <span className="text-text-secondary">Taux de conversion global :</span>
-              <span className="font-semibold text-emerald-600 inline-flex items-center gap-0.5">
-                17.9%
-                <ArrowUpRight size={12} />
-                +4%
-              </span>
-            </div>
-            <div className="w-px h-4 bg-border/50" />
-            <div className="flex items-center gap-2 text-sm">
-              <span className="text-text-secondary">Délai moyen vente :</span>
-              <span className="font-semibold text-accent inline-flex items-center gap-0.5">
-                42 jours
-                <ArrowDownRight size={12} className="text-emerald-600" />
-                <span className="text-emerald-600">-5 jours</span>
-              </span>
-            </div>
-            <div className="w-px h-4 bg-border/50" />
-            <div className="flex items-center gap-2 text-sm">
-              <span className="text-text-secondary">Objectif mensuel :</span>
-              <span className="font-semibold text-accent">35 / 30</span>
-              <Badge variant="success" size="sm">Atteint</Badge>
-            </div>
-          </div>
-        </Card>
-      </motion.div>
+        </DashboardPanel>
+      </div>
+    </>
+  )
+}
 
-      {/* Performance Financière + Répartition par Module */}
-      <motion.div variants={itemVariants} className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <Card className="p-5">
-          <div className="flex items-center gap-2 mb-5">
-            <DollarSign size={16} className="text-text" />
-            <h2 className="font-semibold">Performance Financière</h2>
+function TeamTab({ isGerant }: { isGerant: boolean }) {
+  const colors = useThemeColors()
+  const accent = isGerant ? ROSE_TAUPE : colors.accent
+  return (
+    <>
+      <TabIntro title="Équipe" subtitle={subtitles.team} />
+      <DashboardPanel title="Performance de l'Équipe" icon={Award} badge={<Badge variant="primary">Ce mois</Badge>}>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-border/30 text-left text-xs text-text-secondary">
+                <th className="w-8 pb-3 font-medium">#</th>
+                <th className="pb-3 font-medium">Agent</th>
+                <th className="pb-3 text-right font-medium">Ventes</th>
+                <th className="pb-3 text-right font-medium">Volume</th>
+                <th className="pb-3 text-right font-medium">CA généré</th>
+                <th className="pb-3 text-right font-medium">Taux conv.</th>
+                <th className="pb-3 text-right font-medium">Tendance</th>
+              </tr>
+            </thead>
+            <tbody>
+              {agentRankings.map(agent => (
+                <tr key={agent.rank} className="border-b border-border/20 transition-colors hover:bg-background/50">
+                  <td className="py-3">
+                    <span
+                      className={`flex h-7 w-7 items-center justify-center rounded-lg text-xs font-bold ${
+                        agent.rank === 1 ? (isGerant ? 'bg-[#E7D5D5] text-[#905D5D]' : 'bg-amber-100 text-amber-700')
+                        : agent.rank === 2 ? 'bg-slate-100 text-slate-600'
+                        : agent.rank === 3 ? (isGerant ? 'bg-[#F0E2E2] text-[#905D5D]' : 'bg-orange-100 text-orange-700')
+                        : 'bg-background text-text-secondary'
+                      }`}
+                    >
+                      {agent.rank}
+                    </span>
+                  </td>
+                  <td className="py-3">
+                    <div className="flex items-center gap-3">
+                      <div className={`flex h-8 w-8 items-center justify-center rounded-full text-xs font-semibold ${agent.rank <= 3 ? (isGerant ? 'bg-[#E7D5D5] text-[#905D5D]' : 'bg-accent-light text-accent') : 'bg-background text-text-secondary'}`}>
+                        {agent.initials}
+                      </div>
+                      <span className="font-medium">{agent.name}</span>
+                    </div>
+                  </td>
+                  <td className="py-3 text-right font-medium">{agent.ventes}</td>
+                  <td className="py-3 text-right text-text-secondary">{agent.volume}</td>
+                  <td className="py-3 text-right font-medium">{formatCurrency(agent.ca)}</td>
+                  <td className="py-3 text-right">
+                    <span className={`font-medium ${agent.tauxConv >= 20 ? 'text-emerald-600' : agent.tauxConv >= 15 ? (isGerant ? 'text-[#905D5D]' : 'text-amber-600') : 'text-text-secondary'}`}>
+                      {agent.tauxConv}%
+                    </span>
+                  </td>
+                  <td className="py-3 text-right">
+                    <span className={`inline-flex items-center gap-0.5 text-xs font-medium ${agent.trend === 'up' ? 'text-emerald-600' : agent.trend === 'down' ? 'text-error' : 'text-text-secondary'}`}>
+                      {agent.trend === 'up' && <ArrowUpRight size={12} />}
+                      {agent.trend === 'down' && <ArrowDownRight size={12} />}
+                      {agent.trendVal}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <DashboardLinkRow label="Voir le détail des performances" />
+      </DashboardPanel>
+
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+        <DashboardPanel title="Répartition CA par agent" icon={DollarSign}>
+          <div className="space-y-4">
+            {agentRankings.map(agent => {
+              const pct = (agent.ca / 112000) * 100
+              return (
+                <div key={agent.name} className="flex items-center gap-3">
+                  <span className="w-24 truncate text-sm font-medium">{agent.name.split(' ')[0]}</span>
+                  <div className="h-2 flex-1 overflow-hidden rounded-full bg-border/60">
+                    <motion.div
+                      className="h-full rounded-full"
+                      style={{ backgroundColor: agent.rank === 1 ? accent : agent.rank === 2 ? '#10b981' : agent.rank === 3 ? gColor(isGerant, '#f59e0b') : '#8b5cf6' }}
+                      initial={{ width: 0 }}
+                      animate={{ width: `${pct}%` }}
+                      transition={{ duration: 1, ease: [0, 0, 0.58, 1] }}
+                    />
+                  </div>
+                  <span className="w-20 flex-shrink-0 text-right text-xs font-medium text-text-secondary">{formatCurrency(agent.ca)}</span>
+                </div>
+              )
+            })}
           </div>
-          <div className="bg-background rounded-xl p-5 mb-5">
-            <p className="text-xs text-text-secondary uppercase tracking-wider font-medium mb-2">Chiffre d'affaires</p>
-            <div className="flex items-baseline gap-2 mb-1">
-              <span className="text-3xl font-bold tracking-tight">342 500 MAD</span>
-              <span className="text-sm font-medium text-emerald-600 inline-flex items-center gap-0.5">
+        </DashboardPanel>
+
+        <DashboardPanel title="Derniers Utilisateurs" icon={UserPlus} badge={<Badge variant="primary">{recentUsers.length} nouveaux</Badge>}>
+          <div className="space-y-2">
+            {recentUsers.map(user => (
+              <div key={user.name} className="flex items-center gap-3 rounded-lg p-3 transition-colors hover:bg-background">
+                <div className={`flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full text-xs font-semibold ${isGerant && (user.color.includes('amber') || user.color.includes('accent-light')) ? 'bg-[#E7D5D5] text-[#905D5D]' : user.color}`}>
+                  {user.initials}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium">{user.name}</p>
+                  <p className="truncate text-xs text-text-secondary">{user.action}</p>
+                </div>
+                <Button variant="outline" size="sm">Voir</Button>
+              </div>
+            ))}
+          </div>
+          <DashboardLinkRow label="Voir tous les utilisateurs" />
+        </DashboardPanel>
+      </div>
+    </>
+  )
+}
+
+function PerformanceTab({ isGerant }: { isGerant: boolean }) {
+  const colors = useThemeColors()
+  const accent = isGerant ? ROSE_TAUPE : colors.accent
+  return (
+    <>
+      <TabIntro title="Performance" subtitle={subtitles.performance} />
+
+      <DashboardPanel title="Performance Financière" icon={DollarSign}>
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+          <div>
+            <p className="text-xs uppercase tracking-wider text-text-secondary">Chiffre d'affaires — ce mois</p>
+            <div className="mt-1 flex items-baseline gap-2">
+              <AnimatedNumber value={342500} suffix=" MAD" className="text-3xl font-bold tracking-tight" />
+              <span className="inline-flex items-center gap-0.5 text-sm font-medium text-emerald-600">
                 <ArrowUpRight size={13} />
                 +15%
               </span>
             </div>
-            <div className="flex items-center gap-3 text-sm text-text-secondary mt-1">
-              <span>Objectif: 400 000 MAD</span>
-              <span className="w-1 h-1 rounded-full bg-text-secondary/30" />
-              <span className="text-error/70">Écart: -57 500 MAD</span>
+            <div className="mt-1 flex items-center gap-3 text-sm text-text-secondary">
+              <span>Objectif : 400 000 MAD</span>
+              <span className="h-1 w-1 rounded-full bg-text-secondary/30" />
+              <span className="text-error/70">Écart : -57 500 MAD</span>
             </div>
-            <div className="mt-3">
-              <div className="flex items-center justify-between text-sm mb-1.5">
+            <div className="mt-5">
+              <div className="mb-1.5 flex items-center justify-between text-sm">
                 <span className="text-text-secondary">Progression</span>
                 <span className="font-semibold">85%</span>
               </div>
-              <div className="w-full h-2.5 bg-border/60 rounded-full overflow-hidden">
-                <div className="h-full bg-accent rounded-full transition-all duration-500" style={{ width: '85%' }} />
+              <div className="h-2.5 w-full overflow-hidden rounded-full bg-border/60">
+                <motion.div
+                  className="h-full rounded-full"
+                  style={{ backgroundColor: accent }}
+                  initial={{ width: 0 }}
+                  animate={{ width: '85%' }}
+                  transition={{ duration: 1.2, ease: [0, 0, 0.58, 1] }}
+                />
               </div>
             </div>
           </div>
-          <div>
-            <p className="text-xs text-text-secondary uppercase tracking-wider font-medium mb-3">Répartition par agent</p>
-            <div className="space-y-3">
-              {agentRankings.map((agent) => (
-                <div key={agent.name} className="flex items-center gap-3">
-                  <span className="text-sm font-medium w-28 truncate">{agent.name.split(' ')[0]}</span>
-                  <div className="flex-1 h-2 bg-border/60 rounded-full overflow-hidden">
-                    <div
-                      className={`h-full rounded-full transition-all duration-500 ${
-                        agent.rank === 1 ? 'bg-accent' :
-                        agent.rank === 2 ? 'bg-emerald-500' :
-                        agent.rank === 3 ? 'bg-amber-500' :
-                        'bg-violet-400'
-                      }`}
-                      style={{ width: `${agent.tauxConv * 3}%` }}
-                    />
-                  </div>
-                  <span className="text-xs font-medium text-text-secondary w-12 text-right">{agent.tauxConv}%</span>
-                </div>
+          <div className="rounded-xl bg-background p-4">
+            <p className="mb-2 text-xs uppercase tracking-wider text-text-secondary">Répartition par module</p>
+            <DonutCard
+              data={modulePcts.map(m => ({ ...m, color: gColor(isGerant, m.color) }))}
+              height={190}
+              centerValue="82%"
+              centerLabel="Utilisation"
+            />
+            <div className="mt-2 flex flex-wrap justify-center gap-x-4 gap-y-1">
+              {modulePcts.map(m => (
+                <span key={m.name} className="flex items-center gap-1.5 text-xs text-text-secondary">
+                  <span className="h-2 w-2 rounded-sm" style={{ backgroundColor: gColor(isGerant, m.color) }} />
+                  {m.name}
+                </span>
               ))}
             </div>
           </div>
-        </Card>
+        </div>
+      </DashboardPanel>
 
-        <Card className="p-5">
-          <div className="flex items-center gap-2 mb-5">
-            <BarChart2 size={16} className="text-text" />
-            <h2 className="font-semibold">Répartition par Module</h2>
+      <DashboardPanel title="Évolution des ventes et du CA" icon={TrendingUp} badge={<Badge variant="success">Tendance +15%</Badge>}>
+        <TrendChart
+          data={salesData}
+          series={[
+            { dataKey: 'ca', name: 'CA (K MAD)', color: accent },
+            { dataKey: 'ventes', name: 'Ventes', color: gColor(isGerant, '#f59e0b') },
+          ]}
+          height={250}
+        />
+      </DashboardPanel>
+
+      <DashboardPanel title="Santé du CRM" icon={Monitor} badge={<Badge variant="success">Bon</Badge>}>
+        <div className="space-y-3.5">
+          {crmModules.map(mod => (
+            <div key={mod.name}>
+              <div className="mb-1 flex items-center justify-between text-sm">
+                <span className="flex items-center gap-2">
+                  <span className={`font-medium ${mod.remplissage >= 80 ? 'text-emerald-600' : mod.remplissage >= 60 ? (isGerant ? 'text-[#905D5D]' : 'text-amber-600') : 'text-error'}`}>
+                    {mod.name}
+                  </span>
+                </span>
+                <span className="flex items-center gap-2 text-xs text-text-secondary">
+                  {mod.actif} actifs / {mod.total} total
+                  <span className={`inline-flex items-center gap-1 font-medium ${mod.alerteType === 'warning' ? (isGerant ? 'text-[#905D5D]' : 'text-amber-600') : mod.alerteType === 'success' ? 'text-emerald-600' : 'text-text-secondary'}`}>
+                    {mod.alerteType === 'warning' && <AlertTriangle size={10} />}
+                    {mod.alerteType === 'success' && <CheckCircle size={10} />}
+                    {mod.alerte}
+                  </span>
+                </span>
+              </div>
+              <div className="h-2 w-full overflow-hidden rounded-full bg-border/60">
+                <motion.div
+                  className="h-full rounded-full"
+                  style={{ backgroundColor: mod.remplissage >= 80 ? '#10b981' : mod.remplissage >= 60 ? gColor(isGerant, '#f59e0b') : '#ef4444' }}
+                  initial={{ width: 0 }}
+                  animate={{ width: `${mod.remplissage}%` }}
+                  transition={{ duration: 1, ease: [0, 0, 0.58, 1] }}
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="mt-4 flex items-center gap-4 border-t border-border/30 pt-3 text-xs text-text-secondary">
+          <span>Santé globale du CRM : <span className="font-semibold text-emerald-600">85% (Bon)</span></span>
+          <span className="h-3 w-px bg-border/50" />
+          <span>Dernière sauvegarde : 13/06/2026 02:00</span>
+        </div>
+      </DashboardPanel>
+    </>
+  )
+}
+
+function PipelineTab({ isGerant }: { isGerant: boolean }) {
+  const colors = useThemeColors()
+  const accent = isGerant ? ROSE_TAUPE : colors.accent
+  const stages = pipelineStages.map(s => ({ ...s, color: gColor(isGerant, s.color) }))
+  const status = statusRepartition.map(s => ({ ...s, color: gColor(isGerant, s.color) }))
+  return (
+    <>
+      <TabIntro title="Pipeline" subtitle={subtitles.pipeline} />
+
+      <DashboardPanel title="Pipeline Global" icon={Filter}>
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6">
+          {stages.map((stage, i) => (
+            <div key={stage.label} className="relative">
+              <div className="rounded-xl border border-border/50 bg-background p-4 text-center transition-all duration-200 hover:shadow-card-hover">
+                <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-full text-lg font-bold" style={{ backgroundColor: `${stage.color}1a`, color: stage.color }}>
+                  {stage.value}
+                </div>
+                <p className="text-[13px] font-medium">{stage.label}</p>
+                <span className="mt-1 inline-flex items-center gap-0.5 text-xs font-medium text-emerald-600">
+                  <ArrowUpRight size={10} />
+                  {stage.trend}
+                </span>
+              </div>
+              {i < stages.length - 1 && (
+                <ChevronRight size={18} className="absolute -right-2.5 top-1/2 z-10 hidden -translate-y-1/2 text-text-secondary/30 lg:block" />
+              )}
+            </div>
+          ))}
+        </div>
+        <div className="mt-5 flex flex-wrap items-center gap-4 border-t border-border/30 pt-4 text-sm">
+          <div className="flex items-center gap-2">
+            <span className="text-text-secondary">Taux de conversion global :</span>
+            <span className="inline-flex items-center gap-0.5 font-semibold text-emerald-600">
+              17,9%
+              <ArrowUpRight size={12} />
+              +4%
+            </span>
           </div>
-          <div className="space-y-4">
-            {modulePcts.map((mod) => (
+          <div className="h-4 w-px bg-border/50" />
+          <div className="flex items-center gap-2">
+            <span className="text-text-secondary">Délai moyen vente :</span>
+            <span className="font-semibold" style={{ color: accent }}>42 jours</span>
+            <span className="inline-flex items-center gap-0.5 text-emerald-600">
+              <ArrowDownRight size={12} />
+              -5 jours
+            </span>
+          </div>
+          <div className="h-4 w-px bg-border/50" />
+          <div className="flex items-center gap-2">
+            <span className="text-text-secondary">Objectif mensuel :</span>
+            <span className="font-semibold" style={{ color: accent }}>35 / 30</span>
+            <Badge variant="success">Atteint</Badge>
+          </div>
+        </div>
+      </DashboardPanel>
+
+      <DashboardPanel title="Répartition par statut" icon={BarChart2}>
+        <div className="space-y-3.5">
+          {status.map(item => (
+            <div key={item.label}>
+              <div className="mb-1 flex items-center justify-between text-sm">
+                <span className="flex items-center gap-2">
+                  <span className="h-2.5 w-2.5 rounded-sm" style={{ backgroundColor: item.color }} />
+                  {item.label}
+                </span>
+                <span className="font-semibold">{item.pct}%</span>
+              </div>
+              <div className="h-2.5 w-full overflow-hidden rounded-full bg-border/60">
+                <motion.div
+                  className="h-full rounded-full"
+                  style={{ backgroundColor: item.color }}
+                  initial={{ width: 0 }}
+                  animate={{ width: `${item.pct}%` }}
+                  transition={{ duration: 1, ease: [0, 0, 0.58, 1] }}
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+      </DashboardPanel>
+    </>
+  )
+}
+
+function MarketTab({ isGerant }: { isGerant: boolean }) {
+  const colors = useThemeColors()
+  const accent = isGerant ? ROSE_TAUPE : colors.accent
+  const portals = portalData.map(p => ({ ...p, color: gColor(isGerant, p.color) }))
+  return (
+    <>
+      <TabIntro title="Marché" subtitle={subtitles.market} />
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        {[
+          { label: 'Connexions cette semaine', value: 124, trend: '+18%', color: accent },
+          { label: 'Clients actifs extranet', value: 23, trend: '+8%', color: '#059669' },
+          { label: 'Leads portails', value: 25, trend: '+14%', color: '#7c3aed' },
+        ].map(stat => (
+          <div key={stat.label} className="rounded-xl border border-border/50 bg-card p-5 text-center shadow-card transition-all duration-200 hover:shadow-card-hover">
+            <p className="text-3xl font-bold tracking-tight" style={{ color: stat.color }}>
+              <AnimatedNumber value={stat.value} />
+            </p>
+            <p className="mt-1 text-[13px] text-text-secondary">{stat.label}</p>
+            <span className="mt-1.5 inline-flex items-center gap-0.5 text-xs font-medium text-emerald-600">
+              <ArrowUpRight size={11} />
+              {stat.trend}
+            </span>
+          </div>
+        ))}
+      </div>
+
+      <DashboardPanel title="Portails partenaires" icon={Globe}>
+        <div className="space-y-3.5">
+          {portals.map(portal => (
+            <div key={portal.name} className="flex items-center gap-4">
+              <span className="w-28 text-sm font-medium">{portal.name}</span>
+              <div className="h-2 flex-1 overflow-hidden rounded-full bg-border/60">
+                <motion.div
+                  className="h-full rounded-full"
+                  style={{ backgroundColor: portal.color }}
+                  initial={{ width: 0 }}
+                  animate={{ width: `${portal.pct}%` }}
+                  transition={{ duration: 1, ease: [0, 0, 0.58, 1] }}
+                />
+              </div>
+              <div className="flex w-32 flex-shrink-0 items-center justify-end gap-3 text-xs text-text-secondary">
+                <span>{portal.clics} clics</span>
+                <span className="font-medium" style={{ color: accent }}>{portal.prospects} prospects</span>
+              </div>
+            </div>
+          ))}
+        </div>
+        <DashboardLinkRow label="Voir le détail des portails" />
+      </DashboardPanel>
+
+      <DashboardPanel title="Performance par Type de Bien" icon={Layout}>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-border/30 text-left text-xs text-text-secondary">
+                <th className="pb-3 font-medium">Type</th>
+                <th className="pb-3 text-right font-medium">Ventes</th>
+                <th className="pb-3 text-right font-medium">CA généré</th>
+                <th className="pb-3 text-right font-medium">Durée moyenne vente</th>
+                <th className="pb-3 text-right font-medium">Taux rotation</th>
+              </tr>
+            </thead>
+            <tbody>
+              {propertyTypeData.map(pt => (
+                <tr key={pt.type} className="border-b border-border/20 transition-colors hover:bg-background/50">
+                  <td className="py-3 font-medium">{pt.type}</td>
+                  <td className="py-3 text-right">{pt.ventes}</td>
+                  <td className="py-3 text-right font-medium">{pt.ca > 0 ? formatCurrency(pt.ca) : '-'}</td>
+                  <td className="py-3 text-right">{pt.duree > 0 ? `${pt.duree} jours` : '-'}</td>
+                  <td className="py-3 text-right">
+                    <span className={`font-medium ${pt.rotation >= 15 ? 'text-emerald-600' : pt.rotation >= 8 ? (isGerant ? 'text-[#905D5D]' : 'text-amber-600') : 'text-text-secondary'}`}>
+                      {pt.rotation}%
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </DashboardPanel>
+    </>
+  )
+}
+
+function CrmTab({ isGerant }: { isGerant: boolean }) {
+  const colors = useThemeColors()
+  const accent = isGerant ? ROSE_TAUPE : colors.accent
+  return (
+    <>
+      <TabIntro title="CRM" subtitle={subtitles.crm} />
+
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+        <DashboardPanel title="Vue d'ensemble du CRM" icon={Monitor} badge={<Badge variant="success">Santé 85%</Badge>}>
+          <div className="space-y-3.5">
+            {crmModules.map(mod => (
               <div key={mod.name}>
-                <div className="flex items-center justify-between text-sm mb-1.5">
-                  <div className="flex items-center gap-2">
-                    <span className={`w-2.5 h-2.5 rounded-sm ${mod.color}`} />
-                    <span>{mod.name}</span>
-                  </div>
-                  <span className="font-semibold">{mod.pct}%</span>
+                <div className="mb-1 flex items-center justify-between text-sm">
+                  <span className="font-medium">{mod.name}</span>
+                  <span className="text-xs text-text-secondary">{mod.total} total</span>
                 </div>
-                <div className="w-full h-2 bg-border/60 rounded-full overflow-hidden">
-                  <div className={`h-full rounded-full transition-all duration-500 ${mod.color}`} style={{ width: `${mod.pct}%` }} />
-                </div>
-              </div>
-            ))}
-          </div>
-          <div className="mt-5 pt-4 border-t border-border/30">
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-text-secondary">Taux d'utilisation global</span>
-              <span className="font-semibold text-emerald-600">82%</span>
-            </div>
-          </div>
-        </Card>
-      </motion.div>
-
-      {/* Activité Extranet & Portals */}
-      <motion.div variants={itemVariants}>
-        <Card className="p-5">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <Globe size={16} className="text-text" />
-              <h2 className="font-semibold">Activité Extranet & Portails</h2>
-            </div>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-5">
-            <div className="bg-background rounded-xl p-4 text-center">
-              <p className="text-2xl font-bold text-accent">124</p>
-              <p className="text-xs text-text-secondary mt-0.5">Connexions cette semaine</p>
-              <span className="text-xs font-medium text-emerald-600 inline-flex items-center gap-0.5 mt-1">
-                <ArrowUpRight size={10} />
-                +18%
-              </span>
-            </div>
-            <div className="bg-background rounded-xl p-4 text-center">
-              <p className="text-2xl font-bold text-emerald-600">23</p>
-              <p className="text-xs text-text-secondary mt-0.5">Clients actifs sur extranet</p>
-            </div>
-          </div>
-          <div className="border-t border-border/30 pt-4">
-            <p className="text-xs text-text-secondary uppercase tracking-wider font-medium mb-3">Portails partenaires</p>
-            <div className="space-y-3">
-              {portalData.map((portal) => (
-                <div key={portal.name} className="flex items-center gap-4">
-                  <span className="text-sm font-medium w-28">{portal.name}</span>
-                  <div className="flex-1 h-2 bg-border/60 rounded-full overflow-hidden">
-                    <div className={`h-full rounded-full transition-all duration-500 ${portal.color}`} style={{ width: `${portal.pct}%` }} />
-                  </div>
-                  <div className="flex items-center gap-3 text-xs text-text-secondary w-32 text-right">
-                    <span>{portal.clics} clics</span>
-                    <span className="text-accent font-medium">{portal.prospects} prospects</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-          <button className="mt-4 text-sm text-accent hover:text-accent-hover font-medium transition-colors inline-flex items-center gap-1">
-            Voir le detail des portails
-            <ChevronRight size={14} />
-          </button>
-        </Card>
-      </motion.div>
-
-      {/* Performance par Type de Bien */}
-      <motion.div variants={itemVariants}>
-        <Card className="p-5">
-          <div className="flex items-center gap-2 mb-4">
-            <Layout size={16} className="text-text" />
-            <h2 className="font-semibold">Performance par Type de Bien</h2>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-border/30 text-left text-xs text-text-secondary">
-                  <th className="pb-3 font-medium">Type</th>
-                  <th className="pb-3 font-medium text-right">Ventes</th>
-                  <th className="pb-3 font-medium text-right">CA généré</th>
-                  <th className="pb-3 font-medium text-right">Durée moyenne vente</th>
-                  <th className="pb-3 font-medium text-right">Taux rotation</th>
-                </tr>
-              </thead>
-              <tbody>
-                {propertyTypeData.map((pt) => (
-                  <tr key={pt.type} className="border-b border-border/20 hover:bg-background/50 transition-colors">
-                    <td className="py-3 font-medium">{pt.type}</td>
-                    <td className="py-3 text-right">{pt.ventes}</td>
-                    <td className="py-3 text-right font-medium">{pt.ca > 0 ? formatCurrency(pt.ca) : '-'}</td>
-                    <td className="py-3 text-right">{pt.duree > 0 ? `${pt.duree} jours` : '-'}</td>
-                    <td className="py-3 text-right">
-                      <span className={`font-medium ${
-                        pt.rotation >= 15 ? 'text-emerald-600' : pt.rotation >= 8 ? 'text-amber-600' : 'text-text-secondary'
-                      }`}>
-                        {pt.rotation}%
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </Card>
-      </motion.div>
-
-      {/* Vue d'ensemble CRM */}
-      <motion.div variants={itemVariants}>
-        <Card className="p-5">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <Monitor size={16} className="text-text" />
-              <h2 className="font-semibold">Vue d'ensemble du CRM</h2>
-            </div>
-            <div className="flex items-center gap-3">
-              <div className="flex items-center gap-1.5 text-xs">
-                <span className="w-2 h-2 rounded-full bg-emerald-500" />
-                <span className="text-text-secondary">Santé: 85%</span>
-              </div>
-              <Badge variant="success" size="sm">Bon</Badge>
-            </div>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-border/30 text-left text-xs text-text-secondary">
-                  <th className="pb-3 font-medium">Module</th>
-                  <th className="pb-3 font-medium text-right">Total</th>
-                  <th className="pb-3 font-medium text-right">Actif</th>
-                  <th className="pb-3 font-medium text-right">Inactif</th>
-                  <th className="pb-3 font-medium text-right">Taux remplissage</th>
-                  <th className="pb-3 font-medium text-right">Alerte</th>
-                </tr>
-              </thead>
-              <tbody>
-                {crmModules.map((mod) => (
-                  <tr key={mod.name} className="border-b border-border/20 hover:bg-background/50 transition-colors">
-                    <td className="py-3 font-medium">{mod.name}</td>
-                    <td className="py-3 text-right">{mod.total}</td>
-                    <td className="py-3 text-right text-emerald-600">{mod.actif}</td>
-                    <td className="py-3 text-right text-text-secondary">{mod.inactif}</td>
-                    <td className="py-3 text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        <span className={`font-medium ${
-                          mod.remplissage >= 80 ? 'text-emerald-600' :
-                          mod.remplissage >= 60 ? 'text-amber-600' : 'text-error'
-                        }`}>
-                          {mod.remplissage}%
-                        </span>
-                        <div className="w-16 h-1.5 bg-border/60 rounded-full overflow-hidden">
-                          <div
-                            className={`h-full rounded-full ${
-                              mod.remplissage >= 80 ? 'bg-emerald-500' :
-                              mod.remplissage >= 60 ? 'bg-amber-500' : 'bg-error'
-                            }`}
-                            style={{ width: `${mod.remplissage}%` }}
-                          />
-                        </div>
-                      </div>
-                    </td>
-                    <td className="py-3 text-right">
-                      <span className={`inline-flex items-center gap-1 text-xs font-medium ${
-                        mod.alerteType === 'warning' ? 'text-amber-600' :
-                        mod.alerteType === 'success' ? 'text-emerald-600' : 'text-text-secondary'
-                      }`}>
-                        {mod.alerteType === 'warning' && <AlertTriangle size={10} />}
-                        {mod.alerteType === 'success' && <CheckCircle size={10} />}
-                        {mod.alerte}
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <div className="flex items-center gap-4 mt-4 pt-3 border-t border-border/30 text-xs text-text-secondary">
-            <span>Santé globale du CRM: <span className="font-semibold text-emerald-600">85% (Bon)</span></span>
-            <span className="w-px h-3 bg-border/50" />
-            <span>Dernière sauvegarde: 13/06/2026 02:00</span>
-          </div>
-        </Card>
-      </motion.div>
-
-      {/* Derniers Utilisateurs + Prochains Rendez-vous */}
-      <motion.div variants={itemVariants} className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <Card className="p-5">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <UserPlus size={16} className="text-text" />
-              <h2 className="font-semibold">Derniers Utilisateurs</h2>
-            </div>
-            <Badge variant="primary" size="sm">{recentUsers.length} nouveaux</Badge>
-          </div>
-          <div className="space-y-2">
-            {recentUsers.map((user) => (
-              <div key={user.name} className="flex items-center gap-3 p-3 rounded-lg hover:bg-background transition-colors">
-                <div className={`w-9 h-9 rounded-full ${user.color} flex items-center justify-center text-xs font-semibold`}>
-                  {user.initials}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium">{user.name}</p>
-                  <p className="text-xs text-text-secondary">{user.action}</p>
+                <div className="h-2 w-full overflow-hidden rounded-full bg-border/60">
+                  <motion.div
+                    className="h-full rounded-full"
+                    style={{ backgroundColor: accent }}
+                    initial={{ width: 0 }}
+                    animate={{ width: `${mod.remplissage}%` }}
+                    transition={{ duration: 1, ease: [0, 0, 0.58, 1] }}
+                  />
                 </div>
               </div>
             ))}
           </div>
-          <a href="/admin/users" className="mt-4 text-sm text-accent hover:text-accent-hover font-medium transition-colors inline-flex items-center gap-1">
-            Voir tous les utilisateurs
-            <ChevronRight size={14} />
-          </a>
-        </Card>
+          <DashboardLinkRow label="Gérer les modules CRM" />
+        </DashboardPanel>
 
-        <Card className="p-5">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <Calendar size={16} className="text-text" />
-              <h2 className="font-semibold">Prochains Rendez-vous</h2>
-            </div>
-            <Badge variant="primary" size="sm">Aujourd'hui</Badge>
-          </div>
+        <DashboardPanel title="Prochains Rendez-vous" icon={Calendar} badge={<Badge variant="primary">Aujourd'hui</Badge>}>
           <div className="space-y-1">
-            {appointmentData.map((apt, i) => (
-              <div key={i} className="flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-background transition-colors">
-                <div className="w-12 flex-shrink-0">
-                  <span className="text-xs font-semibold text-text">{apt.time}</span>
-                </div>
-                <Badge variant={apt.badgeVariant} size="sm">{apt.type}</Badge>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium truncate">{apt.agent} - {apt.client}</p>
-                </div>
+            {appointmentData.map(apt => (
+              <div key={apt.time + apt.client} className="flex items-center gap-3 rounded-lg px-3 py-2.5 transition-colors hover:bg-background">
+                <span className="w-12 flex-shrink-0 text-xs font-semibold">{apt.time}</span>
+                <Badge variant={apt.variant}>{apt.type}</Badge>
+                <p className="flex-1 truncate text-sm font-medium">{apt.agent} - {apt.client}</p>
               </div>
             ))}
           </div>
-          <button className="mt-4 text-sm text-accent hover:text-accent-hover font-medium transition-colors inline-flex items-center gap-1">
-            Voir tout le calendrier
-            <ChevronRight size={14} />
-          </button>
-        </Card>
-      </motion.div>
+          <DashboardLinkRow label="Voir tout le calendrier" />
+        </DashboardPanel>
+      </div>
 
-      {/* Actions Rapides */}
-      <motion.div variants={itemVariants}>
-        <Card className="p-5">
-          <div className="flex items-center gap-2 mb-4">
-            <Zap size={16} className="text-text" />
-            <h2 className="font-semibold">Actions Rapides</h2>
+      <DashboardPanel title="Actions Rapides" icon={Zap}>
+        <div className="flex flex-wrap gap-3">
+          {quickActions.map(action => {
+            const Icon = action.icon
+            return (
+              <button
+                key={action.label}
+                className="group inline-flex items-center gap-2.5 rounded-xl border border-border/50 bg-card px-4 py-3 text-sm font-medium transition-all hover:border-border hover:shadow-card-hover"
+              >
+                <div className={`flex h-8 w-8 items-center justify-center rounded-lg ${isGerant && (action.color.includes('amber') || action.color.includes('accent-light')) ? 'bg-[#E7D5D5] text-[#905D5D]' : action.color}`}>
+                  <Icon size={15} />
+                </div>
+                <span>{action.label}</span>
+              </button>
+            )
+          })}
+        </div>
+      </DashboardPanel>
+    </>
+  )
+}
+
+export default function AdminDashboard() {
+  const [activeTab, setActiveTab] = useState('overview')
+  const [period, setPeriod] = useState<Period>('month')
+  const [isGerant, setIsGerant] = useState(false)
+
+  useEffect(() => {
+    api.get<any>('/auth/me').then(user => {
+      if (user?.role === 'gerant') setIsGerant(true)
+    }).catch(() => {})
+  }, [])
+
+  const content: Record<string, React.ReactNode> = {
+    overview: <OverviewTab isGerant={isGerant} />,
+    team: <TeamTab isGerant={isGerant} />,
+    performance: <PerformanceTab isGerant={isGerant} />,
+    pipeline: <PipelineTab isGerant={isGerant} />,
+    market: <MarketTab isGerant={isGerant} />,
+    crm: <CrmTab isGerant={isGerant} />,
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-3">
+            <span className={`flex h-10 w-10 items-center justify-center rounded-xl ${isGerant ? 'bg-[#E7D5D5] text-[#905D5D]' : 'bg-amber-100 text-amber-700'}`}>
+              <Shield size={19} />
+            </span>
+            <div>
+              <h1 className="text-2xl font-semibold tracking-tight">Administration</h1>
+              <p className="text-sm text-text-secondary">Vue d'ensemble de votre agence - Square Meter</p>
+            </div>
           </div>
-          <div className="flex flex-wrap gap-3">
-            {[
-              { icon: UserPlus, label: 'Ajouter un agent', color: 'bg-accent-light text-accent' },
-              { icon: Users, label: 'Inviter un collaborateur', color: 'bg-emerald-50 text-emerald-600' },
-              { icon: Download, label: 'Exporter le rapport', color: 'bg-violet-50 text-violet-600' },
-              { icon: Settings, label: 'Configurer l\'agence', color: 'bg-amber-50 text-amber-600' },
-              { icon: FileText, label: 'Voir les logs système', color: 'bg-blue-50 text-blue-600' },
-            ].map((action) => {
-              const Icon = action.icon
-              return (
-                <button
-                  key={action.label}
-                  className="inline-flex items-center gap-2.5 px-4 py-3 rounded-xl border border-border/50 bg-card hover:shadow-card-hover hover:border-border transition-all text-sm font-medium group"
-                >
-                  <div className={`w-8 h-8 rounded-lg ${action.color} flex items-center justify-center`}>
-                    <Icon size={15} />
-                  </div>
-                  <span>{action.label}</span>
-                </button>
-              )
-            })}
+          <div className="flex items-center gap-1 self-start rounded-xl border border-border/50 bg-card p-1 shadow-card sm:self-auto">
+            <Calendar size={15} className="ml-1.5 text-text-secondary" />
+            {periods.map(p => (
+              <button
+                key={p.key}
+                type="button"
+                onClick={() => setPeriod(p.key)}
+                className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+                  period === p.key
+                    ? 'text-white shadow-sm'
+                    : 'text-text-secondary hover:bg-background hover:text-text'
+                }`}
+                style={period === p.key ? { backgroundColor: isGerant ? ROSE_TAUPE : undefined } : undefined}
+              >
+                {p.label}
+              </button>
+            ))}
           </div>
-        </Card>
-      </motion.div>
-    </motion.div>
+        </div>
+        <DashboardTabs tabs={tabs} activeId={activeTab} onChange={setActiveTab} columns={6} accentColor={isGerant ? ROSE_TAUPE : undefined} />
+      </div>
+
+      <TabContent tabId={activeTab}>
+        {content[activeTab]}
+      </TabContent>
+    </div>
   )
 }

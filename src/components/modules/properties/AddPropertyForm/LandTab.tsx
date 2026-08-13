@@ -12,16 +12,17 @@ const item = { hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0 } };
 interface LandTabProps {
   register: any;
   control: any;
+  isGerant?: boolean;
 }
 
-export function LandTab({ register, control }: LandTabProps) {
+export function LandTab({ register, control, isGerant = false }: LandTabProps) {
   return (
     <MotionCard initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.25, ease: "easeOut" }} className="p-0 overflow-hidden">
       <Accordion type="multiple" defaultValue={['constructibility', 'connections', 'urbanism', 'topography']} className="space-y-0">
         <AccordionItem value="constructibility" className="border-0">
           <AccordionTrigger className="px-6 py-4 hover:bg-background/50 transition-colors duration-200">
             <div className="flex items-center gap-3">
-              <div className="w-1.5 h-1.5 rounded-full bg-accent" />
+              <div className={`w-1.5 h-1.5 rounded-full ${isGerant ? 'bg-[#905D5D]' : 'bg-accent'}`} />
               <span className="font-medium text-text">Constructibilité</span>
             </div>
           </AccordionTrigger>
@@ -33,11 +34,11 @@ export function LandTab({ register, control }: LandTabProps) {
                     <h4 className="font-medium text-sm text-text mb-2">Constructible</h4>
                     <div className="flex gap-4">
                       <label className="flex items-center gap-2 cursor-pointer">
-                        <input type="radio" name="land_constructible" checked={field.value === true} onChange={() => field.onChange(true)} className="text-accent" />
+                        <input type="radio" name="land_constructible" checked={field.value === true} onChange={() => field.onChange(true)} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />
                         <span className="text-sm">Oui</span>
                       </label>
                       <label className="flex items-center gap-2 cursor-pointer">
-                        <input type="radio" name="land_constructible" checked={field.value === false} onChange={() => field.onChange(false)} className="text-accent" />
+                        <input type="radio" name="land_constructible" checked={field.value === false} onChange={() => field.onChange(false)} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />
                         <span className="text-sm">Non</span>
                       </label>
                     </div>
@@ -69,10 +70,10 @@ export function LandTab({ register, control }: LandTabProps) {
                   <Controller name={`land.connections.${util.toLowerCase()}`} control={control} render={({ field }) => (
                     <div className="flex gap-3">
                       <label className="flex items-center gap-1 cursor-pointer text-sm">
-                        <input type="radio" name={`conn_${util}`} checked={field.value === true} onChange={() => field.onChange(true)} className="text-accent" /> Oui
+                        <input type="radio" name={`conn_${util}`} checked={field.value === true} onChange={() => field.onChange(true)} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} /> Oui
                       </label>
                       <label className="flex items-center gap-1 cursor-pointer text-sm">
-                        <input type="radio" name={`conn_${util}`} checked={field.value === false} onChange={() => field.onChange(false)} className="text-accent" /> Non
+                        <input type="radio" name={`conn_${util}`} checked={field.value === false} onChange={() => field.onChange(false)} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} /> Non
                       </label>
                     </div>
                   )} />
@@ -138,7 +139,7 @@ export function LandTab({ register, control }: LandTabProps) {
                   <div className="flex gap-6">
                     {['Plat', 'En pente', 'Accidenté'].map((t) => (
                       <label key={t} className="flex items-center gap-2 cursor-pointer">
-                        <input type="radio" name="topography_type" checked={field.value === t.toLowerCase()} onChange={() => field.onChange(t.toLowerCase())} className="text-accent" />
+                        <input type="radio" name="topography_type" checked={field.value === t.toLowerCase()} onChange={() => field.onChange(t.toLowerCase())} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />
                         <span className="text-sm">{t}</span>
                       </label>
                     ))}
@@ -151,7 +152,7 @@ export function LandTab({ register, control }: LandTabProps) {
                   <div className="flex gap-6">
                     {['Dégagée', 'Montagne', 'Mer'].map((v) => (
                       <label key={v} className="flex items-center gap-2 cursor-pointer">
-                        <input type="radio" name="topography_view" checked={field.value === v.toLowerCase()} onChange={() => field.onChange(v.toLowerCase())} className="text-accent" />
+                        <input type="radio" name="topography_view" checked={field.value === v.toLowerCase()} onChange={() => field.onChange(v.toLowerCase())} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />
                         <span className="text-sm">{v}</span>
                       </label>
                     ))}

@@ -2,8 +2,8 @@ import { useState, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { X, ChevronLeft, ChevronRight, Clock } from 'react-feather'
 import {
-  CalendarEvent, EVENT_TYPE_CONFIG, AGENTS,
-  formatTime,
+  CalendarEvent, getEventTypeConfig, Agent, getEventUserColor, withAlpha, getEventAgentNames,
+  formatEventRange,
   getEventsForDay,
 } from '../../../types/calendar'
 
@@ -11,13 +11,14 @@ interface DayEventsModalProps {
   isOpen: boolean
   date: Date | null
   events: CalendarEvent[]
+  agents?: Agent[]
   onClose: () => void
   onEventClick: (event: CalendarEvent) => void
 }
 
 const PAGE_SIZE = 5
 
-export default function DayEventsModal({ isOpen, date, events, onClose, onEventClick }: DayEventsModalProps) {
+export default function DayEventsModal({ isOpen, date, events, agents, onClose, onEventClick }: DayEventsModalProps) {
   const [page, setPage] = useState(0)
 
   const dayEvents = useMemo(() => {
@@ -66,19 +67,21 @@ export default function DayEventsModal({ isOpen, date, events, onClose, onEventC
                 <p className="text-sm text-text-secondary text-center py-8">Aucun événement ce jour</p>
               ) : (
                 pageEvents.map(event => {
-                  const cfg = EVENT_TYPE_CONFIG[event.type]
-                  const agentNames = event.agentIds.map(id => AGENTS.find(a => a.id === id)?.name.split(' ')[0]).filter(Boolean)
+                  const cfg = getEventTypeConfig(event.type)
+                  const color = getEventUserColor(event, agents)
+                  const agentNames = getEventAgentNames(event).map(n => n.split(' ')[0])
                   return (
                     <motion.button
                       key={event.id}
                       initial={{ opacity: 0, x: -4 }}
                       animate={{ opacity: 1, x: 0 }}
-                      className={`w-full text-left p-3 rounded-lg border ${cfg.bgColor} ${cfg.borderColor} hover:opacity-80 transition-opacity cursor-pointer`}
+                      className="w-full text-left p-3 rounded-lg border hover:opacity-80 transition-opacity cursor-pointer"
+                      style={{ backgroundColor: withAlpha(color, '14'), borderColor: withAlpha(color, '40'), borderLeft: `3px solid ${color}` }}
                       onClick={() => onEventClick(event)}
                     >
                       <div className="flex items-start gap-3">
-                        <div className={`w-9 h-9 rounded-lg flex items-center justify-center text-base ${cfg.bgColor} border ${cfg.borderColor} shrink-0`}>
-                          {cfg.icon}
+                        <div className="w-9 h-9 rounded-lg flex items-center justify-center border shrink-0" style={{ backgroundColor: withAlpha(color, '1F'), borderColor: withAlpha(color, '40') }}>
+                          <cfg.icon size={18} className={cfg.textColor} />
                         </div>
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 mb-0.5">
@@ -90,7 +93,7 @@ export default function DayEventsModal({ isOpen, date, events, onClose, onEventC
                           <div className="flex items-center gap-3 text-xs text-text-secondary">
                             <span className="flex items-center gap-1">
                               <Clock size={11} />
-                              {formatTime(event.start)} - {formatTime(event.end)}
+                              {formatEventRange(event)}
                             </span>
                             {agentNames.length > 0 && <span>{agentNames.join(', ')}</span>}
                           </div>

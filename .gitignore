@@ -27,3 +27,6 @@ dist/
 .env
 .DS_Store
 .vscode/
+nul
+*.log
+src/backend/uploads/

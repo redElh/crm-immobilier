@@ -16,30 +16,45 @@ interface PricingTabProps {
   control: any;
   watch: any;
   propertyType: string;
+  isGerant?: boolean;
 }
 
-export function PricingTab({ register, control, watch, propertyType }: PricingTabProps) {
+export function PricingTab({ register, control, watch, propertyType, isGerant = false }: PricingTabProps) {
   const transactionType = watch('transactionType') || 'vente';
   const devise = watch('devise') || 'MAD';
   const honorairesType = watch('honorairesType');
   const prixNet = watch('prixNetVendeur');
   const honorairesPct = watch('honorairesPct');
   const prixAffiche = prixNet && honorairesPct
-    ? Math.round(Number(prixNet) * (1 + Number(honorairesPct) / 100))
-    : '';
+    ? honorairesType === 'inclus'
+      ? Math.round(Number(prixNet) / (1 - Number(honorairesPct) / 100))
+      : Math.round(Number(prixNet) * (1 + Number(honorairesPct) / 100))
+    : prixNet || '';
+  const honorairesMontant = prixNet && honorairesPct
+    ? Math.round(Number(prixAffiche) - Number(prixNet))
+    : 0;
   const loyerHC = watch('loyerHC');
   const charges = watch('charges');
   const isSeasonal = propertyType === 'vacation';
   const isLuxury = propertyType === 'luxury';
+  const seasonalMin = Number(watch('seasonalPriceMin')) || 0;
+  const seasonalMax = Number(watch('seasonalPriceMax')) || 0;
+
+  const fmt = (v: number) => `${v.toLocaleString('fr-FR')} ${devise}`;
 
   if (isSeasonal) {
+    const weekMin = seasonalMin * 7;
+    const weekMax = seasonalMax * 7;
+    const monthMin = seasonalMin * 30;
+    const monthMax = seasonalMax * 30;
+
     return (
       <MotionCard initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.25, ease: "easeOut" }} className="p-0 overflow-hidden">
         <Accordion type="multiple" defaultValue={['pricing']} className="space-y-0">
           <AccordionItem value="pricing" className="border-0">
             <AccordionTrigger className="px-6 py-4 hover:bg-background/50 transition-colors duration-200">
               <div className="flex items-center gap-3">
-                <div className="w-1.5 h-1.5 rounded-full bg-accent" />
+                <div className={`w-1.5 h-1.5 rounded-full ${isGerant ? 'bg-[#905D5D]' : 'bg-accent'}`} />
                 <span className="font-medium text-text">Tarifs saisonniers</span>
               </div>
             </AccordionTrigger>
@@ -52,10 +67,22 @@ export function PricingTab({ register, control, watch, propertyType }: PricingTa
                   <Input label="Prix par nuit (max)" type="number" {...register('seasonalPriceMax')} required />
                 </motion.div>
                 <motion.div variants={item}>
-                  <Input label="Prix semaine" type="number" {...register('seasonalPriceWeek')} />
+                  <label className="block text-sm font-medium text-text-secondary mb-1.5">Prix semaine</label>
+                  <div className="h-10 px-3 flex items-center rounded-lg border border-border bg-background/50 text-sm text-text">
+                    {seasonalMin > 0 || seasonalMax > 0
+                      ? `${fmt(weekMin)} ~ ${fmt(weekMax)}`
+                      : '—'}
+                  </div>
+                  <input type="hidden" {...register('seasonalPriceWeek')} value={seasonalMin > 0 || seasonalMax > 0 ? Math.round((weekMin + weekMax) / 2) : ''} />
                 </motion.div>
                 <motion.div variants={item}>
-                  <Input label="Prix mois" type="number" {...register('seasonalPriceMonth')} />
+                  <label className="block text-sm font-medium text-text-secondary mb-1.5">Prix mois</label>
+                  <div className="h-10 px-3 flex items-center rounded-lg border border-border bg-background/50 text-sm text-text">
+                    {seasonalMin > 0 || seasonalMax > 0
+                      ? `${fmt(monthMin)} ~ ${fmt(monthMax)}`
+                      : '—'}
+                  </div>
+                  <input type="hidden" {...register('seasonalPriceMonth')} value={seasonalMin > 0 || seasonalMax > 0 ? Math.round((monthMin + monthMax) / 2) : ''} />
                 </motion.div>
                 <motion.div variants={item}>
                   <Controller name="devise" control={control} render={({ field }) => (
@@ -84,7 +111,7 @@ export function PricingTab({ register, control, watch, propertyType }: PricingTa
           <AccordionItem value="pricing" className="border-0">
             <AccordionTrigger className="px-6 py-4 hover:bg-background/50 transition-colors duration-200">
               <div className="flex items-center gap-3">
-                <div className="w-1.5 h-1.5 rounded-full bg-accent" />
+                <div className={`w-1.5 h-1.5 rounded-full ${isGerant ? 'bg-[#905D5D]' : 'bg-accent'}`} />
                 <span className="font-medium text-text">Prix</span>
               </div>
             </AccordionTrigger>
@@ -111,6 +138,7 @@ export function PricingTab({ register, control, watch, propertyType }: PricingTa
                 </motion.div>
                 <motion.div variants={item}>
                   <Input label={`Prix (${devise})`} type="number" {...register('prixNetVendeur')} />
+                  <input type="hidden" {...register('price')} value={prixNet || ''} />
                 </motion.div>
                 <motion.div variants={item}>
                   <Input label={`Estimation (${devise})`} type="number" {...register('estimation')} />
@@ -130,7 +158,7 @@ export function PricingTab({ register, control, watch, propertyType }: PricingTa
           <AccordionItem value="pricing" className="border-0">
             <AccordionTrigger className="px-6 py-4 hover:bg-background/50 transition-colors duration-200">
               <div className="flex items-center gap-3">
-                <div className="w-1.5 h-1.5 rounded-full bg-accent" />
+                <div className={`w-1.5 h-1.5 rounded-full ${isGerant ? 'bg-[#905D5D]' : 'bg-accent'}`} />
                 <span className="font-medium text-text">Prix et Honoraires - Location</span>
               </div>
             </AccordionTrigger>
@@ -147,6 +175,7 @@ export function PricingTab({ register, control, watch, propertyType }: PricingTa
                 </motion.div>
                 <motion.div variants={item}>
                   <Input label={`Loyer mensuel HC (${devise})`} type="number" {...register('loyerHC')} required />
+                  <input type="hidden" {...register('price')} value={loyerHC || ''} />
                 </motion.div>
                 <motion.div variants={item}>
                   <Input label={`Charges mensuelles (${devise})`} type="number" {...register('charges')} />
@@ -180,7 +209,7 @@ export function PricingTab({ register, control, watch, propertyType }: PricingTa
         <AccordionItem value="pricing" className="border-0">
           <AccordionTrigger className="px-6 py-4 hover:bg-background/50 transition-colors duration-200">
             <div className="flex items-center gap-3">
-              <div className="w-1.5 h-1.5 rounded-full bg-accent" />
+              <div className={`w-1.5 h-1.5 rounded-full ${isGerant ? 'bg-[#905D5D]' : 'bg-accent'}`} />
               <span className="font-medium text-text">Prix et Honoraires</span>
             </div>
           </AccordionTrigger>
@@ -217,6 +246,13 @@ export function PricingTab({ register, control, watch, propertyType }: PricingTa
 
               <motion.div variants={item}>
                 <Input label={`Prix affiché (${devise})`} type="number" value={prixAffiche || ''} readOnly />
+                <input type="hidden" {...register('price')} value={prixAffiche || ''} />
+                {honorairesMontant > 0 && (
+                  <p className="text-xs text-text-secondary mt-1">
+                    Dont honoraires&nbsp;: {honorairesMontant.toLocaleString('fr-FR')} {devise}
+                    &nbsp;({honorairesType === 'inclus' ? 'inclus' : 'en sus'})
+                  </p>
+                )}
               </motion.div>
 
               <motion.div variants={item} className="md:col-span-2">

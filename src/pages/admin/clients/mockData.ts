@@ -1,12 +1,12 @@
 import type { Client } from '../../../types/client';
 
-export type MandatStatus = 'actif' | 'expire' | 'en_attente' | 'termine';
+export type MandatStatus = 'actif' | 'expire' | 'resilie' | 'termine';
 
 export interface AdminClient extends Client {
   agentId: string;
-  mandateStatus: MandatStatus;
-  mandateStartDate: string;
-  mandateEndDate: string;
+  mandateStatus?: MandatStatus;
+  mandateStartDate?: string;
+  mandateEndDate?: string;
 }
 
 export const AGENTS = [
@@ -121,7 +121,7 @@ export const allClients: AdminClient[] = [
     currentSituation: 'Proprietaire occupant',
     propertyCondition: 'Neuf', preferredTenant: 'Famille', includedUtilities: 'Eau et electricite',
     lastContact: '2026-06-03', createdAt: '2026-05-15', updatedAt: '2026-06-03', createdBy: 'agent-2',
-    mandateStatus: 'en_attente', mandateStartDate: '2026-05-15', mandateEndDate: '2026-08-15',
+    mandateStatus: 'actif', mandateStartDate: '2026-05-15', mandateEndDate: '2026-08-15',
   },
   {
     id: 'admin-c11', name: 'Rachid El Amrani', type: 'Bailleur', status: 'Inactif', agentId: 'agent-5',
@@ -173,7 +173,6 @@ export const allClients: AdminClient[] = [
     flexibiliteDates: 'Pas flexible', modePaiement: 'Carte bancaire',
     accommodationType: 'Riad', specialRequirements: 'Lit bebe',
     lastContact: '2026-06-10', createdAt: '2026-06-01', updatedAt: '2026-06-10', createdBy: 'agent-1',
-    mandateStatus: 'actif', mandateStartDate: '2026-06-01', mandateEndDate: '2026-07-22',
   },
   {
     id: 'admin-c16', name: 'Sarah Klein', type: 'Voyageur', status: 'Actif', agentId: 'agent-3',
@@ -184,7 +183,6 @@ export const allClients: AdminClient[] = [
     budgetParNuitMin: 150, budgetParNuitMax: 250,
     accommodationType: 'Studio meuble', specialRequirements: 'Bon wifi',
     lastContact: '2026-06-09', createdAt: '2026-06-08', updatedAt: '2026-06-09', createdBy: 'agent-3',
-    mandateStatus: 'en_attente', mandateStartDate: '2026-06-08', mandateEndDate: '2026-09-08',
   },
   {
     id: 'admin-c17', name: 'Yannick Leroy', type: 'Voyageur', status: 'Inactif', agentId: '',
@@ -195,7 +193,6 @@ export const allClients: AdminClient[] = [
     budgetParNuitMin: 200, budgetParNuitMax: 300,
     accommodationType: 'Appartement',
     lastContact: '2026-05-20', createdAt: '2026-05-01', updatedAt: '2026-05-20', createdBy: 'agent-4',
-    mandateStatus: 'termine', mandateStartDate: '2026-05-01', mandateEndDate: '2026-05-20',
   },
 ];
 

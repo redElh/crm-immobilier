@@ -1,12 +1,15 @@
-import { useState, useMemo, useCallback } from 'react'
+import { useState, useMemo, useCallback, useEffect } from 'react'
+import { useSearchParams } from 'react-router-dom'
+import { getAuthToken } from '../../../utils/auth'
 import { motion } from 'framer-motion'
-import { Plus } from 'react-feather'
 import {
-  CalendarEvent, CalendarView, EventType,
-  createMockEvents, AGENTS, EVENT_TYPE_CONFIG,
+  CalendarEvent, CalendarView, EventType, Agent,
+  getInitials, getAgentColor,
   getEventsForDay, getEventsForWeek, getEventsForMonth,
-  isSameDay,
+  isSameDay, eventMatchesSelectedAgents,
 } from '../../../types/calendar'
+import { getMyEffectivePermissions } from '../../../services/permissionsService'
+import { Lock, RefreshCw } from 'react-feather'
 import CalendarToolbar from './CalendarToolbar'
 import CalendarFilters from './CalendarFilters'
 import DayView from './DayView'
@@ -18,12 +21,23 @@ import EventFormModal from './EventFormModal'
 import EventDetailModal from './EventDetailModal'
 import DayEventsModal from './DayEventsModal'
 import GoogleSyncSettings from './GoogleSyncSettings'
+import { useToast } from '../../ui/Toast'
+import { fetchCalendarEvents, createCalendarEvent, updateCalendarEvent, deleteCalendarEvent } from '../../../services/calendarService'
+import { api } from '../../../services/api'
 
-const ALL_EVENT_TYPES: EventType[] = ['visit', 'virtual-visit', 'call', 'meeting', 'office', 'leave', 'external', 'matching']
+const ALL_EVENT_TYPES: EventType[] = ['administratif', 'apres-vente', 'autre', 'commercial', 'compte-rendu', 'conges', 'estimation', 'etat-des-lieux', 'evenement', 'formation', 'message', 'permanence', 'personnel', 'portes-ouvertes', 'proposition', 'prospection', 'publicite', 'relance', 'rendez-vous', 'sondage', 'validation', 'visite', 'visite-virtuelle']
 
 function isAdminRoute() {
   if (typeof window === 'undefined') return false
   return window.location.pathname.startsWith('/admin')
+}
+
+function getRouteUserId() {
+  if (typeof window === 'undefined') return ''
+  const parts = window.location.pathname.split('/').filter(Boolean)
+  if (parts[0] === 'admin' && parts[1]) return parts[1]
+  if (parts[0] && /^\d+$/.test(parts[0])) return parts[0]
+  return ''
 }
 
 function getTodayEventsCount(events: CalendarEvent[]): number {
@@ -62,6 +76,7 @@ function getAgentsInMeeting(events: CalendarEvent[]): number {
   const now = new Date()
   const agentsInMeeting = new Set<string>()
   events.forEach(e => {
+    if (e.type !== 'rendez-vous' && e.type !== 'compte-rendu' && e.type !== 'visite' && e.type !== 'visite-virtuelle') return
     const start = new Date(e.start)
     const end = new Date(e.end)
     if (start <= now && end >= now) {
@@ -73,32 +88,138 @@ function getAgentsInMeeting(events: CalendarEvent[]): number {
 
 export default function CalendarPage() {
   const admin = isAdminRoute()
-  const currentAgentId = 'myriam'
+  const { toast } = useToast()
+
+  const [currentUserName, setCurrentUserName] = useState('')
+  const [currentUserId, setCurrentUserId] = useState<string>(getRouteUserId)
+  const [currentUserColor, setCurrentUserColor] = useState('')
+  const currentAgentId = currentUserId
+  useEffect(() => {
+    const token = getAuthToken()
+    if (!token) return
+    fetch('http://localhost:5000/api/auth/me', {
+      headers: { Authorization: `Bearer ${token}` }
+    })
+      .then(res => res.ok ? res.json() : null)
+      .then(data => {
+        if (data) {
+          setCurrentUserId(String(data.id))
+          setCurrentUserName(`${data.first_name || ''} ${data.last_name || ''}`.trim())
+          setCurrentUserColor(data.color || getAgentColor(String(data.id)))
+        }
+      })
+      .catch(() => {})
+  }, [])
+
+  const [agents, setAgents] = useState<Agent[]>([])
+  useEffect(() => {
+    if (!currentUserId) return
+    const endpoint = admin ? '/admin/users' : '/messages/users'
+    api.get<Array<Record<string, unknown>>>(endpoint)
+      .then(users => {
+        const list = (users || [])
+          .filter(u => {
+            const role = String((u.role as string) || '')
+            const type = String((u.type as string) || '')
+            return ['agent', 'admin', 'gerant'].includes(role) || ['agent', 'admin'].includes(type)
+          })
+          .map((u) => {
+            const name = `${u.first_name || ''} ${u.last_name || ''}`.trim() || (u.name as string) || ''
+            const id = String(u.id)
+            return {
+              id,
+              name: name || 'Agent',
+              color: (u.color as string) || getAgentColor(id),
+              initials: getInitials(name || 'Agent'),
+            }
+          })
+        setAgents(list)
+      })
+      .catch(() => {})
+  }, [admin, currentUserId])
+
+  const allAgents = useMemo(() => {
+    if (!currentUserId) return agents
+    if (agents.some(a => a.id === currentUserId)) return agents
+    return [{
+      id: currentUserId,
+      name: currentUserName || 'Agent',
+      color: currentUserColor || getAgentColor(currentUserId),
+      initials: getInitials(currentUserName || 'Agent'),
+    }, ...agents]
+  }, [currentUserId, currentUserName, currentUserColor, agents])
+
+  const viewAgents = useMemo(() => allAgents, [allAgents])
 
   const [view, setView] = useState<CalendarView>('week')
   const [currentDate, setCurrentDate] = useState(new Date())
-  const [events, setEvents] = useState<CalendarEvent[]>(() => createMockEvents())
+  const [events, setEvents] = useState<CalendarEvent[]>([])
   const [selectedAgents, setSelectedAgents] = useState<string[]>([])
   const [selectedEventTypes, setSelectedEventTypes] = useState<EventType[]>(ALL_EVENT_TYPES)
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null)
   const [formOpen, setFormOpen] = useState(false)
   const [editEvent, setEditEvent] = useState<CalendarEvent | null>(null)
   const [defaultSlotDate, setDefaultSlotDate] = useState<Date | undefined>()
-  const [showGoogleSync, setShowGoogleSync] = useState(false)
+  const [refreshTick, setRefreshTick] = useState(0)
+  const handleGoogleSynced = useCallback(() => setRefreshTick(t => t + 1), [])
   const [dayModalDate, setDayModalDate] = useState<Date | null>(null)
+  const [searchParams, setSearchParams] = useSearchParams()
+  const [showGoogleSync, setShowGoogleSync] = useState(() => searchParams.get('google') !== null)
+  const [filtersOpen, setFiltersOpen] = useState(true)
+  const [permissionsLoaded, setPermissionsLoaded] = useState(false)
+  const [canReadCalendar, setCanReadCalendar] = useState(true)
+  const [canWriteCalendar, setCanWriteCalendar] = useState(true)
 
-  const agentEvents = useMemo(() => {
-    if (admin) return events
-    return events.filter(e => e.agentIds.includes(currentAgentId))
-  }, [events, admin, currentAgentId])
+  useEffect(() => {
+    if (admin) {
+      setPermissionsLoaded(true)
+      return
+    }
+    let cancelled = false
+    getMyEffectivePermissions()
+      .then(perms => {
+        if (cancelled) return
+        setCanReadCalendar(perms['calendrier-lecture'] !== false)
+        setCanWriteCalendar(perms['calendrier-ecriture'] !== false)
+      })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setPermissionsLoaded(true) })
+    return () => { cancelled = true }
+  }, [admin])
+
+  useEffect(() => {
+    let cancelled = false
+    const load = () =>
+      fetchCalendarEvents()
+        .then(dbEvents => {
+          if (!cancelled) setEvents(dbEvents)
+        })
+        .catch(() => {})
+    load()
+    const interval = setInterval(load, 15000)
+    return () => { cancelled = true; clearInterval(interval) }
+  }, [refreshTick])
+
+  useEffect(() => {
+    const eventId = searchParams.get('event')
+    if (!eventId) return
+    const target = events.find(e => e.id === eventId)
+    if (target) {
+      setSelectedEvent(target)
+      setCurrentDate(new Date(target.start))
+      setSearchParams({}, { replace: true })
+    }
+  }, [searchParams, events, setSearchParams])
+
+  const agentEvents = useMemo(() => events, [events])
 
   const filteredEvents = useMemo(() => {
     return agentEvents.filter(e => {
       if (selectedEventTypes.length > 0 && !selectedEventTypes.includes(e.type)) return false
-      if (admin && selectedAgents.length > 0 && !e.agentIds.some(a => selectedAgents.includes(a))) return false
+      if (!eventMatchesSelectedAgents(e, selectedAgents, viewAgents)) return false
       return true
     })
-  }, [agentEvents, admin, selectedAgents, selectedEventTypes])
+  }, [agentEvents, selectedAgents, selectedEventTypes, viewAgents])
 
   const stats = useMemo(() => ({
     today: getTodayEventsCount(filteredEvents),
@@ -107,44 +228,76 @@ export default function CalendarPage() {
     agentsInMeeting: admin ? getAgentsInMeeting(events) : 0,
   }), [filteredEvents, events, admin])
 
-  const handleSaveEvent = useCallback((event: CalendarEvent) => {
-    setEvents(prev => {
-      const idx = prev.findIndex(e => e.id === event.id)
-      if (idx >= 0) {
-        const copy = [...prev]
-        copy[idx] = event
-        return copy
-      }
-      return [...prev, event]
-    })
-  }, [])
+  const isOwnEvent = useCallback((event: CalendarEvent) => {
+    const norm = (s: string) => String(s || '').replace(/\s+/g, ' ').trim().toLowerCase()
+    if (event.agentIds.some(id => String(id) === String(currentUserId))) return true
+    if (currentUserName && event.createdBy && norm(event.createdBy) === norm(currentUserName)) return true
+    return false
+  }, [currentUserId, currentUserName])
+
+  const canWriteEvent = useCallback((event: CalendarEvent) => {
+    if (admin) return true
+    return canWriteCalendar && isOwnEvent(event)
+  }, [admin, canWriteCalendar, isOwnEvent])
+
+  const handleSaveEvent = useCallback(async (event: CalendarEvent) => {
+    const isExisting = /^\d+$/.test(event.id)
+    if (!admin && isExisting && !isOwnEvent(event)) return
+    try {
+      const saved = isExisting
+        ? await updateCalendarEvent(event.id, event)
+        : await createCalendarEvent(event)
+      setEvents(prev => {
+        const idx = prev.findIndex(e => e.id === event.id)
+        if (idx >= 0) {
+          const copy = [...prev]
+          copy[idx] = saved
+          return copy
+        }
+        return [...prev, saved]
+      })
+      toast('success', isExisting ? 'Événement mis à jour avec succès' : 'Événement créé avec succès')
+    } catch {
+      toast('error', "Erreur lors de l'enregistrement de l'événement")
+    }
+  }, [toast])
 
   const handleDeleteEvent = useCallback((eventId: string) => {
+    const target = events.find(e => e.id === eventId)
+    if (!target || !canWriteEvent(target)) return
     setEvents(prev => prev.filter(e => e.id !== eventId))
     setSelectedEvent(null)
-  }, [])
+    if (/^\d+$/.test(eventId)) {
+      deleteCalendarEvent(eventId).catch(() => {
+        toast('error', "Erreur lors de la suppression de l'événement")
+      })
+    }
+  }, [canWriteEvent, events, toast])
 
   const handleEventClick = useCallback((event: CalendarEvent) => {
     setSelectedEvent(event)
   }, [])
 
   const handleSlotClick = useCallback((date: Date) => {
+    if (!canWriteCalendar) return
     setDefaultSlotDate(date)
     setEditEvent(null)
     setFormOpen(true)
-  }, [])
+  }, [canWriteCalendar])
 
   const handleAddEvent = useCallback(() => {
+    if (!canWriteCalendar) return
     setDefaultSlotDate(undefined)
     setEditEvent(null)
     setFormOpen(true)
-  }, [])
+  }, [canWriteCalendar])
 
   const handleEditFromDetail = useCallback((event: CalendarEvent) => {
+    if (!canWriteEvent(event)) return
     setEditEvent(event)
     setFormOpen(true)
     setSelectedEvent(null)
-  }, [])
+  }, [canWriteEvent])
 
   const handleMonthDayClick = useCallback((date: Date) => {
     setDayModalDate(date)
@@ -154,6 +307,20 @@ export default function CalendarPage() {
     setCurrentDate(date)
     setView('day')
   }, [])
+
+  if (!admin && permissionsLoaded && !canReadCalendar) {
+    return (
+      <div className="flex flex-col items-center justify-center py-24 text-center">
+        <div className="w-16 h-16 rounded-2xl bg-border/40 flex items-center justify-center mb-4">
+          <Lock size={28} className="text-text-secondary" />
+        </div>
+        <h2 className="text-lg font-semibold">Calendrier inaccessible</h2>
+        <p className="text-sm text-text-secondary mt-1 max-w-sm">
+          Vous n'avez pas la permission de consulter le calendrier. Contactez votre administrateur.
+        </p>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-4">
@@ -185,28 +352,33 @@ export default function CalendarPage() {
       <CalendarToolbar
         view={view}
         currentDate={currentDate}
+        filtersOpen={filtersOpen}
+        onToggleFilters={() => setFiltersOpen(o => !o)}
         onViewChange={setView}
         onDateChange={setCurrentDate}
         onToday={() => setCurrentDate(new Date())}
-        onAddEvent={handleAddEvent}
+        onAddEvent={canWriteCalendar ? handleAddEvent : undefined}
       />
 
       <div className="flex gap-4">
-        {admin && (
+        {filtersOpen && (
           <div className="w-64 flex-shrink-0 space-y-3">
             <CalendarFilters
               selectedAgents={selectedAgents}
               selectedEventTypes={selectedEventTypes}
               onAgentsChange={setSelectedAgents}
               onEventTypesChange={setSelectedEventTypes}
+              showAgents
+              agents={viewAgents}
             />
             <button
               onClick={() => setShowGoogleSync(!showGoogleSync)}
-              className="w-full btn-secondary text-sm"
+              className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-xl border border-border/50 bg-card text-sm text-text hover:bg-surface transition-colors"
             >
-              <RefreshCwSmall /> Synchronisation Google
+              <RefreshCw size={14} className="text-accent" />
+              Synchronisation Google
             </button>
-            <GoogleSyncSettings isOpen={showGoogleSync} />
+            <GoogleSyncSettings isOpen={showGoogleSync} onSynced={handleGoogleSynced} />
           </div>
         )}
 
@@ -221,6 +393,7 @@ export default function CalendarPage() {
             <DayView
               currentDate={currentDate}
               events={filteredEvents}
+              agents={viewAgents}
               onEventClick={handleEventClick}
               onSlotClick={handleSlotClick}
             />
@@ -229,8 +402,10 @@ export default function CalendarPage() {
             <WeekView
               currentDate={currentDate}
               events={filteredEvents}
-              selectedAgents={admin ? selectedAgents : [currentAgentId]}
+              selectedAgents={selectedAgents}
               selectedEventTypes={selectedEventTypes}
+              agents={viewAgents}
+              canCreate={canWriteCalendar}
               onEventClick={handleEventClick}
               onSlotClick={handleSlotClick}
               onDayNameClick={handleWeekDayNameClick}
@@ -241,6 +416,7 @@ export default function CalendarPage() {
               currentDate={currentDate}
               events={filteredEvents}
               selectedEventTypes={selectedEventTypes}
+              agents={viewAgents}
               onEventClick={handleEventClick}
               onDayClick={handleMonthDayClick}
             />
@@ -248,8 +424,9 @@ export default function CalendarPage() {
           {view === 'agenda' && (
             <AgendaView
               events={filteredEvents}
-              selectedAgents={admin ? selectedAgents : [currentAgentId]}
+              selectedAgents={selectedAgents}
               selectedEventTypes={selectedEventTypes}
+              agents={viewAgents}
               onEventClick={handleEventClick}
             />
           )}
@@ -257,31 +434,14 @@ export default function CalendarPage() {
             <TimelineView
               currentDate={currentDate}
               events={filteredEvents}
-              selectedAgents={admin ? selectedAgents : [currentAgentId]}
+              selectedAgents={selectedAgents}
               selectedEventTypes={selectedEventTypes}
+              agents={viewAgents}
               onEventClick={handleEventClick}
             />
           )}
         </motion.div>
       </div>
-
-      {admin && (
-        <div className="bg-card rounded-xl border border-border/50 shadow-card p-4 flex items-center gap-2">
-          <span className="text-sm font-medium text-text-secondary mr-1">⚡ Actions rapides</span>
-          <button onClick={handleAddEvent} className="btn-primary text-xs h-8 px-3">
-            <Plus size={14} /> Nouvel événement
-          </button>
-          <button className="btn-secondary text-xs h-8 px-3">
-            <CalendarBlank size={14} /> Voir l'agenda de tous les agents
-          </button>
-          <button className="btn-secondary text-xs h-8 px-3">
-            <Bell size={14} /> Envoyer un rappel
-          </button>
-          <button onClick={() => setShowGoogleSync(true)} className="btn-secondary text-xs h-8 px-3">
-            <RefreshCwSmall /> Synchroniser Google
-          </button>
-        </div>
-      )}
 
       <EventFormModal
         isOpen={formOpen}
@@ -289,52 +449,31 @@ export default function CalendarPage() {
         onSave={handleSaveEvent}
         editEvent={editEvent}
         defaultDate={defaultSlotDate}
+        currentAgentId={admin ? undefined : currentAgentId}
+        currentAgentName={admin ? undefined : currentUserName}
+        agentUserId={admin ? undefined : currentUserId}
+        agents={admin ? agents : undefined}
+        adminUserId={admin ? currentUserId : undefined}
+        adminUserName={admin ? currentUserName : undefined}
       />
 
       <EventDetailModal
         event={selectedEvent}
+        agents={viewAgents}
         onClose={() => setSelectedEvent(null)}
         onEdit={handleEditFromDetail}
         onDelete={handleDeleteEvent}
+        canWrite={selectedEvent ? canWriteEvent(selectedEvent) : false}
       />
 
       <DayEventsModal
         isOpen={dayModalDate !== null}
         date={dayModalDate}
         events={filteredEvents}
+        agents={viewAgents}
         onClose={() => setDayModalDate(null)}
         onEventClick={(event) => { setDayModalDate(null); setSelectedEvent(event) }}
       />
     </div>
-  )
-}
-
-function RefreshCwSmall() {
-  return (
-    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <polyline points="23 4 23 10 17 10" />
-      <polyline points="1 20 1 14 7 14" />
-      <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
-    </svg>
-  )
-}
-
-function CalendarBlank(props: any) {
-  return (
-    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
-      <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
-      <line x1="16" y1="2" x2="16" y2="6" />
-      <line x1="8" y1="2" x2="8" y2="6" />
-      <line x1="3" y1="10" x2="21" y2="10" />
-    </svg>
-  )
-}
-
-function Bell(props: any) {
-  return (
-    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
-      <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
-      <path d="M13.73 21a2 2 0 0 1-3.46 0" />
-    </svg>
   )
 }

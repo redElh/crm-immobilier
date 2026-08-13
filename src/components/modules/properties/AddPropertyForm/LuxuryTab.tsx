@@ -10,16 +10,17 @@ const item = { hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0 } };
 interface LuxuryTabProps {
   register: any;
   control: any;
+  isGerant?: boolean;
 }
 
-export function LuxuryTab({ register, control }: LuxuryTabProps) {
+export function LuxuryTab({ register, control, isGerant = false }: LuxuryTabProps) {
   return (
     <MotionCard initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.25, ease: "easeOut" }} className="p-0 overflow-hidden">
       <Accordion type="multiple" defaultValue={['confidentiality']} className="space-y-0">
         <AccordionItem value="confidentiality" className="border-0">
           <AccordionTrigger className="px-6 py-4 hover:bg-background/50 transition-colors duration-200">
             <div className="flex items-center gap-3">
-              <div className="w-1.5 h-1.5 rounded-full bg-accent" />
+              <div className={`w-1.5 h-1.5 rounded-full ${isGerant ? 'bg-[#905D5D]' : 'bg-accent'}`} />
               <span className="font-medium text-text">Confidentialité</span>
             </div>
           </AccordionTrigger>

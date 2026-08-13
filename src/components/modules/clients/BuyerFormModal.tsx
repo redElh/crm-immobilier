@@ -1,17 +1,136 @@
-import { useState } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Plus } from 'react-feather';
+import { X, Plus, Save, Upload, Eye, Search } from 'react-feather';
 import { Client } from '../../../types/client';
+import { AGENTS } from '../../../types/calendar';
 import { DatePicker } from '../../ui/DatePicker';
 import { Input } from '../../ui/Input';
 import { Select } from '../../ui/Select';
 import { Checkbox } from '../../ui/Checkbox';
 import { Textarea } from '../../ui/Textarea';
 import { Button } from '../../ui/Button';
+import { LocationMap } from '../properties/AddPropertyForm/LocationMap';
+import { saveDraft, getDraft, deleteDraft } from '../../../services/clientDraftStorage';
+import { CompletionRing } from '../../ui/CompletionRing';
+import { api } from '../../../services/api';
+import { uploadFiles } from '../../../services/uploadService';
+import { fetchContacts, createContact } from '../../../services/contactService';
+import { ContactFormModal } from '../contacts/ContactFormModal';
+
+const USER_CACHE: Record<string, string> = {};
+
+const GERANT_BUTTON_CLASSES = 'bg-[#905D5D] hover:bg-[#7D5050] border-[#905D5D] hover:border-[#7D5050] text-white shadow-[0_10px_24px_rgba(144,93,93,0.35)]'
+
+interface AssignmentInfo {
+  assignedType: 'agent' | 'admin';
+  assignedName: string;
+}
 
 interface BuyerFormModalProps {
   onClose: () => void;
   onSubmit: (client: Omit<Client, 'id'>) => void;
+  assignmentInfo?: AssignmentInfo;
+  draftId?: string;
+  userId?: string;
+  onDraftChange?: () => void;
+  client?: Client;
+  selectedContactId?: string;
+  isGerant?: boolean;
+}
+
+export function resetBuyerFormData(): BuyerFormData {
+  const today = new Date().toISOString().split('T')[0];
+  const inSixMonths = new Date(Date.now() + 180 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+  const generateMandatNumber = () => `MA-${new Date().getFullYear()}-${Math.floor(Math.random() * 999).toString().padStart(3, '0')}`;
+  return {
+    actif: true,
+    croisementAutomatique: true,
+    classification: 'Actif',
+    statutMetier: 'En qualification',
+    contactId: '',
+    origine: '',
+    plan: '',
+    localisation: 'Maroc',
+    secteur: '',
+    adresseComplete: '',
+    complementAdresse: '',
+    codePostalVille: '',
+    pays: 'Maroc',
+    categorie: '',
+    typeBien: '',
+    piecesOperator: 'ge',
+    pieces: undefined,
+    chambresOperator: 'ge',
+    chambres: undefined,
+    surfaceMin: undefined,
+    surfaceMax: undefined,
+    prixMin: undefined,
+    prixMax: undefined,
+    devise: 'MAD',
+    etageOperator: 'ge',
+    etage: undefined,
+    vue: '',
+    exposition: '',
+    etat: '',
+    standing: '',
+    disponibilite: '',
+    attributPrincipal: '',
+    attributsPersonnalises: [],
+    criteres: [],
+    proximites: { transports: [], commerces: [], education: [], sante: [], loisirs: [] },
+    prestations: { exterieur: [], confort: [], electromenager: [], multimedia: [], sport: [] },
+    typeFinancement: '',
+    montantTotal: undefined,
+    descriptionAutreFinancement: '',
+    apport: undefined,
+    dureePret: '',
+    capaciteEmprunt: 0,
+    situationActuelle: '',
+    urgence: '',
+    dateEmmenagement: '',
+    notesComplementaires: '',
+    numeroMandat: generateMandatNumber(),
+    dateSignature: today,
+    dateDebut: today,
+    dateExpiration: inSixMonths,
+    statutMandat: 'Non défini',
+    typeMandat: '',
+    conjoint: '',
+    societe: '',
+    agentDesigne: '',
+    typeRemuneration: '',
+    montantRemuneration: undefined,
+    remunerationIsPercentage: false,
+    conditionPaiement: '',
+    dureeProtection: '',
+    mandatPdfUrl: '',
+    mandatPdfName: '',
+    docIdentiteUrl: '',
+    docIdentiteName: '',
+    docDomicileUrl: '',
+    docDomicileName: '',
+    docRevenusUrl: '',
+    docRevenusName: '',
+    docFinancementUrl: '',
+    docFinancementName: '',
+    docBancaireUrl: '',
+    docBancaireName: '',
+    revenusMensuelsNets: undefined,
+    revenusSupplementaires: undefined,
+    chargesCredit: undefined,
+    chargesFixes: undefined,
+    montantPretSouhaite: undefined,
+    taeg: undefined,
+    assuranceEmprunteur: undefined,
+    banqueSollicitee: '',
+    tauxEnvisage: undefined,
+    statutFinancement: '',
+    dateObtentionPret: '',
+    attestationPretUrl: '',
+    latitude: 0,
+    longitude: 0,
+    bienConcerneId: '',
+  };
 }
 
 const STATUT_METIER_OPTIONS = [
@@ -335,9 +454,9 @@ const PRESTATIONS_SPORT = [
 ];
 
 const FINANCEMENT_OPTIONS = [
+  { value: 'Apport personnel', label: 'Apport personnel' },
   { value: 'Pret bancaire', label: 'Prêt bancaire' },
   { value: 'Comptant', label: 'Comptant' },
-  { value: 'Apport personnel', label: 'Apport personnel' },
   { value: 'Autre', label: 'Autre' },
 ];
 
@@ -347,7 +466,16 @@ const DUREE_PRET_OPTIONS = [
   { value: '15', label: '15 ans' },
   { value: '20', label: '20 ans' },
   { value: '25', label: '25 ans' },
-  { value: '30', label: '30 ans' },
+];
+
+const BANQUE_OPTIONS = [
+  { value: 'Attijariwafa', label: 'Attijariwafa' },
+  { value: 'BMCE', label: 'BMCE' },
+  { value: 'Societe Generale', label: 'Société Générale' },
+  { value: 'Credit Agricole', label: 'Crédit Agricole' },
+  { value: 'CIH', label: 'CIH' },
+  { value: 'CFG Bank', label: 'CFG Bank' },
+  { value: 'Autre', label: 'Autre' },
 ];
 
 const SITUATION_ACTUELLE_OPTIONS = [
@@ -371,6 +499,8 @@ const URGENCE_OPTIONS = [
 ];
 
 const STATUT_MANDAT_OPTIONS = [
+  { value: 'Non défini', label: 'Non défini' },
+  { value: 'En attente de signature', label: 'En attente de signature' },
   { value: 'Actif', label: 'Actif' },
   { value: 'Expire', label: 'Expiré' },
   { value: 'Resilie', label: 'Résilié' },
@@ -391,12 +521,6 @@ const REMUNERATION_TYPE_OPTIONS = [
 const PAIEMENT_CONDITION_OPTIONS = [
   { value: 'Signature compromis', label: 'À la signature du compromis' },
   { value: 'Vente definitive', label: 'À la vente définitive' },
-];
-
-const AGENTS = [
-  { value: 'agent-1', label: 'Agent 1' },
-  { value: 'agent-2', label: 'Agent 2' },
-  { value: 'agent-3', label: 'Agent 3' },
 ];
 
 interface ProximiteCategorie {
@@ -425,6 +549,10 @@ interface BuyerFormData {
   plan: string;
   localisation: string;
   secteur: string;
+  adresseComplete: string;
+  complementAdresse: string;
+  codePostalVille: string;
+  pays: string;
   categorie: string;
   typeBien: string;
   piecesOperator: string;
@@ -449,6 +577,8 @@ interface BuyerFormData {
   proximites: ProximiteCategorie;
   prestations: PrestationCategorie;
   typeFinancement: string;
+  montantTotal: number | undefined;
+  descriptionAutreFinancement: string;
   apport: number | undefined;
   dureePret: string;
   capaciteEmprunt: number;
@@ -465,19 +595,38 @@ interface BuyerFormData {
   conjoint: string;
   societe: string;
   agentDesigne: string;
-  prixMinMandat: number | undefined;
-  prixMaxMandat: number | undefined;
-  surfaceMinMandat: number | undefined;
   typeRemuneration: string;
   montantRemuneration: number | undefined;
+  remunerationIsPercentage: boolean;
   conditionPaiement: string;
   dureeProtection: string;
   mandatPdfUrl: string;
+  mandatPdfName: string;
+  docIdentiteUrl: string;
+  docIdentiteName: string;
+  docDomicileUrl: string;
+  docDomicileName: string;
+  docRevenusUrl: string;
+  docRevenusName: string;
+  docFinancementUrl: string;
+  docFinancementName: string;
+  docBancaireUrl: string;
+  docBancaireName: string;
+  revenusMensuelsNets: number | undefined;
+  revenusSupplementaires: number | undefined;
+  chargesCredit: number | undefined;
+  chargesFixes: number | undefined;
+  montantPretSouhaite: number | undefined;
+  taeg: number | undefined;
+  assuranceEmprunteur: number | undefined;
   banqueSollicitee: string;
   tauxEnvisage: number | undefined;
   statutFinancement: string;
   dateObtentionPret: string;
   attestationPretUrl: string;
+  latitude: number;
+  longitude: number;
+  bienConcerneId: string;
 }
 
 const TABS = [
@@ -510,28 +659,34 @@ const formatDate = (date: Date): string => {
 const today = formatDate(new Date());
 const inSixMonths = formatDate(addMonths(new Date(), 6));
 
-export const BuyerFormModal = ({ onClose, onSubmit }: BuyerFormModalProps) => {
+export const BuyerFormModal = ({ onClose, onSubmit, assignmentInfo, draftId: initialDraftId, userId, onDraftChange, client: editingClient, selectedContactId, isGerant = false }: BuyerFormModalProps) => {
   const [step, setStep] = useState(1);
+  const [contacts, setContacts] = useState<any[]>([]);
+  const [contactOptions, setContactOptions] = useState<{value: string; label: string}[]>([]);
   const [formData, setFormData] = useState<BuyerFormData>({
     actif: true,
     croisementAutomatique: true,
     classification: 'Actif',
     statutMetier: 'En qualification',
-    contactId: '',
+    contactId: selectedContactId || '',
     origine: '',
     plan: '',
     localisation: 'Maroc',
     secteur: '',
+    adresseComplete: '',
+    complementAdresse: '',
+    codePostalVille: '',
+    pays: 'Maroc',
     categorie: '',
     typeBien: '',
     piecesOperator: 'ge',
     pieces: undefined,
     chambresOperator: 'ge',
     chambres: undefined,
-    surfaceMin: 80,
-    surfaceMax: 120,
-    prixMin: 800000,
-    prixMax: 1200000,
+    surfaceMin: undefined,
+    surfaceMax: undefined,
+    prixMin: undefined,
+    prixMax: undefined,
     devise: 'MAD',
     etageOperator: 'ge',
     etage: undefined,
@@ -545,9 +700,11 @@ export const BuyerFormModal = ({ onClose, onSubmit }: BuyerFormModalProps) => {
     criteres: [],
     proximites: { transports: [], commerces: [], education: [], sante: [], loisirs: [] },
     prestations: { exterieur: [], confort: [], electromenager: [], multimedia: [], sport: [] },
-    typeFinancement: 'Pret bancaire',
+    typeFinancement: '',
+    montantTotal: undefined,
+    descriptionAutreFinancement: '',
     apport: undefined,
-    dureePret: '20',
+    dureePret: '',
     capaciteEmprunt: 0,
     situationActuelle: '',
     urgence: '',
@@ -557,45 +714,408 @@ export const BuyerFormModal = ({ onClose, onSubmit }: BuyerFormModalProps) => {
     dateSignature: today,
     dateDebut: today,
     dateExpiration: inSixMonths,
-    statutMandat: 'Actif',
-    typeMandat: 'Non-exclusif',
+    statutMandat: 'Non défini',
+    typeMandat: '',
     conjoint: '',
     societe: '',
     agentDesigne: '',
-    prixMinMandat: 800000,
-    prixMaxMandat: 1200000,
-    surfaceMinMandat: 80,
     typeRemuneration: '',
     montantRemuneration: undefined,
+    remunerationIsPercentage: false,
     conditionPaiement: '',
-    dureeProtection: '3',
+    dureeProtection: '',
     mandatPdfUrl: '',
+    mandatPdfName: '',
+    docIdentiteUrl: '',
+    docIdentiteName: '',
+    docDomicileUrl: '',
+    docDomicileName: '',
+    docRevenusUrl: '',
+    docRevenusName: '',
+    docFinancementUrl: '',
+    docFinancementName: '',
+    docBancaireUrl: '',
+    docBancaireName: '',
+    revenusMensuelsNets: undefined,
+    revenusSupplementaires: undefined,
+    chargesCredit: undefined,
+    chargesFixes: undefined,
+    montantPretSouhaite: undefined,
+    taeg: undefined,
+    assuranceEmprunteur: undefined,
     banqueSollicitee: '',
     tauxEnvisage: undefined,
     statutFinancement: '',
     dateObtentionPret: '',
     attestationPretUrl: '',
+    latitude: 0,
+    longitude: 0,
+    bienConcerneId: '',
   });
+
+  useEffect(() => {
+    fetchContacts().then(allContacts => {
+      setContacts(allContacts);
+      setContactOptions([
+        { value: '', label: 'Sélectionner un contact...' },
+        ...allContacts.map(c => ({ value: String(c.id), label: `${c.civility} ${c.firstName} ${c.lastName}` })),
+      ]);
+    }).catch(() => {});
+  }, []);
+
+  const refreshContacts = () => {
+    fetchContacts().then(allContacts => {
+      setContacts(allContacts);
+      setContactOptions([
+        { value: '', label: 'Sélectionner un contact...' },
+        ...allContacts.map(c => ({ value: String(c.id), label: `${c.civility} ${c.firstName} ${c.lastName}` })),
+      ]);
+    }).catch(() => {});
+  };
+
+  const selectedContactName = formData.contactId ? (contactOptions.find(o => o.value === formData.contactId)?.label || '') : '';
+
+  useEffect(() => {
+    if (!editingClient) return;
+    const c = editingClient as any;
+    setFormData(prev => ({
+      ...prev,
+      actif: editingClient.status === 'Actif',
+      croisementAutomatique: editingClient.croisementAutomatique ?? true,
+      classification: editingClient.classification || 'Actif',
+      statutMetier: editingClient.statutMetier || 'En qualification',
+      contactId: editingClient.contactId || '',
+      origine: editingClient.source || '',
+      localisation: editingClient.localisation || '',
+      secteur: editingClient.secteur || editingClient.area || '',
+      adresseComplete: (editingClient as any).adresseComplete || '',
+      complementAdresse: (editingClient as any).complementAdresse || '',
+      codePostalVille: (editingClient as any).codePostalVille || '',
+      pays: (editingClient as any).pays || 'Maroc',
+      categorie: editingClient.categorie || '',
+      typeBien: editingClient.propertyType || '',
+      piecesOperator: editingClient.piecesOperator || 'ge',
+      pieces: editingClient.pieces,
+      chambresOperator: editingClient.chambresOperator || 'ge',
+      chambres: editingClient.chambres,
+      surfaceMin: c.surfaceMin,
+      surfaceMax: editingClient.surfaceMax,
+      prixMin: editingClient.prixMin,
+      prixMax: editingClient.prixMax || editingClient.budget,
+      devise: editingClient.devise || 'MAD',
+      etageOperator: editingClient.etageOperator || 'ge',
+      etage: editingClient.etage,
+      vue: editingClient.vue || '',
+      exposition: editingClient.exposition || '',
+      etat: editingClient.etat || '',
+      standing: editingClient.standing || '',
+      disponibilite: editingClient.disponibilite || '',
+      attributPrincipal: editingClient.attributPrincipal || '',
+      attributsPersonnalises: editingClient.attributsPersonnalises || [],
+      criteres: editingClient.criteres || [],
+      proximites: editingClient.proximites || { transports: [], commerces: [], education: [], sante: [], loisirs: [] },
+      prestations: editingClient.prestations || { exterieur: [], confort: [], electromenager: [], multimedia: [], sport: [] },
+      typeFinancement: c.typeFinancement || '',
+      montantTotal: c.montantTotal,
+      descriptionAutreFinancement: c.descriptionAutreFinancement || '',
+      apport: c.apport,
+      dureePret: c.dureePret?.toString() || '',
+      capaciteEmprunt: editingClient.capaciteEmprunt || 0,
+      situationActuelle: c.situationActuelle || '',
+      urgence: c.urgence || editingClient.urgency || '',
+      dateEmmenagement: c.dateEmmenagement || '',
+      notesComplementaires: editingClient.notes || '',
+      numeroMandat: editingClient.numeroMandat || prev.numeroMandat,
+      dateSignature: editingClient.dateSignature || prev.dateSignature,
+      dateDebut: editingClient.dateDebut || prev.dateDebut,
+      dateExpiration: editingClient.dateExpiration || prev.dateExpiration,
+      statutMandat: editingClient.statutMandat || 'Non défini',
+      typeMandat: editingClient.typeMandat || '',
+      conjoint: editingClient.conjoint || '',
+      societe: editingClient.societe || '',
+      agentDesigne: editingClient.agentDesigne || editingClient.agentId || '',
+      typeRemuneration: editingClient.typeRemuneration || '',
+      montantRemuneration: editingClient.montantRemuneration,
+      remunerationIsPercentage: editingClient.remunerationIsPercentage ?? false,
+      conditionPaiement: editingClient.conditionPaiement || '',
+      dureeProtection: editingClient.dureeProtection || '',
+      mandatPdfUrl: editingClient.mandatPdfUrl || '',
+      mandatPdfName: '',
+      docIdentiteUrl: (editingClient as any).docIdentiteUrl || '',
+      docIdentiteName: '',
+      docDomicileUrl: (editingClient as any).docDomicileUrl || '',
+      docDomicileName: '',
+      docRevenusUrl: (editingClient as any).docRevenusUrl || '',
+      docRevenusName: '',
+      docFinancementUrl: (editingClient as any).docFinancementUrl || '',
+      docFinancementName: '',
+      docBancaireUrl: (editingClient as any).docBancaireUrl || '',
+      docBancaireName: '',
+      revenusMensuelsNets: c.revenusMensuelsNets,
+      revenusSupplementaires: c.revenusSupplementaires,
+      chargesCredit: c.chargesCredit,
+      chargesFixes: c.chargesFixes,
+      montantPretSouhaite: c.montantPretSouhaite,
+      taeg: c.taeg,
+      assuranceEmprunteur: c.assuranceEmprunteur,
+      banqueSollicitee: editingClient.banqueSollicitee || '',
+      tauxEnvisage: editingClient.tauxEnvisage,
+      statutFinancement: editingClient.statutFinancement || '',
+      dateObtentionPret: editingClient.dateObtentionPret || '',
+      attestationPretUrl: editingClient.attestationPretUrl || '',
+      latitude: c.latitude || 0,
+      longitude: c.longitude || 0,
+      bienConcerneId: c.bienConcerneId || '',
+    }));
+  }, [editingClient]);
+
+  useEffect(() => {
+    if (assignmentInfo?.assignedName && !editingClient) {
+      setFormData(prev => ({ ...prev, agentDesigne: assignmentInfo.assignedName }));
+    }
+  }, [assignmentInfo, editingClient]);
+
+  const [, setUsersFetched] = useState(false);
+  useEffect(() => {
+    api.get<any>('/auth/me').then((u: any) => {
+      if (u) {
+        const name = [u.first_name || '', u.last_name || ''].filter(Boolean).join(' ').trim() || u.email || 'Inconnu';
+        USER_CACHE[String(u.id)] = name;
+      }
+    }).catch(() => {});
+    api.get<any[]>('/admin/users').then((list: any[]) => {
+      if (Array.isArray(list)) {
+        for (const u of list) {
+          const name = [u.first_name || '', u.last_name || ''].filter(Boolean).join(' ').trim() || u.email || 'Inconnu';
+          USER_CACHE[String(u.id)] = name;
+        }
+      }
+      setUsersFetched(true);
+    }).catch(() => { setUsersFetched(true); });
+  }, []);
+
+  const [vendeurProperties, setVendeurProperties] = useState<any[]>([]);
+  const [vendeurs, setVendeurs] = useState<any[]>([]);
+  const [loadingProperties, setLoadingProperties] = useState(false);
+  const [propertySearch, setPropertySearch] = useState('');
+  const [showPropertyDropdown, setShowPropertyDropdown] = useState(false);
+
+  useEffect(() => {
+    setLoadingProperties(true);
+    Promise.all([
+      api.get<any[]>('/properties'),
+      api.get<any[]>('/admin/users').catch(() => []),
+    ]).then(([properties, users]) => {
+      setVendeurProperties(Array.isArray(properties) ? properties : []);
+      const vList = Array.isArray(users) ? users.filter((u: any) => u.role === 'vendeur') : [];
+      setVendeurs(vList);
+    }).catch(() => {}).finally(() => setLoadingProperties(false));
+  }, []);
+
+  const matchedProperties = useMemo(() => {
+    if (!propertySearch.trim()) return [];
+    const q = propertySearch.toLowerCase();
+    return vendeurProperties.filter((p: any) => {
+      if (p.transactionType !== 'vente' || p.status !== 'for_sale') return false;
+      const title = (p.title || '').toLowerCase();
+      const ref = (p.reference || '').toLowerCase();
+      const city = (p.city || '').toLowerCase();
+      const location = (p.location || '').toLowerCase();
+      const vendeurId = String(p.client_id || '');
+      const vendeur = vendeurs.find((v: any) => String(v.id) === vendeurId);
+      const vendeurName = vendeur ? `${vendeur.first_name || ''} ${vendeur.last_name || ''}`.trim().toLowerCase() : '';
+      return title.includes(q) || ref.includes(q) || city.includes(q) || location.includes(q) || vendeurName.includes(q);
+    }).slice(0, 8);
+  }, [propertySearch, vendeurProperties, vendeurs]);
+
+  const selectedProperty = useMemo(() => {
+    if (!formData.bienConcerneId) return null;
+    return vendeurProperties.find((p: any) => String(p.id) === formData.bienConcerneId) || null;
+  }, [formData.bienConcerneId, vendeurProperties]);
 
   const [errors, setErrors] = useState<Partial<Record<keyof BuyerFormData, string>>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showContactForm, setShowContactForm] = useState(false);
+
+  const [savedDraftId, setSavedDraftId] = useState<string | undefined>(initialDraftId || undefined);
+  const [loadingDraft, setLoadingDraft] = useState(!!initialDraftId);
+  const formDataRef = useRef(formData);
+  formDataRef.current = formData;
+
+  useEffect(() => {
+    const sectionsFilled = {
+      infoGenerales: formData.numeroMandat && formData.dateDebut && formData.dateExpiration,
+      typeMandat: formData.typeMandat,
+      partiesContrat: formData.conjoint || formData.societe || formData.agentDesigne,
+      description: formData.typeBien && (formData.prixMin || formData.prixMax) && formData.surfaceMin,
+      remuneration: formData.typeRemuneration,
+      clauseProtection: formData.dureeProtection,
+    };
+    const allFilled = Object.values(sectionsFilled).every(Boolean);
+    if (allFilled) {
+      setFormData(prev => prev.statutMandat !== 'En attente de signature' ? { ...prev, statutMandat: 'En attente de signature' } : prev);
+    } else {
+      setFormData(prev => prev.statutMandat !== 'Non défini' ? { ...prev, statutMandat: 'Non défini' } : prev);
+    }
+  }, [
+    formData.numeroMandat, formData.dateDebut, formData.dateExpiration,
+    formData.typeMandat,
+    formData.conjoint, formData.societe, formData.agentDesigne,
+    formData.typeBien, formData.prixMin, formData.prixMax, formData.surfaceMin,
+    formData.typeRemuneration,
+    formData.dureeProtection,
+  ]);
+
+  useEffect(() => {
+    const mapping: Record<string, string> = {
+      'Non défini': 'En qualification',
+      'En attente de signature': undefined as any,
+      'Actif': undefined as any,
+      'Termine': 'Vendu / Acheté',
+      'Expire': 'Inactif',
+      'Resilie': 'Perdu',
+    };
+    const target = mapping[formData.statutMandat];
+    if (target && formData.statutMetier !== target) {
+      setFormData(prev => ({ ...prev, statutMetier: target }));
+    }
+  }, [formData.statutMandat]);
+
+  useEffect(() => {
+    if (!initialDraftId || !userId) return;
+    const draft = getDraft(userId, initialDraftId);
+    if (draft) {
+      const draftData = draft.data;
+      setFormData(prev => ({ ...prev, ...draftData }));
+      if (draftData._step) setStep(draftData._step);
+    }
+    setLoadingDraft(false);
+  }, []);
+
+  const buildClientPayload = (data: BuyerFormData) => ({
+    name: editingClient?.name || selectedContactName || 'Nouveau client',
+    type: 'Acheteur' as const,
+    status: (data.actif ? 'Actif' : 'Inactif') as 'Actif' | 'Inactif',
+    phone: editingClient?.phone || (formData.contactId ? (contacts.find(c => String(c.id) === formData.contactId)?.mobile || '') : ''),
+    email: editingClient?.email || (formData.contactId ? (contacts.find(c => String(c.id) === formData.contactId)?.emailPrincipal || '') : ''),
+    source: data.origine,
+    secteur: data.secteur,
+    propertyType: data.typeBien,
+    localisation: data.localisation,
+    classification: data.classification,
+    notes: data.notesComplementaires,
+    statutMetier: data.statutMetier,
+    statutMandat: data.statutMandat,
+    agentId: data.agentDesigne || undefined,
+    agentDesigne: data.agentDesigne || undefined,
+    mandatPdfUrl: data.mandatPdfUrl || undefined,
+    typeRemuneration: data.typeRemuneration || undefined,
+    montantRemuneration: data.montantRemuneration,
+    remunerationIsPercentage: data.remunerationIsPercentage,
+    docIdentiteUrl: data.docIdentiteUrl || undefined,
+    docDomicileUrl: data.docDomicileUrl || undefined,
+    docRevenusUrl: data.docRevenusUrl || undefined,
+    docFinancementUrl: data.docFinancementUrl || undefined,
+    docBancaireUrl: data.docBancaireUrl || undefined,
+  });
+
+  const isFilled = (v: any): boolean => {
+    if (v === undefined || v === null) return false;
+    if (typeof v === 'string') return v.trim() !== '';
+    if (Array.isArray(v)) return v.length > 0;
+    if (typeof v === 'object') {
+      if (v instanceof Date) return true;
+      return Object.values(v).some((a: any) => Array.isArray(a) && a.length > 0);
+    }
+    return true;
+  };
+
+  const calcCompletion = (data: BuyerFormData): number => {
+    const fields = [
+      // Général
+      data.classification, data.statutMetier, data.origine,
+    // Localisation & Type
+    data.localisation, data.secteur, data.adresseComplete, data.complementAdresse, data.codePostalVille, data.pays, data.categorie, data.typeBien,
+      // Caractéristiques
+      data.pieces, data.chambres, data.surfaceMin, data.surfaceMax,
+      data.prixMin, data.prixMax, data.etage,
+      data.vue, data.exposition, data.etat, data.standing, data.disponibilite,
+      // Attributs & Critères
+      data.attributPrincipal, data.attributsPersonnalises, data.criteres,
+      // Proximités (each sub-category)
+      data.proximites?.transports, data.proximites?.commerces,
+      data.proximites?.education, data.proximites?.sante, data.proximites?.loisirs,
+      // Prestations (each sub-category)
+      data.prestations?.exterieur, data.prestations?.confort,
+      data.prestations?.electromenager, data.prestations?.multimedia, data.prestations?.sport,
+      // Financement
+      data.typeFinancement, data.revenusMensuelsNets, data.revenusSupplementaires,
+      data.chargesCredit, data.chargesFixes, data.montantPretSouhaite,
+      data.tauxEnvisage, data.dureePret, data.taeg, data.assuranceEmprunteur,
+      data.apport, data.banqueSollicitee, data.statutFinancement,
+      data.dateObtentionPret, data.attestationPretUrl, data.montantTotal,
+      data.descriptionAutreFinancement,
+      // Notes
+      data.situationActuelle, data.urgence, data.dateEmmenagement, data.notesComplementaires,
+      // Mandat
+      data.numeroMandat, data.statutMandat, data.typeMandat,
+      data.dateSignature, data.dateDebut, data.dateExpiration,
+      data.conjoint, data.societe, data.agentDesigne,
+      data.bienConcerneId,
+      data.typeRemuneration, data.montantRemuneration, data.conditionPaiement,
+      data.dureeProtection,
+      // Documents
+      data.mandatPdfUrl, data.docIdentiteUrl, data.docDomicileUrl,
+      data.docRevenusUrl, data.docFinancementUrl, data.docBancaireUrl,
+    ];
+    const filled = fields.filter(isFilled).length;
+    return Math.min(100, Math.round((filled / fields.length) * 100));
+  };
+
+  const doSaveDraft = () => {
+    if (!userId) return;
+    const data = { ...formDataRef.current, _draftId: savedDraftId, _step: step };
+    const draft = saveDraft(userId, 'Acheteur', data, calcCompletion(formDataRef.current));
+    if (!savedDraftId) setSavedDraftId(draft.id);
+    onDraftChange?.();
+  };
+
+  useEffect(() => {
+    if (!savedDraftId) return;
+    const timer = setTimeout(doSaveDraft, 2000);
+    return () => clearTimeout(timer);
+  }, [formData, savedDraftId, step]);
+
+  useEffect(() => {
+    let capacite = 0;
+    if (formData.typeFinancement === 'Pret bancaire') {
+      const revenusNets = formData.revenusMensuelsNets || 0;
+      const chargesCredit = formData.chargesCredit || 0;
+      const mensualiteMax = Math.max(0, (revenusNets * 0.35) - chargesCredit);
+      const tauxInteret = formData.tauxEnvisage || 3.5;
+      const dureeAnnees = parseInt(formData.dureePret) || 20;
+      const apport = formData.apport || 0;
+      if (mensualiteMax > 0 && dureeAnnees > 0) {
+        const tauxMensuel = tauxInteret / 100 / 12;
+        const nbMois = dureeAnnees * 12;
+        const montantEmpruntable = mensualiteMax * (1 - Math.pow(1 + tauxMensuel, -nbMois)) / tauxMensuel;
+        capacite = Math.round(montantEmpruntable + apport);
+      }
+    } else if (formData.typeFinancement === 'Apport personnel') {
+      capacite = formData.apport || 0;
+    } else if (formData.typeFinancement === 'Comptant') {
+      capacite = 0;
+    } else if (formData.typeFinancement === 'Autre') {
+      capacite = formData.capaciteEmprunt;
+    }
+    if (formData.capaciteEmprunt !== capacite) {
+      setFormData(prev => ({ ...prev, capaciteEmprunt: capacite }));
+    }
+  }, [formData.typeFinancement, formData.revenusMensuelsNets, formData.chargesCredit, formData.tauxEnvisage, formData.dureePret, formData.apport]);
 
   const handleChange = (field: keyof BuyerFormData, value: any) => {
     setFormData(prev => ({ ...prev, [field]: value }));
     if (errors[field]) setErrors(prev => ({ ...prev, [field]: undefined }));
-
-    if ((field === 'apport' || field === 'dureePret') && formData.apport && formData.dureePret) {
-      const apport = field === 'apport' ? (value || 0) : formData.apport;
-      const dureePret = field === 'dureePret' ? value : formData.dureePret;
-      if (apport > 0 && dureePret) {
-        const tauxAnnuel = 0.035;
-        const dureeMois = parseInt(dureePret) * 12;
-        const mensualite = apport * (tauxAnnuel / 12) * Math.pow(1 + tauxAnnuel / 12, dureeMois) / (Math.pow(1 + tauxAnnuel / 12, dureeMois) - 1);
-        if (!isNaN(mensualite) && isFinite(mensualite)) {
-          setFormData(prev => ({ ...prev, capaciteEmprunt: Math.round(mensualite * dureeMois) }));
-        }
-      }
-    }
 
     if (field === 'dateSignature' || field === 'dateDebut') {
       const startDate = field === 'dateSignature' ? value : formData.dateSignature;
@@ -637,7 +1157,7 @@ export const BuyerFormModal = ({ onClose, onSubmit }: BuyerFormModalProps) => {
 
   const validate = (): boolean => {
     const newErrors: Partial<Record<keyof BuyerFormData, string>> = {};
-    if (!formData.contactId) newErrors.contactId = 'Le contact est requis';
+    if (!formData.contactId) newErrors.contactId = 'Veuillez sélectionner ou créer un contact';
     if (!formData.origine) newErrors.origine = "L'origine est requise";
     if (!formData.typeBien) newErrors.typeBien = 'Le type de bien est requis';
     if (!formData.categorie) newErrors.categorie = 'La catégorie est requise';
@@ -646,92 +1166,68 @@ export const BuyerFormModal = ({ onClose, onSubmit }: BuyerFormModalProps) => {
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!validate()) {
-      setStep(1);
-      return;
+  const submitForm = () => {
+    if (isSubmitting) return;
+    if (savedDraftId && userId) {
+      deleteDraft(userId, savedDraftId);
+      onDraftChange?.();
     }
 
     setIsSubmitting(true);
 
     onSubmit({
-      name: '',
-      type: 'Acheteur',
-      status: formData.actif ? 'Actif' : 'Inactif',
-      phone: '',
-      email: '',
+      ...formData,
+      name: selectedContactName || editingClient?.name || 'Nouveau client',
+      type: 'Acheteur' as const,
+      status: (formData.actif ? 'Actif' : 'Inactif') as 'Actif' | 'Inactif',
+      phone: (formData.contactId ? (contacts.find(c => String(c.id) === formData.contactId)?.mobile || '') : '') || editingClient?.phone || '',
+      email: (formData.contactId ? (contacts.find(c => String(c.id) === formData.contactId)?.emailPrincipal || '') : '') || editingClient?.email || '',
       source: formData.origine,
-      notes: formData.notesComplementaires,
-      propertyType: formData.typeBien,
-      area: formData.secteur || formData.localisation,
-      minSurface: formData.surfaceMin,
-      rooms: formData.pieces?.toString() || '',
-      budget: formData.prixMax,
-      contribution: formData.apport,
-      financingType: formData.typeFinancement,
-      loanDuration: parseInt(formData.dureePret),
-      currentSituation: formData.situationActuelle,
-      moveInDate: formData.dateEmmenagement,
-      urgency: formData.urgence,
-      classification: formData.classification,
-      statutMetier: formData.statutMetier,
-      croisementAutomatique: formData.croisementAutomatique,
-      contactId: formData.contactId,
       secteur: formData.secteur,
-      categorie: formData.categorie,
-      piecesOperator: formData.piecesOperator,
-      pieces: formData.pieces,
-      chambresOperator: formData.chambresOperator,
-      chambres: formData.chambres,
-      surfaceMax: formData.surfaceMax,
-      prixMin: formData.prixMin,
-      prixMax: formData.prixMax,
-      devise: formData.devise,
-      etageOperator: formData.etageOperator,
-      etage: formData.etage,
-      vue: formData.vue,
-      exposition: formData.exposition,
-      etat: formData.etat,
-      standing: formData.standing,
-      disponibilite: formData.disponibilite,
-      attributPrincipal: formData.attributPrincipal,
-      attributsPersonnalises: formData.attributsPersonnalises.length > 0 ? formData.attributsPersonnalises : undefined,
-      criteres: formData.criteres.length > 0 ? formData.criteres : undefined,
-      proximites: formData.proximites.transports.length > 0 || formData.proximites.commerces.length > 0 || formData.proximites.education.length > 0 || formData.proximites.sante.length > 0 || formData.proximites.loisirs.length > 0
-        ? formData.proximites : undefined,
-      prestations: formData.prestations.exterieur.length > 0 || formData.prestations.confort.length > 0 || formData.prestations.electromenager.length > 0 || formData.prestations.multimedia.length > 0 || formData.prestations.sport.length > 0
-        ? formData.prestations : undefined,
-      capaciteEmprunt: formData.capaciteEmprunt > 0 ? formData.capaciteEmprunt : undefined,
-      numeroMandat: formData.numeroMandat,
-      dateSignature: formData.dateSignature,
-      dateDebut: formData.dateDebut,
-      dateExpiration: formData.dateExpiration,
+      adresseComplete: formData.adresseComplete,
+      complementAdresse: formData.complementAdresse,
+      codePostalVille: formData.codePostalVille,
+      pays: formData.pays,
+      propertyType: formData.typeBien,
+      localisation: formData.localisation,
+      classification: formData.classification,
+      notes: formData.notesComplementaires,
+      statutMetier: formData.statutMetier,
       statutMandat: formData.statutMandat,
-      typeMandat: formData.typeMandat,
-      conjoint: formData.conjoint || undefined,
-      societe: formData.societe || undefined,
+      agentId: formData.agentDesigne || undefined,
       agentDesigne: formData.agentDesigne || undefined,
+      mandatPdfUrl: formData.mandatPdfUrl || undefined,
       typeRemuneration: formData.typeRemuneration || undefined,
       montantRemuneration: formData.montantRemuneration,
-      conditionPaiement: formData.conditionPaiement || undefined,
-      dureeProtection: formData.dureeProtection,
-      mandatPdfUrl: formData.mandatPdfUrl || undefined,
-      banqueSollicitee: formData.banqueSollicitee || undefined,
-      tauxEnvisage: formData.tauxEnvisage,
-      statutFinancement: formData.statutFinancement || undefined,
-      dateObtentionPret: formData.dateObtentionPret || undefined,
-      attestationPretUrl: formData.attestationPretUrl || undefined,
-      createdAt: new Date().toISOString(),
+      remunerationIsPercentage: formData.remunerationIsPercentage,
+      completion: calcCompletion(formData),
+      mandatPdfName: formData.mandatPdfName || undefined,
+      docIdentiteUrl: formData.docIdentiteUrl || undefined,
+      docIdentiteName: formData.docIdentiteName || undefined,
+      docDomicileUrl: formData.docDomicileUrl || undefined,
+      docDomicileName: formData.docDomicileName || undefined,
+      docRevenusUrl: formData.docRevenusUrl || undefined,
+      docRevenusName: formData.docRevenusName || undefined,
+      docFinancementUrl: formData.docFinancementUrl || undefined,
+      docFinancementName: formData.docFinancementName || undefined,
+      docBancaireUrl: formData.docBancaireUrl || undefined,
+      docBancaireName: formData.docBancaireName || undefined,
+      bienConcerneId: formData.bienConcerneId || undefined,
+      createdAt: editingClient?.createdAt || new Date().toISOString(),
       updatedAt: new Date().toISOString(),
-      createdBy: 'current-user-id',
+      createdBy: editingClient?.createdBy || 'current-user-id',
     });
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    submitForm();
   };
 
   const renderSection = (title: string, children: React.ReactNode) => (
     <div className="mb-6">
       <h3 className="text-sm font-semibold text-text flex items-center gap-2 mb-4">
-        <span className="w-1 h-4 rounded-full bg-accent" />
+        <span className={`w-1 h-4 rounded-full ${isGerant ? 'bg-[#905D5D]' : 'bg-accent'}`} />
         {title}
       </h3>
       {children}
@@ -756,8 +1252,8 @@ export const BuyerFormModal = ({ onClose, onSubmit }: BuyerFormModalProps) => {
               onClick={() => handleChange(field, opt.value)}
               className={`px-3 py-1.5 text-xs rounded-lg border transition-all ${
                 isSelected
-                  ? 'bg-accent text-white border-accent ring-2 ring-accent/30'
-                  : 'bg-card text-text-secondary border-border hover:border-accent/50'
+                  ? (isGerant ? 'bg-[#905D5D] text-white border-[#905D5D] ring-2 ring-[#905D5D]/30' : 'bg-accent text-white border-accent ring-2 ring-accent/30')
+                  : (isGerant ? 'bg-card text-text-secondary border-border hover:border-[#905D5D]/50' : 'bg-card text-text-secondary border-border hover:border-accent/50')
               }`}
             >
               {opt.label}
@@ -788,8 +1284,8 @@ export const BuyerFormModal = ({ onClose, onSubmit }: BuyerFormModalProps) => {
               onClick={() => onChange(opt.value)}
               className={`px-3 py-1.5 text-xs rounded-lg border transition-all ${
                 isSelected
-                  ? 'bg-accent text-white border-accent'
-                  : 'bg-card text-text-secondary border-border hover:border-accent/50'
+                  ? (isGerant ? 'bg-[#905D5D] text-white border-[#905D5D]' : 'bg-accent text-white border-accent')
+                  : (isGerant ? 'bg-card text-text-secondary border-border hover:border-[#905D5D]/50' : 'bg-card text-text-secondary border-border hover:border-accent/50')
               }`}
             >
               {opt.label}
@@ -816,12 +1312,12 @@ export const BuyerFormModal = ({ onClose, onSubmit }: BuyerFormModalProps) => {
               <button
                 key={opt.value}
                 type="button"
-                onClick={() => handleProximiteCategory(category, opt.value)}
-                className={`px-3 py-1.5 text-xs rounded-lg border transition-all ${
-                  isSelected
-                    ? 'bg-accent text-white border-accent'
-                    : 'bg-card text-text-secondary border-border hover:border-accent/50'
-                }`}
+              onClick={() => handleProximiteCategory(category, opt.value)}
+              className={`px-3 py-1.5 text-xs rounded-lg border transition-all ${
+                isSelected
+                    ? (isGerant ? 'bg-[#905D5D] text-white border-[#905D5D]' : 'bg-accent text-white border-accent')
+                    : (isGerant ? 'bg-card text-text-secondary border-border hover:border-[#905D5D]/50' : 'bg-card text-text-secondary border-border hover:border-accent/50')
+              }`}
               >
                 {opt.label}
               </button>
@@ -848,12 +1344,12 @@ export const BuyerFormModal = ({ onClose, onSubmit }: BuyerFormModalProps) => {
               <button
                 key={opt.value}
                 type="button"
-                onClick={() => handlePrestationCategory(category, opt.value)}
-                className={`px-3 py-1.5 text-xs rounded-lg border transition-all ${
-                  isSelected
-                    ? 'bg-accent text-white border-accent'
-                    : 'bg-card text-text-secondary border-border hover:border-accent/50'
-                }`}
+              onClick={() => handlePrestationCategory(category, opt.value)}
+              className={`px-3 py-1.5 text-xs rounded-lg border transition-all ${
+                isSelected
+                    ? (isGerant ? 'bg-[#905D5D] text-white border-[#905D5D]' : 'bg-accent text-white border-accent')
+                    : (isGerant ? 'bg-card text-text-secondary border-border hover:border-[#905D5D]/50' : 'bg-card text-text-secondary border-border hover:border-accent/50')
+              }`}
               >
                 {opt.label}
               </button>
@@ -876,7 +1372,12 @@ export const BuyerFormModal = ({ onClose, onSubmit }: BuyerFormModalProps) => {
                   <Checkbox label="Croisement automatique" checked={formData.croisementAutomatique} onChange={(checked) => handleChange('croisementAutomatique', checked)} />
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <Select label="Statut métier" options={STATUT_METIER_OPTIONS} value={formData.statutMetier} onValueChange={(v) => handleChange('statutMetier', v)} />
+                  <Select
+                    label="Statut métier"
+                    options={STATUT_METIER_OPTIONS}
+                    value={formData.statutMetier}
+                    onValueChange={(v) => handleChange('statutMetier', v)}
+                  />
                   <Select label="Classification" options={CLASSIFICATION_OPTIONS} value={formData.classification} onValueChange={(v) => handleChange('classification', v)} />
                 </div>
               </div>
@@ -888,18 +1389,13 @@ export const BuyerFormModal = ({ onClose, onSubmit }: BuyerFormModalProps) => {
                   <div className="flex gap-2">
                     <div className="flex-1">
                       <Select
-                        options={[
-                          { value: '', label: 'Sélectionner un contact...' },
-                          { value: 'contact-1', label: 'Jean Dupont' },
-                          { value: 'contact-2', label: 'Marie Martin' },
-                          { value: 'contact-3', label: 'Ahmed Benali' },
-                        ]}
+                        options={contactOptions}
                         value={formData.contactId}
                         onValueChange={(v) => handleChange('contactId', v)}
                         error={errors.contactId}
                       />
                     </div>
-                    <button type="button" className="h-9 w-9 rounded-lg border border-border bg-card flex items-center justify-center text-text-secondary hover:text-accent hover:border-accent transition-all shrink-0" title="Créer un nouveau contact">
+                    <button type="button" onClick={() => setShowContactForm(true)} className={`h-9 w-9 rounded-lg border border-border bg-card flex items-center justify-center text-text-secondary ${isGerant ? 'hover:text-[#905D5D] hover:border-[#905D5D]' : 'hover:text-accent hover:border-accent'} transition-all shrink-0`} title="Créer un nouveau contact">
                       <Plus size={16} />
                     </button>
                   </div>
@@ -917,11 +1413,17 @@ export const BuyerFormModal = ({ onClose, onSubmit }: BuyerFormModalProps) => {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="sm:col-span-2">
                   <p className="text-sm font-medium text-text mb-1.5">Plan (Carte interactive)</p>
-                  <div className="w-full h-48 rounded-lg border border-border bg-background flex items-center justify-center text-text-secondary text-sm">
-                    🗺️ Carte interactive (cliquez pour sélectionner)
-                  </div>
+                  <LocationMap
+                    latitude={formData.latitude}
+                    longitude={formData.longitude}
+                    onLatitudeChange={(v: number) => handleChange('latitude', v)}
+                    onLongitudeChange={(v: number) => handleChange('longitude', v)}
+                  />
                 </div>
-                <Select label="Localisation" options={LOCALISATION_OPTIONS} value={formData.localisation} onValueChange={(v) => handleChange('localisation', v)} />
+                <Input label="Adresse complète" value={formData.adresseComplete} onChange={(e) => handleChange('adresseComplete', e.target.value)} placeholder="12 Rue de la Liberté, Casablanca" />
+                <Input label="Complément d'adresse" value={formData.complementAdresse} onChange={(e) => handleChange('complementAdresse', e.target.value)} placeholder="Résidence Les Palmiers, Appt 5" />
+                <Input label="Code postal / Ville" value={formData.codePostalVille} onChange={(e) => handleChange('codePostalVille', e.target.value)} placeholder="20000 Casablanca" />
+                <Select label="Pays" options={LOCALISATION_OPTIONS} value={formData.pays} onValueChange={(v) => handleChange('pays', v)} />
                 <Select label="Secteur" options={SECTEUR_OPTIONS} value={formData.secteur} onValueChange={(v) => handleChange('secteur', v)} />
               </div>
             ))}
@@ -1014,8 +1516,8 @@ export const BuyerFormModal = ({ onClose, onSubmit }: BuyerFormModalProps) => {
                           onClick={() => handleChange('attributPrincipal', opt.value)}
                           className={`px-3 py-1.5 text-xs rounded-lg border transition-all ${
                             isSelected
-                              ? 'bg-accent text-white border-accent ring-2 ring-accent/30'
-                              : 'bg-card text-text-secondary border-border hover:border-accent/50'
+                              ? (isGerant ? 'bg-[#905D5D] text-white border-[#905D5D] ring-2 ring-[#905D5D]/30' : 'bg-accent text-white border-accent ring-2 ring-accent/30')
+                              : (isGerant ? 'bg-card text-text-secondary border-border hover:border-[#905D5D]/50' : 'bg-card text-text-secondary border-border hover:border-accent/50')
                           }`}
                         >
                           {opt.label}
@@ -1040,8 +1542,8 @@ export const BuyerFormModal = ({ onClose, onSubmit }: BuyerFormModalProps) => {
                         onClick={() => handleCheckboxGroup('criteres', opt.value)}
                         className={`px-3 py-1.5 text-xs rounded-lg border transition-all ${
                           isSelected
-                            ? 'bg-accent text-white border-accent'
-                            : 'bg-card text-text-secondary border-border hover:border-accent/50'
+                            ? (isGerant ? 'bg-[#905D5D] text-white border-[#905D5D]' : 'bg-accent text-white border-accent')
+                            : (isGerant ? 'bg-card text-text-secondary border-border hover:border-[#905D5D]/50' : 'bg-card text-text-secondary border-border hover:border-accent/50')
                         }`}
                       >
                         {opt.label}
@@ -1089,28 +1591,110 @@ export const BuyerFormModal = ({ onClose, onSubmit }: BuyerFormModalProps) => {
           <>
             {renderSection('FINANCEMENT', (
               <div className="space-y-4">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className={`grid gap-4 ${formData.typeFinancement === 'Autre' ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-1'}`}>
                   <Select label="Type de financement" options={FINANCEMENT_OPTIONS} value={formData.typeFinancement} onValueChange={(v) => handleChange('typeFinancement', v)} />
-                  <Input label="Apport" type="number" min="0" value={formData.apport?.toString() || ''} onChange={(e) => handleChange('apport', e.target.value ? parseInt(e.target.value) : undefined)} placeholder="0" />
-                  <Select label="Durée du prêt" options={DUREE_PRET_OPTIONS} value={formData.dureePret} onValueChange={(v) => handleChange('dureePret', v)} />
-                  <Input label="Capacité d'emprunt estimée" value={formData.capaciteEmprunt > 0 ? `${formData.capaciteEmprunt.toLocaleString('fr-FR')} ${formData.devise}` : ''} readOnly disabled placeholder="Calculée automatiquement" />
+                  {formData.typeFinancement === 'Autre' && (
+                    <Input label="Apport personnel" type="number" min="0" value={formData.apport?.toString() || ''} onChange={(e) => handleChange('apport', e.target.value ? parseInt(e.target.value) : undefined)} placeholder="0" suffix={formData.devise} />
+                  )}
                 </div>
-                <div className="border-t border-border/30 pt-4">
-                  <p className="text-xs font-semibold text-text-secondary mb-3 uppercase tracking-wider">Détails du prêt</p>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <Input label="Banque sollicitée" value={formData.banqueSollicitee} onChange={(e) => handleChange('banqueSollicitee', e.target.value)} placeholder="Nom de la banque" />
-                    <Input label="Taux envisagé (%)" type="number" min="0" step="0.01" value={formData.tauxEnvisage?.toString() || ''} onChange={(e) => handleChange('tauxEnvisage', e.target.value ? parseFloat(e.target.value) : undefined)} placeholder="3.5" />
-                    <Select label="Statut du financement" options={[{ value: '', label: 'Non défini' }, ...FINANCEMENT_STATUT_OPTIONS]} value={formData.statutFinancement} onValueChange={(v) => handleChange('statutFinancement', v)} />
-                    <DatePicker label="Date d'obtention du prêt" value={formData.dateObtentionPret} onChange={(e) => handleChange('dateObtentionPret', e.target.value)} />
-                  </div>
-                  <div className="mt-3">
-                    <p className="text-sm font-medium text-text mb-1.5">Attestation de prêt</p>
-                    <div className="flex items-center gap-3 p-3 rounded-lg border border-border bg-background/50">
-                      <span className="text-sm text-text-secondary flex-1">Document justifiant l'accord de prêt (PDF)</span>
-                      <button type="button" className="text-xs px-3 py-1.5 rounded-lg border border-border bg-card text-text-secondary hover:text-accent hover:border-accent transition-all">Parcourir...</button>
+
+                {/* ===== Prêt bancaire ===== */}
+                {formData.typeFinancement === 'Pret bancaire' && (
+                  <>
+                    <div className="border-t border-border/30 pt-4">
+                      <p className="text-xs font-semibold text-text-secondary mb-3 uppercase tracking-wider">Revenus & Charges</p>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <Input label="Revenus mensuels nets *" type="number" min="0" value={formData.revenusMensuelsNets?.toString() || ''} onChange={(e) => handleChange('revenusMensuelsNets', e.target.value ? parseInt(e.target.value) : undefined)} placeholder="0" suffix={formData.devise} />
+                        <Input label="Revenus supplémentaires" type="number" min="0" value={formData.revenusSupplementaires?.toString() || ''} onChange={(e) => handleChange('revenusSupplementaires', e.target.value ? parseInt(e.target.value) : undefined)} placeholder="0" suffix={formData.devise} />
+                        <Input label="Charges de crédit en cours *" type="number" min="0" value={formData.chargesCredit?.toString() || ''} onChange={(e) => handleChange('chargesCredit', e.target.value ? parseInt(e.target.value) : undefined)} placeholder="0" suffix={formData.devise} />
+                        <Input label="Charges fixes" type="number" min="0" value={formData.chargesFixes?.toString() || ''} onChange={(e) => handleChange('chargesFixes', e.target.value ? parseInt(e.target.value) : undefined)} placeholder="0" suffix={formData.devise} />
+                      </div>
+                    </div>
+
+                    <div className="border-t border-border/30 pt-4">
+                      <p className="text-xs font-semibold text-text-secondary mb-3 uppercase tracking-wider">Prêt</p>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <Input label="Montant du prêt souhaité *" type="number" min="0" value={formData.montantPretSouhaite?.toString() || ''} onChange={(e) => handleChange('montantPretSouhaite', e.target.value ? parseInt(e.target.value) : undefined)} placeholder="0" suffix={formData.devise} />
+                        <Input label="Taux envisagé (%) *" type="number" min="0" step="0.01" value={formData.tauxEnvisage?.toString() || '3.5'} onChange={(e) => handleChange('tauxEnvisage', e.target.value ? parseFloat(e.target.value) : undefined)} placeholder="3.5" />
+                        <Select label="Durée du prêt *" options={DUREE_PRET_OPTIONS} value={formData.dureePret} onValueChange={(v) => handleChange('dureePret', v)} />
+                        <Input label="TAEG (Taux Annuel Effectif Global) *" type="number" min="0" step="0.01" value={formData.taeg?.toString() || ''} onChange={(e) => handleChange('taeg', e.target.value ? parseFloat(e.target.value) : undefined)} placeholder="%" />
+                        <Input label="Assurance emprunteur (%) *" type="number" min="0" step="0.01" value={formData.assuranceEmprunteur?.toString() || ''} onChange={(e) => handleChange('assuranceEmprunteur', e.target.value ? parseFloat(e.target.value) : undefined)} placeholder="%" />
+                      </div>
+                    </div>
+
+                    <div className="border-t border-border/30 pt-4">
+                      <p className="text-xs font-semibold text-text-secondary mb-3 uppercase tracking-wider">Apport & Capacité</p>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <Input label="Apport personnel *" type="number" min="0" value={formData.apport?.toString() || ''} onChange={(e) => handleChange('apport', e.target.value ? parseInt(e.target.value) : undefined)} placeholder="0" suffix={formData.devise} />
+                        <Input label="Capacité d'emprunt estimée" value={formData.capaciteEmprunt > 0 ? `${formData.capaciteEmprunt.toLocaleString('fr-FR')} ${formData.devise}` : ''} readOnly disabled placeholder="Calculée automatiquement" />
+                      </div>
+                    </div>
+
+                    <div className="border-t border-border/30 pt-4">
+                      <p className="text-xs font-semibold text-text-secondary mb-3 uppercase tracking-wider">Détails du prêt</p>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <Select label="Banque sollicitée *" options={[{ value: '', label: 'Sélectionner...' }, ...BANQUE_OPTIONS]} value={formData.banqueSollicitee} onValueChange={(v) => handleChange('banqueSollicitee', v)} />
+                        <Select label="Statut du financement *" options={[{ value: '', label: 'Non défini' }, ...FINANCEMENT_STATUT_OPTIONS]} value={formData.statutFinancement} onValueChange={(v) => handleChange('statutFinancement', v)} />
+                        <DatePicker label="Date d'obtention du prêt" value={formData.dateObtentionPret} onChange={(e) => handleChange('dateObtentionPret', e.target.value)} />
+                      </div>
+                      <div className="mt-3">
+                        <p className="text-sm font-medium text-text mb-1.5">Attestation de prêt</p>
+                        <div className="flex items-center gap-3 p-3 rounded-lg border border-border bg-background/50">
+                          <span className="text-sm text-text-secondary flex-1">Document justifiant l'accord de prêt (PDF)</span>
+                          <button type="button" className={`text-xs px-3 py-1.5 rounded-lg border border-border bg-card text-text-secondary ${isGerant ? 'hover:text-[#905D5D] hover:border-[#905D5D]' : 'hover:text-accent hover:border-accent'} transition-all`}>Parcourir...</button>
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                {/* ===== Apport personnel ===== */}
+                {formData.typeFinancement === 'Apport personnel' && (
+                  <div className="border-t border-border/30 pt-4">
+                    <p className="text-xs font-semibold text-text-secondary mb-3 uppercase tracking-wider">Apport & Capacité</p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <Input label="Apport personnel *" type="number" min="0" value={formData.apport?.toString() || ''} onChange={(e) => handleChange('apport', e.target.value ? parseInt(e.target.value) : undefined)} placeholder="0" suffix={formData.devise} />
+                      <Input label="Capacité d'emprunt estimée" value={formData.capaciteEmprunt > 0 ? `${formData.capaciteEmprunt.toLocaleString('fr-FR')} ${formData.devise}` : ''} readOnly disabled placeholder="Égale à l'apport personnel" />
                     </div>
                   </div>
-                </div>
+                )}
+
+                {/* ===== Comptant ===== */}
+                {formData.typeFinancement === 'Comptant' && (
+                  <div className="border-t border-border/30 pt-4">
+                    <p className="text-xs font-semibold text-text-secondary mb-3 uppercase tracking-wider">Paiement</p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <Input label="Montant total *" type="number" min="0" value={formData.montantTotal?.toString() || ''} onChange={(e) => handleChange('montantTotal', e.target.value ? parseInt(e.target.value) : undefined)} placeholder="0" suffix={formData.devise} />
+                    </div>
+                  </div>
+                )}
+
+                {/* ===== Autre ===== */}
+                {formData.typeFinancement === 'Autre' && (
+                  <>
+                    <div className="border-t border-border/30 pt-4">
+                      <p className="text-xs font-semibold text-text-secondary mb-3 uppercase tracking-wider">Détails du financement</p>
+                      <div className="grid grid-cols-1 gap-4">
+                        <Input label="Description du financement *" value={formData.descriptionAutreFinancement} onChange={(e) => handleChange('descriptionAutreFinancement', e.target.value)} placeholder="Ex: Prêt familial, aide employeur..." />
+                        <Input label="Montant *" type="number" min="0" value={formData.montantTotal?.toString() || ''} onChange={(e) => handleChange('montantTotal', e.target.value ? parseInt(e.target.value) : undefined)} placeholder="0" suffix={formData.devise} />
+                        <Input label="Capacité d'emprunt estimée" type="number" min="0" value={formData.capaciteEmprunt > 0 ? formData.capaciteEmprunt.toString() : ''} onChange={(e) => handleChange('capaciteEmprunt', e.target.value ? parseInt(e.target.value) : 0)} placeholder="Saisie manuelle" suffix={formData.devise} />
+                      </div>
+                    </div>
+                    <div className="border-t border-border/30 pt-4">
+                      <p className="text-xs font-semibold text-text-secondary mb-3 uppercase tracking-wider">Banque & Statut</p>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <Select label="Banque sollicitée" options={[{ value: '', label: 'Sélectionner...' }, ...BANQUE_OPTIONS]} value={formData.banqueSollicitee} onValueChange={(v) => handleChange('banqueSollicitee', v)} />
+                      </div>
+                      <div className="mt-3">
+                        <p className="text-sm font-medium text-text mb-1.5">Attestation</p>
+                        <div className="flex items-center gap-3 p-3 rounded-lg border border-border bg-background/50">
+                          <span className="text-sm text-text-secondary flex-1">Document justifiant le financement (PDF)</span>
+                          <button type="button" className={`text-xs px-3 py-1.5 rounded-lg border border-border bg-card text-text-secondary ${isGerant ? 'hover:text-[#905D5D] hover:border-[#905D5D]' : 'hover:text-accent hover:border-accent'} transition-all`}>Parcourir...</button>
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
             ))}
             {renderSection('NOTES & INFORMATIONS COMPLÉMENTAIRES', (
@@ -1130,7 +1714,7 @@ export const BuyerFormModal = ({ onClose, onSubmit }: BuyerFormModalProps) => {
         return (
           <div>
             <div className="flex items-center gap-2 mb-6">
-              <span className="w-1 h-6 rounded-full bg-accent" />
+              <span className={`w-1 h-6 rounded-full ${isGerant ? 'bg-[#905D5D]' : 'bg-accent'}`} />
               <h2 className="text-base font-semibold text-text">MANDAT DE RECHERCHE</h2>
             </div>
 
@@ -1138,7 +1722,6 @@ export const BuyerFormModal = ({ onClose, onSubmit }: BuyerFormModalProps) => {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <Input label="Numéro de mandat" value={formData.numeroMandat} onChange={(e) => handleChange('numeroMandat', e.target.value)} placeholder="MDR-2025-001" />
                 <Select label="Statut du mandat" options={STATUT_MANDAT_OPTIONS} value={formData.statutMandat} onValueChange={(v) => handleChange('statutMandat', v)} />
-                <DatePicker label="Date de signature" value={formData.dateSignature} onChange={(e) => handleChange('dateSignature', e.target.value)} />
                 <DatePicker label="Date de début" value={formData.dateDebut} onChange={(e) => handleChange('dateDebut', e.target.value)} />
                 <DatePicker label="Date d'expiration" value={formData.dateExpiration} onChange={(e) => handleChange('dateExpiration', e.target.value)} />
               </div>
@@ -1148,10 +1731,70 @@ export const BuyerFormModal = ({ onClose, onSubmit }: BuyerFormModalProps) => {
             ))}
             {renderSection('3. PARTIES AU CONTRAT', (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <Input label="Acheteur(s)" value="" placeholder="Pré-rempli depuis le contact" disabled />
+                <Input label="Acheteur(s)" value={selectedContactName} disabled />
                 <Input label="Conjoint (le cas échéant)" value={formData.conjoint} onChange={(e) => handleChange('conjoint', e.target.value)} placeholder="Nom du conjoint" />
                 <Input label="Société (si achat professionnel)" value={formData.societe} onChange={(e) => handleChange('societe', e.target.value)} placeholder="Raison sociale" />
-                <Select label="Agent désigné" options={[{ value: '', label: 'Sélectionner un agent...' }, ...AGENTS]} value={formData.agentDesigne} onValueChange={(v) => handleChange('agentDesigne', v)} />
+                <div className="relative">
+                  <label className="block text-sm font-medium text-text mb-1.5">Bien concerné</label>
+                  {selectedProperty ? (
+                    <div className="flex items-center gap-2 h-10 px-3 rounded-lg border border-border bg-background/50">
+                      <span className="text-sm text-text flex-1 truncate">{selectedProperty.title || selectedProperty.reference || `Bien #${selectedProperty.id}`}{selectedProperty.city ? ` - ${selectedProperty.city}` : ''}</span>
+                      <button type="button" onClick={() => handleChange('bienConcerneId', '')} className="text-text-secondary/50 hover:text-error transition-colors"><X size={14} /></button>
+                    </div>
+                  ) : (
+                    <div className="relative">
+                      <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary/60" />
+                      <input
+                        type="text"
+                        placeholder={loadingProperties ? 'Chargement...' : 'Rechercher un bien ou vendeur...'}
+                        className={`w-full h-10 pl-9 pr-3 text-sm rounded-lg border border-border bg-card placeholder:text-text-secondary/50 focus:outline-none focus:ring-2 ${isGerant ? 'focus:ring-[#905D5D]/20 focus:border-[#905D5D]' : 'focus:ring-accent/20 focus:border-accent'} transition-all`}
+                        value={propertySearch}
+                        onChange={(e) => { setPropertySearch(e.target.value); setShowPropertyDropdown(true); }}
+                        onFocus={() => setShowPropertyDropdown(true)}
+                        onBlur={() => setTimeout(() => setShowPropertyDropdown(false), 200)}
+                        disabled={loadingProperties}
+                      />
+                    </div>
+                  )}
+                  {showPropertyDropdown && !selectedProperty && matchedProperties.length > 0 && (
+                    <div className="absolute z-50 mt-1 w-full bg-card border border-border rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                      {matchedProperties.map((p: any) => {
+                        const vendeurId = String(p.client_id || '');
+                        const vendeur = vendeurs.find((v: any) => String(v.id) === vendeurId);
+                        const vendeurName = vendeur ? `${vendeur.first_name || ''} ${vendeur.last_name || ''}`.trim() : '';
+                        return (
+                          <button
+                            key={p.id}
+                            type="button"
+                            className={`w-full text-left px-3 py-2.5 ${isGerant ? 'hover:bg-[#905D5D]/5' : 'hover:bg-accent/5'} border-b border-border/30 last:border-0 transition-colors`}
+                            onMouseDown={(e) => {
+                              e.preventDefault();
+                              handleChange('bienConcerneId', String(p.id));
+                              setPropertySearch('');
+                              setShowPropertyDropdown(false);
+                            }}
+                          >
+                            <p className="text-sm font-medium text-text truncate">{p.title || p.reference || `Bien #${p.id}`}</p>
+                            <div className="flex items-center gap-2 mt-0.5">
+                              {p.city && <span className="text-[11px] text-text-secondary">{p.city}</span>}
+                              {vendeurName && <span className={`text-[11px] ${isGerant ? 'text-[#905D5D]' : 'text-accent'}`}>{vendeurName}</span>}
+                              {p.price && <span className="text-[11px] text-text-secondary ml-auto">{Number(p.price).toLocaleString('fr-FR')} MAD</span>}
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+                <Input label="Agent désigné" value={(() => {
+                  const raw = formData.agentDesigne || assignmentInfo?.assignedName || '';
+                  if (!raw) return '';
+                  if (USER_CACHE[raw]) return USER_CACHE[raw];
+                  const agent = AGENTS.find(a => a.id === raw);
+                  if (agent) return agent.name;
+                  const byName = AGENTS.find(a => a.name.toLowerCase() === raw.toLowerCase());
+                  return byName ? byName.name : raw;
+                })()} disabled />
               </div>
             ))}
             {renderSection('4. DESCRIPTION DU BIEN RECHERCHÉ', (
@@ -1161,21 +1804,35 @@ export const BuyerFormModal = ({ onClose, onSubmit }: BuyerFormModalProps) => {
                 </div>
                 <Input label="Type de bien" value={formData.typeBien} disabled />
                 <Input label="Localisation" value={`${formData.secteur || ''}${formData.secteur && formData.localisation ? ' - ' : ''}${formData.localisation || ''}`} disabled />
-                <Input label="Prix minimum" type="number" value={formData.prixMinMandat?.toString() || ''} onChange={(e) => handleChange('prixMinMandat', e.target.value ? parseInt(e.target.value) : undefined)} />
-                <Input label="Prix maximum" type="number" value={formData.prixMaxMandat?.toString() || ''} onChange={(e) => handleChange('prixMaxMandat', e.target.value ? parseInt(e.target.value) : undefined)} />
-                <Input label="Surface minimum" type="number" value={formData.surfaceMinMandat?.toString() || ''} onChange={(e) => handleChange('surfaceMinMandat', e.target.value ? parseInt(e.target.value) : undefined)} />
+                <Input label="Prix minimum" type="number" value={formData.prixMin?.toString() || ''} disabled />
+                <Input label="Prix maximum" type="number" value={formData.prixMax?.toString() || ''} disabled />
+                <Input label="Surface minimum" type="number" value={formData.surfaceMin?.toString() || ''} disabled />
               </div>
             ))}
             {renderSection('5. RÉMUNÉRATION DE L\'AGENCE', (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <Select label="Type de rémunération" options={REMUNERATION_TYPE_OPTIONS} value={formData.typeRemuneration} onValueChange={(v) => handleChange('typeRemuneration', v)} />
-                <Input label="Montant / Pourcentage" type="number" min="0" value={formData.montantRemuneration?.toString() || ''} onChange={(e) => handleChange('montantRemuneration', e.target.value ? parseInt(e.target.value) : undefined)} placeholder="Ex: 3% ou 35000" />
+                <div>
+                  <label className="block text-sm font-medium text-text mb-1.5">Montant / Pourcentage</label>
+                  <div className="flex rounded-lg border border-border overflow-hidden">
+                    <button type="button" onClick={() => handleChange('remunerationIsPercentage', false)} className={`flex-1 px-3 py-2 text-sm font-medium transition-colors ${!formData.remunerationIsPercentage ? (isGerant ? 'bg-[#905D5D] text-white' : 'bg-accent text-white') : 'bg-background text-text-secondary hover:text-text'}`}>
+                      Montant ({formData.devise || 'MAD'})
+                    </button>
+                    <button type="button" onClick={() => handleChange('remunerationIsPercentage', true)} className={`flex-1 px-3 py-2 text-sm font-medium transition-colors border-l border-border ${formData.remunerationIsPercentage ? (isGerant ? 'bg-[#905D5D] text-white' : 'bg-accent text-white') : 'bg-background text-text-secondary hover:text-text'}`}>
+                      Pourcentage (%)
+                    </button>
+                  </div>
+                  <Input type="number" min="0" max={formData.remunerationIsPercentage ? 100 : undefined} step={formData.remunerationIsPercentage ? '0.01' : '1'} value={formData.montantRemuneration?.toString() || ''} onChange={(e) => { const v = e.target.value ? parseFloat(e.target.value) : undefined; if (formData.remunerationIsPercentage && v !== undefined && v > 100) return; handleChange('montantRemuneration', v); }} placeholder={formData.remunerationIsPercentage ? 'Ex: 2.5' : 'Ex: 35000'} suffix={formData.remunerationIsPercentage ? '%' : formData.devise || 'MAD'} className="mt-2" />
+                </div>
                 <Select label="Condition de paiement" options={PAIEMENT_CONDITION_OPTIONS} value={formData.conditionPaiement} onValueChange={(v) => handleChange('conditionPaiement', v)} />
               </div>
             ))}
             {renderSection('6. CLAUSE DE PROTECTION', (
               <div>
-                <Input label="Durée de protection" value={`${formData.dureeProtection} mois`} onChange={(e) => handleChange('dureeProtection', e.target.value)} placeholder="3 mois" className="max-w-xs" />
+                <div className="flex items-end gap-2 max-w-xs">
+                  <Input label="Durée de protection" type="number" min="0" value={formData.dureeProtection} onChange={(e) => handleChange('dureeProtection', e.target.value)} placeholder="3" />
+                  <span className="text-sm text-text-secondary pb-2">mois</span>
+                </div>
                 <p className="text-xs text-text-secondary mt-1">Si l'acheteur visite un bien pendant la durée du mandat mais l'achète après l'expiration, l'agence a droit à sa commission pendant cette période de protection.</p>
               </div>
             ))}
@@ -1183,59 +1840,72 @@ export const BuyerFormModal = ({ onClose, onSubmit }: BuyerFormModalProps) => {
               <div className="space-y-3">
                 <p className="text-xs text-text-secondary">Documents obligatoires à fournir par l'acheteur :</p>
                 {[
-                  { label: "Pièce d'identité (passeport ou CIN)", required: true },
-                  { label: 'Justificatif de domicile', required: true },
-                  { label: 'Avis d\'imposition ou justificatif de revenus', required: true },
-                  { label: 'Attestation de financement ou de prêt', required: true },
-                  { label: 'Relevés bancaires (3 derniers mois)', required: false },
+                  { label: "Pièce d'identité (passeport ou CIN)", required: true, inputId: 'doc-identite', field: 'docIdentiteUrl' as const, nameField: 'docIdentiteName' as const, uploaded: formData.docIdentiteUrl },
+                  { label: 'Justificatif de domicile', required: true, inputId: 'doc-domicile', field: 'docDomicileUrl' as const, nameField: 'docDomicileName' as const, uploaded: formData.docDomicileUrl },
+                  { label: 'Avis d\'imposition ou justificatif de revenus', required: true, inputId: 'doc-revenus', field: 'docRevenusUrl' as const, nameField: 'docRevenusName' as const, uploaded: formData.docRevenusUrl },
+                  { label: 'Attestation de financement ou de prêt', required: true, inputId: 'doc-financement', field: 'docFinancementUrl' as const, nameField: 'docFinancementName' as const, uploaded: formData.docFinancementUrl },
+                  { label: 'Relevés bancaires (3 derniers mois)', required: false, inputId: 'doc-bancaire', field: 'docBancaireUrl' as const, nameField: 'docBancaireName' as const, uploaded: formData.docBancaireUrl },
                 ].map((doc, i) => (
                   <div key={i} className="flex items-center gap-3 p-3 rounded-lg border border-border bg-background/50">
                     <span className="text-sm text-text flex-1">{doc.label}</span>
                     {doc.required ? (
                       <span className="text-xs px-2 py-0.5 rounded bg-error/10 text-error font-medium">Obligatoire</span>
                     ) : (
-                      <span className="text-xs px-2 py-0.5 rounded bg-accent/10 text-accent font-medium">Recommandé</span>
+                      <span className={`text-xs px-2 py-0.5 rounded font-medium ${isGerant ? 'bg-[#905D5D]/10 text-[#905D5D]' : 'bg-accent/10 text-accent'}`}>Recommandé</span>
                     )}
-                    <button type="button" className="text-xs px-3 py-1.5 rounded-lg border border-border bg-card text-text-secondary hover:text-accent hover:border-accent transition-all">Parcourir...</button>
-                  </div>
-                ))}
-              </div>
-            ))}
-            {renderSection('8. UPLOAD DE FICHIERS', (
-              <div className="space-y-3">
-                {[
-                  { label: 'Mandat signé (PDF)', hint: 'Le contrat signé par l\'acheteur et l\'agent' },
-                  { label: "Pièce d'identité de l'acheteur", hint: 'Scan recto/verso' },
-                  { label: 'Justificatif de domicile', hint: 'Facture récente (électricité, eau, etc.)' },
-                  { label: 'Attestation de prêt', hint: 'Document de la banque (si déjà obtenue)' },
-                  { label: 'Autre document', hint: 'Champ libre' },
-                ].map((file, i) => (
-                  <div key={i} className="flex items-center gap-3 p-3 rounded-lg border border-border bg-background/50">
-                    <div className="flex-1">
-                      <p className="text-sm text-text">{file.label}</p>
-                      <p className="text-xs text-text-secondary">{file.hint}</p>
+                    {doc.uploaded ? (
+                      <span className="text-[10px] font-medium text-emerald-600 uppercase bg-emerald-50 px-2 py-0.5 rounded flex items-center gap-1">
+                        <Upload size={10} /> Uploadé
+                      </span>
+                    ) : null}
+                    <div className="relative">
+                      <input id={doc.inputId} type="file" accept=".pdf,.jpg,.jpeg,.png" className="hidden" onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        try {
+                          const urls = await uploadFiles([file]);
+                          if (urls[0]) { handleChange(doc.field, urls[0]); handleChange(doc.nameField, file.name); }
+                        } catch { /* upload failed silently */ }
+                      }} />
+                      <button type="button" onClick={() => document.getElementById(doc.inputId)?.click()} className={`text-xs px-3 py-1.5 rounded-lg border border-border bg-card text-text-secondary ${isGerant ? 'hover:text-[#905D5D] hover:border-[#905D5D]' : 'hover:text-accent hover:border-accent'} transition-all`}>{doc.uploaded ? 'Remplacer' : 'Parcourir...'}</button>
                     </div>
-                    <button type="button" className="text-xs px-3 py-1.5 rounded-lg border border-border bg-card text-text-secondary hover:text-accent hover:border-accent transition-all">Parcourir...</button>
                   </div>
                 ))}
               </div>
             ))}
-            {renderSection('9. SIGNATURES', (
+            {renderSection('8. SIGNATURES', (
               <div className="space-y-4">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="p-4 rounded-lg border border-border bg-background/50">
-                    <p className="text-sm font-medium text-text mb-2">✍️ Signature de l'acheteur</p>
+                    <p className="text-sm font-medium text-text mb-2">Signature de l'acheteur</p>
                     <div className="h-16 rounded border border-dashed border-text-secondary/30 flex items-center justify-center text-text-secondary text-xs">Champ de signature électronique</div>
                     <p className="text-xs text-text-secondary mt-1">ou document signé téléchargé</p>
                   </div>
                   <div className="p-4 rounded-lg border border-border bg-background/50">
-                    <p className="text-sm font-medium text-text mb-2">✍️ Signature de l'agent</p>
+                    <p className="text-sm font-medium text-text mb-2">Signature de l'agent</p>
                     <div className="h-16 rounded border border-dashed border-text-secondary/30 flex items-center justify-center text-text-secondary text-xs">Champ de signature électronique</div>
                   </div>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <DatePicker label="Date de signature" value={formData.dateSignature} onChange={(e) => handleChange('dateSignature', e.target.value)} />
-                  <Input label="Lien vers le PDF du mandat signé" value={formData.mandatPdfUrl} onChange={(e) => handleChange('mandatPdfUrl', e.target.value)} placeholder="https://..." />
+                  <div>
+                    <p className="block text-sm font-medium text-text mb-1.5">Fichier du mandat signé</p>
+                    <div className="h-9 flex items-center gap-3 px-3 rounded-lg border border-border bg-background/50">
+                      {formData.mandatPdfUrl ? (
+                        <Eye size={14} className="text-emerald-500 shrink-0" />
+                      ) : null}
+                      <span className="text-sm text-text-secondary flex-1 truncate">{formData.mandatPdfName || (formData.mandatPdfUrl ? 'Fichier uploadé' : 'Aucun fichier')}</span>
+                      <input id="mandat-upload" type="file" accept=".pdf" className="hidden" onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        try {
+                          const urls = await uploadFiles([file]);
+                          if (urls[0]) { handleChange('mandatPdfUrl', urls[0]); handleChange('mandatPdfName', file.name); }
+                        } catch { /* upload failed silently */ }
+                      }} />
+                      <button type="button" onClick={() => document.getElementById('mandat-upload')?.click()} className={`text-xs px-3 py-1.5 rounded-lg border border-border bg-card text-text-secondary ${isGerant ? 'hover:text-[#905D5D] hover:border-[#905D5D]' : 'hover:text-accent hover:border-accent'} transition-all`}>{formData.mandatPdfUrl ? 'Remplacer' : 'Parcourir...'}</button>
+                    </div>
+                  </div>
                 </div>
               </div>
             ))}
@@ -1247,7 +1917,10 @@ export const BuyerFormModal = ({ onClose, onSubmit }: BuyerFormModalProps) => {
     }
   };
 
+  if (loadingDraft) return null;
+
   return (
+    <>
     <AnimatePresence>
       <div className="fixed inset-0 z-50 flex items-start justify-center pt-6 pb-6">
         <motion.div
@@ -1262,23 +1935,41 @@ export const BuyerFormModal = ({ onClose, onSubmit }: BuyerFormModalProps) => {
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 10 }}
           transition={{ duration: 0.2 }}
-          className="relative w-full max-w-5xl mx-4 bg-card rounded-xl border border-border/50 shadow-modal overflow-y-auto max-h-[calc(100vh-48px)]"
+          className="relative w-full max-w-5xl mx-4 bg-card rounded-xl border border-border/50 shadow-modal flex flex-col max-h-[calc(100vh-48px)]"
         >
-          <div className="flex items-center justify-between px-6 py-4 border-b border-border/40 sticky top-0 bg-card z-10">
-            <h2 className="text-lg font-semibold">Nouvel acheteur</h2>
-            <button onClick={onClose} className="w-8 h-8 rounded-lg flex items-center justify-center text-text-secondary hover:text-text hover:bg-background transition-all">
-              <X size={16} />
-            </button>
+          <div className="flex items-center justify-between px-6 py-4 border-b border-border/40 bg-card z-10 shrink-0">
+            <h2 className="text-lg font-semibold">{editingClient ? "Modifier l'acheteur" : "Nouvel acheteur"}</h2>
+            <div className="flex items-center gap-3">
+              {loadingDraft ? (
+                <span className="text-xs text-text-secondary">Chargement du brouillon...</span>
+              ) : savedDraftId ? (
+                <span className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-emerald-600 bg-emerald-50 rounded-lg">
+                  Auto-sauvegardé
+                </span>
+              ) : !editingClient ? (
+                <button
+                  type="button"
+                  onClick={doSaveDraft}
+                  className="px-3 py-1.5 text-xs rounded-lg border border-border/60 hover:bg-border/20 transition-colors flex items-center gap-1.5"
+                >
+                  Brouillon
+                </button>
+              ) : null}
+              <CompletionRing percent={calcCompletion(formData)} size={32} strokeWidth={3} />
+              <button onClick={onClose} className="w-8 h-8 rounded-lg flex items-center justify-center text-text-secondary hover:text-text hover:bg-background transition-all">
+                <X size={16} />
+              </button>
+            </div>
           </div>
 
           {/* Tabs */}
-          <div className="px-6 py-1 border-b border-border/30 flex gap-1 overflow-x-auto sticky top-[57px] bg-card z-10">
+          <div className="px-6 py-1 border-b border-border/30 flex gap-1 overflow-x-auto bg-card z-10 shrink-0">
             {TABS.map((t) => (
               <button
                 key={t.id}
                 onClick={() => setStep(t.id)}
                 className={`px-3 py-2 text-xs font-medium border-b-2 transition-all whitespace-nowrap ${
-                  step === t.id ? 'text-accent border-accent' : 'text-text-secondary border-transparent hover:text-text'
+                  step === t.id ? (isGerant ? 'text-[#905D5D] border-[#905D5D]' : 'text-accent border-accent') : 'text-text-secondary border-transparent hover:text-text'
                 }`}
               >
                 {t.id === 8 ? 'Mandat' : t.label}
@@ -1286,15 +1977,23 @@ export const BuyerFormModal = ({ onClose, onSubmit }: BuyerFormModalProps) => {
             ))}
           </div>
 
-          <form onSubmit={handleSubmit} className="p-6 space-y-6">
-            {renderTabContent()}
+            <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0 p-6">
+            <div className="flex-1 overflow-y-auto min-h-0">
+              {renderTabContent()}
+            </div>
 
             {/* Footer */}
-            <div className="flex items-center justify-between pt-4 border-t border-border/30">
-              <div>
+            <div className="flex items-center justify-between pt-4 mt-6 border-t border-border/30 shrink-0">
+              <div className="flex items-center gap-2">
                 {step > 1 && (
                   <Button type="button" variant="outline" onClick={() => setStep(step - 1)}>
                     Précédent
+                  </Button>
+                )}
+                {!savedDraftId && !editingClient && (
+                  <Button type="button" variant="outline" onClick={doSaveDraft}>
+                    <Save size={14} className="inline mr-1" />
+                    Enregistrer comme brouillon
                   </Button>
                 )}
               </div>
@@ -1303,12 +2002,19 @@ export const BuyerFormModal = ({ onClose, onSubmit }: BuyerFormModalProps) => {
                   Annuler
                 </Button>
                 {step < 8 ? (
-                  <Button type="button" variant="default" onClick={() => setStep(step + 1)}>
+                  <Button type="button" variant="default" className={isGerant ? GERANT_BUTTON_CLASSES : ''} onClick={() => {
+                    if (step === 1 && !formData.contactId) {
+                      setErrors(prev => ({ ...prev, contactId: 'Veuillez sélectionner ou créer un contact' }));
+                      return;
+                    }
+                    setErrors(prev => ({ ...prev, contactId: undefined }));
+                    setStep(step + 1);
+                  }}>
                     Suivant
                   </Button>
                 ) : (
-                  <Button type="submit" variant="default" loading={isSubmitting}>
-                    {isSubmitting ? 'Enregistrement...' : "Créer l'acheteur"}
+                  <Button type="button" variant="default" className={isGerant ? GERANT_BUTTON_CLASSES : ''} onClick={submitForm} loading={isSubmitting}>
+                    {isSubmitting ? 'Enregistrement...' : editingClient ? "Mettre à jour l'acheteur" : "Créer l'acheteur"}
                   </Button>
                 )}
               </div>
@@ -1317,5 +2023,21 @@ export const BuyerFormModal = ({ onClose, onSubmit }: BuyerFormModalProps) => {
         </motion.div>
       </div>
     </AnimatePresence>
+
+    {showContactForm && (
+      <ContactFormModal
+        onClose={() => setShowContactForm(false)}
+        onSubmit={async (data) => {
+          try {
+            const created = await createContact(data);
+            refreshContacts();
+            setFormData(prev => ({ ...prev, contactId: String(created.id) }));
+            setShowContactForm(false);
+          } catch {
+          }
+        }}
+      />
+    )}
+    </>
   );
 };

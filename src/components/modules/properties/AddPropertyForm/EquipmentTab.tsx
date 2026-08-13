@@ -22,9 +22,10 @@ interface EquipmentTabProps {
   control: any;
   register: any;
   watch: any;
+  isGerant?: boolean;
 }
 
-export function EquipmentTab({ control, register, watch }: EquipmentTabProps) {
+export function EquipmentTab({ control, register, watch, isGerant = false }: EquipmentTabProps) {
   const watchPool = watch('pool.hasPool');
   const watchBlindDoor = watch('security.blindDoor');
   const watchCamera = watch('security.camera');
@@ -40,12 +41,12 @@ export function EquipmentTab({ control, register, watch }: EquipmentTabProps) {
   );
 
   const sections = [
-    { value: 'energy', label: 'Énergies', color: 'bg-accent' as const, content: checkboxGrid(['Gaz', 'Bois', 'Solaire', 'Électrique'], 'energy') },
-    { value: 'heating', label: 'Mode', color: 'bg-accent' as const, content: checkboxGrid(['Clim', 'Cheminée', 'Radiateur', 'Sol'], 'heating.mode') },
-    { value: 'nature', label: 'Nature', color: 'bg-accent' as const, content: checkboxGrid(['Individuel', 'Collectif', 'Centrale', 'Aucun'], 'heating.nature') },
-    { value: 'water', label: 'Eau', color: 'bg-accent' as const, content: checkboxGrid(['ONEP', 'Cuve', 'Puits', 'Pompe'], 'water') },
+    { value: 'energy', label: 'Énergies', color: isGerant ? 'bg-[#905D5D]' : 'bg-accent', content: checkboxGrid(['Gaz', 'Bois', 'Solaire', 'Électrique'], 'energy') },
+    { value: 'heating', label: 'Mode', color: isGerant ? 'bg-[#905D5D]' : 'bg-accent', content: checkboxGrid(['Clim', 'Cheminée', 'Radiateur', 'Sol'], 'heating.mode') },
+    { value: 'nature', label: 'Nature', color: isGerant ? 'bg-[#905D5D]' : 'bg-accent', content: checkboxGrid(['Individuel', 'Collectif', 'Centrale', 'Aucun'], 'heating.nature') },
+    { value: 'water', label: 'Eau', color: isGerant ? 'bg-[#905D5D]' : 'bg-accent', content: checkboxGrid(['ONEP', 'Cuve', 'Puits', 'Pompe'], 'water') },
     {
-      value: 'windows', label: 'Fenêtre', color: 'bg-interactive' as const,
+      value: 'windows', label: 'Fenêtre', color: 'bg-interactive',
       content: (
         <div className="space-y-4">
           <div className="p-4 rounded-lg bg-background/50 border border-border/30">

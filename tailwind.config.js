@@ -6,18 +6,26 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        background: '#F1F5F9',
-        card: '#FFFFFF',
-        accent: '#4F46E5',
-        'accent-hover': '#4338CA',
-        'accent-light': '#EEF2FF',
-        text: '#0F172A',
-        'text-secondary': '#64748B',
-        interactive: '#10B981',
-        premium: '#F59E0B',
-        error: '#EF4444',
-        success: '#10B981',
-        border: '#E2E8F0',
+        background: 'hsl(var(--background))',
+        card: 'hsl(var(--card))',
+        accent: 'hsl(var(--accent))',
+        'accent-hover': 'hsl(var(--accent-hover))',
+        'accent-light': 'hsl(var(--accent-light))',
+        'accent-deep': 'hsl(var(--accent-deep))',
+        text: 'hsl(var(--text))',
+        'text-secondary': 'hsl(var(--text-secondary))',
+        interactive: 'hsl(var(--interactive))',
+        premium: 'hsl(var(--premium))',
+        'premium-light': 'hsl(var(--premium-light))',
+        error: 'hsl(var(--error))',
+        'error-light': 'hsl(var(--error-light))',
+        success: 'hsl(var(--success))',
+        'success-light': 'hsl(var(--success-light))',
+        warning: 'hsl(var(--warning))',
+        'warning-light': 'hsl(var(--warning-light))',
+        info: 'hsl(var(--info))',
+        'info-light': 'hsl(var(--info-light))',
+        border: 'hsl(var(--border))',
       },
       borderRadius: {
         'glass': '12px',
@@ -42,6 +50,8 @@ module.exports = {
         'tab-in': 'tabIn 0.35s ease-out',
         'tab-out': 'tabOut 0.2s ease-in',
         'pulse-soft': 'pulseSoft 2s ease-in-out infinite',
+        'golden-shine': 'goldenShine 5.5s cubic-bezier(0.45, 0, 0.55, 1) infinite',
+        'golden-glow': 'goldenGlow 3.2s ease-in-out infinite',
       },
       keyframes: {
         slideUp: {
@@ -79,6 +89,14 @@ module.exports = {
         pulseSoft: {
           '0%, 100%': { opacity: '1' },
           '50%': { opacity: '0.7' },
+        },
+        goldenShine: {
+          '0%': { transform: 'translateX(-140%) skewX(-20deg)' },
+          '55%, 100%': { transform: 'translateX(460%) skewX(-20deg)' },
+        },
+        goldenGlow: {
+          '0%, 100%': { opacity: '0.45' },
+          '50%': { opacity: '1' },
         },
       },
     },

@@ -1,19 +1,22 @@
 import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { useParams } from 'react-router-dom'
 import Card from '../../../components/ui/Card'
 import { Button } from '../../../components/ui/Button'
 import { Badge } from '../../../components/ui/Badge'
 import { BackLink } from '../../../components/ui/BackLink'
 import { Select } from '../../../components/ui/Select'
+import { useToast } from '../../../components/ui/Toast'
 import {
   Users, Shield, UserCheck, UserX, Search,
-  ChevronDown, Edit3, Eye, Trash2, Mail, Lock,
+  Eye, EyeOff, Edit3, Trash2, Mail, Lock,
   Activity, MoreHorizontal, Plus, Filter,
-  X, ToggleLeft, ToggleRight, Clock, BarChart2,
-  ChevronLeft, ChevronRight, CheckCircle, AlertTriangle,
-  Camera, ArrowUpRight, ArrowDownRight, UserPlus
+  X, ToggleLeft, ToggleRight,
+  ChevronLeft, ChevronRight, CheckCircle,
+  UserPlus, RefreshCw
 } from 'react-feather'
-import { getAuthToken } from '../../../utils/auth'
+import { api } from '../../../services/api'
+import { PhoneInput } from '../../../components/ui/PhoneInput'
 
 interface UserData {
   id: number
@@ -22,42 +25,63 @@ interface UserData {
   email: string
   phone: string
   role: string
+  position: string
+  is_owner: boolean
   is_active: boolean
+  status: string
+  last_login_at: string | null
+  last_activity_at: string | null
+  require_password_change: boolean
   created_at: string
-  last_login?: string
+  days_since_last_login: number | null
+  inactivity_level: { level: string; days: number | null }
 }
 
-const roles = ['Tous', 'admin', 'agent', 'manager', 'stagiaire']
-const statuses = ['Tous', 'Actif', 'Inactif']
+const roles = ['Tous', 'admin', 'gerant', 'agent']
+const statuses = ['Tous', 'Actif', 'Inactif', 'Suspendu']
 const ITEMS_PER_PAGE = 5
 
-const mockUsers: UserData[] = [
-  { id: 1, first_name: 'Myriam', last_name: 'ABABOU', email: 'myriam@squaremeter.com', phone: '+212 6 12 34 56 78', role: 'admin', is_active: true, created_at: '2025-01-15', last_login: '13/06/2026 09:30' },
-  { id: 2, first_name: 'Karim', last_name: 'Eloui', email: 'karim@squaremeter.com', phone: '+212 6 23 45 67 89', role: 'agent', is_active: true, created_at: '2025-02-20', last_login: '13/06/2026 08:15' },
-  { id: 3, first_name: 'Yasmine', last_name: 'AATIC', email: 'yasmine@squaremeter.com', phone: '+212 6 34 56 78 90', role: 'agent', is_active: true, created_at: '2025-03-10', last_login: '12/06/2026 17:45' },
-  { id: 4, first_name: 'Dimitri', last_name: 'DJEDJE', email: 'dimitri@squaremeter.com', phone: '+212 6 45 67 89 01', role: 'agent', is_active: false, created_at: '2025-04-05', last_login: '01/06/2026 10:00' },
-  { id: 5, first_name: 'Hayat', last_name: 'OUAKRIM', email: 'hayat@squaremeter.com', phone: '+212 6 56 78 90 12', role: 'agent', is_active: true, created_at: '2025-05-12', last_login: '10/06/2026 14:30' },
-  { id: 6, first_name: 'Sophie', last_name: 'Martin', email: 'sophie@squaremeter.com', phone: '+212 6 67 89 01 23', role: 'manager', is_active: true, created_at: '2025-06-01', last_login: '13/06/2026 11:00' },
-  { id: 7, first_name: 'Ahmed', last_name: 'Benali', email: 'ahmed@squaremeter.com', phone: '+212 6 78 90 12 34', role: 'agent', is_active: true, created_at: '2025-06-15', last_login: '11/06/2026 09:00' },
-  { id: 8, first_name: 'Leila', last_name: 'Benbrahim', email: 'leila@squaremeter.com', phone: '+212 6 89 01 23 45', role: 'stagiaire', is_active: true, created_at: '2025-07-01', last_login: '12/06/2026 16:00' },
-  { id: 9, first_name: 'Thomas', last_name: 'Dupont', email: 'thomas@squaremeter.com', phone: '+212 6 90 12 34 56', role: 'agent', is_active: false, created_at: '2025-07-20', last_login: '20/05/2026 13:00' },
-  { id: 10, first_name: 'Nadia', last_name: 'Bennani', email: 'nadia@squaremeter.com', phone: '+212 6 01 23 45 67', role: 'admin', is_active: true, created_at: '2025-08-10', last_login: '12/06/2026 18:00' },
-  { id: 11, first_name: 'Omar', last_name: 'Idrissi', email: 'omar@squaremeter.com', phone: '+212 6 11 22 33 44', role: 'agent', is_active: true, created_at: '2025-09-05', last_login: '10/06/2026 11:30' },
-  { id: 12, first_name: 'Fatima', last_name: 'Zahra', email: 'fatima@squaremeter.com', phone: '+212 6 22 33 44 55', role: 'stagiaire', is_active: true, created_at: '2025-10-01', last_login: '09/06/2026 15:45' },
-]
+const roleLabels: Record<string, string> = {
+  admin: 'Administrateur',
+  gerant: 'Gérant',
+  agent: 'Agent',
+}
 
 const roleColors: Record<string, { bg: string, text: string }> = {
   admin: { bg: 'bg-amber-100', text: 'text-amber-700' },
+  gerant: { bg: 'bg-orange-100', text: 'text-orange-700' },
   agent: { bg: 'bg-accent-light', text: 'text-accent' },
-  manager: { bg: 'bg-violet-100', text: 'text-violet-700' },
-  stagiaire: { bg: 'bg-blue-100', text: 'text-blue-700' },
 }
 
-const roleBadgeColors: Record<string, 'primary' | 'default' | 'secondary' | 'success'> = {
+const roleBadgeColors: Record<string, 'primary' | 'default' | 'warning' | 'secondary' | 'success'> = {
   admin: 'primary',
+  gerant: 'warning',
   agent: 'default',
-  manager: 'secondary',
-  stagiaire: 'default',
+}
+
+const AGENT_POSITIONS = [
+  { value: 'Responsable agence', label: 'Responsable agence' },
+  { value: 'Responsable secteur', label: 'Responsable secteur' },
+  { value: 'Commercial', label: 'Commercial' },
+  { value: 'Secrétariat', label: 'Secrétariat' },
+  { value: 'Stagiaire', label: 'Stagiaire' },
+  { value: 'Traducteur', label: 'Traducteur' },
+]
+
+function getRoleLabel(user: UserData): string {
+  if (user.role === 'admin') return 'Administrateur'
+  if (user.role === 'gerant') return 'Gérant'
+  if (user.role === 'agent' && user.position) return user.position
+  return 'Agent'
+}
+
+const ADMIN_BUTTON_CLASSES = 'bg-amber-600 hover:bg-amber-700 border-amber-600 hover:border-amber-700 text-white shadow-[0_10px_24px_rgba(217,119,6,0.35)]'
+const GERANT_BUTTON_CLASSES = 'bg-[#905D5D] hover:bg-[#7D5050] border-[#905D5D] hover:border-[#7D5050] text-white shadow-[0_10px_24px_rgba(144,93,93,0.35)]'
+
+function getRoleColor(role: string, isGerant: boolean): { bg: string; text: string } {
+  const base = roleColors[role] || roleColors.agent
+  if (!isGerant) return base
+  return { bg: 'bg-[#E7D5D5]', text: 'text-[#905D5D]' }
 }
 
 interface CreateFormData {
@@ -73,6 +97,14 @@ interface CreateFormData {
   requirePasswordChange: boolean
 }
 
+interface FormErrors {
+  firstName?: string
+  lastName?: string
+  email?: string
+  password?: string
+  confirmPassword?: string
+}
+
 interface MenuPosition {
   top: number
   right: number
@@ -81,13 +113,18 @@ interface MenuPosition {
 interface ActionMenuProps {
   user: UserData
   position: MenuPosition
+  currentUserId?: number
+  currentUserRole?: string
   onClose: () => void
+  onEdit: (user: UserData) => void
   onToggleStatus: (id: number) => void
+  onReactivate: (id: number) => void
   onDelete: (id: number) => void
   onResetPassword: (id: number) => void
+  adminId: string
 }
 
-function ActionMenu({ user, position, onClose, onToggleStatus, onDelete, onResetPassword }: ActionMenuProps) {
+function ActionMenu({ user, position, currentUserId, currentUserRole, onClose, onEdit, onToggleStatus, onReactivate, onDelete, onResetPassword, adminId }: ActionMenuProps) {
   const ref = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -98,15 +135,27 @@ function ActionMenu({ user, position, onClose, onToggleStatus, onDelete, onReset
     return () => document.removeEventListener('mousedown', handleClick)
   }, [onClose])
 
+  const isSelf = currentUserId != null && String(currentUserId) === String(user.id)
+  const isOwner = user.is_owner
+
   const actions = [
-    { icon: Edit3, label: 'Modifier', onClick: () => {} },
-    { icon: Eye, label: 'Voir le profil', onClick: () => window.location.href = `/admin/users/${user.id}` },
-    { icon: user.is_active ? ToggleLeft : ToggleRight, label: user.is_active ? 'Désactiver' : 'Activer', onClick: () => onToggleStatus(user.id) },
-    { icon: Mail, label: 'Renvoyer les identifiants', onClick: () => {} },
+    ...(user.role === 'admin' || !(isOwner && !isSelf)
+      ? [{ icon: Edit3, label: 'Modifier', onClick: () => onEdit(user) }]
+      : []),
+    { icon: Eye, label: 'Voir le profil', onClick: () => window.location.href = `/admin/${adminId}/users/${user.id}` },
+    ...(user.role === 'agent' || user.role === 'gerant'
+      ? [{ icon: Shield, label: 'Droits', onClick: () => window.location.href = `/admin/${adminId}/users/${user.id}/droits` }]
+      : []),
     { icon: Lock, label: 'Réinitialiser le mot de passe', onClick: () => onResetPassword(user.id) },
-    { icon: Activity, label: "Voir l'activité", onClick: () => window.location.href = `/admin/users/${user.id}` },
-    { icon: UserX, label: "Bloquer l'accès", onClick: () => onToggleStatus(user.id) },
-    { icon: Trash2, label: 'Supprimer', onClick: () => onDelete(user.id), danger: true },
+    ...(!isOwner && (user.status === 'inactif' || user.status === 'suspendu')
+      ? [{ icon: CheckCircle, label: 'Réactiver le compte', onClick: () => onReactivate(user.id) }]
+      : []),
+    ...((user.role === 'admin' || !isOwner) && !isSelf
+      ? [{ icon: user.is_active ? ToggleLeft : ToggleRight, label: user.is_active ? 'Désactiver' : 'Activer', onClick: () => onToggleStatus(user.id) }]
+      : []),
+    ...(!isOwner && !isSelf && user.role !== 'admin'
+      ? [{ icon: Trash2, label: 'Supprimer', onClick: () => onDelete(user.id), danger: true }]
+      : []),
   ]
 
   return (
@@ -162,20 +211,58 @@ function getPasswordStrength(pw: string): { label: string; color: string; width:
 }
 
 export default function AdminUsersPage() {
-  const [users] = useState<UserData[]>(mockUsers)
-  const [filteredUsers, setFilteredUsers] = useState<UserData[]>(mockUsers)
+  const { adminId } = useParams<{ adminId: string }>()
+  const [users, setUsers] = useState<UserData[]>([])
+  const [filteredUsers, setFilteredUsers] = useState<UserData[]>([])
+  const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [roleFilter, setRoleFilter] = useState('Tous')
   const [statusFilter, setStatusFilter] = useState('Tous')
+  const [positionFilter, setPositionFilter] = useState('Tous')
   const [showFilters, setShowFilters] = useState(false)
   const [showCreateModal, setShowCreateModal] = useState(false)
+  const [editingUser, setEditingUser] = useState<UserData | null>(null)
   const [menuTarget, setMenuTarget] = useState<{ user: UserData; position: MenuPosition } | null>(null)
   const [currentPage, setCurrentPage] = useState(1)
   const [formData, setFormData] = useState<CreateFormData>({
     firstName: '', lastName: '', email: '', phone: '',
-    password: '', confirmPassword: '', role: 'agent',
-    position: '', sendEmail: true, requirePasswordChange: true
+    password: '', confirmPassword: '', role: 'agent', position: AGENT_POSITIONS[0].value,
+    sendEmail: true, requirePasswordChange: true
   })
+  const [formErrors, setFormErrors] = useState<FormErrors>({})
+  const [showPassword, setShowPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
+  const [currentUser, setCurrentUser] = useState<{ id: number; role: string } | null>(null)
+
+  const { toast } = useToast()
+
+  const isGerant = currentUser?.role === 'gerant'
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const u = await api.get<any>('/auth/me')
+        if (u?.id) setCurrentUser({ id: u.id, role: u.role })
+      } catch (_) {}
+    }
+    load()
+  }, [])
+
+  const fetchUsers = async () => {
+    try {
+      setLoading(true)
+      const data = await api.get<UserData[]>('/admin/users')
+      setUsers(data)
+    } catch (err) {
+      console.error('Error fetching users:', err)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchUsers()
+  }, [])
 
   useEffect(() => {
     let result = [...users]
@@ -188,11 +275,13 @@ export default function AdminUsersPage() {
       )
     }
     if (roleFilter !== 'Tous') result = result.filter(u => u.role === roleFilter)
-    if (statusFilter === 'Actif') result = result.filter(u => u.is_active)
-    if (statusFilter === 'Inactif') result = result.filter(u => !u.is_active)
+    if (positionFilter !== 'Tous') result = result.filter(u => u.role === 'agent' && u.position === positionFilter)
+    if (statusFilter === 'Actif') result = result.filter(u => u.status === 'actif')
+    if (statusFilter === 'Inactif') result = result.filter(u => u.status === 'inactif')
+    if (statusFilter === 'Suspendu') result = result.filter(u => u.status === 'suspendu')
     setFilteredUsers(result)
     setCurrentPage(1)
-  }, [search, roleFilter, statusFilter, users])
+  }, [search, roleFilter, positionFilter, statusFilter, users])
 
   const totalPages = Math.ceil(filteredUsers.length / ITEMS_PER_PAGE)
   const paginatedUsers = filteredUsers.slice(
@@ -202,62 +291,198 @@ export default function AdminUsersPage() {
 
   const stats = {
     total: users.length,
-    admins: users.filter(u => u.role === 'admin').length,
+    admins: users.filter(u => u.role === 'admin' || u.role === 'gerant').length,
     agents: users.filter(u => u.role === 'agent').length,
-    inactifs: users.filter(u => !u.is_active).length,
+    inactifs: users.filter(u => u.status === 'inactif' || u.status === 'suspendu').length,
   }
 
-  const handleToggleStatus = (id: number) => {
-    setFilteredUsers(prev => prev.map(u => u.id === id ? { ...u, is_active: !u.is_active } : u))
-  }
-
-  const handleDelete = (id: number) => {
-    if (window.confirm('Supprimer cet utilisateur ?')) {
-      setFilteredUsers(prev => prev.filter(u => u.id !== id))
+  const handleToggleStatus = async (id: number) => {
+    try {
+      await api.patch(`/admin/users/${id}/toggle-status`)
+      await fetchUsers()
+    } catch (err) {
+      console.error('Error toggling status:', err)
     }
   }
 
-  const handleResetPassword = (id: number) => {
-    alert('Un email de réinitialisation a été envoyé.')
+  const handleReactivate = async (id: number) => {
+    try {
+      await api.patch(`/admin/users/${id}/reactivate`)
+      await fetchUsers()
+    } catch (err) {
+      console.error('Error reactivating user:', err)
+    }
   }
 
-  const handleCreateUser = (e: React.FormEvent) => {
+  const handleDelete = async (id: number) => {
+    if (!window.confirm('Supprimer cet utilisateur ?')) return
+    try {
+      await api.del(`/admin/users/${id}`)
+      await fetchUsers()
+    } catch (err) {
+      console.error('Error deleting user:', err)
+    }
+  }
+
+  const handleResetPassword = async (id: number) => {
+    try {
+      await api.post('/admin/forgot-password', { email: users.find(u => u.id === id)?.email })
+      toast('success', 'Un email de réinitialisation a été envoyé.')
+    } catch (err) {
+      console.error('Error sending reset email:', err)
+      toast('error', 'Erreur lors de l\'envoi de l\'email de réinitialisation.')
+    }
+  }
+
+  const handleRoleFilterChange = (val: string) => {
+    setRoleFilter(val)
+    if (val !== 'agent') setPositionFilter('Tous')
+  }
+
+  const openCreateModal = () => {
+    setEditingUser(null)
+    setShowPassword(false)
+    setShowConfirmPassword(false)
+    setFormData({
+      firstName: '', lastName: '', email: '', phone: '',
+      password: '', confirmPassword: '', role: 'agent', position: AGENT_POSITIONS[0].value,
+      sendEmail: true, requirePasswordChange: true
+    })
+    setFormErrors({})
+    setShowCreateModal(true)
+  }
+
+  const openEditModal = (user: UserData) => {
+    setEditingUser(user)
+    setShowPassword(false)
+    setShowConfirmPassword(false)
+    setFormData({
+      firstName: user.first_name,
+      lastName: user.last_name,
+      email: user.email,
+      phone: user.phone || '',
+      password: '',
+      confirmPassword: '',
+      role: user.role,
+      position: user.role === 'agent' ? (user.position || AGENT_POSITIONS[0].value) : '',
+      sendEmail: false,
+      requirePasswordChange: false
+    })
+    setFormErrors({})
+    setShowCreateModal(true)
+  }
+
+  const validateUserForm = () => {
+    const errors: FormErrors = {}
+    if (!formData.firstName.trim()) errors.firstName = 'Le prénom est requis'
+    if (!formData.lastName.trim()) errors.lastName = 'Le nom est requis'
+    if (!formData.email.trim()) {
+      errors.email = 'L\'email est requis'
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+      errors.email = 'Email invalide'
+    }
+    if (!editingUser) {
+      if (!formData.password) {
+        errors.password = 'Le mot de passe est requis'
+      } else if (!formData.confirmPassword) {
+        errors.confirmPassword = 'Veuillez confirmer le mot de passe'
+      } else if (formData.password !== formData.confirmPassword) {
+        errors.confirmPassword = 'Les mots de passe ne correspondent pas'
+      }
+    } else if (formData.password) {
+      if (formData.password.length < 6) {
+        errors.password = 'Le mot de passe doit contenir au moins 6 caractères'
+      } else if (formData.password !== formData.confirmPassword) {
+        errors.confirmPassword = 'Les mots de passe ne correspondent pas'
+      }
+    }
+    setFormErrors(errors)
+    return Object.keys(errors).length === 0
+  }
+
+  const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (formData.password !== formData.confirmPassword) {
-      alert('Les mots de passe ne correspondent pas.')
-      return
+    if (!validateUserForm()) return
+
+    try {
+      await api.post('/admin/users', {
+        firstName: formData.firstName,
+        lastName: formData.lastName,
+        email: formData.email,
+        phone: formData.phone,
+        password: formData.password,
+        role: formData.role,
+        ...(formData.role === 'agent' ? { position: formData.position } : {}),
+      })
+      toast('success', 'Utilisateur créé avec succès. Un email avec ses identifiants lui a été envoyé.')
+      setShowCreateModal(false)
+      setEditingUser(null)
+      setFormData({ firstName: '', lastName: '', email: '', phone: '', password: '', confirmPassword: '', role: 'agent', position: AGENT_POSITIONS[0].value, sendEmail: true, requirePasswordChange: true })
+      setFormErrors({})
+      await fetchUsers()
+    } catch (err) {
+      console.error('Error creating user:', err)
+      toast('error', err instanceof Error ? err.message : 'Erreur lors de la création de l\'utilisateur.')
     }
-    alert('Utilisateur créé avec succès.')
-    setShowCreateModal(false)
-    setFormData({ firstName: '', lastName: '', email: '', phone: '', password: '', confirmPassword: '', role: 'agent', position: '', sendEmail: true, requirePasswordChange: true })
+  }
+
+  const handleUpdateUser = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!editingUser) return
+    if (!validateUserForm()) return
+
+    try {
+      await api.put(`/admin/users/${editingUser.id}`, {
+        firstName: formData.firstName,
+        lastName: formData.lastName,
+        email: formData.email,
+        phone: formData.phone,
+        role: formData.role,
+        is_active: editingUser.is_active,
+        position: formData.role === 'agent' ? formData.position : '',
+        ...(formData.password ? { password: formData.password } : {}),
+      })
+      toast('success', 'Utilisateur modifié avec succès.')
+      setShowCreateModal(false)
+      setEditingUser(null)
+      setFormData({ firstName: '', lastName: '', email: '', phone: '', password: '', confirmPassword: '', role: 'agent', position: AGENT_POSITIONS[0].value, sendEmail: true, requirePasswordChange: true })
+      setFormErrors({})
+      await fetchUsers()
+    } catch (err) {
+      console.error('Error updating user:', err)
+      toast('error', err instanceof Error ? err.message : 'Erreur lors de la modification de l\'utilisateur.')
+    }
   }
 
   const pwStrength = getPasswordStrength(formData.password)
 
   return (
     <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
-      <BackLink to="/admin" />
+      <BackLink to={`/admin/${adminId}`} />
 
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center">
-            <Users size={20} className="text-amber-700" />
+          <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${isGerant ? 'bg-[#E7D5D5]' : 'bg-amber-100'}`}>
+            <Users size={20} className={isGerant ? 'text-[#905D5D]' : 'text-amber-700'} />
           </div>
           <div>
             <h1 className="text-2xl font-semibold tracking-tight">Gestion des utilisateurs</h1>
             <p className="text-sm text-text-secondary mt-0.5">Gérez les administrateurs et les agents de votre agence</p>
           </div>
         </div>
-        <Button variant="default" icon={<Plus size={14} />} onClick={() => setShowCreateModal(true)}>
-          Ajouter un utilisateur
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" icon={<RefreshCw size={14} />} onClick={fetchUsers} />
+          <Button variant="default" className={isGerant ? GERANT_BUTTON_CLASSES : ADMIN_BUTTON_CLASSES} icon={<Plus size={14} />} onClick={openCreateModal}>
+            Ajouter un utilisateur
+          </Button>
+        </div>
       </div>
 
       {/* Stats */}
       <motion.div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
-          { icon: Users, label: 'Total', value: stats.total, color: 'bg-accent-light text-accent' },
-          { icon: Shield, label: 'Admin', value: stats.admins, color: 'bg-amber-50 text-amber-600' },
+          { icon: Users, label: 'Total', value: stats.total, color: isGerant ? 'bg-[#E7D5D5] text-[#905D5D]' : 'bg-accent-light text-accent' },
+          { icon: Shield, label: 'Admin', value: stats.admins, color: isGerant ? 'bg-[#E7D5D5] text-[#905D5D]' : 'bg-amber-50 text-amber-600' },
           { icon: UserCheck, label: 'Agents', value: stats.agents, color: 'bg-emerald-50 text-emerald-600' },
           { icon: UserX, label: 'Inactifs', value: stats.inactifs, color: 'bg-red-50 text-red-600' },
         ].map((stat) => {
@@ -294,15 +519,15 @@ export default function AdminUsersPage() {
           <button
             onClick={() => setShowFilters(!showFilters)}
             className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-sm font-medium transition-all ${
-              showFilters || roleFilter !== 'Tous' || statusFilter !== 'Tous'
-                ? 'border-accent bg-accent-light text-accent'
+              showFilters || roleFilter !== 'Tous' || statusFilter !== 'Tous' || positionFilter !== 'Tous'
+                ? isGerant ? 'border-[#905D5D] bg-[#E7D5D5] text-[#905D5D]' : 'border-accent bg-accent-light text-accent'
                 : 'border-border/50 text-text-secondary hover:text-text hover:bg-background'
             }`}
           >
             <Filter size={14} />
             Filtres
-            {(roleFilter !== 'Tous' || statusFilter !== 'Tous') && (
-              <span className="w-1.5 h-1.5 rounded-full bg-accent" />
+            {(roleFilter !== 'Tous' || statusFilter !== 'Tous' || positionFilter !== 'Tous') && (
+              <span className={`w-1.5 h-1.5 rounded-full ${isGerant ? 'bg-[#905D5D]' : 'bg-accent'}`} />
             )}
           </button>
         </div>
@@ -314,16 +539,29 @@ export default function AdminUsersPage() {
               exit={{ height: 0, opacity: 0 }}
               className="overflow-hidden"
             >
-              <div className="flex flex-wrap items-end gap-4 pt-4 mt-3 border-t border-border/30">
-                <div>
+              <div className="flex flex-wrap items-end gap-4 pt-4 pb-3 mt-3 border-t border-border/30 px-3">
+                <div className="w-44">
                   <label className="block text-xs text-text-secondary mb-1.5 font-medium">Rôle</label>
                   <Select
                     value={roleFilter}
-                    onChange={(val) => setRoleFilter(val)}
-                    options={roles.map(r => ({ value: r, label: r === 'Tous' ? 'Tous les rôles' : r }))}
+                    onChange={handleRoleFilterChange}
+                    options={roles.map(r => ({ value: r, label: r === 'Tous' ? 'Tous les rôles' : (roleLabels[r] || r) }))}
                   />
                 </div>
-                <div>
+                {roleFilter === 'agent' && (
+                  <div className="w-52">
+                    <label className="block text-xs text-text-secondary mb-1.5 font-medium">Sous-rôle</label>
+                    <Select
+                      value={positionFilter}
+                      onChange={setPositionFilter}
+                      options={[
+                        { value: 'Tous', label: 'Tous les sous-rôles' },
+                        ...AGENT_POSITIONS.map(p => ({ value: p.value, label: p.label })),
+                      ]}
+                    />
+                  </div>
+                )}
+                <div className="w-40">
                   <label className="block text-xs text-text-secondary mb-1.5 font-medium">Statut</label>
                   <Select
                     value={statusFilter}
@@ -334,7 +572,7 @@ export default function AdminUsersPage() {
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => { setRoleFilter('Tous'); setStatusFilter('Tous'); setSearch('') }}
+                  onClick={() => { setRoleFilter('Tous'); setPositionFilter('Tous'); setStatusFilter('Tous'); setSearch('') }}
                 >
                   Réinitialiser
                 </Button>
@@ -348,7 +586,7 @@ export default function AdminUsersPage() {
       <Card className="p-5">
         <div className="flex items-center justify-between mb-4">
           <h3 className="font-semibold text-sm">
-            {filteredUsers.length} utilisateur{filteredUsers.length > 1 ? 's' : ''}
+            {loading ? 'Chargement...' : `${filteredUsers.length} utilisateur${filteredUsers.length > 1 ? 's' : ''}`}
           </h3>
         </div>
 
@@ -366,7 +604,7 @@ export default function AdminUsersPage() {
             </thead>
             <tbody>
               {paginatedUsers.map((user) => {
-                const roleColor = roleColors[user.role] || roleColors.agent
+                const roleColor = getRoleColor(user.role, isGerant)
                 return (
                   <tr key={user.id} className="border-b border-border/20 hover:bg-background/50 transition-colors group">
                     <td className="py-3">
@@ -383,19 +621,29 @@ export default function AdminUsersPage() {
                     <td className="py-3 text-text-secondary text-xs">{user.email}</td>
                     <td className="py-3">
                       <Badge variant={roleBadgeColors[user.role] || 'default'} size="sm">
-                        {user.role.charAt(0).toUpperCase() + user.role.slice(1)}
+                        {getRoleLabel(user)}
                       </Badge>
                     </td>
                     <td className="py-3">
                       <div className="flex items-center gap-1.5">
-                        <span className={`w-2 h-2 rounded-full ${user.is_active ? 'bg-emerald-500' : 'bg-text-secondary/40'}`} />
-                        <span className={`text-xs font-medium ${user.is_active ? 'text-emerald-600' : 'text-text-secondary'}`}>
-                          {user.is_active ? 'Actif' : 'Inactif'}
-                        </span>
+                        {user.status === 'actif' && (
+                          <><span className="w-2 h-2 rounded-full bg-emerald-500" /><span className="text-xs font-medium text-emerald-600">Actif</span></>
+                        )}
+                        {user.status === 'inactif' && (
+                          <><span className={`w-2 h-2 rounded-full ${isGerant ? 'bg-[#905D5D]' : 'bg-amber-500'}`} /><span className={`text-xs font-medium ${isGerant ? 'text-[#905D5D]' : 'text-amber-600'}`}>Inactif</span></>
+                        )}
+                        {user.status === 'suspendu' && (
+                          <><span className="w-2 h-2 rounded-full bg-red-500" /><span className="text-xs font-medium text-red-600">Suspendu</span></>
+                        )}
+                        {user.days_since_last_login !== null && user.days_since_last_login > 0 && (
+                          <span className="text-[10px] text-text-secondary/60 ml-1">{user.days_since_last_login}j</span>
+                        )}
                       </div>
                     </td>
                     <td className="py-3 text-xs text-text-secondary">
-                      {user.last_login || '-'}
+                      {user.last_login_at
+                        ? new Date(user.last_login_at).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+                        : '-'}
                     </td>
                     <td className="py-3">
                       <button
@@ -454,7 +702,7 @@ export default function AdminUsersPage() {
                   onClick={() => setCurrentPage(page)}
                   className={`w-8 h-8 rounded-lg text-xs font-medium transition-colors ${
                     page === currentPage
-                      ? 'bg-accent text-white'
+                      ? isGerant ? 'bg-[#905D5D] text-white' : 'bg-accent text-white'
                       : 'text-text-secondary hover:text-text hover:bg-background'
                   }`}
                 >
@@ -478,8 +726,13 @@ export default function AdminUsersPage() {
         <ActionMenu
           user={menuTarget.user}
           position={menuTarget.position}
+          adminId={adminId!}
+          currentUserId={currentUser?.id}
+          currentUserRole={currentUser?.role}
           onClose={() => setMenuTarget(null)}
+          onEdit={openEditModal}
           onToggleStatus={handleToggleStatus}
+          onReactivate={handleReactivate}
           onDelete={handleDelete}
           onResetPassword={handleResetPassword}
         />
@@ -504,31 +757,20 @@ export default function AdminUsersPage() {
               <Card className="p-0 overflow-hidden">
                 <div className="flex items-center justify-between px-6 py-4 border-b border-border/50">
                   <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-lg bg-amber-100 flex items-center justify-center">
-                      <UserPlus size={16} className="text-amber-700" />
+                    <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${isGerant ? 'bg-[#E7D5D5]' : 'bg-amber-100'}`}>
+                      {editingUser ? <Edit3 size={16} className={isGerant ? 'text-[#905D5D]' : 'text-amber-700'} /> : <UserPlus size={16} className={isGerant ? 'text-[#905D5D]' : 'text-amber-700'} />}
                     </div>
-                    <h2 className="font-semibold">Ajouter un utilisateur</h2>
+                    <h2 className="font-semibold">{editingUser ? 'Modifier l\'utilisateur' : 'Ajouter un utilisateur'}</h2>
                   </div>
                   <button
-                    onClick={() => setShowCreateModal(false)}
+                    onClick={() => { setShowCreateModal(false); setEditingUser(null); setFormErrors({}) }}
                     className="p-1.5 rounded-lg hover:bg-background text-text-secondary hover:text-text transition-colors"
                   >
                     <X size={18} />
                   </button>
                 </div>
 
-                <form onSubmit={handleCreateUser} className="p-6 space-y-6">
-                  {/* Photo */}
-                  <div>
-                    <p className="text-xs text-text-secondary uppercase tracking-wider font-medium mb-3">Photo de profil</p>
-                    <div className="flex items-center gap-4">
-                      <div className="w-16 h-16 rounded-full bg-background border-2 border-dashed border-border/60 flex items-center justify-center text-text-secondary/40">
-                        <Camera size={22} />
-                      </div>
-                      <Button type="button" variant="outline" size="sm">Télécharger une photo</Button>
-                    </div>
-                  </div>
-
+                <form onSubmit={editingUser ? handleUpdateUser : handleCreateUser} className="p-6 space-y-6">
                   {/* Personal Info */}
                   <div>
                     <p className="text-xs text-text-secondary uppercase tracking-wider font-medium mb-3">Informations personnelles</p>
@@ -536,37 +778,38 @@ export default function AdminUsersPage() {
                       <div>
                         <label className="block text-sm text-text-secondary mb-1">Prénom <span className="text-error">*</span></label>
                         <input
-                          type="text" required
+                          type="text"
                           value={formData.firstName}
-                          onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
-                          className="w-full px-3 py-2.5 rounded-lg border border-border/50 bg-card text-sm focus:outline-none focus:ring-2 focus:ring-accent/20"
+                          onChange={(e) => { setFormData({ ...formData, firstName: e.target.value }); setFormErrors({ ...formErrors, firstName: undefined }) }}
+                          className={`w-full px-3 py-2.5 rounded-lg border bg-card text-sm focus:outline-none focus:ring-2 focus:ring-accent/20 ${formErrors.firstName ? 'border-error' : 'border-border/50'}`}
                         />
+                        {formErrors.firstName && <p className="text-xs text-error mt-1">{formErrors.firstName}</p>}
                       </div>
                       <div>
                         <label className="block text-sm text-text-secondary mb-1">Nom <span className="text-error">*</span></label>
                         <input
-                          type="text" required
+                          type="text"
                           value={formData.lastName}
-                          onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
-                          className="w-full px-3 py-2.5 rounded-lg border border-border/50 bg-card text-sm focus:outline-none focus:ring-2 focus:ring-accent/20"
+                          onChange={(e) => { setFormData({ ...formData, lastName: e.target.value }); setFormErrors({ ...formErrors, lastName: undefined }) }}
+                          className={`w-full px-3 py-2.5 rounded-lg border bg-card text-sm focus:outline-none focus:ring-2 focus:ring-accent/20 ${formErrors.lastName ? 'border-error' : 'border-border/50'}`}
                         />
+                        {formErrors.lastName && <p className="text-xs text-error mt-1">{formErrors.lastName}</p>}
                       </div>
                       <div>
                         <label className="block text-sm text-text-secondary mb-1">Email <span className="text-error">*</span></label>
                         <input
-                          type="email" required
+                          type="email"
                           value={formData.email}
-                          onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                          className="w-full px-3 py-2.5 rounded-lg border border-border/50 bg-card text-sm focus:outline-none focus:ring-2 focus:ring-accent/20"
+                          onChange={(e) => { setFormData({ ...formData, email: e.target.value }); setFormErrors({ ...formErrors, email: undefined }) }}
+                          className={`w-full px-3 py-2.5 rounded-lg border bg-card text-sm focus:outline-none focus:ring-2 focus:ring-accent/20 ${formErrors.email ? 'border-error' : 'border-border/50'}`}
                         />
+                        {formErrors.email && <p className="text-xs text-error mt-1">{formErrors.email}</p>}
                       </div>
                       <div>
                         <label className="block text-sm text-text-secondary mb-1">Téléphone</label>
-                        <input
-                          type="text"
-                          value={formData.phone}
-                          onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                          className="w-full px-3 py-2.5 rounded-lg border border-border/50 bg-card text-sm focus:outline-none focus:ring-2 focus:ring-accent/20"
+                        <PhoneInput
+                          value={formData.phone || ''}
+                          onChange={(v) => setFormData({ ...formData, phone: v })}
                         />
                       </div>
                     </div>
@@ -580,31 +823,20 @@ export default function AdminUsersPage() {
                         <label className="block text-sm text-text-secondary mb-1">Agence <span className="text-error">*</span></label>
                         <Select value="M2 Square Meter" onChange={() => {}} options={[{ value: 'M2 Square Meter', label: 'M2 Square Meter' }]} />
                       </div>
-                      <div>
-                        <label className="block text-sm text-text-secondary mb-1">Poste</label>
-                        <input
-                          type="text"
-                          value={formData.position}
-                          onChange={(e) => setFormData({ ...formData, position: e.target.value })}
-                          placeholder="Agent Commercial"
-                          className="w-full px-3 py-2.5 rounded-lg border border-border/50 bg-card text-sm focus:outline-none focus:ring-2 focus:ring-accent/20"
-                        />
-                      </div>
                     </div>
                     <div>
                       <p className="block text-sm text-text-secondary mb-2">Rôle <span className="text-error">*</span></p>
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                         {[
-                          { value: 'admin', label: 'Administrateur', desc: 'Accès total' },
-                          { value: 'manager', label: 'Manager', desc: 'Supervision équipe' },
-                          { value: 'agent', label: 'Agent', desc: 'Gestion opérationnelle' },
-                          { value: 'stagiaire', label: 'Stagiaire', desc: 'Consultation seule' },
+                          { value: 'admin', label: 'Administrateur', desc: 'Propriétaire original unique. Ne peut pas être supprimé ni retiré.' },
+                          { value: 'gerant', label: 'Gérant', desc: 'Comme l\'admin : peut tout faire et supprimer tout utilisateur, sauf l\'administrateur d\'origine.' },
+                          { value: 'agent', label: 'Agent', desc: 'Interface agent avec un rôle spécifique.' },
                         ].map((opt) => (
                           <label
                             key={opt.value}
                             className={`p-3 rounded-xl border cursor-pointer transition-all ${
                               formData.role === opt.value
-                                ? 'border-accent bg-accent-light/30 ring-1 ring-accent/20'
+                                ? isGerant ? 'border-[#905D5D] bg-[#E7D5D5]/30 ring-1 ring-[#905D5D]/20' : 'border-accent bg-accent-light/30 ring-1 ring-accent/20'
                                 : 'border-border/50 hover:border-border hover:bg-background'
                             }`}
                           >
@@ -613,14 +845,49 @@ export default function AdminUsersPage() {
                               name="role"
                               value={opt.value}
                               checked={formData.role === opt.value}
-                              onChange={(e) => setFormData({ ...formData, role: e.target.value })}
+                              onChange={(e) => setFormData({
+                                ...formData,
+                                role: e.target.value,
+                                position: e.target.value === 'agent' ? formData.position || AGENT_POSITIONS[0].value : ''
+                              })}
                               className="sr-only"
                             />
                             <p className="text-sm font-medium">{opt.label}</p>
-                            <p className="text-xs text-text-secondary mt-0.5">{opt.desc}</p>
+                            <p className="text-xs text-text-secondary mt-0.5 leading-snug">{opt.desc}</p>
                           </label>
                         ))}
                       </div>
+
+                      {formData.role === 'agent' && (
+                        <div className="mt-3">
+                          <p className="text-xs text-text-secondary font-medium mb-2">Sous-rôle de l'agent <span className="text-error">*</span></p>
+                          <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                            {AGENT_POSITIONS.map((pos) => (
+                              <label
+                                key={pos.value}
+                                className={`flex items-center gap-2.5 p-2.5 rounded-lg border cursor-pointer transition-all text-sm ${
+                                  formData.position === pos.value
+                                    ? isGerant ? 'border-[#905D5D] bg-[#E7D5D5]/30 ring-1 ring-[#905D5D]/20' : 'border-accent bg-accent-light/30 ring-1 ring-accent/20'
+                                    : 'border-border/50 hover:border-border hover:bg-background'
+                                }`}
+                              >
+                                <input
+                                  type="radio"
+                                  name="position"
+                                  value={pos.value}
+                                  checked={formData.position === pos.value}
+                                  onChange={(e) => setFormData({ ...formData, position: e.target.value })}
+                                  className="sr-only"
+                                />
+                                <span className={`w-2.5 h-2.5 rounded-full border-2 flex-shrink-0 ${
+                                  formData.position === pos.value ? (isGerant ? 'border-[#905D5D] bg-[#905D5D]' : 'border-accent bg-accent') : 'border-border'
+                                }`} />
+                                {pos.label}
+                              </label>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -629,22 +896,49 @@ export default function AdminUsersPage() {
                     <p className="text-xs text-text-secondary uppercase tracking-wider font-medium mb-3">Sécurité</p>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-3">
                       <div>
-                        <label className="block text-sm text-text-secondary mb-1">Mot de passe <span className="text-error">*</span></label>
-                        <input
-                          type="password" required
-                          value={formData.password}
-                          onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                          className="w-full px-3 py-2.5 rounded-lg border border-border/50 bg-card text-sm focus:outline-none focus:ring-2 focus:ring-accent/20"
-                        />
+                        <label className="block text-sm text-text-secondary mb-1">
+                          Mot de passe {!editingUser && <span className="text-error">*</span>}
+                        </label>
+                        <div className="relative">
+                          <input
+                            type={showPassword ? 'text' : 'password'}
+                            placeholder={editingUser ? 'Laisser vide pour ne pas modifier' : ''}
+                            value={formData.password}
+                            onChange={(e) => { setFormData({ ...formData, password: e.target.value }); setFormErrors({ ...formErrors, password: undefined }) }}
+                            className={`w-full px-3 py-2.5 pr-10 rounded-lg border bg-card text-sm focus:outline-none focus:ring-2 focus:ring-accent/20 ${formErrors.password ? 'border-error' : 'border-border/50'}`}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowPassword(!showPassword)}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-text-secondary hover:text-text transition-colors"
+                            tabIndex={-1}
+                          >
+                            {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                          </button>
+                        </div>
+                        {formErrors.password && <p className="text-xs text-error mt-1">{formErrors.password}</p>}
                       </div>
                       <div>
-                        <label className="block text-sm text-text-secondary mb-1">Confirmer <span className="text-error">*</span></label>
-                        <input
-                          type="password" required
-                          value={formData.confirmPassword}
-                          onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
-                          className="w-full px-3 py-2.5 rounded-lg border border-border/50 bg-card text-sm focus:outline-none focus:ring-2 focus:ring-accent/20"
-                        />
+                        <label className="block text-sm text-text-secondary mb-1">
+                          Confirmer {!editingUser && <span className="text-error">*</span>}
+                        </label>
+                        <div className="relative">
+                          <input
+                            type={showConfirmPassword ? 'text' : 'password'}
+                            value={formData.confirmPassword}
+                            onChange={(e) => { setFormData({ ...formData, confirmPassword: e.target.value }); setFormErrors({ ...formErrors, confirmPassword: undefined }) }}
+                            className={`w-full px-3 py-2.5 pr-10 rounded-lg border bg-card text-sm focus:outline-none focus:ring-2 focus:ring-accent/20 ${formErrors.confirmPassword ? 'border-error' : 'border-border/50'}`}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-text-secondary hover:text-text transition-colors"
+                            tabIndex={-1}
+                          >
+                            {showConfirmPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                          </button>
+                        </div>
+                        {formErrors.confirmPassword && <p className="text-xs text-error mt-1">{formErrors.confirmPassword}</p>}
                       </div>
                     </div>
                     {formData.password && (
@@ -661,30 +955,32 @@ export default function AdminUsersPage() {
                         </span>
                       </div>
                     )}
-                    <div className="space-y-2">
-                      <label className="flex items-center gap-2.5 text-sm text-text-secondary cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={formData.sendEmail}
-                          onChange={(e) => setFormData({ ...formData, sendEmail: e.target.checked })}
-                          className="rounded border-border/50 accent-accent"
-                        />
-                        Envoyer les identifiants par email à l'utilisateur
-                      </label>
-                      <label className="flex items-center gap-2.5 text-sm text-text-secondary cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={formData.requirePasswordChange}
-                          onChange={(e) => setFormData({ ...formData, requirePasswordChange: e.target.checked })}
-                          className="rounded border-border/50 accent-accent"
-                        />
-                        Exiger un changement de mot de passe à la première connexion
-                      </label>
-                    </div>
+                    {!editingUser && (
+                      <div className="space-y-2">
+                        <label className="flex items-center gap-2.5 text-sm text-text-secondary cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={formData.sendEmail}
+                            onChange={(e) => setFormData({ ...formData, sendEmail: e.target.checked })}
+                            className={`rounded border-border/50 ${isGerant ? 'accent-[#905D5D]' : 'accent-accent'}`}
+                          />
+                          Envoyer les identifiants par email à l'utilisateur
+                        </label>
+                        <label className="flex items-center gap-2.5 text-sm text-text-secondary cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={formData.requirePasswordChange}
+                            onChange={(e) => setFormData({ ...formData, requirePasswordChange: e.target.checked })}
+                            className={`rounded border-border/50 ${isGerant ? 'accent-[#905D5D]' : 'accent-accent'}`}
+                          />
+                          Exiger un changement de mot de passe à la première connexion
+                        </label>
+                      </div>
+                    )}
                   </div>
 
-                  {/* Permissions (shown when admin role) */}
-                  {formData.role === 'admin' && (
+                  {/* Permissions (shown for admin & gerant roles) */}
+                  {(formData.role === 'admin' || formData.role === 'gerant') && (
                     <div>
                       <p className="text-xs text-text-secondary uppercase tracking-wider font-medium mb-3">Permissions</p>
                       <div className="p-4 rounded-xl bg-background border border-border/50 space-y-2.5">
@@ -696,7 +992,7 @@ export default function AdminUsersPage() {
                           'Paramètres système',
                         ].map((perm) => (
                           <label key={perm} className="flex items-center gap-2.5 text-sm text-text cursor-pointer">
-                            <input type="checkbox" defaultChecked className="rounded border-border/50 accent-accent" />
+                            <input type="checkbox" defaultChecked className={`rounded border-border/50 ${isGerant ? 'accent-[#905D5D]' : 'accent-accent'}`} />
                             {perm}
                           </label>
                         ))}
@@ -706,9 +1002,9 @@ export default function AdminUsersPage() {
 
                   {/* Actions */}
                   <div className="flex items-center justify-end gap-3 pt-4 border-t border-border/50">
-                    <Button type="button" variant="outline" onClick={() => setShowCreateModal(false)}>Annuler</Button>
-                    <Button type="submit" variant="default" icon={<UserPlus size={14} />}>
-                      Créer l'utilisateur
+                    <Button type="button" variant="outline" onClick={() => { setShowCreateModal(false); setEditingUser(null); setFormErrors({}) }}>Annuler</Button>
+                    <Button type="submit" variant="default" className={isGerant ? GERANT_BUTTON_CLASSES : ADMIN_BUTTON_CLASSES} icon={editingUser ? <Edit3 size={14} /> : <UserPlus size={14} />}>
+                      {editingUser ? 'Enregistrer les modifications' : 'Créer l\'utilisateur'}
                     </Button>
                   </div>
                 </form>

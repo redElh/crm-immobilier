@@ -1,16 +1,21 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X } from 'react-feather';
+import { X, Save, CheckCircle } from 'react-feather';
 import { Contact } from '../../../types/contact';
 import { DatePicker } from '../../ui/DatePicker';
 import { Input } from '../../ui/Input';
 import { Select } from '../../ui/Select';
 import { Textarea } from '../../ui/Textarea';
 import { Button } from '../../ui/Button';
+import { saveDraft, getDraft, deleteDraft } from '../../../services/contactDraftStorage';
 
 interface ContactFormModalProps {
   onClose: () => void;
   onSubmit: (data: Omit<Contact, 'id' | 'mandats' | 'createdAt' | 'updatedAt'>) => void;
+  contact?: Contact;
+  draftId?: string;
+  userId?: string;
+  onDraftChange?: () => void;
 }
 
 type FormData = Omit<Contact, 'id' | 'mandats' | 'createdAt' | 'updatedAt'>;
@@ -136,39 +141,63 @@ const parsePhone = (value: string) => {
   return { code: '+212', number: value };
 };
 
-export const ContactFormModal = ({ onClose, onSubmit }: ContactFormModalProps) => {
+export const ContactFormModal = ({ onClose, onSubmit, contact: editContact, draftId: initialDraftId, userId, onDraftChange }: ContactFormModalProps) => {
   const [formData, setFormData] = useState<FormData>({
-    type: 'Particulier',
-    civility: 'M.',
-    lastName: '',
-    firstName: '',
-    emailPrincipal: '',
-    emailSecondaire: '',
-    mobile: '',
-    telephoneFixe: '',
-    profession: '',
-    lieuNaissance: '',
-    dateNaissance: '',
-    nationalite: '',
-    numeroFiscal: '',
-    adresse: '',
-    adresse2: '',
-    codePostal: '',
-    ville: '',
-    pays: '',
-    moyenContactPrefere: '',
-    langueParlee: [],
-    devisePreferee: '',
-    situationFamiliale: undefined,
-    nombreEnfants: undefined,
-    prescripteur: '',
-    regimeMatrimonial: '',
-    siteInternet: '',
-    commentairePrive: '',
-    originalProspectId: undefined,
+    type: editContact?.type || 'Particulier',
+    civility: editContact?.civility || 'M.',
+    lastName: editContact?.lastName || '',
+    firstName: editContact?.firstName || '',
+    emailPrincipal: editContact?.emailPrincipal || '',
+    emailSecondaire: editContact?.emailSecondaire || '',
+    mobile: editContact?.mobile || '',
+    telephoneFixe: editContact?.telephoneFixe || '',
+    profession: editContact?.profession || '',
+    lieuNaissance: editContact?.lieuNaissance || '',
+    dateNaissance: editContact?.dateNaissance || '',
+    nationalite: editContact?.nationalite || '',
+    numeroFiscal: editContact?.numeroFiscal || '',
+    adresse: editContact?.adresse || '',
+    adresse2: editContact?.adresse2 || '',
+    codePostal: editContact?.codePostal || '',
+    ville: editContact?.ville || '',
+    pays: editContact?.pays || '',
+    moyenContactPrefere: editContact?.moyenContactPrefere || '',
+    langueParlee: editContact?.langueParlee || [],
+    devisePreferee: editContact?.devisePreferee || '',
+    situationFamiliale: editContact?.situationFamiliale || undefined,
+    nombreEnfants: editContact?.nombreEnfants || undefined,
+    prescripteur: editContact?.prescripteur || '',
+    regimeMatrimonial: editContact?.regimeMatrimonial || '',
+    siteInternet: editContact?.siteInternet || '',
+    commentairePrive: editContact?.commentairePrive || '',
+    originalProspectId: editContact?.originalProspectId || undefined,
   });
 
   const [errors, setErrors] = useState<Partial<Record<keyof FormData, string>>>({});
+  const [savedDraftId, setSavedDraftId] = useState<string | undefined>(initialDraftId || undefined);
+  const formDataRef = useRef(formData);
+  formDataRef.current = formData;
+
+  // Restore draft on mount
+  useEffect(() => {
+    if (!initialDraftId || !userId) return;
+    const draft = getDraft(userId, initialDraftId);
+    if (draft) {
+      setFormData(prev => ({ ...prev, ...draft.data }));
+    }
+  }, []);
+
+  // Auto-save debounced 2s
+  useEffect(() => {
+    if (!savedDraftId || !userId) return;
+    const timer = setTimeout(() => {
+      const data = formDataRef.current;
+      const completion = calcCompletion(data);
+      saveDraft(userId, data.type, { ...data, _draftId: savedDraftId }, completion);
+      onDraftChange?.();
+    }, 2000);
+    return () => clearTimeout(timer);
+  }, [formData, savedDraftId]);
 
   const handleChange = (field: keyof FormData, value: any) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
@@ -190,6 +219,29 @@ export const ContactFormModal = ({ onClose, onSubmit }: ContactFormModalProps) =
     });
   };
 
+  const calcCompletion = (data: FormData): number => {
+    const check = (v: any) => v !== undefined && v !== null && String(v).trim() !== '';
+    const fields = [
+      data.firstName, data.lastName, data.emailPrincipal, data.emailSecondaire,
+      data.mobile, data.telephoneFixe, data.profession, data.lieuNaissance,
+      data.dateNaissance, data.nationalite, data.numeroFiscal, data.adresse,
+      data.adresse2, data.codePostal, data.ville, data.pays,
+      data.moyenContactPrefere, data.langueParlee?.length > 0 ? 'x' : '',
+      data.devisePreferee, data.situationFamiliale, data.nombreEnfants,
+      data.prescripteur, data.regimeMatrimonial, data.siteInternet, data.commentairePrive,
+    ];
+    const filled = fields.filter(f => check(f)).length;
+    return Math.round((filled / fields.length) * 100);
+  };
+
+  const handleSaveDraft = () => {
+    if (!userId) return;
+    const data = { ...formDataRef.current, _draftId: savedDraftId };
+    const draft = saveDraft(userId, formData.type, data, calcCompletion(formData));
+    if (!savedDraftId) setSavedDraftId(draft.id);
+    onDraftChange?.();
+  };
+
   const validate = (): boolean => {
     const newErrors: Partial<Record<keyof FormData, string>> = {};
     if (!formData.firstName.trim()) newErrors.firstName = 'Prénom requis';
@@ -204,6 +256,7 @@ export const ContactFormModal = ({ onClose, onSubmit }: ContactFormModalProps) =
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!validate()) return;
+    if (savedDraftId && userId) deleteDraft(userId, savedDraftId);
     onSubmit(formData);
   };
 
@@ -267,6 +320,7 @@ export const ContactFormModal = ({ onClose, onSubmit }: ContactFormModalProps) =
 
   const parsedMobile = parsePhone(formData.mobile);
   const parsedFixe = parsePhone(formData.telephoneFixe || '');
+  const completion = calcCompletion(formData);
 
   return (
     <AnimatePresence>
@@ -285,11 +339,25 @@ export const ContactFormModal = ({ onClose, onSubmit }: ContactFormModalProps) =
           transition={{ duration: 0.2 }}
           className="relative w-full max-w-2xl mx-4 bg-card rounded-xl border border-border/50 shadow-modal overflow-y-auto max-h-[calc(100vh-80px)]"
         >
-          <div className="flex items-center justify-between px-6 py-4 border-b border-border/40 sticky top-0 bg-card z-10">
-            <h2 className="text-lg font-semibold">Nouveau contact</h2>
-            <button onClick={onClose} className="w-8 h-8 rounded-lg flex items-center justify-center text-text-secondary hover:text-text hover:bg-background transition-all">
-              <X size={16} />
-            </button>
+          <div className="px-6 py-4 border-b border-border/40 sticky top-0 bg-card z-10">
+            <div className="flex items-center justify-between mb-2">
+              <h2 className="text-lg font-semibold">{editContact ? 'Modifier le contact' : 'Nouveau contact'}</h2>
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-medium text-text-secondary">{completion}%</span>
+                <button onClick={onClose} className="w-8 h-8 rounded-lg flex items-center justify-center text-text-secondary hover:text-text hover:bg-background transition-all">
+                  <X size={16} />
+                </button>
+              </div>
+            </div>
+            <div className="w-full h-1.5 bg-background rounded-full overflow-hidden">
+              <div
+                className="h-full rounded-full transition-all duration-500 ease-out"
+                style={{
+                  width: `${completion}%`,
+                  backgroundColor: completion === 100 ? '#10b981' : completion >= 60 ? '#6366f1' : '#f59e0b',
+                }}
+              />
+            </div>
           </div>
 
           <form onSubmit={handleSubmit} className="p-6 space-y-6">
@@ -396,13 +464,26 @@ export const ContactFormModal = ({ onClose, onSubmit }: ContactFormModalProps) =
             </div>
 
             <div className="flex items-center justify-between pt-4 border-t border-border/30">
-              <div />
+              <div>
+                {!editContact && (
+                  savedDraftId ? (
+                    <span className="flex items-center gap-1.5 text-[11px] text-emerald-600 font-medium">
+                      <CheckCircle size={12} />
+                      Auto-sauvegarde
+                    </span>
+                  ) : (
+                    <Button type="button" variant="ghost" size="sm" icon={<Save size={14} />} onClick={handleSaveDraft}>
+                      Brouillon
+                    </Button>
+                  )
+                )}
+              </div>
               <div className="flex gap-2">
                 <Button type="button" variant="ghost" onClick={onClose}>
                   Annuler
                 </Button>
                 <Button type="submit" variant="default">
-                  Créer le contact
+                  {editContact ? 'Enregistrer' : 'Créer le contact'}
                 </Button>
               </div>
             </div>

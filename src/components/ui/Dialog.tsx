@@ -7,7 +7,8 @@ interface DialogProps {
   onClose: () => void;
   title?: string;
   children: React.ReactNode;
-  size?: 'sm' | 'md' | 'lg' | 'xl';
+  size?: 'sm' | 'md' | 'lg' | 'xl' | '2xl' | '3xl' | 'full';
+  className?: string;
 }
 
 const sizeClasses = {
@@ -15,9 +16,12 @@ const sizeClasses = {
   md: 'max-w-md',
   lg: 'max-w-lg',
   xl: 'max-w-xl',
+  '2xl': 'max-w-2xl',
+  '3xl': 'max-w-3xl',
+  full: 'max-w-6xl',
 };
 
-export const Dialog = ({ isOpen, onClose, title, children, size = 'md' }: DialogProps) => {
+export const Dialog = ({ isOpen, onClose, title, children, size = 'md', className }: DialogProps) => {
   return (
     <AnimatePresence>
       {isOpen && (
@@ -35,7 +39,7 @@ export const Dialog = ({ isOpen, onClose, title, children, size = 'md' }: Dialog
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 10 }}
             transition={{ duration: 0.2 }}
-            className={`relative w-full ${sizeClasses[size]} mx-4 bg-card rounded-xl border border-border/50 shadow-modal`}
+            className={`relative w-full ${sizeClasses[size]} mx-4 bg-card rounded-xl border border-border/50 shadow-modal ${className || ''}`}
           >
             {title && (
               <div className="flex items-center justify-between px-6 py-4 border-b border-border/40">

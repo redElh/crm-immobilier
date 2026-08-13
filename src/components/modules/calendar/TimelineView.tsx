@@ -1,9 +1,9 @@
 import { useMemo } from 'react'
 import { motion } from 'framer-motion'
 import {
-  CalendarEvent, EVENT_TYPE_CONFIG, AGENTS,
-  formatTime, formatFrenchDate, formatFrenchDayName,
-  getWeekDays, getWeekStart,
+  CalendarEvent, getEventTypeConfig, AGENTS, Agent, getEventUserColor, withAlpha,
+  formatEventRange, formatFrenchDate, formatFrenchDayName, getEventDayOverlap, getEventDayHours,
+  getWeekDays, getWeekStart, eventMatchesSelectedAgents,
 } from '../../../types/calendar'
 
 interface TimelineViewProps {
@@ -11,6 +11,7 @@ interface TimelineViewProps {
   events: CalendarEvent[]
   selectedAgents: string[]
   selectedEventTypes: string[]
+  agents?: Agent[]
   onEventClick: (event: CalendarEvent) => void
 }
 
@@ -58,7 +59,7 @@ function layoutTimelineEvents(events: CalendarEvent[]): TimelineEventLayout[] {
 }
 
 export default function TimelineView({
-  currentDate, events, selectedAgents, selectedEventTypes, onEventClick,
+  currentDate, events, selectedAgents, selectedEventTypes, agents, onEventClick,
 }: TimelineViewProps) {
   const weekDays = useMemo(() => getWeekDays(currentDate), [currentDate])
   const weekEvents = useMemo(() => {
@@ -68,9 +69,10 @@ export default function TimelineView({
     return events
       .filter(e => {
         if (selectedEventTypes.length > 0 && !selectedEventTypes.includes(e.type)) return false
-        if (selectedAgents.length > 0 && !e.agentIds.some(a => selectedAgents.includes(a))) return false
+        if (!eventMatchesSelectedAgents(e, selectedAgents, agents)) return false
         const s = new Date(e.start)
-        return s >= start && s < end
+        const evEnd = new Date(e.end)
+        return evEnd > start && s < end
       })
       .sort((a, b) => a.start.getTime() - b.start.getTime())
   }, [events, currentDate, selectedAgents, selectedEventTypes])
@@ -78,11 +80,10 @@ export default function TimelineView({
   const groups = useMemo(() => {
     const gs: { date: Date; label: string; events: CalendarEvent[] }[] = []
     for (const day of weekDays) {
-      const dayEvents = weekEvents.filter(e =>
-        new Date(e.start).getDate() === day.getDate() &&
-        new Date(e.start).getMonth() === day.getMonth() &&
-        new Date(e.start).getFullYear() === day.getFullYear()
-      )
+      const dayEvents = weekEvents.filter(e => {
+        const { start, end } = getEventDayOverlap(e, day)
+        return start.getTime() < end.getTime()
+      })
       if (dayEvents.length > 0) {
         gs.push({
           date: day,
@@ -152,10 +153,11 @@ export default function TimelineView({
                 {/* Events */}
                 <div className="relative" style={{ height: Math.max(layouts.reduce((m, l) => Math.max(m, l.col * 24 + 20), 0), 24) }}>
                   {layouts.map(({ event, col, totalCols }) => {
-                    const cfg = EVENT_TYPE_CONFIG[event.type]
-                    const agentColors = event.agentIds.map(id => AGENTS.find(a => a.id === id)?.color || '#6B7280')
-                    const startH = event.start.getHours() + event.start.getMinutes() / 60
-                    const endH = event.end.getHours() + event.end.getMinutes() / 60
+                    const cfg = getEventTypeConfig(event.type)
+                    const color = getEventUserColor(event, agents)
+                    const catalog = agents && agents.length > 0 ? agents : AGENTS
+                    const agentColors = event.agentIds.map(id => catalog.find(a => a.id === id)?.color || '#6B7280')
+                    const { startH, endH } = getEventDayHours(event, group.date)
                     const clampedStart = Math.max(Math.min(startH, END_HOUR), START_HOUR)
                     const clampedEnd = Math.max(Math.min(endH, END_HOUR), START_HOUR)
                     const left = ((clampedStart - START_HOUR) / TOTAL_HOURS) * 100
@@ -168,11 +170,14 @@ export default function TimelineView({
                         key={event.id}
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
-                        className={`absolute h-[20px] rounded-md border overflow-hidden cursor-pointer z-10 hover:opacity-85 hover:shadow-md transition-all ${cfg.bgColor} ${cfg.borderColor}`}
+                        className="absolute h-[20px] rounded-md border overflow-hidden cursor-pointer z-10 hover:opacity-85 hover:shadow-md transition-all"
                         style={{
                           left: `${left}%`,
                           width: `${width}%`,
                           top: `${col * 24}px`,
+                          backgroundColor: withAlpha(color, '22'),
+                          borderColor: withAlpha(color, '40'),
+                          borderLeft: `2px solid ${color}`,
                         }}
                         onClick={() => onEventClick(event)}
                       >
@@ -180,9 +185,9 @@ export default function TimelineView({
                           {startsBefore && (
                             <span className="text-[9px] text-text-secondary/60 mr-0.5">◀</span>
                           )}
-                          <span className="text-[10px] flex-shrink-0">{cfg.icon}</span>
+                          <span className="flex-shrink-0 inline-flex"><cfg.icon size={10} /></span>
                           <span className={`text-[10px] font-semibold ${cfg.textColor} whitespace-nowrap flex-shrink-0`}>
-                            {formatTime(event.start)}
+                            {formatEventRange(event)}
                           </span>
                           <p className={`text-[10px] font-medium truncate min-w-0 ${cfg.textColor}`}>
                             {event.title}

@@ -68,12 +68,12 @@ const mockProfile: UserProfile = {
 }
 
 export default function AdminUserDetailPage() {
-  const { id: _id } = useParams()
+  const { id: _id, adminId } = useParams()
   const profile = mockProfile
 
   return (
     <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
-      <BackLink to="/admin/users" />
+      <BackLink to={`/admin/${adminId}/users`} />
 
       <div className="flex items-center gap-4">
         <div className="w-14 h-14 rounded-full bg-accent-light text-accent flex items-center justify-center text-xl font-bold flex-shrink-0">
