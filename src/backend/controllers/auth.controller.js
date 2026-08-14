@@ -38,18 +38,15 @@ export const register = async (req, res) => {
     );
 
     // Send welcome email with credentials
-    try {
-      await sendAgentWelcomeEmail({
-        email,
-        firstName,
-        lastName,
-        password, // Sending plain password only for initial setup
-        loginLink: `${process.env.FRONTEND_URL}/auth/login`
-      });
-    } catch (emailError) {
+    sendAgentWelcomeEmail({
+      email,
+      firstName,
+      lastName,
+      password, // Sending plain password only for initial setup
+      loginLink: `${process.env.FRONTEND_URL}/auth/login`
+    }).catch((emailError) => {
       console.error('Failed to send welcome email:', emailError);
-      // Don't fail the registration if email fails
-    }
+    });
 
     res.status(201).json({
       ...newUser.rows[0],
