@@ -114,15 +114,26 @@ app.get('/api/health', (req, res) => {
 // whether the SMTP host/port is reachable over TCP, plus the nodemailer result.
 app.get('/api/debug/smtp', async (req, res) => {
   const net = (await import('node:net')).default;
+  const dns = (await import('node:dns')).default;
   const host = process.env.EMAIL_HOST || '(not set)';
   const port = Number(process.env.EMAIL_PORT || 587);
-  const tcpResult = await new Promise((resolve) => {
-    const socket = net.createConnection({ host, port, timeout: 10000 });
-    socket.on('connect', () => { socket.destroy(); resolve({ ok: true, ms: 0 }); });
+
+  const tcpTest = (targetHost, targetPort, family) => new Promise((resolve) => {
+    const socket = net.createConnection({ host: targetHost, port: targetPort, family, timeout: 10000 });
+    socket.on('connect', () => { socket.destroy(); resolve({ ok: true }); });
     socket.on('error', (err) => resolve({ ok: false, error: err.message }));
     socket.setTimeout(10000);
     socket.on('timeout', () => { socket.destroy(); resolve({ ok: false, error: 'ETIMEDOUT' }); });
   });
+
+  let ipv4 = null;
+  let ipv6 = null;
+  try { ipv4 = await new Promise((r) => dns.lookup(host, { family: 4 }, (e, a) => r(e ? null : a))); } catch { ipv4 = null; }
+  try { ipv6 = await new Promise((r) => dns.lookup(host, { family: 6 }, (e, a) => r(e ? null : a))); } catch { ipv6 = null; }
+
+  const tcpDefault = await tcpTest(host, port, 0);
+  const tcpV4 = ipv4 ? await tcpTest(ipv4, port, 4) : { ok: false, error: 'no A record' };
+  const tcpControl = await tcpTest('www.google.com', 443, 0);
 
   let verifyResult = null;
   try {
@@ -151,7 +162,9 @@ app.get('/api/debug/smtp', async (req, res) => {
       from: process.env.EMAIL_FROM || '(not set)',
       hasPassword: !!process.env.EMAIL_PASSWORD,
     },
-    tcp: tcpResult,
+    dns: { ipv4, ipv6 },
+    tcp: { default: tcpDefault, ipv4: tcpV4 },
+    tcpControl: tcpControl,
     verify: verifyResult,
   });
 });
