@@ -118,22 +118,34 @@ app.get('/api/debug/smtp', async (req, res) => {
   const host = process.env.EMAIL_HOST || '(not set)';
   const port = Number(process.env.EMAIL_PORT || 587);
 
-  const tcpTest = (targetHost, targetPort, family) => new Promise((resolve) => {
-    const socket = net.createConnection({ host: targetHost, port: targetPort, family, timeout: 10000 });
+  const tcpTest = (targetHost, targetPort) => new Promise((resolve) => {
+    const socket = net.createConnection({ host: targetHost, port: targetPort, timeout: 6000 });
     socket.on('connect', () => { socket.destroy(); resolve({ ok: true }); });
     socket.on('error', (err) => resolve({ ok: false, error: err.message }));
-    socket.setTimeout(10000);
+    socket.setTimeout(6000);
     socket.on('timeout', () => { socket.destroy(); resolve({ ok: false, error: 'ETIMEDOUT' }); });
   });
 
-  let ipv4 = null;
-  let ipv6 = null;
-  try { ipv4 = await new Promise((r) => dns.lookup(host, { family: 4 }, (e, a) => r(e ? null : a))); } catch { ipv4 = null; }
-  try { ipv6 = await new Promise((r) => dns.lookup(host, { family: 6 }, (e, a) => r(e ? null : a))); } catch { ipv6 = null; }
+  const resolveWith = (resolver, h) => new Promise((r) => resolver.resolve4(h, (e, a) => r(e ? null : a)));
 
-  const tcpDefault = await tcpTest(host, port, 0);
-  const tcpV4 = ipv4 ? await tcpTest(ipv4, port, 4) : { ok: false, error: 'no A record' };
-  const tcpControl = await tcpTest('www.google.com', 443, 0);
+  const sysAddrs = await resolveWith(dns, host);
+  const pubRes = new dns.Resolver();
+  pubRes.setServers(['8.8.8.8', '1.1.1.1']);
+  let pubAddrs = null;
+  try { pubAddrs = await resolveWith(pubRes, host); } catch { pubAddrs = null; }
+
+  const unique = [...new Set([...(sysAddrs || []), ...(pubAddrs || [])])];
+  const candidates = [];
+  for (const ip of unique) {
+    candidates.push({ label: `${ip}:587`, test: () => tcpTest(ip, 587) });
+    candidates.push({ label: `${ip}:465`, test: () => tcpTest(ip, 465) });
+  }
+  candidates.push({ label: 'smtp.sendgrid.net:587', test: () => tcpTest('smtp.sendgrid.net', 587) });
+  candidates.push({ label: 'smtp.mailgun.org:587', test: () => tcpTest('smtp.mailgun.org', 587) });
+  candidates.push({ label: 'smtp.gmail.com:465', test: () => tcpTest('smtp.gmail.com', 465) });
+  candidates.push({ label: 'www.google.com:443', test: () => tcpTest('www.google.com', 443) });
+
+  const results = await Promise.all(candidates.map(async (c) => ({ label: c.label, ...(await c.test()) })));
 
   let verifyResult = null;
   try {
@@ -162,9 +174,8 @@ app.get('/api/debug/smtp', async (req, res) => {
       from: process.env.EMAIL_FROM || '(not set)',
       hasPassword: !!process.env.EMAIL_PASSWORD,
     },
-    dns: { ipv4, ipv6 },
-    tcp: { default: tcpDefault, ipv4: tcpV4 },
-    tcpControl: tcpControl,
+    dns: { system: sysAddrs, public8833: pubAddrs },
+    tcpResults: results,
     verify: verifyResult,
   });
 });
