@@ -254,6 +254,7 @@ export const forgotPassword = async (req, res) => {
       });
     } catch (emailError) {
       console.error('Failed to send reset email:', emailError);
+      return res.status(500).json({ error: 'L\'envoi de l\'email a échoué. Veuillez réessayer ou contacter l\'administrateur.' });
     }
 
     res.status(200).json({ message: 'Si cet email existe, un lien de réinitialisation a été envoyé.' });

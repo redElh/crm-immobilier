@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useCallback, useEffect, useRef, ReactNode } from 'react'
 import { Automator, AutomatorLog, AutomatorNotification, LogStatut, AutomatorCategorie, AutomatorNiveau, NotificationCanal } from '../types/automator'
 import { api } from '../services/api'
+import { getAuthToken } from '../utils/auth'
 
 export interface TriggeredNotification {
   id: string
@@ -265,6 +266,10 @@ export function AutomatorProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let cancelled = false
+    if (!getAuthToken()) {
+      setLoaded(true)
+      return () => { cancelled = true }
+    }
     Promise.all([
       api.get<Automator[]>('/automators').catch(() => [] as Automator[]),
       api.get<TriggeredNotification[]>('/automators/notifications').catch(() => [] as TriggeredNotification[]),
@@ -280,6 +285,7 @@ export function AutomatorProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const refreshFromApi = useCallback(() => {
+    if (!getAuthToken()) return
     Promise.all([
       api.get<Automator[]>('/automators').catch(() => [] as Automator[]),
       api.get<TriggeredNotification[]>('/automators/notifications').catch(() => [] as TriggeredNotification[]),
