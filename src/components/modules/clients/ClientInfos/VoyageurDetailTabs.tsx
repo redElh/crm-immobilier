@@ -1,3 +1,4 @@
+import { API_ORIGIN } from '../../../../utils/config'
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { InfoField } from '../../../ui/InfoField';
@@ -91,7 +92,7 @@ export const VoyageurDetailTabs = ({ client: initialClient, adminId, agentId, hi
 
   const [rawViewerUrl, setRawViewerUrl] = useState<string | null>(null);
   const [viewerTitle, setViewerTitle] = useState('');
-  const viewerUrl = rawViewerUrl ? (rawViewerUrl.startsWith('http') ? rawViewerUrl : `http://localhost:5000${rawViewerUrl}`) : null;
+  const viewerUrl = rawViewerUrl ? (rawViewerUrl.startsWith('http') ? rawViewerUrl : `${API_ORIGIN}${rawViewerUrl}`) : null;
   const openViewer = useCallback((url: string, title: string) => { setRawViewerUrl(url); setViewerTitle(title); }, []);
   const closeViewer = useCallback(() => { setRawViewerUrl(null); setViewerTitle(''); }, []);
   useEffect(() => {

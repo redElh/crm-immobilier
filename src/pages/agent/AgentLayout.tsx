@@ -1,3 +1,4 @@
+import { API_ORIGIN } from '../../utils/config'
 import { useEffect, useState } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { Loader } from 'react-feather'
@@ -24,7 +25,7 @@ export function AgentLayout({ children }: { children: React.ReactNode }) {
     const checkAuth = async () => {
       let user: any = null
       try {
-        const res = await fetch('http://localhost:5000/api/auth/me', { credentials: 'include' })
+        const res = await fetch(`${API_ORIGIN}/api/auth/me`, { credentials: 'include' })
         if (res.ok) user = await res.json()
       } catch (_) {}
 
@@ -32,7 +33,7 @@ export function AgentLayout({ children }: { children: React.ReactNode }) {
         const token = getAuthToken()
         if (token) {
           try {
-            const res = await fetch('http://localhost:5000/api/auth/me', {
+            const res = await fetch(`${API_ORIGIN}/api/auth/me`, {
               headers: { Authorization: `Bearer ${token}` }
             })
             if (res.ok) user = await res.json()

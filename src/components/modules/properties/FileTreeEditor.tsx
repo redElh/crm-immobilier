@@ -1,3 +1,4 @@
+import { API_ORIGIN } from '../../../utils/config'
 import React, { useState, useCallback, useRef, useEffect } from 'react'
 import { Share2, Lock } from 'react-feather'
 import { useCurrentUser, isManagerRole } from '../../../hooks/useCurrentUser'
@@ -255,7 +256,7 @@ export function FileTreeEditor({ tree, onChange }: FileTreeEditorProps) {
     setContextMenu(null)
     const rawUrl = node.url
     if (!rawUrl) return toast('info', 'Ce document ne peut pas encore être partagé (fichier non enregistré)')
-    const fullUrl = rawUrl.startsWith('http') ? rawUrl : `http://localhost:5000${rawUrl}`
+    const fullUrl = rawUrl.startsWith('http') ? rawUrl : `${API_ORIGIN}${rawUrl}`
     if (navigator.clipboard?.writeText) {
       navigator.clipboard.writeText(fullUrl)
         .then(() => toast('success', 'Lien du document copié dans le presse-papiers'))

@@ -1,3 +1,4 @@
+import { API_ORIGIN } from '../../../utils/config'
 import { useState, useEffect } from 'react'
 import { useNavigate, Link, useSearchParams } from 'react-router-dom'
 import { AuthFormContainer } from '../../../components/auth/AuthFormContainer'
@@ -23,7 +24,7 @@ export default function AdminResetPasswordPage() {
       const storedToken = getAuthToken()
       if (!storedToken) { setCheckingAuth(false); return }
       try {
-        const res = await fetch('http://localhost:5000/api/auth/me', {
+        const res = await fetch(`${API_ORIGIN}/api/auth/me`, {
           headers: { Authorization: `Bearer ${storedToken}` }
         })
         if (res.ok) {
@@ -51,7 +52,7 @@ export default function AdminResetPasswordPage() {
     setError('')
 
     try {
-      const response = await fetch('http://localhost:5000/api/admin/reset-password', {
+      const response = await fetch(`${API_ORIGIN}/api/admin/reset-password`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token, password }),

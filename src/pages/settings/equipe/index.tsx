@@ -1,3 +1,4 @@
+import { API_ORIGIN } from '../../../utils/config'
 import { useState, useEffect, useRef } from 'react'
 import { useParams } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -30,7 +31,7 @@ interface UserData {
 }
 
 const ITEMS_PER_PAGE = 8
-const API = 'http://localhost:5000/api/admin'
+const API = `${API_ORIGIN}/api/admin`
 
 const roleBadgeColors: Record<string, 'primary' | 'default'> = {
   admin: 'primary',
@@ -153,7 +154,7 @@ export default function EquipePage() {
 
   const handleResetPassword = async (id: number) => {
     try {
-      const res = await fetch(`http://localhost:5000/api/admin/forgot-password`, {
+      const res = await fetch(`${API_ORIGIN}/api/admin/forgot-password`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: users.find(u => u.id === id)?.email })

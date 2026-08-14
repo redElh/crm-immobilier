@@ -1,9 +1,10 @@
+import { API_ORIGIN } from '../utils/config'
 import { useEffect, useState } from 'react'
 import { getAuthToken } from '../utils/auth'
 import { fetchConversations, fetchMessagingSettings } from './messageService'
 import type { Message, MessageParticipant, MessageReaction, MessageReactionPreview } from '../types/messages'
 
-const WS_URL = 'ws://localhost:5000/ws'
+const WS_URL = API_ORIGIN.replace(/^http/, 'ws') + '/ws'
 
 export type PresenceStatus = 'online' | 'away' | 'offline'
 

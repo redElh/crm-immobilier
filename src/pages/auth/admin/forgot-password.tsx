@@ -1,3 +1,4 @@
+import { API_ORIGIN } from '../../../utils/config'
 import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { AuthFormContainer } from '../../../components/auth/AuthFormContainer'
@@ -19,7 +20,7 @@ export default function AdminForgotPasswordPage() {
       const storedToken = getAuthToken()
       if (!storedToken) { setCheckingAuth(false); return }
       try {
-        const res = await fetch('http://localhost:5000/api/auth/me', {
+        const res = await fetch(`${API_ORIGIN}/api/auth/me`, {
           headers: { Authorization: `Bearer ${storedToken}` }
         })
         if (res.ok) {
@@ -46,7 +47,7 @@ export default function AdminForgotPasswordPage() {
     setError('')
 
     try {
-      const response = await fetch('http://localhost:5000/api/admin/forgot-password', {
+      const response = await fetch(`${API_ORIGIN}/api/admin/forgot-password`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email }),

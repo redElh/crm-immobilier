@@ -1,3 +1,4 @@
+import { API_ORIGIN } from '../../utils/config'
 import { NavLink, useLocation } from 'react-router-dom'
 import { Activity, Home, Users, FileText, MessageSquare, Settings, ChevronLeft, Crosshair, CheckCircle, Calendar, BookOpen, Eye, Zap, DollarSign, Edit3 } from 'react-feather'
 import { useState, useEffect } from 'react'
@@ -41,7 +42,7 @@ export default function Sidebar({ basePath = '' }: { basePath?: string }) {
   useEffect(() => {
     const token = getAuthToken()
     if (!token) return
-    fetch('http://localhost:5000/api/auth/me', {
+    fetch(`${API_ORIGIN}/api/auth/me`, {
       headers: { Authorization: `Bearer ${token}` }
     })
       .then(res => res.ok ? res.json() : null)

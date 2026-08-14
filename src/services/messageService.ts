@@ -1,5 +1,6 @@
 import { api } from './api'
 import { getAuthToken } from '../utils/auth'
+import { API_BASE } from '../utils/config'
 import type {
   Conversation, Message, MessageParticipant, MessageReaction, MessageReactionPreview, MessagingSettings,
 } from '../types/messages'
@@ -31,7 +32,7 @@ export const uploadProfileImage = (file: File) => {
   const formData = new FormData()
   formData.append('image', file)
   const token = getAuthToken()
-  return fetch('http://localhost:5000/api/admin/profile/upload-image', {
+  return fetch(`${API_BASE}/admin/profile/upload-image`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}` },
     body: formData,
@@ -77,7 +78,7 @@ export const uploadVoice = (blob: Blob) => {
   const formData = new FormData()
   formData.append('audio', blob, 'voice.webm')
   const token = getAuthToken()
-  return fetch('http://localhost:5000/api/messages/voice/upload', {
+  return fetch(`${API_BASE}/messages/voice/upload`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}` },
     body: formData,
@@ -100,7 +101,7 @@ export const uploadAttachment = (file: File) => {
   const formData = new FormData()
   formData.append('file', file, file.name)
   const token = getAuthToken()
-  return fetch('http://localhost:5000/api/messages/attachments/upload', {
+  return fetch(`${API_BASE}/messages/attachments/upload`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}` },
     body: formData,

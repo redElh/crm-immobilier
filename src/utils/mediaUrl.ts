@@ -1,6 +1,7 @@
+import { API_ORIGIN } from './config'
 import { getAuthToken } from './auth'
 
-export const BACKEND_ORIGIN = 'http://localhost:5000'
+export const BACKEND_ORIGIN = API_ORIGIN
 
 // The backend stores media as relative paths (/uploads/...). When the frontend
 // is served from a different origin (e.g. the CRA dev server on :3000) those

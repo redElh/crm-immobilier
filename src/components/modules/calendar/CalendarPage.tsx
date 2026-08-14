@@ -1,3 +1,4 @@
+import { API_ORIGIN } from '../../../utils/config'
 import { useState, useMemo, useCallback, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { getAuthToken } from '../../../utils/auth'
@@ -97,7 +98,7 @@ export default function CalendarPage() {
   useEffect(() => {
     const token = getAuthToken()
     if (!token) return
-    fetch('http://localhost:5000/api/auth/me', {
+    fetch(`${API_ORIGIN}/api/auth/me`, {
       headers: { Authorization: `Bearer ${token}` }
     })
       .then(res => res.ok ? res.json() : null)

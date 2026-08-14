@@ -1,6 +1,7 @@
 import { getAuthToken } from '../utils/auth'
+import { API_BASE } from '../utils/config'
 
-export const BASE = process.env.REACT_APP_API_URL ? `${process.env.REACT_APP_API_URL}/api` : 'http://localhost:5000/api'
+export const BASE = API_BASE
 
 async function request<T>(
   method: string,

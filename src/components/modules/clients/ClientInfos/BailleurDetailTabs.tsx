@@ -1,3 +1,4 @@
+import { API_ORIGIN } from '../../../../utils/config'
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { InfoField } from '../../../ui/InfoField';
@@ -70,7 +71,7 @@ export const BailleurDetailTabs = ({ client: initialClient, highlightActivityId,
   const [bienProp, setBienProp] = useState<any>(null);
   const [rawViewerUrl, setRawViewerUrl] = useState<string | null>(null);
   const [viewerTitle, setViewerTitle] = useState('');
-  const viewerUrl = rawViewerUrl ? (rawViewerUrl.startsWith('http') ? rawViewerUrl : `http://localhost:5000${rawViewerUrl}`) : null;
+  const viewerUrl = rawViewerUrl ? (rawViewerUrl.startsWith('http') ? rawViewerUrl : `${API_ORIGIN}${rawViewerUrl}`) : null;
 
   const perms = useMyPermissions();
   const canReadContracts = permissionAllowed(perms, 'contrats-lecture');

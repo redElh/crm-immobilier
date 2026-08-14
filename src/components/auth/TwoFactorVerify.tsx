@@ -1,3 +1,4 @@
+import { API_ORIGIN } from '../../utils/config'
 import { useState, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Button } from '../ui/Button'
@@ -68,7 +69,7 @@ export default function TwoFactorVerify({ userId, email, rememberMe, role }: Two
     setError('')
     try {
       const deviceInfo = { ...(await getDeviceInfo()), ...(clientIP ? { ip: clientIP } : {}) }
-      const res = await fetch('http://localhost:5000/api/auth/2fa/verify-login', {
+      const res = await fetch(`${API_ORIGIN}/api/auth/2fa/verify-login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId, token: fullCode, deviceInfo })
@@ -97,7 +98,7 @@ export default function TwoFactorVerify({ userId, email, rememberMe, role }: Two
     setError('')
     try {
       const deviceInfo = { ...(await getDeviceInfo()), ...(clientIP ? { ip: clientIP } : {}) }
-      const res = await fetch('http://localhost:5000/api/auth/2fa/verify-login', {
+      const res = await fetch(`${API_ORIGIN}/api/auth/2fa/verify-login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId, backupCode: backupCode.trim(), deviceInfo })

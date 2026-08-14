@@ -1,4 +1,6 @@
-const API_BASE = process.env.REACT_APP_API_URL || 'http://localhost:5000/api/social';
+import { API_BASE } from '../utils/config';
+
+const API_URL = `${API_BASE}/social`;
 
 function getToken(): string | null {
   return localStorage.getItem('agentToken') || sessionStorage.getItem('agentToken');
@@ -52,19 +54,19 @@ export interface BufferUpdateResult {
 
 export const socialService = {
   async getProfiles(): Promise<SocialProfile[]> {
-    const res = await request<{ success: boolean; data: SocialProfile[] }>(`${API_BASE}/profiles`);
+    const res = await request<{ success: boolean; data: SocialProfile[] }>(`${API_URL}/profiles`);
     return res.data;
   },
 
   async createPost(payload: CreatePostPayload): Promise<BufferUpdateResult> {
-    return request<BufferUpdateResult>(`${API_BASE}/posts`, {
+    return request<BufferUpdateResult>(`${API_URL}/posts`, {
       method: 'POST',
       body: JSON.stringify(payload),
     });
   },
 
   async getPostStatus(updateId: string): Promise<BufferUpdateResult> {
-    return request<BufferUpdateResult>(`${API_BASE}/posts/${updateId}`);
+    return request<BufferUpdateResult>(`${API_URL}/posts/${updateId}`);
   },
 
   async getProfileUpdates(profileId: string, params?: { limit?: number; status?: string }): Promise<BufferUpdateResult> {
@@ -72,14 +74,14 @@ export const socialService = {
     if (params?.limit) searchParams.set('limit', String(params.limit));
     if (params?.status) searchParams.set('status', params.status);
     const query = searchParams.toString();
-    return request<BufferUpdateResult>(`${API_BASE}/profiles/${profileId}/updates${query ? `?${query}` : ''}`);
+    return request<BufferUpdateResult>(`${API_URL}/profiles/${profileId}/updates${query ? `?${query}` : ''}`);
   },
 
   async uploadMedia(file: File): Promise<BufferUpdateResult> {
     const token = getToken();
     const formData = new FormData();
     formData.append('file', file);
-    const res = await fetch(`${API_BASE}/media/upload`, {
+    const res = await fetch(`${API_URL}/media/upload`, {
       method: 'POST',
       headers: token ? { Authorization: `Bearer ${token}` } : {},
       credentials: 'include',

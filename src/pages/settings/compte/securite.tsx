@@ -1,3 +1,4 @@
+import { API_ORIGIN } from '../../../utils/config'
 import { useState, useEffect } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
 import Card from '../../../components/ui/Card'
@@ -61,7 +62,7 @@ export default function SecuriteSettingsPage() {
     setTwoFALoading(true)
     try {
       const token = getAuthToken()
-      const res = await fetch('http://localhost:5000/api/auth/2fa/status', {
+      const res = await fetch(`${API_ORIGIN}/api/auth/2fa/status`, {
         headers: { Authorization: `Bearer ${token}` }
       })
       if (res.ok) {
@@ -79,7 +80,7 @@ export default function SecuriteSettingsPage() {
       const sessionId = getSessionId()
       const deviceInfo = { ...(await getDeviceInfo()), ...(currentDeviceIP ? { ip: currentDeviceIP } : {}) }
       const query = sessionId ? `?currentSessionId=${sessionId}` : ''
-      const res = await fetch(`http://localhost:5000/api/auth/sessions${query}`, {
+      const res = await fetch(`${API_ORIGIN}/api/auth/sessions${query}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ deviceInfo })
@@ -96,7 +97,7 @@ export default function SecuriteSettingsPage() {
     setHistoryLoading(true)
     try {
       const token = getAuthToken()
-      const res = await fetch(`http://localhost:5000/api/auth/sessions/history?limit=${limit}&offset=${historyOffset}`, {
+      const res = await fetch(`${API_ORIGIN}/api/auth/sessions/history?limit=${limit}&offset=${historyOffset}`, {
         headers: { Authorization: `Bearer ${token}` }
       })
       if (res.ok) {
@@ -151,7 +152,7 @@ export default function SecuriteSettingsPage() {
     setActionLoading(true)
     try {
       const token = getAuthToken()
-      const res = await fetch(`http://localhost:5000/api/auth/sessions/${terminateTarget.id}`, {
+      const res = await fetch(`${API_ORIGIN}/api/auth/sessions/${terminateTarget.id}`, {
         method: 'DELETE',
         headers: { Authorization: `Bearer ${token}` }
       })
@@ -175,7 +176,7 @@ export default function SecuriteSettingsPage() {
     setActionLoading(true)
     try {
       const token = getAuthToken()
-      const res = await fetch('http://localhost:5000/api/auth/sessions/revoke-others', {
+      const res = await fetch(`${API_ORIGIN}/api/auth/sessions/revoke-others`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ currentSessionId: sessionId })
@@ -197,7 +198,7 @@ export default function SecuriteSettingsPage() {
     setActionLoading(true)
     try {
       const token = getAuthToken()
-      const res = await fetch('http://localhost:5000/api/auth/sessions/revoke-all', {
+      const res = await fetch(`${API_ORIGIN}/api/auth/sessions/revoke-all`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` }
       })
@@ -220,7 +221,7 @@ export default function SecuriteSettingsPage() {
     setDisabling(true)
     try {
       const token = getAuthToken()
-      const res = await fetch('http://localhost:5000/api/auth/2fa/disable', {
+      const res = await fetch(`${API_ORIGIN}/api/auth/2fa/disable`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ password: disablePassword })
@@ -257,7 +258,7 @@ export default function SecuriteSettingsPage() {
     setChanging(true)
     try {
       const token = getAuthToken()
-      const res = await fetch('http://localhost:5000/api/auth/password', {
+      const res = await fetch(`${API_ORIGIN}/api/auth/password`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',

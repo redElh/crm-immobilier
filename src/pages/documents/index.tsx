@@ -1,3 +1,4 @@
+import { API_ORIGIN } from '../../utils/config'
 import { useState, useMemo, useEffect, useCallback, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { useReactToPrint } from 'react-to-print'
@@ -214,7 +215,7 @@ export default function GlobalDocumentsPage() {
   // ── Action handlers ──
 
   const fullUrl = (doc: GlobalDocumentEntry) =>
-    doc.url?.startsWith('http') ? doc.url : `http://localhost:5000${doc.url}`
+    doc.url?.startsWith('http') ? doc.url : `${API_ORIGIN}${doc.url}`
 
   const handleView = (doc: GlobalDocumentEntry) => {
     setOpenMenuId(null)
@@ -246,7 +247,7 @@ export default function GlobalDocumentsPage() {
   const handleDownload = async (doc: GlobalDocumentEntry) => {
     setOpenMenuId(null)
     if (!doc.url) { toast('info', 'Aucun fichier à télécharger'); return }
-    const fullUrl = doc.url.startsWith('http') ? doc.url : `http://localhost:5000${doc.url}`
+    const fullUrl = doc.url.startsWith('http') ? doc.url : `${API_ORIGIN}${doc.url}`
     try {
       const res = await fetch(fullUrl)
       const blob = await res.blob()
@@ -286,7 +287,7 @@ export default function GlobalDocumentsPage() {
   const handleBulkExport = async () => {
     for (const doc of selectedDocs) {
       if (!doc.url) continue
-      const url = doc.url.startsWith('http') ? doc.url : `http://localhost:5000${doc.url}`
+      const url = doc.url.startsWith('http') ? doc.url : `${API_ORIGIN}${doc.url}`
       try {
         const res = await fetch(url)
         const blob = await res.blob()

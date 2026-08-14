@@ -1,3 +1,4 @@
+import { API_ORIGIN } from '../../utils/config'
 import { NavLink, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { useState, useRef, useEffect } from 'react'
 import { getAuthToken, clearAuthToken } from '../../utils/auth'
@@ -60,7 +61,7 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
       let user = null
       // Try with cookie first
       try {
-        const response = await fetch('http://localhost:5000/api/auth/me', { credentials: 'include' })
+        const response = await fetch(`${API_ORIGIN}/api/auth/me`, { credentials: 'include' })
         if (response.ok) user = await response.json()
       } catch (e) {}
 
@@ -69,7 +70,7 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
         const storedToken = getAuthToken()
         if (storedToken) {
           try {
-            const response = await fetch('http://localhost:5000/api/auth/me', {
+            const response = await fetch(`${API_ORIGIN}/api/auth/me`, {
               headers: { Authorization: `Bearer ${storedToken}` }
             })
             if (response.ok) user = await response.json()
@@ -308,7 +309,7 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
                 className="w-9 h-9 rounded-lg bg-amber-100 flex items-center justify-center text-amber-700 hover:bg-amber-200 transition-all overflow-hidden"
               >
                 {profileImage ? (
-                  <img src={`http://localhost:5000${profileImage}`} alt="" className="w-full h-full object-cover" />
+                  <img src={`${API_ORIGIN}${profileImage}`} alt="" className="w-full h-full object-cover" />
                 ) : (
                   <Shield size={16} />
                 )}
@@ -350,7 +351,7 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
                         const token = getAuthToken()
                         sendPresence('offline')
                         clearAuthToken()
-                        await fetch('http://localhost:5000/api/auth/logout', {
+                        await fetch(`${API_ORIGIN}/api/auth/logout`, {
                           method: 'POST',
                           credentials: 'include',
                           headers: token ? { Authorization: `Bearer ${token}` } : {},

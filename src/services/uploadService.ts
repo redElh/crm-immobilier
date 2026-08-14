@@ -1,6 +1,7 @@
 import { getAuthToken } from '../utils/auth'
+import { API_BASE } from '../utils/config'
 
-const BASE = 'http://localhost:5000/api'
+const BASE = API_BASE
 
 export async function uploadFiles(files: FileList | File[]): Promise<string[]> {
   const token = getAuthToken()

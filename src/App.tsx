@@ -1,3 +1,4 @@
+import { API_ORIGIN } from './utils/config'
 import { useEffect, useState } from 'react'
 import { BrowserRouter as Router, Routes, Route, useLocation, useNavigate } from 'react-router-dom'
 import { ToastProvider, useToast } from './components/ui/Toast'
@@ -87,7 +88,7 @@ function AdminRedirect() {
     const check = async () => {
       let user = null
       try {
-        const res = await fetch('http://localhost:5000/api/auth/me', { credentials: 'include' })
+        const res = await fetch(`${API_ORIGIN}/api/auth/me`, { credentials: 'include' })
         if (res.ok) user = await res.json()
       } catch (_) {}
 
@@ -95,7 +96,7 @@ function AdminRedirect() {
         const token = getAuthToken()
         if (token) {
           try {
-            const res = await fetch('http://localhost:5000/api/auth/me', {
+            const res = await fetch(`${API_ORIGIN}/api/auth/me`, {
               headers: { Authorization: `Bearer ${token}` }
             })
             if (res.ok) user = await res.json()
@@ -126,7 +127,7 @@ function AgentRedirect() {
     const check = async () => {
       let user = null
       try {
-        const res = await fetch('http://localhost:5000/api/auth/me', { credentials: 'include' })
+        const res = await fetch(`${API_ORIGIN}/api/auth/me`, { credentials: 'include' })
         if (res.ok) user = await res.json()
       } catch (_) {}
 
@@ -134,7 +135,7 @@ function AgentRedirect() {
         const token = getAuthToken()
         if (token) {
           try {
-            const res = await fetch('http://localhost:5000/api/auth/me', {
+            const res = await fetch(`${API_ORIGIN}/api/auth/me`, {
               headers: { Authorization: `Bearer ${token}` }
             })
             if (res.ok) user = await res.json()

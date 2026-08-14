@@ -1,3 +1,4 @@
+import { API_ORIGIN } from '../../../utils/config'
 import { Users } from 'react-feather'
 import type { MessageParticipant } from '../../../types/messages'
 import { cn } from '../../../lib/utils'
@@ -44,7 +45,7 @@ export function Avatar({ participant, size = 'md', showPresence = false, classNa
       >
         {participant.picture ? (
           <img
-            src={`http://localhost:5000${participant.picture}`}
+            src={`${API_ORIGIN}${participant.picture}`}
             alt={participant.name}
             className="w-full h-full object-cover"
           />

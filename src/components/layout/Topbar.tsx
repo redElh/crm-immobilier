@@ -1,3 +1,4 @@
+import { API_ORIGIN } from '../../utils/config'
 import { ChevronRight, User, LogOut, Settings, Bell, HelpCircle } from 'react-feather';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -22,7 +23,7 @@ export default function Topbar({ basePath = '' }: { basePath?: string }) {
     const fetchProfile = () => {
       const token = getAuthToken()
       if (!token) return
-      fetch('http://localhost:5000/api/auth/me', {
+      fetch(`${API_ORIGIN}/api/auth/me`, {
         headers: { Authorization: `Bearer ${token}` }
       })
         .then(res => res.ok ? res.json() : null)
@@ -185,7 +186,7 @@ export default function Topbar({ basePath = '' }: { basePath?: string }) {
             className="w-9 h-9 rounded-lg bg-white/15 flex items-center justify-center text-white hover:bg-white/25 transition-all overflow-hidden"
           >
             {profileImage ? (
-              <img src={`http://localhost:5000${profileImage}`} alt="" className="w-full h-full object-cover" />
+              <img src={`${API_ORIGIN}${profileImage}`} alt="" className="w-full h-full object-cover" />
             ) : (
               <User size={16} />
             )}
@@ -227,7 +228,7 @@ export default function Topbar({ basePath = '' }: { basePath?: string }) {
                     const token = getAuthToken()
                     sendPresence('offline')
                     clearAuthToken()
-                    await fetch('http://localhost:5000/api/auth/logout', {
+                    await fetch(`${API_ORIGIN}/api/auth/logout`, {
                       method: 'POST',
                       credentials: 'include',
                       headers: token ? { Authorization: `Bearer ${token}` } : {},

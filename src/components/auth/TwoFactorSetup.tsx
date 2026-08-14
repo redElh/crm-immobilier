@@ -1,3 +1,4 @@
+import { API_ORIGIN } from '../../utils/config'
 import { useState, useEffect, useRef } from 'react'
 import { Dialog } from '../ui/Dialog'
 import { Button } from '../ui/Button'
@@ -63,7 +64,7 @@ export default function TwoFactorSetup({ isOpen, onClose, onComplete }: TwoFacto
     setError('')
     try {
       const token = getAuthToken()
-      const res = await fetch('http://localhost:5000/api/auth/2fa/generate-secret', {
+      const res = await fetch(`${API_ORIGIN}/api/auth/2fa/generate-secret`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` }
       })
@@ -107,7 +108,7 @@ export default function TwoFactorSetup({ isOpen, onClose, onComplete }: TwoFacto
     setError('')
     try {
       const token = getAuthToken()
-      const res = await fetch('http://localhost:5000/api/auth/2fa/verify-enable', {
+      const res = await fetch(`${API_ORIGIN}/api/auth/2fa/verify-enable`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

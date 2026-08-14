@@ -1,6 +1,7 @@
+import { API_ORIGIN } from '../../utils/config'
 import { motion } from 'framer-motion'
 
-const API_URL = 'http://localhost:5000'
+const API_URL = `${API_ORIGIN}`
 
 export function SocialAuthButtons() {
   return (

@@ -1,3 +1,4 @@
+import { API_ORIGIN } from '../../../utils/config'
 import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { AuthFormContainer } from '../../../components/auth/AuthFormContainer'
@@ -34,7 +35,7 @@ export default function AdminLoginPage() {
       const storedToken = getAuthToken()
       if (!storedToken) { setCheckingAuth(false); return }
       try {
-        const res = await fetch('http://localhost:5000/api/auth/me', {
+        const res = await fetch(`${API_ORIGIN}/api/auth/me`, {
           headers: { Authorization: `Bearer ${storedToken}` }
         })
         if (res.ok) {
@@ -80,7 +81,7 @@ export default function AdminLoginPage() {
 
     try {
       const deviceInfo = { ...(await getDeviceInfo()), ...(clientIP ? { ip: clientIP } : {}) }
-      const response = await fetch('http://localhost:5000/api/admin/login', {
+      const response = await fetch(`${API_ORIGIN}/api/admin/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...formData, deviceInfo }),
@@ -113,7 +114,7 @@ export default function AdminLoginPage() {
     if (newPassword !== confirmNewPassword) { setErrors({ confirmNewPassword: 'Les mots de passe ne correspondent pas' }); return }
     setIsLoading(true)
     try {
-      const loginRes = await fetch('http://localhost:5000/api/admin/login', {
+      const loginRes = await fetch(`${API_ORIGIN}/api/admin/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: formData.email, password: formData.password }),
@@ -124,7 +125,7 @@ export default function AdminLoginPage() {
       setAuthToken(loginData.token, rememberMe)
       if (loginData.sessionId) setSessionId(loginData.sessionId, rememberMe)
 
-      const res = await fetch('http://localhost:5000/api/auth/password', {
+      const res = await fetch(`${API_ORIGIN}/api/auth/password`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${loginData.token}` },
         body: JSON.stringify({ currentPassword: formData.password, newPassword }),

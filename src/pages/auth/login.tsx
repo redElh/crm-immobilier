@@ -1,3 +1,4 @@
+import { API_ORIGIN } from '../../utils/config'
 import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { AuthFormContainer } from '../../components/auth/AuthFormContainer'
@@ -32,7 +33,7 @@ export default function LoginPage() {
     const check = async () => {
       let user = null
       try {
-        const res = await fetch('http://localhost:5000/api/auth/me', { credentials: 'include' })
+        const res = await fetch(`${API_ORIGIN}/api/auth/me`, { credentials: 'include' })
         if (res.ok) user = await res.json()
       } catch (_) {}
 
@@ -40,7 +41,7 @@ export default function LoginPage() {
         const token = getAuthToken()
         if (token) {
           try {
-            const res = await fetch('http://localhost:5000/api/auth/me', {
+            const res = await fetch(`${API_ORIGIN}/api/auth/me`, {
               headers: { Authorization: `Bearer ${token}` }
             })
             if (res.ok) user = await res.json()
@@ -91,7 +92,7 @@ export default function LoginPage() {
 
     try {
       const deviceInfo = { ...(await getDeviceInfo()), ...(clientIP ? { ip: clientIP } : {}) }
-      const response = await fetch('http://localhost:5000/api/auth/login', {
+      const response = await fetch(`${API_ORIGIN}/api/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...formData, deviceInfo }),
@@ -99,7 +100,7 @@ export default function LoginPage() {
       const data = await response.json()
 
       if (response.status === 401) {
-        const userCheck = await fetch('http://localhost:5000/api/auth/check-email', {
+        const userCheck = await fetch(`${API_ORIGIN}/api/auth/check-email`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ email: formData.email }),
@@ -140,7 +141,7 @@ export default function LoginPage() {
     if (newPassword !== confirmNewPassword) { setErrors({ confirmNewPassword: 'Les mots de passe ne correspondent pas' }); return }
     setIsLoading(true)
     try {
-      const loginRes = await fetch('http://localhost:5000/api/auth/login', {
+      const loginRes = await fetch(`${API_ORIGIN}/api/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: formData.email, password: formData.password }),
@@ -151,7 +152,7 @@ export default function LoginPage() {
       setAuthToken(loginData.token, rememberMe)
       if (loginData.sessionId) setSessionId(loginData.sessionId, rememberMe)
 
-      const res = await fetch('http://localhost:5000/api/auth/password', {
+      const res = await fetch(`${API_ORIGIN}/api/auth/password`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${loginData.token}` },
         body: JSON.stringify({ currentPassword: formData.password, newPassword }),

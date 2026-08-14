@@ -1,3 +1,4 @@
+import { API_ORIGIN } from '../../../utils/config'
 import { useState, useEffect, useRef } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
 import Card from '../../../components/ui/Card'
@@ -36,7 +37,7 @@ export default function ProfilSettingsPage() {
       const token = getAuthToken()
       if (!token) { setLoading(false); return }
       try {
-        const res = await fetch('http://localhost:5000/api/auth/me', {
+        const res = await fetch(`${API_ORIGIN}/api/auth/me`, {
           headers: { Authorization: `Bearer ${token}` }
         })
         if (res.ok) {
@@ -76,7 +77,7 @@ export default function ProfilSettingsPage() {
 
     try {
       const token = getAuthToken()
-      const res = await fetch('http://localhost:5000/api/admin/profile/upload-image', {
+      const res = await fetch(`${API_ORIGIN}/api/admin/profile/upload-image`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
         body: formData
@@ -100,7 +101,7 @@ export default function ProfilSettingsPage() {
     setSaving(true)
     try {
       const token = getAuthToken()
-      const res = await fetch('http://localhost:5000/api/auth/profile', {
+      const res = await fetch(`${API_ORIGIN}/api/auth/profile`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -191,7 +192,7 @@ export default function ProfilSettingsPage() {
             <div className="relative">
               <div className="w-20 h-20 rounded-full bg-accent-light flex items-center justify-center overflow-hidden">
                 {profileImage ? (
-                  <img src={`http://localhost:5000${profileImage}`} alt="Profile" className="w-full h-full object-cover" />
+                  <img src={`${API_ORIGIN}${profileImage}`} alt="Profile" className="w-full h-full object-cover" />
                 ) : (
                   <User size={32} className="text-accent" />
                 )}
