@@ -110,6 +110,52 @@ app.get('/api/health', (req, res) => {
   res.status(200).json({ status: 'OK', message: 'Server is running' });
 });
 
+// SMTP diagnostic endpoint (temporary): reports loaded env vars (masked) and
+// whether the SMTP host/port is reachable over TCP, plus the nodemailer result.
+app.get('/api/debug/smtp', async (req, res) => {
+  const net = (await import('node:net')).default;
+  const host = process.env.EMAIL_HOST || '(not set)';
+  const port = Number(process.env.EMAIL_PORT || 587);
+  const tcpResult = await new Promise((resolve) => {
+    const socket = net.createConnection({ host, port, timeout: 10000 });
+    socket.on('connect', () => { socket.destroy(); resolve({ ok: true, ms: 0 }); });
+    socket.on('error', (err) => resolve({ ok: false, error: err.message }));
+    socket.setTimeout(10000);
+    socket.on('timeout', () => { socket.destroy(); resolve({ ok: false, error: 'ETIMEDOUT' }); });
+  });
+
+  let verifyResult = null;
+  try {
+    const nodemailer = (await import('nodemailer')).default;
+    const transporter = nodemailer.createTransport({
+      host,
+      port,
+      secure: process.env.EMAIL_SECURE === 'true',
+      auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASSWORD },
+      connectionTimeout: 15000,
+      greetingTimeout: 15000,
+      socketTimeout: 30000,
+    });
+    await transporter.verify();
+    verifyResult = { ok: true };
+  } catch (err) {
+    verifyResult = { ok: false, error: err.message };
+  }
+
+  res.json({
+    env: {
+      host,
+      port,
+      secure: process.env.EMAIL_SECURE,
+      user: process.env.EMAIL_USER ? `${String(process.env.EMAIL_USER).slice(0, 3)}***` : '(not set)',
+      from: process.env.EMAIL_FROM || '(not set)',
+      hasPassword: !!process.env.EMAIL_PASSWORD,
+    },
+    tcp: tcpResult,
+    verify: verifyResult,
+  });
+});
+
 // Global error handler (must be last)
 app.use((err, req, res, next) => {
   console.error('Error:', err);
