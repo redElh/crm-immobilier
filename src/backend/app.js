@@ -44,21 +44,23 @@ const app = express();
 const PORT = process.env.PORT || 5000;
 
 // Middleware
-const allowedOrigins = [
-  process.env.FRONTEND_URL,
-  'http://localhost:3000',
-  'http://localhost:3001',
-].filter(Boolean);
+// Reads from environment (Railway in production, .env in development).
+// CORS_ORIGIN can be a single URL or a comma-separated list of allowed origins.
+const corsOrigin = process.env.CORS_ORIGIN || process.env.FRONTEND_URL || 'http://localhost:3000';
+const allowedOrigins = corsOrigin.split(',').map(origin => origin.trim()).filter(Boolean);
 app.use(cors({
   origin: (origin, callback) => {
     // Allow requests with no origin (server-to-server, curl, etc.)
     if (!origin) return callback(null, true);
     if (allowedOrigins.includes(origin)) return callback(null, true);
-    // Allow any localhost origin in development
-    if (origin.startsWith('http://localhost:')) return callback(null, true);
+    // Allow any localhost / 127.0.0.1 origin in development (http or https)
+    if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) return callback(null, true);
+    console.warn(`[CORS] Rejected origin: ${origin}`);
     callback(new Error('Not allowed by CORS'));
   },
-  credentials: true
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
 }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
