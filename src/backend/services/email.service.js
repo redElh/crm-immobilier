@@ -20,6 +20,54 @@ function getTransporter() {
   return _transporter;
 }
 
+function parseAddress(input) {
+  if (input && typeof input === 'object') return input;
+  const s = String(input || '').trim();
+  const m = s.match(/^(?:"?([^"<>]*)"?\s*)?<([^>]+)>$/);
+  if (m) return { name: (m[1] || '').trim() || undefined, email: m[2] };
+  return { email: s };
+}
+
+// Central send: uses Brevo's HTTPS API when BREVO_API_KEY is set (required on
+// Railway Free/Hobby plans where outbound SMTP is blocked). Falls back to SMTP
+// via nodemailer otherwise (local development).
+async function sendMail(mailOptions) {
+  if (process.env.BREVO_API_KEY) {
+    await sendViaBrevoApi(mailOptions);
+    return;
+  }
+  await getTransporter().sendMail(mailOptions);
+}
+
+async function sendViaBrevoApi(mailOptions) {
+  const to = (Array.isArray(mailOptions.to) ? mailOptions.to : [mailOptions.to]).map(parseAddress);
+  const body = {
+    sender: parseAddress(mailOptions.from),
+    to,
+    subject: mailOptions.subject,
+    htmlContent: mailOptions.html,
+  };
+  if (mailOptions.attachments && mailOptions.attachments.length > 0) {
+    body.attachment = mailOptions.attachments.map((a) => ({
+      name: a.filename || 'attachment',
+      content: Buffer.isBuffer(a.content) ? a.content.toString('base64') : String(a.content || ''),
+    }));
+  }
+  const res = await fetch('https://api.brevo.com/v3/smtp/email', {
+    method: 'POST',
+    headers: {
+      'api-key': process.env.BREVO_API_KEY,
+      'content-type': 'application/json',
+      accept: 'application/json',
+    },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`Brevo API ${res.status}: ${text}`);
+  }
+}
+
 export const sendAgentWelcomeEmail = async ({ email, firstName, lastName, password, loginLink }) => {
   const mailOptions = {
     from: `"Real Estate CRM" <${process.env.EMAIL_FROM}>`,
@@ -50,7 +98,7 @@ export const sendAgentWelcomeEmail = async ({ email, firstName, lastName, passwo
   };
 
   try {
-    await getTransporter().sendMail(mailOptions);
+    await sendMail(mailOptions);
   } catch (error) {
     console.error("Error sending welcome email:", error);
     throw error;
@@ -88,7 +136,7 @@ export const sendUserWelcomeEmail = async ({ email, firstName, lastName, passwor
   };
 
   try {
-    await getTransporter().sendMail(mailOptions);
+    await sendMail(mailOptions);
   } catch (error) {
     console.error('Error sending welcome email:', error);
     throw error;
@@ -114,7 +162,7 @@ export const sendAccountWarningEmail = async ({ email, firstName, daysInactive, 
   };
 
   try {
-    await getTransporter().sendMail(mailOptions);
+    await sendMail(mailOptions);
   } catch (error) {
     console.error('Error sending warning email:', error);
     throw error;
@@ -140,7 +188,7 @@ export const sendAccountSuspendedEmail = async ({ email, firstName, loginLink })
   };
 
   try {
-    await getTransporter().sendMail(mailOptions);
+    await sendMail(mailOptions);
   } catch (error) {
     console.error('Error sending suspension email:', error);
     throw error;
@@ -169,7 +217,7 @@ export const sendAccountDeletionWarningEmail = async ({ email, firstName, daysUn
   };
 
   try {
-    await getTransporter().sendMail(mailOptions);
+    await sendMail(mailOptions);
   } catch (error) {
     console.error('Error sending deletion warning email:', error);
     throw error;
@@ -195,7 +243,7 @@ export const sendAccountSuspensionNotificationEmail = async ({ email, firstName,
   };
 
   try {
-    await getTransporter().sendMail(mailOptions);
+    await sendMail(mailOptions);
   } catch (error) {
     console.error('Error sending suspension notification email:', error);
     throw error;
@@ -228,7 +276,7 @@ export const sendAccountReactivatedEmail = async ({ email, firstName, loginLink,
   };
 
   try {
-    await getTransporter().sendMail(mailOptions);
+    await sendMail(mailOptions);
   } catch (error) {
     console.error('Error sending reactivation email:', error);
     throw error;
@@ -260,7 +308,7 @@ export const sendPasswordResetEmail = async ({ email, firstName, resetLink }) =>
   };
 
   try {
-    await getTransporter().sendMail(mailOptions);
+    await sendMail(mailOptions);
   } catch (error) {
     console.error("Error sending password reset email:", error);
     throw error;
@@ -286,7 +334,7 @@ export const sendFinancementEmail = async ({ to, subject, message, clientName, a
   };
 
   try {
-    await getTransporter().sendMail(mailOptions);
+    await sendMail(mailOptions);
   } catch (error) {
     console.error('Error sending financement email:', error);
     throw error;
@@ -342,7 +390,7 @@ export const sendDocumentEmail = async ({ to, subject, message, senderName, atta
   };
 
   try {
-    await getTransporter().sendMail(mailOptions);
+    await sendMail(mailOptions);
   } catch (error) {
     console.error("Error sending document email:", error);
     throw error;
@@ -430,7 +478,7 @@ export const sendPropertyProposalEmail = async ({ to, clientName, property, scor
   };
 
   try {
-    await getTransporter().sendMail(mailOptions);
+    await sendMail(mailOptions);
   } catch (error) {
     console.error('Error sending property proposal email:', error);
     throw error;
@@ -543,7 +591,7 @@ export const sendOwnerBuyerNotificationEmail = async ({ to, ownerName, property,
   };
 
   try {
-    await getTransporter().sendMail(mailOptions);
+    await sendMail(mailOptions);
   } catch (error) {
     console.error('Error sending owner buyer notification email:', error);
     throw error;
@@ -622,7 +670,7 @@ export const sendContractEmail = async ({ to, ownerName, subject, message, contr
   };
 
   try {
-    await getTransporter().sendMail(mailOptions);
+    await sendMail(mailOptions);
   } catch (error) {
     console.error('Error sending contract email:', error);
     throw error;
@@ -638,7 +686,7 @@ export const sendRawEmail = async ({ to, subject, html, attachments }) => {
     ...(attachments && attachments.length > 0 ? { attachments } : {}),
   };
   try {
-    await getTransporter().sendMail(mailOptions);
+    await sendMail(mailOptions);
   } catch (error) {
     console.error('Error sending raw email:', error);
     throw error;
