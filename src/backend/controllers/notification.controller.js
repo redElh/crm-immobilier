@@ -17,7 +17,7 @@ export async function getNotifications(req, res) {
       result = await pool.query(
         `SELECT * FROM notifications
          WHERE (user_id = $1 OR user_id = $2)
-           AND (is_read = FALSE OR read_at IS NULL OR read_at >= NOW() - INTERVAL '1 hour')
+           AND is_read = FALSE
          ORDER BY created_at DESC`,
         [userId, userName]
       );
@@ -25,7 +25,7 @@ export async function getNotifications(req, res) {
       result = await pool.query(
         `SELECT * FROM notifications
          WHERE user_id = $1
-           AND (is_read = FALSE OR read_at IS NULL OR read_at >= NOW() - INTERVAL '1 hour')
+           AND is_read = FALSE
          ORDER BY created_at DESC`,
         [userId || userName]
       );

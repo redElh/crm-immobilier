@@ -10,11 +10,12 @@ import { useMessagingAppearance } from '../../services/messageAppearance'
 import { cn } from '../../lib/utils'
 import {
   Home, Users, FileText, MessageSquare, Settings,
-  ChevronLeft, Calendar, BookOpen, Eye, Zap, DollarSign,
+  Calendar, BookOpen, Eye, Zap,
   Edit3, Crosshair, CheckCircle, Shield, ChevronRight,
-  LogOut, Bell, User, HelpCircle, Loader,
+  LogOut, Bell, HelpCircle, Loader,
 } from 'react-feather'
 import { AnimatePresence, motion } from 'framer-motion'
+import SidebarToggle from '../../components/layout/SidebarToggle'
 
 export function AdminLayout({ children }: { children: React.ReactNode }) {
   const location = useLocation()
@@ -144,20 +145,29 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className={`flex h-screen admin-theme ${userRole === 'admin' ? 'bg-[#FFCC99]' : 'bg-[#D2B1A3]'}`}>
-      <aside className={`${collapsed ? 'w-16' : 'w-60'} h-screen ${userRole === 'admin' ? 'bg-[#893101]' : 'bg-[#905D5D]'} ${userRole === 'admin' ? 'border-r border-white/10' : 'border-r border-border/50'} flex flex-col transition-all duration-300`}>
-        <div className="h-16 flex items-center gap-3 px-4 border-b border-white/10">
+      <aside className={`relative ${collapsed ? 'w-16' : 'w-60'} h-screen ${userRole === 'admin' ? 'bg-[#893101]' : 'bg-[#905D5D]'} ${userRole === 'admin' ? 'border-r border-white/10' : 'border-r border-border/50'} flex flex-col transition-[width] duration-300 ease-in-out`}>
+        <div className="h-16 flex items-center gap-3 px-4 border-b border-white/10 overflow-hidden">
           <div className="relative h-12 w-12 overflow-hidden rounded-2xl border border-white/30 bg-[linear-gradient(180deg,rgba(7,59,39,0.96),rgba(6,34,23,0.98))] shadow-[0_10px_24px_rgba(0,0,0,0.22)] flex-shrink-0">
             <div className="absolute inset-0 bg-gradient-to-br from-premium/30 via-transparent to-accent/10" />
             <img src="/CRM_Official_Admin_Image.jfif" alt="CRM Square Immo" className="relative h-full w-full object-cover" />
           </div>
-          {!collapsed && (
-            <span className={`font-semibold text-sm tracking-tight ${userRole === 'admin' ? 'text-white' : 'text-white'}`}>
-              CRM Square Immo
-              <span className={`ml-1.5 text-[10px] ${userRole === 'admin' ? 'text-white/70' : 'text-white/70'}`}>
-                ({userRole === 'gerant' ? 'Gérant' : 'Administrateur'})
-              </span>
-            </span>
-          )}
+          <AnimatePresence initial={false}>
+            {!collapsed && (
+              <motion.span
+                key="brand"
+                initial={{ opacity: 0, width: 0 }}
+                animate={{ opacity: 1, width: 'auto' }}
+                exit={{ opacity: 0, width: 0 }}
+                transition={{ duration: 0.2, ease: 'easeInOut' }}
+                className={`font-semibold text-sm tracking-tight text-white whitespace-nowrap overflow-hidden`}
+              >
+                CRM Square Immo
+                <span className={`ml-1.5 text-[10px] text-white/70`}>
+                  ({userRole === 'gerant' ? 'Gérant' : 'Administrateur'})
+                </span>
+              </motion.span>
+            )}
+          </AnimatePresence>
         </div>
 
         <nav className="flex-1 py-4 px-2 space-y-1 overflow-y-auto scrollbar-thin">
@@ -173,7 +183,9 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
               <NavLink
                 key={item.to}
                 to={item.to}
-                className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${
+                className={`flex items-center py-2.5 rounded-lg text-sm font-medium transition-all duration-200 ${
+                  collapsed ? 'justify-center' : 'justify-start gap-3 px-3'
+                } ${
                   isActive
                     ? userRole === 'admin'
                       ? 'bg-white text-[#893101] shadow-sm'
@@ -185,9 +197,22 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
                 title={collapsed ? item.label : undefined}
               >
                 <Icon size={18} className="flex-shrink-0" />
-                {!collapsed && <span className="flex-1">{item.label}</span>}
+                <AnimatePresence initial={false}>
+                  {!collapsed && (
+                    <motion.span
+                      key="label"
+                      initial={{ opacity: 0, width: 0 }}
+                      animate={{ opacity: 1, width: 'auto' }}
+                      exit={{ opacity: 0, width: 0 }}
+                      transition={{ duration: 0.2, ease: 'easeInOut' }}
+                      className="flex-1 whitespace-nowrap overflow-hidden text-left"
+                    >
+                      {item.label}
+                    </motion.span>
+                  )}
+                </AnimatePresence>
                 {!collapsed && showBadge && (
-                  <span className="px-1.5 py-0.5 text-[10px] font-bold rounded-full bg-accent text-white min-w-[18px] text-center">
+                  <span className="px-1.5 py-0.5 text-[10px] font-bold rounded-full bg-accent text-white min-w-[18px] text-center flex-shrink-0">
                     {badge > 9 ? '9+' : badge}
                   </span>
                 )}
@@ -196,12 +221,11 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
           })}
         </nav>
 
-        <button
-          onClick={() => setCollapsed(!collapsed)}
-          className={`h-12 flex items-center justify-center ${userRole === 'admin' ? 'border-t border-white/10 text-white/80 hover:text-white' : 'border-t border-white/10 text-white/80 hover:text-white'} transition-colors`}
-        >
-          <ChevronLeft size={16} className={`transition-transform duration-300 ${collapsed ? 'rotate-180' : ''}`} />
-        </button>
+        <SidebarToggle
+          collapsed={collapsed}
+          onToggle={() => setCollapsed(!collapsed)}
+          tone={userRole === 'admin' ? 'orange' : 'rose'}
+        />
       </aside>
 
       <div className="flex-1 flex flex-col min-w-0">

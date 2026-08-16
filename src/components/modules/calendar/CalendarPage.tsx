@@ -263,6 +263,14 @@ export default function CalendarPage() {
     }
   }, [toast])
 
+  const handleEventUpdate = useCallback((event: CalendarEvent) => {
+    setEvents(prev => prev.map(e => e.id === event.id ? event : e))
+    if (!/^\d+$/.test(event.id)) return
+    updateCalendarEvent(event.id, event)
+      .then(saved => setEvents(prev => prev.map(e => e.id === event.id ? saved : e)))
+      .catch(() => toast('error', "Erreur lors de la mise à jour de l'événement"))
+  }, [toast])
+
   const handleDeleteEvent = useCallback((eventId: string) => {
     const target = events.find(e => e.id === eventId)
     if (!target || !canWriteEvent(target)) return
@@ -407,7 +415,9 @@ export default function CalendarPage() {
               selectedEventTypes={selectedEventTypes}
               agents={viewAgents}
               canCreate={canWriteCalendar}
+              canEditEvent={canWriteEvent}
               onEventClick={handleEventClick}
+              onEventUpdate={handleEventUpdate}
               onSlotClick={handleSlotClick}
               onDayNameClick={handleWeekDayNameClick}
             />

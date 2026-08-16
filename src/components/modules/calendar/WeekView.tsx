@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
 import { motion } from 'framer-motion'
 import { Plus } from 'react-feather'
 import {
-  CalendarEvent, getEventTypeConfig, AGENTS, Agent, formatEventRange, getEventDayOverlap, getEventDayHours,
-  getWeekDays, getEventsForWeek, isToday, formatFrenchShortDate, withAlpha, getEventUserColor,
+  CalendarEvent, getEventTypeConfig, AGENTS, Agent, formatEventRange, formatTime, getEventDayOverlap, getEventDayHours,
+  getWeekDays, getEventsForWeek, isToday, isSameDay, formatFrenchShortDate, withAlpha, getEventUserColor,
   eventMatchesSelectedAgents,
 } from '../../../types/calendar'
 
@@ -15,7 +15,9 @@ interface WeekViewProps {
   overrideAgent?: { id: string; name: string; color: string; initials: string }
   agents?: Agent[]
   canCreate?: boolean
+  canEditEvent?: (event: CalendarEvent) => boolean
   onEventClick: (event: CalendarEvent) => void
+  onEventUpdate?: (event: CalendarEvent) => void
   onSlotClick: (date: Date) => void
   onDayNameClick: (date: Date) => void
 }
@@ -26,11 +28,38 @@ const TOTAL_HOURS = END_HOUR - START_HOUR
 const HOUR_HEIGHT = 44
 const CELL_HEIGHT = TOTAL_HOURS * HOUR_HEIGHT
 const TIME_COL_WIDTH = 64
+const DRAG_THRESHOLD = 4
+const SNAP_MINUTES = 1
+const MIN_DURATION = 10
+
+type DragMode = 'move' | 'resize-top' | 'resize-bottom'
+
+interface DragState {
+  event: CalendarEvent
+  mode: DragMode
+  startX: number
+  startY: number
+  originStart: Date
+  originEnd: Date
+  originDayIndex: number
+  didMove: boolean
+  previewStart: Date
+  previewEnd: Date
+  previewDayIndex: number
+}
 
 interface PlacedEvent {
   event: CalendarEvent
   level: number
   cluster: number
+}
+
+const clamp = (v: number, min: number, max: number) => Math.max(min, Math.min(v, max))
+
+const dayWithMinutes = (base: Date, minutes: number): Date => {
+  const d = new Date(base)
+  d.setHours(Math.floor(minutes / 60), minutes % 60, 0, 0)
+  return d
 }
 
 interface ClusterPopup {
@@ -46,7 +75,7 @@ interface CellContextMenu {
 }
 
 export default function WeekView({
-  currentDate, events, selectedAgents, selectedEventTypes, overrideAgent, agents, canCreate = true, onEventClick, onSlotClick, onDayNameClick,
+  currentDate, events, selectedAgents, selectedEventTypes, overrideAgent, agents, canCreate = true, canEditEvent, onEventClick, onEventUpdate, onSlotClick, onDayNameClick,
 }: WeekViewProps) {
   const weekDays = useMemo(() => getWeekDays(currentDate), [currentDate])
   const weekEvents = useMemo(() => getEventsForWeek(events, currentDate), [events, currentDate])
@@ -125,6 +154,130 @@ export default function WeekView({
       return start.getTime() < end.getTime()
     })
 
+  const [dayColWidth, setDayColWidth] = useState(148)
+  const dayColWidthRef = useRef(148)
+  const gridRef = useRef<HTMLDivElement>(null)
+  useLayoutEffect(() => {
+    const el = gridRef.current
+    if (!el) return
+    const measure = () => {
+      const w = el.clientWidth / 7
+      dayColWidthRef.current = w
+      setDayColWidth(w)
+    }
+    measure()
+    if (typeof ResizeObserver === 'undefined') return
+    const ro = new ResizeObserver(measure)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+
+  const [drag, setDrag] = useState<DragState | null>(null)
+  const dragRef = useRef<DragState | null>(null)
+  const suppressClick = useRef(false)
+  const weekDaysRef = useRef(weekDays)
+  weekDaysRef.current = weekDays
+
+  const canDrag = (event: CalendarEvent): boolean =>
+    Boolean(onEventUpdate) && canCreate !== false && (canEditEvent ? canEditEvent(event) : true)
+
+  const startDrag = (event: CalendarEvent, mode: DragMode, e: ReactPointerEvent) => {
+    if (mode !== 'move' && event.allDay) return
+    const originDayIndex = weekDaysRef.current.findIndex(d => isSameDay(d, event.start))
+    const idx = originDayIndex === -1 ? 0 : originDayIndex
+    dragRef.current = {
+      event,
+      mode,
+      startX: e.clientX,
+      startY: e.clientY,
+      originStart: new Date(event.start),
+      originEnd: new Date(event.end),
+      originDayIndex: idx,
+      didMove: false,
+      previewStart: new Date(event.start),
+      previewEnd: new Date(event.end),
+      previewDayIndex: idx,
+    }
+    suppressClick.current = false
+    setPopup(null)
+  }
+
+  useEffect(() => {
+    const onPointerMove = (e: PointerEvent) => {
+      const d = dragRef.current
+      if (!d) return
+      const dx = e.clientX - d.startX
+      const dy = e.clientY - d.startY
+      if (!d.didMove && Math.hypot(dx, dy) < DRAG_THRESHOLD) return
+      const dayDelta = Math.round(dx / dayColWidthRef.current)
+      const snapMin = Math.round((dy / HOUR_HEIGHT) * 60 / SNAP_MINUTES) * SNAP_MINUTES
+      const previewDayIndex = clamp(d.originDayIndex + dayDelta, 0, 6)
+      const targetDay = weekDaysRef.current[previewDayIndex]
+
+      let previewStart: Date
+      let previewEnd: Date
+      if (d.mode === 'move') {
+        const originStartMin = d.originStart.getHours() * 60 + d.originStart.getMinutes()
+        const duration = (d.originEnd.getTime() - d.originStart.getTime()) / 60000
+        const newStartMin = clamp(originStartMin + snapMin, 0, Math.max(0, 1440 - duration))
+        previewStart = dayWithMinutes(targetDay, newStartMin)
+        previewEnd = new Date(previewStart.getTime() + duration * 60000)
+      } else if (d.mode === 'resize-top') {
+        const originStartMin = d.originStart.getHours() * 60 + d.originStart.getMinutes()
+        const originEndMin = d.originEnd.getHours() * 60 + d.originEnd.getMinutes()
+        const newStartMin = clamp(originStartMin + snapMin, 0, originEndMin - MIN_DURATION)
+        previewStart = dayWithMinutes(d.originStart, newStartMin)
+        previewEnd = new Date(d.originEnd)
+      } else {
+        const originStartMin = d.originStart.getHours() * 60 + d.originStart.getMinutes()
+        const originEndMin = d.originEnd.getHours() * 60 + d.originEnd.getMinutes()
+        const newEndMin = clamp(originEndMin + snapMin, originStartMin + MIN_DURATION, 1440)
+        previewStart = new Date(d.originStart)
+        previewEnd = dayWithMinutes(d.originEnd, newEndMin)
+      }
+
+      d.didMove = true
+      d.previewStart = previewStart
+      d.previewEnd = previewEnd
+      d.previewDayIndex = previewDayIndex
+      suppressClick.current = true
+      document.body.style.userSelect = 'none'
+      document.body.style.cursor = d.mode === 'move' ? 'grabbing' : 'ns-resize'
+      setDrag({ ...d })
+    }
+
+    const onPointerUp = () => {
+      const d = dragRef.current
+      dragRef.current = null
+      setDrag(null)
+      document.body.style.userSelect = ''
+      document.body.style.cursor = ''
+      if (!d || !d.didMove || !onEventUpdate) return
+      onEventUpdate({ ...d.event, start: new Date(d.previewStart), end: new Date(d.previewEnd) })
+    }
+
+    window.addEventListener('pointermove', onPointerMove)
+    window.addEventListener('pointerup', onPointerUp)
+    window.addEventListener('pointercancel', onPointerUp)
+    return () => {
+      window.removeEventListener('pointermove', onPointerMove)
+      window.removeEventListener('pointerup', onPointerUp)
+      window.removeEventListener('pointercancel', onPointerUp)
+    }
+  }, [onEventUpdate])
+
+  const dragPreview = drag
+    ? (() => {
+        const startMin = drag.previewStart.getHours() * 60 + drag.previewStart.getMinutes()
+        const endMin = drag.previewEnd.getHours() * 60 + drag.previewEnd.getMinutes()
+        const clampedStart = Math.max(startMin, START_HOUR * 60)
+        const clampedEnd = Math.min(endMin, END_HOUR * 60)
+        const top = ((clampedStart - START_HOUR * 60) / (TOTAL_HOURS * 60)) * CELL_HEIGHT
+        const height = Math.max(((clampedEnd - clampedStart) / (TOTAL_HOURS * 60)) * CELL_HEIGHT, 22)
+        return { top, height, color: getEventColor(drag.event) }
+      })()
+    : null
+
   const [ctxMenu, setCtxMenu] = useState<CellContextMenu | null>(null)
   const dateFromCellY = (clientY: number, rect: DOMRect, day: Date): Date => {
     const ratio = Math.max(0, Math.min(1, (clientY - rect.top) / rect.height))
@@ -186,7 +339,8 @@ export default function WeekView({
           </div>
 
           {/* Shared body row: time column + 7 day columns */}
-          <div className="grid" style={{ gridTemplateColumns: gridCols }}>
+          <div className="relative">
+            <div className="grid" style={{ gridTemplateColumns: gridCols }}>
             <div className="relative border-r border-border/30" style={{ height: CELL_HEIGHT }}>
               {Array.from({ length: TOTAL_HOURS }, (_, h) => (
                 <div
@@ -199,7 +353,7 @@ export default function WeekView({
               ))}
             </div>
 
-            <div className="grid grid-cols-7 divide-x divide-border/20">
+            <div ref={gridRef} className="grid grid-cols-7 divide-x divide-border/20">
               {weekDays.map((day, i) => {
                 const { placed, clusters } = layoutDay(getDayOverlapping(day), day)
                 return (
@@ -208,6 +362,7 @@ export default function WeekView({
                     className="relative cursor-pointer transition-colors hover:bg-accent/[0.03]"
                     style={{ height: CELL_HEIGHT }}
                     onClick={(e) => {
+                      if (suppressClick.current) { suppressClick.current = false; return }
                       const rect = e.currentTarget.getBoundingClientRect()
                       onSlotClick(dateFromCellY(e.clientY, rect, day))
                     }}
@@ -240,13 +395,15 @@ export default function WeekView({
                       const layout = getEventLayout(event, day)
                       const color = getEventColor(event)
                       const offset = level * 8
+                      const isDragging = drag?.event.id === event.id
+                      const canDragThis = canDrag(event)
                       return (
                         <motion.button
                           key={event.id}
                           initial={{ opacity: 0 }}
                           animate={{ opacity: 1 }}
                           title={event.title}
-                          className="absolute rounded-md border hover:opacity-85 hover:shadow-md transition-all overflow-hidden cursor-pointer z-10 text-left"
+                          className="absolute rounded-md border hover:opacity-85 hover:shadow-md transition-all overflow-hidden z-10 text-left select-none"
                           style={{
                             top: layout.top,
                             height: layout.height,
@@ -257,15 +414,34 @@ export default function WeekView({
                             borderColor: withAlpha(color, '40'),
                             borderLeft: `3px solid ${color}`,
                             boxShadow: level > 0 ? '0 1px 3px rgba(0,0,0,0.12)' : undefined,
+                            cursor: canDragThis ? 'grab' : 'pointer',
+                            touchAction: 'none',
+                            visibility: isDragging ? 'hidden' : undefined,
+                          }}
+                          onPointerDown={(e) => {
+                            if (!canDragThis) return
+                            e.preventDefault()
+                            e.stopPropagation()
+                            const resizeEl = (e.target as HTMLElement).closest('[data-resize]')
+                            const mode: DragMode = resizeEl
+                              ? (resizeEl.getAttribute('data-resize') as DragMode)
+                              : 'move'
+                            startDrag(event, mode, e)
                           }}
                           onMouseEnter={(e) => {
+                            if (dragRef.current) return
                             cancelClose()
                             if (clusters[cluster].length > 1) {
                               setPopup({ x: e.clientX, y: e.clientY, events: clusters[cluster] })
                             }
                           }}
                           onMouseLeave={() => scheduleClose()}
-                          onClick={(e) => { e.stopPropagation(); setPopup(null); onEventClick(event) }}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            if (suppressClick.current) { suppressClick.current = false; return }
+                            setPopup(null)
+                            onEventClick(event)
+                          }}
                           onContextMenu={(e) => {
                             if (!canCreate) return
                             e.stopPropagation()
@@ -277,6 +453,12 @@ export default function WeekView({
                             setCtxMenu({ x: e.clientX, y: e.clientY, date: dateFromCellY(e.clientY, rect, day) })
                           }}
                         >
+                          {canDragThis && !event.allDay && (
+                            <>
+                              <div data-resize="resize-top" className="absolute top-0 left-0 right-0 h-2 cursor-ns-resize rounded-t-md z-10" style={{ touchAction: 'none' }} />
+                              <div data-resize="resize-bottom" className="absolute bottom-0 left-0 right-0 h-2 cursor-ns-resize rounded-b-md z-10" style={{ touchAction: 'none' }} />
+                            </>
+                          )}
                           <div className="px-2 py-1 h-full flex flex-col justify-center">
                             <div className="flex items-center gap-1">
                               <span className="text-xs inline-flex"><cfg.icon size={12} /></span>
@@ -295,6 +477,31 @@ export default function WeekView({
                 )
               })}
             </div>
+            </div>
+
+            {/* Drag & resize preview overlay */}
+            {drag && dragPreview && (
+              <div className="absolute inset-0 z-40 pointer-events-none">
+                <div
+                  className="absolute rounded-md border-2 border-dashed flex flex-col justify-center px-1.5 overflow-hidden"
+                  style={{
+                    top: dragPreview.top,
+                    height: dragPreview.height,
+                    left: TIME_COL_WIDTH + drag.previewDayIndex * dayColWidth + 1,
+                    width: dayColWidth - 3,
+                    borderColor: dragPreview.color,
+                    backgroundColor: withAlpha(dragPreview.color, '29'),
+                  }}
+                >
+                  <span className="text-[11px] font-bold text-text leading-tight truncate">
+                    {formatTime(drag.previewStart)} - {formatTime(drag.previewEnd)}
+                  </span>
+                  <span className="text-[10px] font-medium text-text-secondary leading-tight truncate">
+                    {drag.event.title}
+                  </span>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>

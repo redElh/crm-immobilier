@@ -23,8 +23,6 @@ interface NotificationContextValue {
   markAllAsRead: () => Promise<void>
 }
 
-const HOUR_MS = 60 * 60 * 1000
-
 const NotificationContext = createContext<NotificationContextValue>({
   notifications: [],
   unreadCount: 0,
@@ -123,12 +121,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   }, [currentUserId])
 
   const filtered = useMemo(() => {
-    const cutoff = Date.now() - HOUR_MS
-    return notifications.filter(n => {
-      if (!n.read) return true
-      const readTime = n.readAt ? new Date(n.readAt).getTime() : new Date(n.createdAt).getTime()
-      return readTime > cutoff
-    })
+    return notifications.filter(n => !n.read)
   }, [notifications])
 
   const unreadCount = useMemo(

@@ -47,12 +47,30 @@ async function assertAgentOwnership(req, event) {
 
 async function notifyConcerned(agentIds, actorId, actorName, type, message, eventId) {
   const targets = [...new Set((agentIds || []).map(String).filter(id => id && String(id) !== String(actorId)))];
+  const propertyId = String(eventId);
+  const propertyRef = `EVENT-${eventId}`;
   for (const userId of targets) {
-    await pool.query(
-      `INSERT INTO notifications (user_id, sender_name, type, message, property_id, property_ref)
-       VALUES ($1, $2, $3, $4, $5, $6)`,
-      [userId, actorName, type, message, String(eventId), `EVENT-${eventId}`]
+    const existing = await pool.query(
+      `SELECT id FROM notifications
+       WHERE user_id = $1 AND type = $2 AND property_id = $3 AND is_read = FALSE
+       ORDER BY created_at DESC
+       LIMIT 1`,
+      [userId, type, propertyId]
     );
+    if (existing.rows[0]) {
+      await pool.query(
+        `UPDATE notifications
+         SET message = $1, sender_name = $2, created_at = CURRENT_TIMESTAMP
+         WHERE id = $3`,
+        [message, actorName, existing.rows[0].id]
+      );
+    } else {
+      await pool.query(
+        `INSERT INTO notifications (user_id, sender_name, type, message, property_id, property_ref)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [userId, actorName, type, message, propertyId, propertyRef]
+      );
+    }
   }
   return targets.length;
 }
