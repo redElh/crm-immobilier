@@ -22,6 +22,7 @@ import PropertyPage from './pages/properties/[id]'
 import AddPropertyForm from '../src/components/modules/properties/AddPropertyForm'
 import DocumentsPage from './pages/documents/index'
 import DocumentDetailPage from './pages/documents/[id]'
+import LibrairiePage from './pages/library/index'
 import CalendarPage from './pages/calendar/index'
 import TransactionRegisterPage from './pages/register/index'
 import ExtranetPage from './pages/extranet/index'
@@ -56,6 +57,7 @@ import AdminForgotPasswordPage from './pages/auth/admin/forgot-password'
 import AdminResetPasswordPage from './pages/auth/admin/reset-password'
 import ContractsPage from './pages/contracts/index'
 import ContractDetailPage from './pages/contracts/[id]'
+import ConciergeriePage from './pages/conciergerie/index'
 
 // Admin imports
 import { AdminLayout } from './pages/admin/AdminLayout'
@@ -271,10 +273,12 @@ function AppRoutes() {
           <Route path="/admin/:adminId/calendar" element={<AdminLayout><CalendarPage /></AdminLayout>} />
           <Route path="/admin/:adminId/documents" element={<AdminLayout><DocumentsPage /></AdminLayout>} />
           <Route path="/admin/:adminId/documents/:id" element={<AdminLayout><DocumentDetailPage /></AdminLayout>} />
+          <Route path="/admin/:adminId/library" element={<AdminLayout><LibrairiePage /></AdminLayout>} />
           <Route path="/admin/:adminId/messages" element={<AdminLayout><MessagesPage /></AdminLayout>} />
           <Route path="/admin/:adminId/messages/compose" element={<AdminLayout><ComposeMessagePage /></AdminLayout>} />
           <Route path="/admin/:adminId/messages/settings" element={<AdminLayout><MessagesSettingsPage /></AdminLayout>} />
           <Route path="/admin/:adminId/messages/:id" element={<AdminLayout><MessageDetailPage /></AdminLayout>} />
+          <Route path="/admin/:adminId/conciergerie" element={<AdminLayout><ConciergeriePage /></AdminLayout>} />
           <Route path="/admin/:adminId/settings" element={<AdminLayout><AdminSettingsPage /></AdminLayout>} />
           <Route path="/admin/:adminId/settings/compte/profil" element={<AdminLayout><ProfileSettingsPage /></AdminLayout>} />
           <Route path="/admin/:adminId/settings/compte/securite" element={<AdminLayout><SecuritySettingsPage /></AdminLayout>} />
@@ -323,10 +327,12 @@ function AppRoutes() {
           <Route path="/calendar" element={<RedirectToAgent />} />
           <Route path="/documents" element={<RedirectToAgent />} />
           <Route path="/documents/:id" element={<RedirectToAgent />} />
+          <Route path="/library" element={<RedirectToAgent />} />
           <Route path="/messages" element={<RedirectToAgent />} />
           <Route path="/messages/compose" element={<RedirectToAgent />} />
           <Route path="/messages/settings" element={<RedirectToAgent />} />
           <Route path="/messages/:id" element={<RedirectToAgent />} />
+          <Route path="/conciergerie" element={<RedirectToAgent />} />
           <Route path="/settings" element={<RedirectToAgent />} />
           <Route path="/settings/compte/profil" element={<RedirectToAgent />} />
           <Route path="/settings/compte/securite" element={<RedirectToAgent />} />
@@ -366,10 +372,12 @@ function AppRoutes() {
           <Route path="/:agentId/calendar" element={<AgentLayout><CalendarPage /></AgentLayout>} />
           <Route path="/:agentId/documents" element={<AgentLayout><DocumentsPage /></AgentLayout>} />
           <Route path="/:agentId/documents/:id" element={<AgentLayout><DocumentDetailPage /></AgentLayout>} />
+          <Route path="/:agentId/library" element={<AgentLayout><LibrairiePage /></AgentLayout>} />
           <Route path="/:agentId/messages" element={<AgentLayout><MessagesPage /></AgentLayout>} />
           <Route path="/:agentId/messages/compose" element={<AgentLayout><ComposeMessagePage /></AgentLayout>} />
           <Route path="/:agentId/messages/settings" element={<AgentLayout><MessagesSettingsPage /></AgentLayout>} />
           <Route path="/:agentId/messages/:id" element={<AgentLayout><MessageDetailPage /></AgentLayout>} />
+          <Route path="/:agentId/conciergerie" element={<AgentLayout><ConciergeriePage /></AgentLayout>} />
           <Route path="/:agentId/settings" element={<AgentLayout><SettingsPage /></AgentLayout>} />
           <Route path="/:agentId/settings/compte/profil" element={<AgentLayout><ProfileSettingsPage /></AgentLayout>} />
           <Route path="/:agentId/settings/compte/securite" element={<AgentLayout><SecuritySettingsPage /></AgentLayout>} />

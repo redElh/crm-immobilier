@@ -64,6 +64,11 @@
     --warning-light: 48 100% 96%;      /* #fffbeb */
     --info: 224 76% 48%;               /* #1d4ed8 */
     --info-light: 214 100% 97%;        /* #eff6ff */
+    --button-bg: 153 49% 34%;          /* green #2c8264 */
+    --button-bg-hover: 153 56% 26%;    /* green darker */
+    --button-text: 0 0% 100%;
+    --button-border: 153 49% 34%;
+    --button-border-hover: 153 56% 26%;
   }
 
   .dark .agent-theme,

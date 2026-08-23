@@ -9,7 +9,7 @@ import { BackLink } from '../../../components/ui/BackLink'
 import { useToast } from '../../../components/ui/Toast'
 import {
   Users, Plus, MoreHorizontal, Search, Shield, UserCheck, UserX,
-  Eye, Trash2, Lock, CheckCircle,
+  Eye, Trash2, Lock, CheckCircle, Mail,
   ChevronLeft, ChevronRight, RefreshCw
 } from 'react-feather'
 import { getAuthToken } from '../../../utils/auth'
@@ -33,16 +33,18 @@ interface UserData {
 const ITEMS_PER_PAGE = 8
 const API = `${API_ORIGIN}/api/admin`
 
-const roleBadgeColors: Record<string, 'primary' | 'default'> = {
+const roleBadgeColors: Record<string, 'primary' | 'default' | 'warning'> = {
   admin: 'primary',
+  gerant: 'warning',
   agent: 'default',
 }
 
 interface MenuPosition { top: number; right: number }
 
-function ActionMenu({ user, position, onClose, onReactivate, onDelete, onResetPassword, adminId }: {
+function ActionMenu({ user, position, onClose, onReactivate, onDelete, onResetPassword, onResendCredentials, adminId }: {
   user: UserData; position: MenuPosition; onClose: () => void
   onReactivate: (id: number) => void; onDelete: (id: number) => void; onResetPassword: (id: number) => void
+  onResendCredentials: (id: number) => void
   adminId: string
 }) {
   const ref = useRef<HTMLDivElement>(null)
@@ -55,6 +57,7 @@ function ActionMenu({ user, position, onClose, onReactivate, onDelete, onResetPa
   const actions = [
     { icon: Eye, label: 'Voir le profil', onClick: () => window.location.href = `/admin/${adminId}/users/${user.id}` },
     { icon: Lock, label: 'Réinitialiser le mot de passe', onClick: () => onResetPassword(user.id) },
+    { icon: Mail, label: 'Renvoyer les identifiants', onClick: () => onResendCredentials(user.id) },
     ...(user.status === 'inactif' || user.status === 'suspendu'
       ? [{ icon: CheckCircle, label: 'Réactiver le compte', onClick: () => onReactivate(user.id) }]
       : []),
@@ -164,6 +167,19 @@ export default function EquipePage() {
     } catch { toast('error', 'Erreur lors de l\'envoi') }
   }
 
+  const handleResendCredentials = async (id: number) => {
+    const target = users.find(u => String(u.id) === String(id))
+    if (!window.confirm(`Renvoyer les identifiants à ${target?.first_name || ''} ${target?.last_name || ''} ? Un nouveau mot de passe sera généré et l'ancien sera invalidé.`)) return
+    try {
+      const res = await fetch(`${API}/users/${id}/resend-credentials`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` }
+      })
+      if (!res.ok) throw new Error('Failed')
+      toast('success', `Identifiants renvoyés par email à ${target?.first_name || ''} ${target?.last_name || ''}.`)
+    } catch { toast('error', 'Erreur lors du renvoi des identifiants') }
+  }
+
   return (
     <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
       <BackLink />
@@ -255,7 +271,7 @@ export default function EquipePage() {
                     <td className="py-3 text-sm text-text-secondary">{user.email}</td>
                     <td className="py-3">
                       <Badge variant={roleBadgeColors[user.role] || 'default'} size="sm">
-                        {user.role === 'admin' ? 'Administrateur' : 'Agent'}
+                        {user.role === 'admin' ? 'Administrateur' : user.role === 'gerant' ? 'Gérant' : 'Agent'}
                       </Badge>
                     </td>
                     <td className="py-3">
@@ -365,6 +381,7 @@ export default function EquipePage() {
           onReactivate={handleReactivate}
           onDelete={handleDelete}
           onResetPassword={handleResetPassword}
+          onResendCredentials={handleResendCredentials}
         />
       )}
     </motion.div>

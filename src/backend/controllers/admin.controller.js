@@ -2,7 +2,7 @@ import pool from '../config/db.js';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import { generateToken, setTokenCookie, generateRefreshToken, getRefreshTokenExpiry } from '../config/auth.js';
-import { sendUserWelcomeEmail, sendPasswordResetEmail, sendAccountSuspensionNotificationEmail, sendAccountReactivatedEmail } from '../services/email.service.js';
+import { sendUserWelcomeEmail, sendUserCredentialsEmail, sendPasswordResetEmail, sendAccountSuspensionNotificationEmail, sendAccountReactivatedEmail } from '../services/email.service.js';
 import { createSession } from '../services/session.service.js';
 import { logLoginAttempt } from '../services/login-history.service.js';
 import { reactivateUser, checkAndUpdateInactivity, suspendUser, checkSecurityViolation, anonymizeAndDeleteUser, deleteExpiredUsers, getInactivityLevel, getDaysSinceLastLogin } from '../services/inactivity.service.js';
@@ -381,6 +381,59 @@ export const createUser = async (req, res) => {
     });
   } catch (error) {
     console.error('Create user error:', error);
+    res.status(500).json({ error: 'Server error' });
+  }
+};
+
+export const resendUserCredentials = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const existing = await pool.query('SELECT * FROM users WHERE id = $1', [id]);
+    if (existing.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    const user = existing.rows[0];
+
+    // Generate a new readable password (no ambiguous characters)
+    const chars = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+    const bytes = crypto.randomBytes(16);
+    let password = '';
+    for (let i = 0; i < 12; i++) password += chars[bytes[i] % chars.length];
+    password += '@' + (bytes[12] % 10) + String.fromCharCode(65 + (bytes[13] % 26));
+
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
+
+    await pool.query(
+      `UPDATE users
+       SET password = $1, require_password_change = true, reset_token = NULL, reset_token_expires = NULL, updated_at = CURRENT_TIMESTAMP
+       WHERE id = $2`,
+      [hashedPassword, id]
+    );
+
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3001';
+    const loginLink = isAdminPanelRole(user.role)
+      ? `${frontendUrl}/auth/admin/login`
+      : `${frontendUrl}/auth/login`;
+
+    try {
+      await sendUserCredentialsEmail({
+        email: user.email,
+        firstName: user.first_name,
+        lastName: user.last_name,
+        password,
+        loginLink,
+        role: user.role,
+      });
+    } catch (emailError) {
+      console.error('Failed to send credentials email:', emailError);
+      return res.status(502).json({ error: "Impossible d'envoyer l'email de renvoi. Veuillez réessayer." });
+    }
+
+    res.json({ message: `Identifiants renvoyés à ${user.email}` });
+  } catch (error) {
+    console.error('Resend credentials error:', error);
     res.status(500).json({ error: 'Server error' });
   }
 };

@@ -1,4 +1,7 @@
 import pool from '../config/db.js';
+import path from 'path';
+import fs from 'fs';
+import { fileURLToPath } from 'url';
 import {
   triggerPropertyCreated,
   triggerPropertyDeleted,
@@ -735,6 +738,62 @@ export async function uploadPropertyFile(req, res) {
     res.json({ files });
   } catch (error) {
     console.error('Error uploading file:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+}
+
+const __dirnameCtrl = path.dirname(fileURLToPath(import.meta.url));
+const PROPERTIES_UPLOAD_DIR = path.resolve(path.join(__dirnameCtrl, '..', 'uploads', 'properties'));
+// Only allow replacing regular files that already live in the properties uploads dir
+const SAFE_REPLACE_NAME = /^[A-Za-z0-9][A-Za-z0-9._-]*\.(pdf|doc|docx|xls|xlsx|txt|jpg|jpeg|png|gif|webp|svg|mp4|mov|avi|mkv|webm)$/i;
+
+export async function uploadPropertyFileReplacing(req, res) {
+  try {
+    if (!req.files || req.files.length === 0) {
+      return res.status(400).json({ error: 'No files uploaded' });
+    }
+    const replaceUrl = String(req.body?.replaceUrl || '');
+    const requestedName = path.basename(replaceUrl);
+    let targetName = null;
+    if (
+      replaceUrl.startsWith('/uploads/properties/') &&
+      SAFE_REPLACE_NAME.test(requestedName) &&
+      !requestedName.includes('..')
+    ) {
+      const targetPath = path.join(PROPERTIES_UPLOAD_DIR, requestedName);
+      if (
+        path.resolve(targetPath).startsWith(PROPERTIES_UPLOAD_DIR + path.sep) &&
+        fs.existsSync(targetPath) &&
+        fs.statSync(targetPath).isFile()
+      ) {
+        targetName = requestedName;
+      }
+    }
+
+    const files = req.files.map((f, i) => {
+      let finalName = f.filename;
+      // Single-file replace: overwrite the existing file in place (same URL)
+      if (targetName && i === 0) {
+        try {
+          fs.copyFileSync(f.path, path.join(PROPERTIES_UPLOAD_DIR, targetName));
+          fs.unlinkSync(f.path);
+          finalName = targetName;
+        } catch (e) {
+          console.error('Error replacing file, keeping new upload instead:', e.stack || e);
+        }
+      }
+      return {
+        url: `/uploads/properties/${finalName}`,
+        filename: finalName,
+        replaced: Boolean(targetName && i === 0 && finalName === targetName),
+        originalname: f.originalname,
+        mimetype: f.mimetype,
+        size: f.size,
+      };
+    });
+    res.json({ files });
+  } catch (error) {
+    console.error('Error replacing uploaded file:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 }

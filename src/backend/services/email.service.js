@@ -143,6 +143,45 @@ export const sendUserWelcomeEmail = async ({ email, firstName, lastName, passwor
   }
 };
 
+export const sendUserCredentialsEmail = async ({ email, firstName, lastName, password, loginLink, role }) => {
+  const roleLabel = role === 'admin' ? 'Administrateur' : role === 'gerant' ? 'Gérant' : 'Agent';
+  const mailOptions = {
+    from: `"Real Estate CRM" <${process.env.EMAIL_FROM}>`,
+    to: email,
+    subject: `Renvoi de vos identifiants de connexion ${roleLabel}`,
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2 style="color: #2563eb;">Vos identifiants de connexion</h2>
+        <p>Bonjour ${firstName} ${lastName},</p>
+        <p>Suite à votre demande, de nouveaux identifiants ont été générés pour votre compte ${roleLabel}.</p>
+
+        <div style="background: #f3f4f6; padding: 16px; border-radius: 8px; margin: 16px 0;">
+          <p><strong>Vos identifiants de connexion :</strong></p>
+          <p>Nom : ${firstName} ${lastName}</p>
+          <p>Email : ${email}</p>
+          <p>Mot de passe : ${password}</p>
+        </div>
+
+        <p>Veuillez utiliser ces identifiants pour vous connecter :</p>
+        <a href="${loginLink}" style="display: inline-block; background: #2563eb; color: white; padding: 10px 20px; text-decoration: none; border-radius: 4px; margin: 16px 0;">
+          Connectez-vous à votre compte
+        </a>
+
+        <p style="font-size: 0.9em; color: #6b7280;">
+          Pour des raisons de sécurité, ce nouveau mot de passe remplace l'ancien et vous devrez le changer lors de votre prochaine connexion.
+        </p>
+      </div>
+    `,
+  };
+
+  try {
+    await sendMail(mailOptions);
+  } catch (error) {
+    console.error('Error sending credentials email:', error);
+    throw error;
+  }
+};
+
 export const sendAccountWarningEmail = async ({ email, firstName, daysInactive, loginLink }) => {
   const mailOptions = {
     from: `"Real Estate CRM" <${process.env.EMAIL_FROM}>`,

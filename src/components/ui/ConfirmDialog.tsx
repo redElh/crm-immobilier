@@ -60,7 +60,7 @@ export const ConfirmDialog = ({
             <div className="px-5 py-4">
               <p className="text-sm text-text-secondary leading-relaxed">{message}</p>
             </div>
-            <div className="flex items-center gap-3 px-5 py-4 bg-background/80 border-t border-border/30">
+            <div className="flex items-center gap-3 px-5 py-4 border-t border-border/30">
               <button
                 onClick={onClose}
                 className="flex-1 px-4 py-2.5 text-xs font-medium rounded-xl border border-border/30 hover:bg-background transition-all text-text-secondary hover:text-text"

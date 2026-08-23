@@ -26,6 +26,7 @@ import eventRoutes from './routes/event.routes.js';
 import googleRoutes, { googleCalendarCallback } from './routes/google.routes.js';
 import messageRoutes from './routes/message.routes.js';
 import filesRoutes from './routes/files.routes.js';
+import conciergerieRoutes from './routes/conciergerie.routes.js';
 import { protectPrivatePropertyDocuments } from './middleware/propertyFiles.middleware.js';
 import { setupRealtime } from './ws/server.js';
 import { googleAuth, googleCallback, facebookAuth, facebookCallback } from './controllers/oauth.controller.js';
@@ -93,6 +94,7 @@ app.use('/api/events', eventRoutes);
 app.use('/api/google', googleRoutes);
 app.use('/api/messages', messageRoutes);
 app.use('/api/files', filesRoutes);
+app.use('/api/conciergerie', conciergerieRoutes);
 
 // Google Calendar OAuth callback — reachable through the CRA dev-server proxy
 // at http://localhost:5001/api/auth/google/callback (matches the redirect URI

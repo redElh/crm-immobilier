@@ -36,6 +36,8 @@
     "next": "^15.5.23",
     "next-router-mock": "^1.0.2",
     "nodemailer": "^7.0.5",
+    "pdf-lib": "^1.17.1",
+    "pdfjs-dist": "^3.11.174",
     "pg": "^8.16.3",
     "radix-ui": "^1.4.2",
     "react": "^19.1.0",

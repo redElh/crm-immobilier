@@ -23,6 +23,7 @@ import { MarketingTab } from './AddPropertyForm/MarketingTab';
 import { TransfertTab } from './AddPropertyForm/TransfertTab';
 import { DocumentsTab } from './AddPropertyForm/DocumentsTab';
 import { CalendarTab } from './AddPropertyForm/CalendarTab';
+import { MandatSaisonniereTab } from './AddPropertyForm/MandatSaisonniereTab';
 
 import { useCompletionScore } from '../../../hooks/useCompletionScore';
 import { getPropertyTabs } from '../../../utils/propertyTabs';
@@ -38,6 +39,11 @@ import { createClient } from '../../../services/clientService'
 import { useToast } from '../../../components/ui/Toast'
 import { usePermission } from '../../../hooks/usePermission'
 import { api } from '../../../services/api'
+import { uploadFiles, uploadFileReplacing } from '../../../services/uploadService'
+import {
+  generateMandatSaisonnierPdf,
+  mandatSaisonnierHasContent,
+} from '../../../services/mandatSaisonnierePdf'
 
 type TabDef = {
   id: string;
@@ -64,11 +70,16 @@ const TAB_ICONS: Record<string, string> = {
   commercial: 'briefcase',
   luxury: 'lock',
   marketing: 'share-2',
+  mandat_saisonniere: 'file-text',
 };
 
 const ALL_TAB_IDS = Object.keys(TAB_ICONS);
 
 const GERANT_BUTTON_CLASSES = 'bg-[#905D5D] hover:bg-[#7D5050] border-[#905D5D] hover:border-[#7D5050] text-white shadow-[0_10px_24px_rgba(144,93,93,0.35)]'
+
+// Stable identity of the auto-generated seasonal rental mandate document
+const MANDAT_DOC_ID = 'mandat-location-saisonniere';
+const MANDAT_DOC_NAME = 'Mandat de location saisonnière.pdf';
 
 const getTabs = (type: string, furnishing?: string, constructionType?: string): TabDef[] =>
   getPropertyTabs(type, furnishing, constructionType).map((tab) => ({
@@ -472,6 +483,53 @@ export default function AddPropertyForm() {
     return 'vendeur';
   };
 
+  const attachMandatSaisonnier = async (payload: any, forcedRef?: string) => {
+    if (type !== 'vacation') return;
+    const m = payload?.mandatSaisonniere;
+    if (!m || !mandatSaisonnierHasContent(m)) return;
+    try {
+      toast('info', 'Génération du mandat de location saisonnière…');
+      const blob = await generateMandatSaisonnierPdf({
+        ...m,
+        referenceInterne: forcedRef || m.referenceInterne || payload?.reference || '',
+      });
+      const suffix = forcedRef || m.referenceInterne ? ` - ${forcedRef || m.referenceInterne}` : '';
+      const file = new File([blob], `Mandat de location saisonniere${suffix}.pdf`, { type: 'application/pdf' });
+      const tree: any[] = Array.isArray(payload.documents?.fileTree) ? [...payload.documents.fileTree] : [];
+      // Reuse the previously generated mandat document: update it in place instead of piling up copies
+      const idx = tree.findIndex(
+        (n) => n?.type === 'file' && (n?.id === MANDAT_DOC_ID || n?.name === MANDAT_DOC_NAME)
+      );
+      const existing = idx >= 0 ? tree[idx] : null;
+      const url =
+        existing?.url
+          ? await uploadFileReplacing(file, existing.url)
+          : (await uploadFiles([file]))[0];
+      if (!url) throw new Error("Échec de l'envoi du mandat");
+      const now = new Date().toISOString();
+      const node = {
+        ...(existing || {}),
+        id: MANDAT_DOC_ID,
+        name: MANDAT_DOC_NAME,
+        type: 'file',
+        url,
+        createdAt: existing?.createdAt || now,
+        updatedAt: now,
+      };
+      if (idx >= 0) tree[idx] = node;
+      else tree.push(node);
+      payload.documents = { ...(payload.documents || {}), fileTree: tree };
+      toast(
+        'success',
+        existing
+          ? 'Mandat de location saisonnière mis à jour dans les documents'
+          : 'Mandat de location saisonnière généré et ajouté aux documents'
+      );
+    } catch {
+      toast('error', "La génération du mandat PDF a échoué — le bien sera enregistré sans ce document");
+    }
+  };
+
   const onSubmit = async (data: any) => {
     if (savedDraftId) deleteDraft(userId, savedDraftId);
 
@@ -514,11 +572,14 @@ export default function AddPropertyForm() {
       }
 
       if (editId) {
+        await attachMandatSaisonnier(submitData, submitData?.reference)
         await updateProperty(editId, submitData)
         toast('success', 'Bien modifié avec succès')
         navigate(`/${userId}/properties/type/${type}/${editId}`, { replace: true })
       } else {
         const ref = await generateReference(type)
+        submitData.reference = ref
+        await attachMandatSaisonnier(submitData, ref)
         const targetAgentId = assignedTo && assignedType ? assignedTo : (agentId || '')
         await addProperty({ ...submitData, reference: ref, agentId: targetAgentId })
 
@@ -620,6 +681,7 @@ export default function AddPropertyForm() {
     documents: <DocumentsTab register={register} control={control} propertyType={type} setFormValue={setValue} isGerant={isGerant} />,
     calendar: <CalendarTab register={register} control={control} watch={watch} isGerant={isGerant} />,
     seasonal: <SeasonalTab register={register} control={control} watch={watch} isGerant={isGerant} />,
+    mandat_saisonniere: <MandatSaisonniereTab register={register} control={control} watch={watch} setValue={setValue} isGerant={isGerant} />,
     land: <LandTab register={register} control={control} isGerant={isGerant} />,
     commercial: <CommercialTab register={register} control={control} isGerant={isGerant} />,
     luxury: <LuxuryTab register={register} control={control} isGerant={isGerant} />,

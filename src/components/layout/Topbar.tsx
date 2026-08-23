@@ -62,6 +62,7 @@ export default function Topbar({ basePath = '' }: { basePath?: string }) {
       calendar: 'Calendrier',
       documents: 'Documents',
       messages: 'Messages',
+      conciergerie: 'Activités Conciergerie',
       settings: 'Paramètres',
     }
     return sections[path] || 'Tableau de bord'

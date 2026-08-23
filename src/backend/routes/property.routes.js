@@ -24,6 +24,7 @@ import {
   proposeToClient,
   refuseMatch,
   unrefuseMatch,
+  uploadPropertyFileReplacing,
 } from '../controllers/property.controller.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -66,6 +67,7 @@ router.post('/:id/refuse', verifyToken, refuseMatch);
 router.delete('/:id/refuse/:clientId', verifyToken, unrefuseMatch);
 router.post('/', verifyToken, createProperty);
 router.post('/upload', verifyToken, upload.array('files', 20), uploadPropertyFile);
+router.post('/upload-replace', verifyToken, upload.array('files', 20), uploadPropertyFileReplacing);
 router.put('/:id', verifyToken, updateProperty);
 router.patch('/:id/status', verifyToken, updatePropertyStatus);
 router.patch('/:id/completion', verifyToken, updatePropertyCompletion);

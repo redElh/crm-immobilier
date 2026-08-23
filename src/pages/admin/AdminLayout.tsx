@@ -12,7 +12,7 @@ import {
   Home, Users, FileText, MessageSquare, Settings,
   Calendar, BookOpen, Eye, Zap,
   Edit3, Crosshair, CheckCircle, Shield, ChevronRight,
-  LogOut, Bell, HelpCircle, Loader,
+  LogOut, Bell, HelpCircle, Loader, Compass,
 } from 'react-feather'
 import { AnimatePresence, motion } from 'framer-motion'
 import SidebarToggle from '../../components/layout/SidebarToggle'
@@ -54,6 +54,7 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
     { icon: Calendar, label: 'Calendrier', to: `${basePath}/calendar` },
     { icon: FileText, label: 'Documents', to: `${basePath}/documents` },
     { icon: MessageSquare, label: 'Messages', to: `${basePath}/messages`, badge: messageUnread },
+    { icon: Compass, label: 'Activités Conciergerie', to: `${basePath}/conciergerie` },
     { icon: Settings, label: 'Paramètres', to: `${basePath}/settings` },
   ]
 
@@ -137,6 +138,7 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
       calendar: 'Calendrier',
       documents: 'Documents',
       messages: 'Messages',
+      conciergerie: 'Activités Conciergerie',
       settings: 'Paramètres',
       dashboard: 'Dashboard',
     }
@@ -146,8 +148,8 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className={`flex h-screen admin-theme ${userRole === 'admin' ? 'bg-[#FFCC99]' : 'bg-[#D2B1A3]'}`}>
       <aside className={`relative ${collapsed ? 'w-16' : 'w-60'} h-screen ${userRole === 'admin' ? 'bg-[#893101]' : 'bg-[#905D5D]'} ${userRole === 'admin' ? 'border-r border-white/10' : 'border-r border-border/50'} flex flex-col transition-[width] duration-300 ease-in-out`}>
-        <div className="h-16 flex items-center gap-3 px-4 border-b border-white/10 overflow-hidden">
-          <div className="relative h-12 w-12 overflow-hidden rounded-2xl border border-white/30 bg-[linear-gradient(180deg,rgba(7,59,39,0.96),rgba(6,34,23,0.98))] shadow-[0_10px_24px_rgba(0,0,0,0.22)] flex-shrink-0">
+        <div className="h-16 flex items-center gap-3 px-4 border-b border-white/10 overflow-hidden shrink-0">
+          <div className="relative h-10 w-10 overflow-hidden rounded-xl border border-white/30 bg-[linear-gradient(180deg,rgba(7,59,39,0.96),rgba(6,34,23,0.98))] shadow-[0_6px_16px_rgba(0,0,0,0.22)] flex-shrink-0">
             <div className="absolute inset-0 bg-gradient-to-br from-premium/30 via-transparent to-accent/10" />
             <img src="/CRM_Official_Admin_Image.jfif" alt="CRM Square Immo" className="relative h-full w-full object-cover" />
           </div>
@@ -159,11 +161,11 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
                 animate={{ opacity: 1, width: 'auto' }}
                 exit={{ opacity: 0, width: 0 }}
                 transition={{ duration: 0.2, ease: 'easeInOut' }}
-                className={`font-semibold text-sm tracking-tight text-white whitespace-nowrap overflow-hidden`}
+                className={`font-semibold text-sm leading-tight tracking-tight text-white whitespace-nowrap overflow-hidden`}
               >
                 CRM Square Immo
-                <span className={`ml-1.5 text-[10px] text-white/70`}>
-                  ({userRole === 'gerant' ? 'Gérant' : 'Administrateur'})
+                <span className={`block text-[10px] leading-tight font-normal text-white/70 mt-0.5 whitespace-nowrap`}>
+                  {userRole === 'gerant' ? 'Gérant' : 'Administrateur'}
                 </span>
               </motion.span>
             )}

@@ -66,6 +66,7 @@ const AGENT_POSITIONS = [
   { value: 'Secrétariat', label: 'Secrétariat' },
   { value: 'Stagiaire', label: 'Stagiaire' },
   { value: 'Traducteur', label: 'Traducteur' },
+  { value: 'Conciergerie', label: 'Conciergerie' },
 ]
 
 function getRoleLabel(user: UserData): string {
@@ -121,10 +122,11 @@ interface ActionMenuProps {
   onReactivate: (id: number) => void
   onDelete: (id: number) => void
   onResetPassword: (id: number) => void
+  onResendCredentials: (id: number) => void
   adminId: string
 }
 
-function ActionMenu({ user, position, currentUserId, currentUserRole, onClose, onEdit, onToggleStatus, onReactivate, onDelete, onResetPassword, adminId }: ActionMenuProps) {
+function ActionMenu({ user, position, currentUserId, currentUserRole, onClose, onEdit, onToggleStatus, onReactivate, onDelete, onResetPassword, onResendCredentials, adminId }: ActionMenuProps) {
   const ref = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -147,6 +149,7 @@ function ActionMenu({ user, position, currentUserId, currentUserRole, onClose, o
       ? [{ icon: Shield, label: 'Droits', onClick: () => window.location.href = `/admin/${adminId}/users/${user.id}/droits` }]
       : []),
     { icon: Lock, label: 'Réinitialiser le mot de passe', onClick: () => onResetPassword(user.id) },
+    { icon: Mail, label: 'Renvoyer les identifiants', onClick: () => onResendCredentials(user.id) },
     ...(!isOwner && (user.status === 'inactif' || user.status === 'suspendu')
       ? [{ icon: CheckCircle, label: 'Réactiver le compte', onClick: () => onReactivate(user.id) }]
       : []),
@@ -331,6 +334,18 @@ export default function AdminUsersPage() {
     } catch (err) {
       console.error('Error sending reset email:', err)
       toast('error', 'Erreur lors de l\'envoi de l\'email de réinitialisation.')
+    }
+  }
+
+  const handleResendCredentials = async (id: number) => {
+    const target = users.find(u => String(u.id) === String(id))
+    if (!window.confirm(`Renvoyer les identifiants à ${target?.first_name || ''} ${target?.last_name || ''} ? Un nouveau mot de passe sera généré et l'ancien sera invalidé.`)) return
+    try {
+      await api.post(`/admin/users/${id}/resend-credentials`)
+      toast('success', `Identifiants renvoyés par email à ${target?.first_name || ''} ${target?.last_name || ''}.`)
+    } catch (err) {
+      console.error('Error resending credentials:', err)
+      toast('error', 'Erreur lors du renvoi des identifiants.')
     }
   }
 
@@ -735,6 +750,7 @@ export default function AdminUsersPage() {
           onReactivate={handleReactivate}
           onDelete={handleDelete}
           onResetPassword={handleResetPassword}
+          onResendCredentials={handleResendCredentials}
         />
       )}
 

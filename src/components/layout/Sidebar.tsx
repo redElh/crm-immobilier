@@ -1,6 +1,7 @@
 import { API_ORIGIN } from '../../utils/config'
 import { NavLink, useLocation } from 'react-router-dom'
-import { Activity, Home, Users, FileText, MessageSquare, Settings, Crosshair, CheckCircle, Calendar, BookOpen, Eye, Zap, Edit3 } from 'react-feather'
+import { Activity, Home, Users, FileText, MessageSquare, Settings, Crosshair, CheckCircle, Calendar, BookOpen, Eye, Zap, Edit3, Compass } from 'react-feather'
+import { Library as LibraryIcon } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { useMessageUnread } from '../../services/realtime'
@@ -84,14 +85,16 @@ export default function Sidebar({ basePath = '' }: { basePath?: string }) {
       ? [{ icon: Calendar, label: 'Calendrier', to: `${basePath}/calendar` }]
       : []),
     { icon: FileText, label: 'Documents', to: `${basePath}/documents` },
+    { icon: LibraryIcon, label: 'Librairie', to: `${basePath}/library` },
     { icon: MessageSquare, label: 'Messages', to: `${basePath}/messages`, badge: unreadCount },
+    { icon: Compass, label: 'Activités Conciergerie', to: `${basePath}/conciergerie` },
     { icon: Settings, label: 'Paramètres', to: `${basePath}/settings` },
   ]
 
   return (
     <aside className={`relative ${collapsed ? 'w-16' : 'w-60'} h-screen bg-[#32612D] border-r border-white/10 flex flex-col transition-[width] duration-300 ease-in-out`}>
-      <div className="h-16 flex items-center gap-3 px-4 border-b border-white/10 overflow-hidden">
-        <div className="relative h-12 w-12 overflow-hidden rounded-2xl border border-white/30 bg-[linear-gradient(180deg,rgba(7,59,39,0.96),rgba(6,34,23,0.98))] shadow-[0_10px_24px_rgba(0,0,0,0.22)] flex-shrink-0">
+      <div className="h-16 flex items-center gap-3 px-4 border-b border-white/10 overflow-hidden shrink-0">
+        <div className="relative h-10 w-10 overflow-hidden rounded-xl border border-white/30 bg-[linear-gradient(180deg,rgba(7,59,39,0.96),rgba(6,34,23,0.98))] shadow-[0_6px_16px_rgba(0,0,0,0.22)] flex-shrink-0">
           <div className="absolute inset-0 bg-gradient-to-br from-premium/30 via-transparent to-accent/10" />
           <img src="/CRM_Official_Image.jfif" alt="CRM Square Immo" className="relative h-full w-full object-cover" />
         </div>
@@ -103,10 +106,10 @@ export default function Sidebar({ basePath = '' }: { basePath?: string }) {
               animate={{ opacity: 1, width: 'auto' }}
               exit={{ opacity: 0, width: 0 }}
               transition={{ duration: 0.2, ease: 'easeInOut' }}
-              className="font-semibold text-sm tracking-tight text-white whitespace-nowrap overflow-hidden"
+              className="font-semibold text-sm leading-tight tracking-tight text-white whitespace-nowrap overflow-hidden"
             >
               CRM Square Immo
-              {espaceType && <span className="ml-1.5 text-white/70">({espaceType})</span>}
+              {espaceType && <span className="block text-[10px] leading-tight font-normal text-white/70 mt-0.5 whitespace-nowrap">{espaceType}</span>}
             </motion.span>
           )}
         </AnimatePresence>

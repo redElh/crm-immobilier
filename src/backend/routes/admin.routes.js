@@ -15,6 +15,7 @@ import {
   updateUser,
   deleteUser,
   toggleUserStatus,
+  resendUserCredentials,
   uploadProfileImage,
   reactivateUserAccount,
   suspendUserAccount,
@@ -69,6 +70,7 @@ router.post('/users', createUser);
 router.put('/users/:id', updateUser);
 router.delete('/users/:id', deleteUser);
 router.patch('/users/:id/toggle-status', toggleUserStatus);
+router.post('/users/:id/resend-credentials', resendUserCredentials);
 
 router.patch('/users/:id/reactivate', reactivateUserAccount);
 router.patch('/users/:id/suspend', suspendUserAccount);
