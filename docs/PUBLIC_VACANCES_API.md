@@ -2,7 +2,8 @@
 
 Public read-only API that exposes the reservation calendar built in **Toolbox → Vacances management** (`category: 3` APIMO properties). The CRM remains the source of truth; `squaremeter.ma` consumes this API to disable booked dates.
 
-Base URL (production): `https://crm.squaremeter.ma/api/public`  
+Base URL (production): `https://api.squaremeter.ma/api/public` ← Railway Express backend (`BACKEND_URL`)
+> ⚠️ `https://crm.squaremeter.ma` and `https://www.squaremeter.ma` are **frontends** (Vercel/Cloudflare, SPA). Calling `/api/public` there returns `text/html` or `404`. Always call the **backend** `api.squaremeter.ma` from `squaremeter.ma`.
 Base URL (local dev): `http://localhost:5000/api/public`
 
 > No authentication required. If `PUBLIC_VACANCES_API_KEY` is set in the CRM backend `.env`, send it as `X-API-Key` (or `?api_key=`).
@@ -17,7 +18,9 @@ GET /vacances/reservations/:apimoPropertyId
 ```
 **Example**
 ```bash
-curl https://crm.squaremeter.ma/api/public/vacances/reservations/86686477
+curl https://api.squaremeter.ma/api/public/vacances/reservations/86686477
+# expected 200 JSON; if you curl https://www.squaremeter.ma/api/... you will get 404 (no serverless function there)
+# and https://crm.squaremeter.ma/api/... returns SPA html — use api.squaremeter.ma
 ```
 **Response `200`**
 ```json
@@ -35,7 +38,7 @@ GET /vacances/reservations?ids=86686477,86686478,86686479
 # alias: ?propertyIds= or ?propertyId=
 ```
 ```bash
-curl "https://crm.squaremeter.ma/api/public/vacances/reservations?ids=86686477,86709240"
+curl "https://api.squaremeter.ma/api/public/vacances/reservations?ids=86686477,86709240"
 ```
 ```json
 {
@@ -90,9 +93,9 @@ Server-side filters `category===3`, so only vacances are returned. Credentials n
 
 ## squaremeter.ma integration
 
-### Vanilla JS / React
+### Vanilla JS / React — call the backend, not the frontend
 ```js
-const CRM_API = 'https://crm.squaremeter.ma/api/public';
+const CRM_API = 'https://api.squaremeter.ma/api/public'; // NOT https://www.squaremeter.ma/api/public and NOT https://crm.squaremeter.ma/api/public
 
 // 1. Single property page
 async function getReservedDates(propertyId) {
@@ -119,7 +122,7 @@ const isBlocked = (isoDate) => blocked.has(isoDate); // "2026-09-03" => true
 ### Next.js (ISR — revalidate every 60s)
 ```js
 export async function getStaticProps({ params }) {
-  const res = await fetch(`https://crm.squaremeter.ma/api/public/vacances/reservations/${params.id}`);
+  const res = await fetch(`https://api.squaremeter.ma/api/public/vacances/reservations/${params.id}`);
   const data = await res.json();
   return { props: { reservedDates: data.reservedDates }, revalidate: 60 };
 }
@@ -127,6 +130,31 @@ export async function getStaticProps({ params }) {
 
 ### CORS
 Allowed origins: `https://squaremeter.ma`, `https://www.squaremeter.ma`, any `*.squaremeter.ma`, `localhost`/`127.0.0.1` for dev, and `no-origin` (SSR/curl). Public routes use `credentials: false`, so no cookies needed.
+Backend `CORS_ORIGIN` already includes these via `app.js:52` (`PUBLIC_CORS_ALLOW` + `*.squaremeter.ma`), so cross-origin `fetch` from `www.squaremeter.ma` to `api.squaremeter.ma` succeeds.
+
+### Troubleshooting — why you got `404` / `text/html`
+| You called | Result | Why |
+|---|---|---|
+| `crm.squaremeter.ma/api/public/...` | `200 text/html` SPA | `crm.*` is the CRM frontend (React/Vercel), not Express |
+| `www.squaremeter.ma/api/public/...` | `404 NOT_FOUND` | `www.*` has no `/api/public/vacances.js` function |
+| `api.squaremeter.ma/api/public/...` | `200 JSON` | Correct — Railway Express (`BACKEND_URL`) |
+
+**Fix:** change `CRM_API` to `https://api.squaremeter.ma/api/public` (see above). No code deploy needed on `crm` or `www`.
+
+#### Optional — same-origin proxy on `www.squaremeter.ma` (avoids CORS entirely)
+If you prefer `fetch('/api/public/vacances/...')` from the browser, add a rewrite on the **www** repo:
+
+**Next.js (`next.config.js`)**
+```js
+async rewrites() {
+  return [{ source: '/api/public/:path*', destination: 'https://api.squaremeter.ma/api/public/:path*' }];
+}
+```
+**Vercel (`vercel.json`)**
+```json
+{ "rewrites": [{ "source": "/api/public/:path*", "destination": "https://api.squaremeter.ma/api/public/:path*" }] }
+```
+Then `fetch('/api/public/vacances/reservations/86686477')` works same-origin.
 
 ### Rate limit
 `120 req / 15 min` per IP. Exceeding returns `429` with `Retry-After`.
