@@ -1,13 +1,19 @@
 import { useState, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
-import { Button } from '../../ui/Button';
-import { Dialog } from '../../ui/Dialog';
+import { motion, AnimatePresence } from 'framer-motion';
+import { SearchInput } from '../../ui/SearchInput';
 import { useToast } from '../../ui/Toast';
+import { useStageChrome } from '../calendar/useStageChrome';
+import {
+  OrbIcon, TiltCard, StageBadge, StageButton,
+  STAGE_HUES, SLATE_HUE, AnimatedNumber,
+} from '../../dashboard/Stage';
 import {
   Users, Search, Filter, RefreshCw, Mail, MapPin, DollarSign,
-  Maximize2, Home, Grid, AlertCircle, TrendingUp, CheckCircle,
-  Moon, Phone, Send, BarChart2, ChevronDown, ChevronUp, Eye,
-  CheckSquare, Square, X, Star, User,
+  Maximize2, Grid, AlertCircle, TrendingUp, CheckCircle,
+  Moon, Send, BarChart2, ChevronDown, ChevronUp, Eye,
+  CheckSquare, X, Star, User, FileText,
 } from 'react-feather';
 import type { Property } from '../../../types/property';
 
@@ -54,13 +60,14 @@ const criterionMeta: Record<string, { label: string; icon: string; weight: numbe
 };
 
 const iconMap: Record<string, any> = {
-  MapPin, DollarSign, Maximize2, Moon, CheckCircle, Star, Grid, Eye, Home,
+  MapPin, DollarSign, Maximize2, Moon, CheckCircle, Star, Grid, Eye, Users,
 };
 
 export const PropertyMatching = ({ property, agentId, adminId, isGerant = false }: PropertyMatchingProps) => {
   const { toast } = useToast();
   const navigate = useNavigate();
   const basePath = adminId ? `/admin/${adminId}` : agentId ? `/${agentId}` : '';
+  const { staged, dark } = useStageChrome();
 
   const [matches, setMatches] = useState<PropertyMatch[]>([]);
   const [loading, setLoading] = useState(true);
@@ -107,9 +114,9 @@ export const PropertyMatching = ({ property, agentId, adminId, isGerant = false 
   };
 
   const scoreMeta = (score: number) => {
-    if (score >= 80) return { text: 'text-emerald-600', bg: 'bg-emerald-500', lightBg: 'bg-emerald-50', ring: 'ring-emerald-500/20', label: 'Excellente', trackBg: 'bg-emerald-100' };
-    if (score >= 60) return { text: 'text-amber-600', bg: 'bg-amber-500', lightBg: 'bg-amber-50', ring: 'ring-amber-500/20', label: 'Moyenne', trackBg: 'bg-amber-100' };
-    return { text: 'text-red-500', bg: 'bg-red-400', lightBg: 'bg-red-50', ring: 'ring-red-400/20', label: 'Faible', trackBg: 'bg-red-100' };
+    if (score >= 80) return { hue: STAGE_HUES.emerald, label: 'Excellente', lightBg: dark ? 'bg-emerald-500/15' : 'bg-emerald-50', ring: dark ? 'ring-emerald-500/30' : 'ring-emerald-500/20', trackBg: dark ? 'bg-white/10' : 'bg-emerald-100' };
+    if (score >= 60) return { hue: STAGE_HUES.amber, label: 'Moyenne', lightBg: dark ? 'bg-amber-500/15' : 'bg-amber-50', ring: dark ? 'ring-amber-500/30' : 'ring-amber-500/20', trackBg: dark ? 'bg-white/10' : 'bg-amber-100' };
+    return { hue: SLATE_HUE, label: 'Faible', lightBg: dark ? 'bg-white/[0.06]' : 'bg-red-50', ring: dark ? 'ring-white/10' : 'ring-red-400/20', trackBg: dark ? 'bg-white/10' : 'bg-red-100' };
   };
 
   const buildCriteria = (details?: Record<string, number>) => {
@@ -128,7 +135,6 @@ export const PropertyMatching = ({ property, agentId, adminId, isGerant = false 
     const ownerEmail = property.owner?.email || '';
     setProposalEmail(ownerEmail);
     const isLocataire = match.type === 'Locataire';
-
     const d = match.details || {};
     const pct = (v: number) => Math.round(v * 100);
     const analysisLines: string[] = [];
@@ -160,13 +166,12 @@ export const PropertyMatching = ({ property, agentId, adminId, isGerant = false 
       ? `Nous vous recommandons de prendre contact avec ce locataire dans les meilleurs délais.`
       : `Nous vous recommandons de prendre contact avec ce client dans les meilleurs délais.`;
 
+    // Propriétaire must go through the agency — no direct client contact details
     setProposalMessage(
       `Bonjour ${property.owner?.name || ownerTitle},\n\n` +
       `${intro}\n\n` +
       `👤 ${clientLabel} :\n` +
-      `  Nom : ${match.name}\n` +
-      `${match.email ? '  Email : ' + match.email + '\n' : ''}` +
-      `${match.phone ? '  Téléphone : ' + match.phone + '\n' : ''}` +
+      `  Profil : ${match.name}\n` +
       `  Score de compatibilité : ${match.score}%\n` +
       budgetLine +
       `${match.secteur ? '  Secteur recherché : ' + match.secteur + '\n' : ''}` +
@@ -177,7 +182,7 @@ export const PropertyMatching = ({ property, agentId, adminId, isGerant = false 
       `  ${isLocataire ? 'Loyer' : 'Prix'} : ${property.price > 0 ? property.price.toLocaleString() + ' MAD' : 'Sur demande'}${isLocataire ? '/mois' : ''}\n` +
       `  Surface : ${property.surface > 0 ? property.surface + ' m²' : 'N/C'}\n` +
       analysisBlock +
-      `\n${closing}\n\n` +
+      `\n${closing} Votre conseiller reste votre unique interlocuteur et organisera la mise en relation.\n\n` +
       `Cordialement,`
     );
     setProposalModal({ open: true, match });
@@ -219,27 +224,26 @@ export const PropertyMatching = ({ property, agentId, adminId, isGerant = false 
 
   if (loading) {
     return (
-      <div className="flex flex-col items-center justify-center py-20">
-        <div className="relative w-14 h-14 mb-4">
-          <div className={`absolute inset-0 rounded-full border-2 ${isGerant ? 'border-[#905D5D]/20' : 'border-accent/20'}`} />
-          <div className={`absolute inset-0 rounded-full border-2 border-transparent ${isGerant ? 'border-t-[#905D5D]' : 'border-t-accent'} animate-spin`} />
-          <div className={`absolute inset-2 rounded-full border-2 border-transparent ${isGerant ? 'border-t-[#905D5D]/60' : 'border-t-accent/60'} animate-spin`} style={{ animationDirection: 'reverse', animationDuration: '1.5s' }} />
-          <BarChart2 size={16} className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 ${isGerant ? 'text-[#905D5D]' : 'text-accent'}`} />
+      <div className="space-y-4">
+        <div className={`rounded-2xl p-8 flex flex-col items-center justify-center gap-3 ${staged ? (dark ? 'bg-white/[0.04] border border-white/[0.08]' : 'bg-white/80 border border-teal-900/10') : 'bg-card border border-border/50 shadow-card'}`}>
+          <div className="relative w-14 h-14">
+            <div className={`absolute inset-0 rounded-full border-2 ${dark ? 'border-white/10' : 'border-teal-900/10'}`} />
+            <div className="absolute inset-0 rounded-full border-2 border-transparent border-t-violet-500 animate-spin" style={{ filter: 'drop-shadow(0 0 8px rgba(139,124,255,0.5))' }} />
+            <BarChart2 size={16} className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-violet-400" />
+          </div>
+          <p className={`text-sm font-semibold ${dark ? 'text-white' : 'text-slate-900'}`}>Analyse en cours...</p>
+          <p className={`text-xs ${dark ? 'text-slate-400' : 'text-slate-500'}`}>Recherche des clients correspondants</p>
         </div>
-        <p className="text-sm font-medium text-text">Analyse en cours...</p>
-        <p className="text-xs text-text-secondary/60 mt-1">Recherche des clients correspondants</p>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="flex flex-col items-center justify-center py-16">
-        <div className="w-12 h-12 rounded-full bg-red-50 flex items-center justify-center mb-3">
-          <AlertCircle size={20} className="text-red-400" />
-        </div>
-        <p className="text-sm text-red-500 font-medium">{error}</p>
-        <Button variant="outline" size="sm" icon={<RefreshCw size={14} />} onClick={fetchMatches} className="mt-3">Réessayer</Button>
+      <div className={`rounded-2xl p-10 flex flex-col items-center justify-center gap-3 text-center ${staged ? (dark ? 'bg-white/[0.04] border border-white/[0.08]' : 'bg-white/80 border border-teal-900/10') : 'bg-card border border-border/50 shadow-card'}`}>
+        <OrbIcon icon={AlertCircle} hue={STAGE_HUES.fuchsia} size={48} radius={14} />
+        <p className={`text-sm font-medium ${dark ? 'text-red-300' : 'text-red-500'}`}>{error}</p>
+        <StageButton variant="glass" size="sm" icon={<RefreshCw size={13} />} onClick={fetchMatches}>Réessayer</StageButton>
       </div>
     );
   }
@@ -254,405 +258,475 @@ export const PropertyMatching = ({ property, agentId, adminId, isGerant = false 
   const sm = scoreMeta(avgScore);
 
   return (
-    <div className="space-y-6">
-      {/* Hero Header */}
-      <div className={`relative overflow-hidden rounded-2xl bg-gradient-to-br ${isGerant ? 'from-[#905D5D]/5 via-[#905D5D]/[0.02]' : 'from-accent/5 via-accent/[0.02]'} to-transparent border ${isGerant ? 'border-[#905D5D]/10' : 'border-accent/10'} p-5`}>
-        <div className={`absolute top-3 right-3 w-24 h-24 rounded-full ${isGerant ? 'bg-[#905D5D]/5' : 'bg-accent/5'} blur-2xl`} />
-        <div className="relative flex items-start justify-between gap-4">
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 mb-1">
-              <div className={`w-7 h-7 rounded-lg ${isGerant ? 'bg-[#905D5D]/10' : 'bg-accent/10'} flex items-center justify-center`}>
-                <Users size={14} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />
-              </div>
-              <h3 className="text-sm font-semibold text-text tracking-tight">Matching clients</h3>
-            </div>
-            <p className="text-xs text-text-secondary">
-              <span className="font-semibold text-text">{property.title || property.reference}</span>
-              <span className="mx-1.5 text-text-secondary/30">—</span>
-              {filtered.length} client{filtered.length > 1 ? 's' : ''} correspondant{filtered.length > 1 ? 's' : ''}
-            </p>
-            <div className="flex items-center gap-3 mt-3">
-              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-card border border-border/50">
-                <span className={`text-lg font-bold ${sm.text}`}>{avgScore}%</span>
-                <span className="text-[10px] text-text-secondary">score moyen</span>
-              </div>
-              {excellentCount > 0 && (
-                <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50 border border-emerald-100">
-                  <CheckCircle size={12} className="text-emerald-500" />
-                  <span className="text-xs font-semibold text-emerald-600">{excellentCount}</span>
-                  <span className="text-[10px] text-emerald-600/70">excellent{excellentCount > 1 ? 's' : ''}</span>
-                </div>
-              )}
+    <div className="space-y-4">
+      {/* Header */}
+      <motion.div
+        initial={staged ? { opacity: 0, y: 12 } : undefined}
+        animate={staged ? { opacity: 1, y: 0 } : undefined}
+        transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+        className={`rounded-2xl p-5 ${staged ? (dark ? 'bg-white/[0.04] border border-white/[0.08]' : 'bg-white/80 border border-teal-900/10') : 'bg-card border border-border/50 shadow-card'}`}
+      >
+        {staged && (
+          <div className="pointer-events-none absolute top-0 left-[10%] right-[10%] h-px" style={{
+            background: dark
+              ? 'linear-gradient(90deg, transparent, rgba(139,124,255,0.5), rgba(94,234,212,0.3), transparent)'
+              : 'linear-gradient(90deg, transparent, rgba(13,148,136,0.5), rgba(124,92,255,0.25), transparent)'
+          }} />
+        )}
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0 flex-1">
+            <OrbIcon icon={Users} hue={STAGE_HUES.violet} size={40} radius={12} className="shrink-0" />
+            <div className="min-w-0">
+              <h2 className={`text-[15px] font-bold tracking-tight ${dark ? 'text-white' : 'text-slate-900'}`}>Matching clients</h2>
+              <p className={`text-xs mt-0.5 truncate ${dark ? 'text-slate-400' : 'text-slate-500'}`}>
+                <span className={`font-semibold ${dark ? 'text-white' : 'text-slate-900'}`}>{property.title || property.reference}</span>
+                <span className="mx-1.5 opacity-40">—</span>
+                {filtered.length} client{filtered.length !== 1 ? 's' : ''} correspondant{filtered.length !== 1 ? 's' : ''}
+                {excellentCount > 0 && <span className="ml-1.5 inline-flex items-center gap-1 text-emerald-500"><CheckCircle size={10} /> {excellentCount} excellent{excellentCount > 1 ? 's' : ''}</span>}
+              </p>
             </div>
           </div>
-          <div className="flex gap-2 shrink-0">
-            <Button variant="outline" size="sm" icon={<RefreshCw size={14} />} onClick={fetchMatches}>Relancer</Button>
+          <div className="flex items-center gap-2 shrink-0">
+            <StageButton variant="glass" size="sm" icon={<RefreshCw size={13} />} onClick={fetchMatches} />
             {selectedProposals.length > 0 && (
-              <Button variant="default" size="sm" icon={<Mail size={14} />}>Notifier ({selectedProposals.length})</Button>
+              <StageButton variant="primary" size="sm" icon={<Mail size={13} />} onClick={() => {
+                const m = matches.find(x => x.clientId === selectedProposals[0]);
+                if (m) openProposal(m);
+                else if (selectedProposals.length > 1) toast('info', `Envoi groupé : ${selectedProposals.length} clients sélectionnés`);
+              }}>
+                Notifier ({selectedProposals.length})
+              </StageButton>
             )}
           </div>
         </div>
-      </div>
-
-      {/* Filter Bar */}
-      <div className="flex flex-wrap items-center gap-3 px-1">
-        <div className="flex items-center gap-1.5 mr-2">
-          <Filter size={12} className="text-text-secondary/50" />
-          <span className="text-[10px] font-medium text-text-secondary/60 uppercase tracking-wider">Filtres</span>
-        </div>
-        <div className="flex items-center gap-1 bg-background rounded-lg border border-border/50 p-0.5">
-          {[0, 50, 60, 70, 80].map(val => (
-            <button key={val} onClick={() => setScoreFilter(val)}
-              className={`px-2.5 py-1 text-[11px] font-medium rounded-md transition-all ${scoreFilter === val ? (isGerant ? 'bg-[#905D5D] text-white shadow-sm' : 'bg-accent text-white shadow-sm') : 'text-text-secondary hover:text-text'}`}>
-              {val === 0 ? 'Tous' : `${val}%+`}
-            </button>
-          ))}
-        </div>
-        <div className="h-4 w-px bg-border/50" />
-        <div className="flex items-center gap-1 bg-background rounded-lg border border-border/50 p-0.5">
-          {([['score', 'Meilleur', TrendingUp], ['budget', 'Budget', DollarSign]] as const).map(([val, label, Icon]) => (
-            <button key={val} onClick={() => setSortBy(val)}
-              className={`flex items-center gap-1 px-2.5 py-1 text-[11px] font-medium rounded-md transition-all ${sortBy === val ? (isGerant ? 'bg-[#905D5D] text-white shadow-sm' : 'bg-accent text-white shadow-sm') : 'text-text-secondary hover:text-text'}`}>
-              <Icon size={10} />{label}
-            </button>
-          ))}
-        </div>
-        <div className="h-4 w-px bg-border/50" />
-        <div className="relative max-w-[200px]">
-          <Search size={12} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-text-secondary/40" />
-          <input
-            type="text"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Rechercher un client..."
-            className={`w-full h-8 pl-8 pr-3 text-[11px] rounded-lg border border-border/50 bg-background text-text placeholder:text-text-secondary/40 focus:outline-none focus:ring-2 ${isGerant ? 'focus:ring-[#905D5D]/20 focus:border-[#905D5D]/40' : 'focus:ring-accent/20 focus:border-accent/40'} transition-all`}
-          />
-        </div>
-      </div>
-
-      {/* Buyer Cards */}
-      {sorted.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-16">
-          <div className="w-14 h-14 rounded-2xl bg-background flex items-center justify-center mb-3 border border-border/50">
-            <Users size={22} className="text-text-secondary/30" />
+        {(filtered.length > 0) && (
+          <div className="flex items-center gap-2 mt-4 flex-wrap">
+            <div className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs font-semibold ${dark ? 'bg-white/[0.06] border-white/10 text-white' : 'bg-white border-teal-900/10 text-slate-900'}`}>
+              <span className={`text-sm font-extrabold ${avgScore >= 80 ? 'text-emerald-400' : avgScore >= 60 ? 'text-amber-400' : dark ? 'text-slate-400' : 'text-slate-500'}`}><AnimatedNumber value={avgScore} suffix="%" /></span>
+              <span className={`text-[10px] font-medium ${dark ? 'text-slate-400' : 'text-slate-500'}`}>score moyen</span>
+            </div>
+            <div className={`h-6 w-px ${dark ? 'bg-white/10' : 'bg-teal-900/10'}`} />
+            <span className={`text-xs ${dark ? 'text-slate-400' : 'text-slate-500'}`}>
+              Trié par <span className={`font-semibold ${dark ? 'text-white' : 'text-slate-900'}`}>{sortBy === 'score' ? 'compatibilité' : 'budget'}</span>
+            </span>
           </div>
-          <p className="text-sm font-medium text-text-secondary">Aucun client trouvé</p>
-          <p className="text-xs text-text-secondary/50 mt-1">Essayez d'abaisser le score minimum</p>
+        )}
+      </motion.div>
+
+      {/* Filters & Search */}
+      <div className={`rounded-2xl overflow-hidden p-4 ${staged ? (dark ? 'bg-white/[0.04] border border-white/[0.08]' : 'bg-white/80 border border-teal-900/10') : 'bg-card border border-border/50 shadow-card'}`}>
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-1.5">
+            <Filter size={12} className={dark ? 'text-slate-500' : 'text-teal-900/40'} />
+            <span className={`text-[10px] font-bold uppercase tracking-widest ${dark ? 'text-slate-500' : 'text-teal-900/45'}`}>Filtres</span>
+          </div>
+          <div className={`flex items-center gap-1 rounded-xl p-1 border ${dark ? 'bg-white/[0.04] border-white/10' : 'bg-slate-50 border-teal-900/10'}`}>
+            {[0, 50, 60, 70, 80].map(val => (
+              <button key={val} onClick={() => setScoreFilter(val)}
+                className={`px-2.5 py-1 text-[11px] font-semibold rounded-lg transition-all ${scoreFilter === val ? 'bg-gradient-to-br from-violet-500 to-violet-600 text-white shadow-md border border-white/20' : dark ? 'text-slate-400 hover:text-white hover:bg-white/5' : 'text-slate-500 hover:text-teal-900 hover:bg-white'}`}>
+                {val === 0 ? 'Tous' : `${val}%+`}
+              </button>
+            ))}
+          </div>
+          <div className={`h-6 w-px ${dark ? 'bg-white/10' : 'bg-teal-900/10'}`} />
+          <div className={`flex items-center gap-1 rounded-xl p-1 border ${dark ? 'bg-white/[0.04] border-white/10' : 'bg-slate-50 border-teal-900/10'}`}>
+            {([['score', 'Meilleur', TrendingUp], ['budget', 'Budget', DollarSign]] as const).map(([val, label, Icon]) => (
+              <button key={val} onClick={() => setSortBy(val)}
+                className={`flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold rounded-lg transition-all ${sortBy === val ? 'bg-gradient-to-br from-violet-500 to-violet-600 text-white shadow-md border border-white/20' : dark ? 'text-slate-400 hover:text-white hover:bg-white/5' : 'text-slate-500 hover:text-teal-900 hover:bg-white'}`}>
+                <Icon size={11} />{label}
+              </button>
+            ))}
+          </div>
+          <div className={`h-6 w-px hidden sm:block ${dark ? 'bg-white/10' : 'bg-teal-900/10'}`} />
+          <div className="flex-1 min-w-[180px] max-w-[260px]">
+            <SearchInput
+              value={searchTerm}
+              onChange={e => setSearchTerm(e.target.value)}
+              placeholder="Rechercher un client, secteur..."
+              className={`h-9 ${staged ? (dark ? 'bg-white/5 border-white/10 text-white placeholder:text-slate-500 focus:ring-violet-500/20 focus:border-violet-500/50' : 'bg-white border-teal-900/10 text-slate-900 placeholder:text-teal-900/40 focus:ring-teal-600/20 focus:border-teal-600/40') : ''}`}
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Cards */}
+      {sorted.length === 0 ? (
+        <div className={`rounded-2xl p-12 flex flex-col items-center justify-center text-center ${staged ? (dark ? 'bg-white/[0.04] border border-white/[0.08]' : 'bg-white/80 border border-teal-900/10') : 'bg-card border border-border/50 shadow-card'}`}>
+          <OrbIcon icon={Users} hue={SLATE_HUE} size={52} radius={16} className="opacity-40 mb-3" />
+          <p className={`text-sm font-semibold ${dark ? 'text-slate-300' : 'text-slate-700'}`}>Aucun client trouvé</p>
+          <p className={`text-xs mt-1 ${dark ? 'text-slate-500' : 'text-slate-400'}`}>Essayez d'abaisser le score minimum ou modifiez votre recherche</p>
         </div>
       ) : (
-        <div className="space-y-4">
-          {sorted.map((match) => {
+        <div className="space-y-3">
+          {sorted.map((match, i) => {
             const sc = scoreMeta(match.score);
             const criteria = buildCriteria(match.details);
             const isExpanded = expandedCards.has(match.clientId);
+            const isSelected = selectedProposals.includes(match.clientId);
 
             return (
-              <div key={match.clientId} className="group bg-card rounded-2xl border border-border/40 shadow-card hover:shadow-lg hover:border-border/60 transition-all duration-300 overflow-hidden">
-
-                {/* Top: Avatar + Info + Score Ring */}
-                <div className="flex items-center gap-4 p-4">
-                  <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${isGerant ? 'from-[#905D5D]/10 to-[#905D5D]/5' : 'from-accent/10 to-accent/5'} border ${isGerant ? 'border-[#905D5D]/15' : 'border-accent/15'} flex items-center justify-center shrink-0`}>
-                    <span className={`text-sm font-bold ${isGerant ? 'text-[#905D5D]' : 'text-accent'}`}>
-                      {match.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
-                    </span>
-                  </div>
-
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2">
-                          <h4 className="font-semibold text-[13px] text-text truncate leading-tight">{match.name}</h4>
-                          <span className={`shrink-0 px-1.5 py-0.5 rounded text-[8px] font-bold uppercase tracking-wider ${isGerant ? 'bg-[#905D5D]/10 text-[#905D5D] border border-[#905D5D]/20' : 'bg-accent/10 text-accent border border-accent/20'}`}>{match.type}</span>
+              <motion.div
+                key={match.clientId}
+                initial={staged ? { opacity: 0, y: 14 } : undefined}
+                animate={staged ? { opacity: 1, y: 0 } : undefined}
+                transition={{ delay: i * 0.04, duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+              >
+                {staged ? (
+                  <TiltCard className="p-0 overflow-hidden">
+                    <div className="p-4">
+                      {/* Top row */}
+                      <div className="flex items-start gap-4">
+                        <div className={`w-12 h-12 rounded-xl flex items-center justify-center shrink-0 border ${dark ? 'bg-white/[0.06] border-white/10' : 'bg-violet-50 border-violet-200/50'}`}>
+                          <span className={`text-sm font-extrabold ${dark ? 'text-white' : 'text-violet-600'}`}>
+                            {match.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
+                          </span>
                         </div>
-                        <div className="flex items-center gap-1.5 mt-1">
-                          {match.secteur && (
-                            <span className="inline-flex items-center gap-1 text-[11px] text-text-secondary">
-                              <MapPin size={10} className="shrink-0 text-text-secondary/50" />
-                              {match.secteur}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                      {/* Score circle */}
-                      <div className="shrink-0 flex flex-col items-center">
-                        <div className={`relative w-12 h-12 rounded-full ${sc.lightBg} flex items-center justify-center ring-2 ${sc.ring}`}>
-                          <span className={`text-sm font-bold ${sc.text}`}>{match.score}</span>
-                          <span className={`text-[7px] font-medium ${sc.text} -mt-0.5`}>%</span>
-                        </div>
-                        <span className={`text-[8px] font-semibold ${sc.text} mt-0.5 uppercase tracking-wide`}>{sc.label}</span>
-                      </div>
-                    </div>
-
-                    {/* Stats */}
-                    <div className="flex items-center gap-1.5 mt-2 flex-wrap">
-                      {match.budget > 0 && (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-background text-[10px] font-medium text-text-secondary border border-border/40">
-                          <DollarSign size={9} className="text-text-secondary/50" />
-                          Budget: {match.budget.toLocaleString()} MAD
-                        </span>
-                      )}
-                      {(match.minSurface > 0 || match.surfaceMax > 0) && (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-background text-[10px] font-medium text-text-secondary border border-border/40">
-                          <Maximize2 size={9} className="text-text-secondary/50" />
-                          {match.minSurface || '?'}-{match.surfaceMax || '?'} m²
-                        </span>
-                      )}
-                      {match.pieces > 0 && (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-background text-[10px] font-medium text-text-secondary border border-border/40">
-                          <Grid size={9} className="text-text-secondary/50" />
-                          {match.pieces} p.
-                        </span>
-                      )}
-                      {match.chambres > 0 && (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-background text-[10px] font-medium text-text-secondary border border-border/40">
-                          <Moon size={9} className="text-text-secondary/50" />
-                          {match.chambres} ch.
-                        </span>
-                      )}
-                      {match.email && (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-background text-[10px] font-medium text-text-secondary border border-border/40">
-                          <Mail size={9} className="text-text-secondary/50" />
-                          {match.email}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Criteria chips */}
-                {match.criteres && match.criteres.length > 0 && (
-                  <div className="px-4 pb-3 flex flex-wrap gap-1">
-                    {match.criteres.slice(0, 6).map((c, i) => (
-                      <span key={i} className="px-2 py-0.5 rounded-md bg-background text-[9px] font-medium text-text-secondary/70 border border-border/30">{c}</span>
-                    ))}
-                    {match.criteres.length > 6 && (
-                      <span className={`px-2 py-0.5 rounded-md ${isGerant ? 'bg-[#905D5D]/5' : 'bg-accent/5'} text-[9px] font-medium ${isGerant ? 'text-[#905D5D]/60' : 'text-accent/60'}`}>+{match.criteres.length - 6}</span>
-                    )}
-                  </div>
-                )}
-
-                {/* Score Breakdown */}
-                {criteria.length > 0 && (
-                  <div className="px-4 pb-4">
-                    {/* Score bar */}
-                    <div className={`h-1.5 rounded-full ${sc.trackBg} overflow-hidden mb-3`}>
-                      <div className={`h-full rounded-full ${sc.bg} transition-all duration-700 ease-out`} style={{ width: `${match.score}%` }} />
-                    </div>
-
-                    {/* Criteria grid */}
-                    <div className="flex flex-wrap gap-x-4 gap-y-1">
-                      {criteria.map(({ key, label, icon, ratio }) => {
-                        const CIcon = getIcon(icon);
-                        const pct = Math.round(ratio * 100);
-                        const cText = pct >= 80 ? 'text-emerald-600' : pct >= 50 ? 'text-amber-600' : 'text-red-400';
-                        const cBg = pct >= 80 ? 'bg-emerald-500' : pct >= 50 ? 'bg-amber-500' : 'bg-red-400';
-                        return (
-                          <div key={key} className="flex items-center gap-1.5 text-[11px] py-0.5">
-                            <CIcon size={10} className={pct >= 80 ? 'text-emerald-400' : pct >= 50 ? 'text-amber-400' : 'text-red-300'} />
-                            <span className="text-text-secondary/70">{label}</span>
-                            <span className={`font-semibold ${cText}`}>{pct}%</span>
-                            {isExpanded && (
-                              <div className="w-12 h-1 rounded-full bg-border/30 overflow-hidden">
-                                <div className={`h-full rounded-full ${cBg}`} style={{ width: `${pct}%` }} />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <h4 className={`font-bold text-[13px] truncate ${dark ? 'text-white' : 'text-slate-900'}`}>{match.name}</h4>
+                                <StageBadge variant={match.type === 'Locataire' ? 'ok' : 'violet'}>{match.type}</StageBadge>
+                                {isSelected && <StageBadge variant="ok">Sélectionné</StageBadge>}
                               </div>
+                              {match.secteur && (
+                                <span className={`inline-flex items-center gap-1 text-xs mt-1 ${dark ? 'text-slate-400' : 'text-slate-500'}`}>
+                                  <MapPin size={11} className={dark ? 'text-slate-500' : 'text-teal-900/40'} />{match.secteur}
+                                </span>
+                              )}
+                            </div>
+                            <div className="shrink-0 flex flex-col items-center">
+                              <div className={`relative w-12 h-12 rounded-full ${sc.lightBg} flex items-center justify-center ring-2 ${sc.ring} border ${dark ? 'border-white/10' : 'border-white'}`}>
+                                <span className={`text-sm font-extrabold ${sc.hue.line}`} style={{ color: sc.hue.line }}>{match.score}<span className="text-[9px]">%</span></span>
+                              </div>
+                              <span className="text-[9px] font-bold uppercase tracking-widest mt-1" style={{ color: sc.hue.line }}>{sc.label}</span>
+                            </div>
+                          </div>
+                          {/* Stats */}
+                          <div className="flex items-center gap-1.5 mt-3 flex-wrap">
+                            {match.budget > 0 && (
+                              <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-medium border ${dark ? 'bg-white/[0.06] border-white/10 text-slate-300' : 'bg-white border-teal-900/10 text-slate-600'}`}>
+                                <DollarSign size={11} className={dark ? 'text-slate-500' : 'text-teal-900/40'} />{match.budget.toLocaleString()} MAD
+                              </span>
+                            )}
+                            {(match.minSurface > 0 || match.surfaceMax > 0) && (
+                              <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-medium border ${dark ? 'bg-white/[0.06] border-white/10 text-slate-300' : 'bg-white border-teal-900/10 text-slate-600'}`}>
+                                <Maximize2 size={11} className={dark ? 'text-slate-500' : 'text-teal-900/40'} />{match.minSurface || '?'}–{match.surfaceMax || '?'} m²
+                              </span>
+                            )}
+                            {match.chambres > 0 && (
+                              <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-medium border ${dark ? 'bg-white/[0.06] border-white/10 text-slate-300' : 'bg-white border-teal-900/10 text-slate-600'}`}>
+                                <Moon size={11} className={dark ? 'text-slate-500' : 'text-teal-900/40'} />{match.chambres} ch.
+                              </span>
+                            )}
+                            {match.email && (
+                              <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-medium border truncate max-w-[180px] ${dark ? 'bg-white/[0.06] border-white/10 text-slate-300' : 'bg-white border-teal-900/10 text-slate-600'}`}>
+                                <Mail size={11} className="shrink-0" />{match.email}
+                              </span>
                             )}
                           </div>
-                        );
-                      })}
-                    </div>
+                        </div>
+                      </div>
 
-                    {/* Expand toggle */}
-                    <button onClick={() => toggleExpand(match.clientId)}
-                      className={`flex items-center gap-1 mt-2 text-[10px] font-medium ${isGerant ? 'text-[#905D5D]/70 hover:text-[#905D5D]' : 'text-accent/70 hover:text-accent'} transition-colors`}>
-                      {isExpanded ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
-                      {isExpanded ? 'Masquer les détails' : 'Voir le détail du calcul'}
-                    </button>
-                  </div>
-                )}
-
-                {/* Expanded details */}
-                {isExpanded && (
-                  <div className="px-4 pb-4">
-                    <div className="rounded-xl bg-background/60 border border-border/30 p-3.5 space-y-1.5">
-                      <p className="text-[9px] font-bold text-text-secondary/40 uppercase tracking-widest mb-2">Détails du score</p>
-                      {criteria.map(({ key, label, icon, ratio, weight }) => {
-                        const CIcon = getIcon(icon);
-                        const pct = Math.round(ratio * 100);
-                        const pts = Math.round(ratio * weight);
-                        return (
-                          <div key={key} className="flex items-center justify-between py-1 border-b border-border/20 last:border-0">
-                            <div className="flex items-center gap-2 text-[11px]">
-                              <div className="w-5 h-5 rounded flex items-center justify-center bg-card border border-border/30">
-                                <CIcon size={10} className="text-text-secondary/50" />
-                              </div>
-                              <span className="text-text-secondary">{label}</span>
-                            </div>
-                            <div className="flex items-center gap-2 text-[11px]">
-                              <span className="text-text-secondary/40">{pts}/{weight} pts</span>
-                              <span className={`font-semibold min-w-[32px] text-right ${pct >= 80 ? 'text-emerald-600' : pct >= 50 ? 'text-amber-600' : 'text-red-400'}`}>{pct}%</span>
-                            </div>
-                          </div>
-                        );
-                      })}
-                      {match.details?.prestations !== undefined && (
-                        <div className="flex items-center justify-between py-1 border-t border-border/20">
-                          <div className="flex items-center gap-2 text-[11px]">
-                            <div className={`w-5 h-5 rounded flex items-center justify-center ${isGerant ? 'bg-[#905D5D]/10 border border-[#905D5D]/20' : 'bg-accent/10 border border-accent/20'}`}>
-                              <Star size={10} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />
-                            </div>
-                            <span className={`${isGerant ? 'text-[#905D5D]' : 'text-accent'} font-medium`}>Prestations (bonus)</span>
-                          </div>
-                          <span className={`${isGerant ? 'text-[#905D5D]' : 'text-accent'} font-semibold text-[11px]`}>+{Math.round(match.details.prestations * 5)} pts</span>
+                      {match.criteres && match.criteres.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mt-3">
+                          {match.criteres.slice(0, 6).map((c, idx) => (
+                            <span key={idx} className={`px-2 py-1 rounded-lg text-[10px] font-medium border ${dark ? 'bg-white/[0.04] border-white/10 text-slate-400' : 'bg-slate-50 border-teal-900/10 text-slate-500'}`}>{c}</span>
+                          ))}
+                          {match.criteres.length > 6 && (
+                            <span className="px-2 py-1 rounded-lg bg-violet-500/15 text-violet-400 border border-violet-500/20 text-[10px] font-bold">+{match.criteres.length - 6}</span>
+                          )}
                         </div>
                       )}
+
+                      {criteria.length > 0 && (
+                        <div className="mt-4">
+                          <div className={`h-1.5 rounded-full overflow-hidden ${sc.trackBg}`}>
+                            <motion.div className="h-full rounded-full" style={{ background: `linear-gradient(90deg, ${sc.hue.a}, ${sc.hue.b})` }} initial={{ width: 0 }} animate={{ width: `${match.score}%` }} transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1], delay: 0.2 }} />
+                          </div>
+                          <div className="flex flex-wrap gap-x-4 gap-y-1 mt-3">
+                            {criteria.map(({ key, label, icon, ratio }) => {
+                              const CIcon = getIcon(icon);
+                              const pct = Math.round(ratio * 100);
+                              return (
+                                <span key={key} className="inline-flex items-center gap-1.5 text-[11px]">
+                                  <CIcon size={11} className={pct >= 80 ? 'text-emerald-400' : pct >= 50 ? 'text-amber-400' : 'text-red-400'} />
+                                  <span className={dark ? 'text-slate-400' : 'text-teal-900/50'}>{label}</span>
+                                  <span className={`font-bold ${pct >= 80 ? 'text-emerald-400' : pct >= 50 ? 'text-amber-400' : 'text-red-400'}`}>{pct}%</span>
+                                </span>
+                              );
+                            })}
+                          </div>
+                          <button onClick={() => toggleExpand(match.clientId)} className={`flex items-center gap-1 mt-2 text-xs font-semibold transition-colors ${dark ? 'text-violet-300 hover:text-white' : 'text-violet-600 hover:text-violet-800'}`}>
+                            {isExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}{isExpanded ? 'Masquer les détails' : 'Voir le détail du calcul'}
+                          </button>
+                        </div>
+                      )}
+
+                      <AnimatePresence initial={false}>
+                        {isExpanded && (
+                          <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ height: { duration: 0.15, ease: [0.25, 1, 0.5, 1] }, opacity: { duration: 0.1 } }} style={{ overflow: 'hidden' }}>
+                            <div className={`mt-3 rounded-xl p-3.5 space-y-1 border ${dark ? 'bg-white/[0.04] border-white/10' : 'bg-slate-50 border-teal-900/10'}`}>
+                              <p className={`text-[9px] font-bold uppercase tracking-widest mb-2 ${dark ? 'text-slate-500' : 'text-teal-900/40'}`}>Détails du score</p>
+                              {criteria.map(({ key, label, icon, ratio, weight }) => {
+                                const CIcon = getIcon(icon);
+                                const pct = Math.round(ratio * 100);
+                                const pts = Math.round(ratio * weight);
+                                return (
+                                  <div key={key} className={`flex items-center justify-between py-1.5 border-b last:border-0 ${dark ? 'border-white/5' : 'border-teal-900/5'}`}>
+                                    <span className={`flex items-center gap-2 text-xs ${dark ? 'text-slate-300' : 'text-slate-600'}`}><span className={`w-6 h-6 rounded-lg flex items-center justify-center border ${dark ? 'bg-white/[0.06] border-white/10' : 'bg-white border-teal-900/10'}`}><CIcon size={11} className={dark ? 'text-slate-400' : 'text-teal-900/40'} /></span>{label}</span>
+                                    <span className="flex items-center gap-2 text-xs"><span className={dark ? 'text-slate-500' : 'text-slate-400'}>{pts}/{weight} pts</span><span className={`font-bold min-w-[36px] text-right ${pct >= 80 ? 'text-emerald-400' : pct >= 50 ? 'text-amber-400' : 'text-red-400'}`}>{pct}%</span></span>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>
+
+                    {/* Footer */}
+                    <div className={`px-4 py-3 flex items-center justify-between border-t ${dark ? 'border-white/10 bg-white/[0.02]' : 'border-teal-900/10 bg-slate-50/50'}`}>
+                      <label className="flex items-center gap-2 cursor-pointer group" onClick={e => { e.preventDefault(); toggleProposal(match.clientId); }}>
+                        <span className={`w-5 h-5 rounded-lg border-2 flex items-center justify-center transition-all ${isSelected ? 'bg-violet-500 border-violet-500 text-white' : dark ? 'border-white/20 group-hover:border-violet-400/50' : 'border-teal-900/20 group-hover:border-violet-400/50'}`}>
+                          {isSelected && <CheckSquare size={12} />}
+                        </span>
+                        <span className={`text-xs font-medium ${dark ? 'text-slate-400' : 'text-slate-500'}`}>Sélectionner</span>
+                      </label>
+                      <div className="flex items-center gap-1">
+                        <button onClick={() => basePath && navigate(`${basePath}/clients/${match.clientId}`)} className={`p-1.5 rounded-lg transition-colors ${dark ? 'text-slate-400 hover:text-white hover:bg-white/10' : 'text-slate-500 hover:text-violet-600 hover:bg-violet-50'}`} title="Voir le client"><Eye size={14} /></button>
+                        <button onClick={() => openProposal(match)} className={`p-1.5 rounded-lg transition-colors ${dark ? 'text-emerald-300 hover:bg-emerald-500/15' : 'text-emerald-600 hover:bg-emerald-50'}`} title="Proposer"><Send size={14} /></button>
+                        <button onClick={() => handleRefuse(match)} className={`p-1.5 rounded-lg transition-colors ${dark ? 'text-red-300 hover:bg-red-500/15' : 'text-red-500 hover:bg-red-50'}`} title="Refuser"><X size={14} /></button>
+                      </div>
+                    </div>
+                  </TiltCard>
+                ) : (
+                  <div className="bg-card rounded-2xl border border-border/40 shadow-card overflow-hidden">
+                    <div className="flex items-center gap-4 p-4">
+                      <div className="w-12 h-12 rounded-xl bg-accent/10 border border-accent/15 flex items-center justify-center shrink-0">
+                        <span className="text-sm font-bold text-accent">{match.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}</span>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <h4 className="font-semibold text-[13px] text-text truncate">{match.name}</h4>
+                            <span className="text-[11px] text-text-secondary">{match.secteur}</span>
+                          </div>
+                          <div className={`w-12 h-12 rounded-full ${sc.lightBg} flex items-center justify-center ring-2 ${sc.ring} shrink-0`}>
+                            <span className={`text-sm font-bold ${sc.hue.line ? '' : sc.hue.line}`} style={{ color: sc.hue.line }}>{match.score}%</span>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1.5 mt-2 flex-wrap text-[10px]">
+                          {match.budget > 0 && <span className="px-2 py-0.5 rounded-md bg-background border border-border/40">{match.budget.toLocaleString()} MAD</span>}
+                          {(match.minSurface > 0 || match.surfaceMax > 0) && <span className="px-2 py-0.5 rounded-md bg-background border border-border/40">{match.minSurface || '?'}–{match.surfaceMax || '?'} m²</span>}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="px-4 py-2.5 border-t border-border/30 flex items-center justify-between bg-background/20">
+                      <label className="flex items-center gap-2 cursor-pointer" onClick={e => { e.preventDefault(); toggleProposal(match.clientId); }}>
+                        <span className={`w-4 h-4 rounded border-2 flex items-center justify-center ${isSelected ? 'bg-accent border-accent text-white' : 'border-border'}`}>{isSelected && <CheckSquare size={10} />}</span>
+                        <span className="text-[10px] text-text-secondary/60">Sélectionner</span>
+                      </label>
+                      <div className="flex items-center gap-1">
+                        <button onClick={() => basePath && navigate(`${basePath}/clients/${match.clientId}`)} className="px-2.5 py-1.5 text-[11px] font-medium text-text-secondary hover:text-accent rounded-lg">Voir</button>
+                        <button onClick={() => openProposal(match)} className="px-2.5 py-1.5 text-[11px] font-medium text-emerald-600 hover:bg-emerald-50 rounded-lg">Proposer</button>
+                        <button onClick={() => handleRefuse(match)} className="px-2.5 py-1.5 text-[11px] font-medium text-red-400 hover:bg-red-50 rounded-lg">Refuser</button>
+                      </div>
                     </div>
                   </div>
                 )}
-
-                {/* Footer Actions */}
-                <div className="px-4 py-2.5 border-t border-border/30 flex items-center justify-between bg-background/20">
-                  <label className="flex items-center gap-2 cursor-pointer group/check" onClick={(e) => { e.preventDefault(); e.stopPropagation(); toggleProposal(match.clientId); }}>
-                    <div className={`w-4 h-4 rounded border-2 flex items-center justify-center transition-all ${selectedProposals.includes(match.clientId) ? (isGerant ? 'bg-[#905D5D] border-[#905D5D]' : 'bg-accent border-accent') : (isGerant ? 'border-border group-hover/check:border-[#905D5D]/50' : 'border-border group-hover/check:border-accent/50')}`}>
-                      {selectedProposals.includes(match.clientId) && <CheckSquare size={10} className="text-white" />}
-                    </div>
-                    <span className="text-[10px] text-text-secondary/60">Sélectionner</span>
-                  </label>
-                  <div className="flex items-center gap-1">
-                    <button onClick={() => basePath && navigate(`${basePath}/clients/${match.clientId}`)}
-                      className={`flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-medium text-text-secondary ${isGerant ? 'hover:text-[#905D5D] hover:bg-[#905D5D]/5' : 'hover:text-accent hover:bg-accent/5'} rounded-lg transition-all`}>
-                      <Eye size={11} /> Voir
-                    </button>
-                    <button onClick={() => openProposal(match)} className="flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-medium text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all">
-                      <TrendingUp size={11} /> Proposer
-                    </button>
-                    <button onClick={() => handleRefuse(match)} className="flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-medium text-red-400 hover:bg-red-50 rounded-lg transition-all">
-                      <X size={11} /> Refuser
-                    </button>
-                  </div>
-                </div>
-              </div>
+              </motion.div>
             );
           })}
         </div>
       )}
 
-      {/* Stats Footer */}
+      {/* Stats */}
       {matches.length > 0 && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
           {[
-            { label: 'Clients analysés', value: matches.length, icon: Users, color: 'text-text-secondary' },
-            { label: 'Score moyen', value: `${avgScore}%`, icon: BarChart2, color: sm.text },
-            { label: 'Excellent match', value: excellentCount, icon: CheckCircle, color: 'text-emerald-600' },
-            { label: 'Sélectionnés', value: selectedProposals.length, icon: Square, color: isGerant ? 'text-[#905D5D]' : 'text-accent' },
-          ].map(stat => (
-            <div key={stat.label} className="p-3 rounded-xl bg-background border border-border/40 text-center">
-              <stat.icon size={14} className={`${stat.color} mx-auto mb-1.5`} />
-              <p className={`text-lg font-bold ${stat.color}`}>{stat.value}</p>
-              <p className="text-[9px] text-text-secondary/50 font-medium uppercase tracking-wider">{stat.label}</p>
-            </div>
+            { label: 'Clients analysés', value: matches.length, hue: STAGE_HUES.violet, icon: Users },
+            { label: 'Score moyen', value: avgScore, suffix: '%', hue: avgScore >= 70 ? STAGE_HUES.emerald : STAGE_HUES.amber, icon: BarChart2 },
+            { label: 'Excellent match', value: excellentCount, hue: STAGE_HUES.emerald, icon: CheckCircle },
+            { label: 'Sélectionnés', value: selectedProposals.length, hue: STAGE_HUES.sky, icon: Star },
+          ].map((s, i) => (
+            <motion.div key={s.label} initial={staged ? { opacity: 0, y: 14 } : undefined} animate={staged ? { opacity: 1, y: 0 } : undefined} transition={{ delay: 0.05 * i, duration: 0.4, ease: [0.22, 1, 0.36, 1] }}>
+              {staged ? (
+                <TiltCard className="p-3 text-center">
+                  <div className="flex items-center justify-center mb-2"><OrbIcon icon={s.icon} hue={s.hue} size={30} radius={9} /></div>
+                  <p className={`text-[9px] font-bold uppercase tracking-[0.16em] ${dark ? 'text-slate-500' : 'text-teal-900/45'}`}>{s.label}</p>
+                  <p className={`text-lg font-extrabold leading-tight tabular-nums ${dark ? 'text-white' : 'text-slate-900'}`}><AnimatedNumber value={s.value} suffix={s.suffix || ''} /></p>
+                </TiltCard>
+              ) : (
+                <div className="bg-card rounded-xl border border-border/50 shadow-card p-3 text-center">
+                  <p className="text-xs text-text-secondary/60 truncate">{s.label}</p>
+                  <p className="text-lg font-bold mt-0.5" style={{ color: s.hue.line }}>{s.value}{s.suffix || ''}</p>
+                </div>
+              )}
+            </motion.div>
           ))}
         </div>
       )}
 
-      {/* Proposal Modal — notifies property owner */}
-      <Dialog isOpen={proposalModal.open} onClose={() => setProposalModal({ open: false, match: null })} title="Notifier le propriétaire" size="lg">
-        {proposalModal.match && (() => {
-          const m = proposalModal.match;
-          const mCriteria = buildCriteria(m.details);
-          return (
-          <div className="flex flex-col max-h-[70vh]">
-            <div className="flex-1 overflow-y-auto min-h-0 pr-1 space-y-5 -mx-1 px-1">
-              {/* Owner info header */}
-              <div className={`flex items-start gap-4 p-4 rounded-xl bg-gradient-to-br ${isGerant ? 'from-[#905D5D]/5' : 'from-accent/5'} to-transparent border ${isGerant ? 'border-[#905D5D]/10' : 'border-accent/10'}`}>
-                <div className={`w-12 h-12 rounded-xl ${isGerant ? 'bg-[#905D5D]/10' : 'bg-accent/10'} flex items-center justify-center shrink-0`}>
-                  <User size={18} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-[10px] text-text-secondary/60 uppercase tracking-wider font-medium">Notification propriétaire</p>
-                  <p className="text-sm font-semibold text-text truncate mt-0.5">{property.owner?.name || 'Propriétaire'}</p>
-                  <div className="flex items-center gap-2 mt-1 flex-wrap">
-                    <span className={`text-xs font-bold ${m.score >= 70 ? 'text-emerald-600' : 'text-amber-600'}`}>
-                      {m.type || 'Client'}: {m.name} ({m.score}%)
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Matching breakdown */}
-              {mCriteria.length > 0 && (
-                <div className="p-4 rounded-xl bg-background/60 border border-border/30">
-                  <p className="text-[10px] font-bold text-text-secondary/40 uppercase tracking-widest mb-3">Score de compatibilité client/bien</p>
-                  <div className="space-y-2">
-                    {mCriteria.map(({ key, label, ratio }) => {
-                      const p = Math.round(ratio * 100);
-                      const cText = p >= 80 ? 'text-emerald-600' : p >= 50 ? 'text-amber-600' : 'text-red-400';
-                      const cBg = p >= 80 ? 'bg-emerald-500' : p >= 50 ? 'bg-amber-500' : 'bg-red-400';
-                      return (
-                        <div key={key} className="flex items-center gap-2">
-                          <span className="text-[11px] text-text-secondary min-w-[80px]">{label}</span>
-                          <div className="flex-1 h-1.5 rounded-full bg-border/30 overflow-hidden">
-                            <div className={`h-full rounded-full ${cBg} transition-all`} style={{ width: `${p}%` }} />
-                          </div>
-                          <span className={`text-[11px] font-semibold min-w-[36px] text-right ${cText}`}>{p}%</span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-
-              <div>
-                <label className="block text-xs font-medium text-text-secondary mb-1.5">Email du propriétaire</label>
-                <input
-                  type="email"
-                  value={proposalEmail}
-                  onChange={(e) => setProposalEmail(e.target.value)}
-                  placeholder="email@exemple.com"
-                  className={`w-full px-3.5 py-2.5 rounded-lg bg-background border border-border/60 text-sm text-text placeholder:text-text-secondary/40 focus:outline-none focus:ring-2 ${isGerant ? 'focus:ring-[#905D5D]/30 focus:border-[#905D5D]/50' : 'focus:ring-accent/30 focus:border-accent/50'} transition-all`}
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-text-secondary mb-1.5">Message</label>
-                <textarea
-                  value={proposalMessage}
-                  onChange={(e) => setProposalMessage(e.target.value)}
-                  rows={12}
-                  className={`w-full px-3.5 py-2.5 rounded-lg bg-background border border-border/60 text-sm text-text placeholder:text-text-secondary/40 focus:outline-none focus:ring-2 ${isGerant ? 'focus:ring-[#905D5D]/30 focus:border-[#905D5D]/50' : 'focus:ring-accent/30 focus:border-accent/50'} transition-all resize-none leading-relaxed font-mono`}
-                />
-              </div>
-            </div>
-
-            {/* Pinned submit buttons */}
-            <div className="flex items-center justify-end gap-3 pt-4 mt-4 border-t border-border/30 shrink-0">
-              <button
+      {/* Proposal Modal — premium Stage glass, portaled */}
+      {createPortal(
+        <AnimatePresence>
+          {proposalModal.open && proposalModal.match && (() => {
+            const m = proposalModal.match!;
+            const mCriteria = buildCriteria(m.details);
+            const sc = scoreMeta(m.score);
+            const ownerInitials = (property.owner?.name || 'P').split(' ').filter(Boolean).map(n=>n[0]).join('').slice(0,2).toUpperCase();
+            return (
+              <motion.div
+                initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
                 onClick={() => setProposalModal({ open: false, match: null })}
-                className="px-4 py-2 text-sm font-medium text-text-secondary hover:text-text rounded-lg hover:bg-background transition-all"
               >
-                Annuler
-              </button>
-              <button
-                onClick={submitProposal}
-                disabled={proposalSending || !proposalEmail}
-                className={`flex items-center gap-2 px-5 py-2.5 text-sm font-semibold text-white bg-gradient-to-r ${isGerant ? 'from-[#905D5D] to-[#905D5D]/80 hover:from-[#905D5D]/90 hover:to-[#905D5D]/70' : 'from-accent to-accent/80 hover:from-accent/90 hover:to-accent/70'} rounded-lg shadow-sm disabled:opacity-50 disabled:cursor-not-allowed transition-all`}
-              >
-                {proposalSending ? (
-                  <>
-                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    Envoi en cours...
-                  </>
-                ) : (
-                  <>
-                    <Mail size={14} />
-                    Envoyer la notification
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-          );
-        })()}
-      </Dialog>
+                <motion.div
+                  initial={{ scale: 0.96, opacity: 0, y: 12 }} animate={{ scale: 1, opacity: 1, y: 0 }} exit={{ scale: 0.96, opacity: 0, y: 8 }}
+                  transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
+                  className={`w-full max-w-[640px] overflow-hidden flex flex-col max-h-[88vh] rounded-2xl border shadow-[0_40px_90px_-24px_rgba(0,0,0,0.85)] ${dark ? 'bg-[linear-gradient(180deg,rgba(18,24,58,0.98),rgba(10,15,36,0.98))] border-white/10' : 'bg-white border-slate-200'}`}
+                  onClick={e => e.stopPropagation()}
+                >
+                  {/* hairline */}
+                  <div className="h-[2px] w-full shrink-0" style={{ background: dark ? 'linear-gradient(90deg, transparent, rgba(139,124,255,0.7), rgba(94,234,212,0.45), transparent)' : 'linear-gradient(90deg, transparent, rgba(13,148,136,0.5), rgba(124,92,255,0.3), transparent)' }} />
+
+                  {/* Header */}
+                  <div className={`px-6 py-4 flex items-center justify-between gap-4 shrink-0 border-b ${dark ? 'border-white/[0.08]' : 'border-slate-200'}`}>
+                    <div className="flex items-center gap-3 min-w-0">
+                      <OrbIcon icon={Send} hue={STAGE_HUES.violet} size={38} radius={11} />
+                      <div className="min-w-0">
+                        <h3 className={`text-[15px] font-bold tracking-tight leading-none ${dark ? 'text-white' : 'text-slate-900'}`}>Notifier le propriétaire</h3>
+                        <p className={`text-xs mt-1 truncate ${dark ? 'text-slate-400' : 'text-slate-500'}`}>
+                          {property.reference} · {property.title}
+                          {selectedProposals.length > 1 && <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded-full bg-violet-500/15 text-violet-400 border border-violet-500/20 text-[10px] font-bold">+{selectedProposals.length} sélectionnés</span>}
+                        </p>
+                      </div>
+                    </div>
+                    <button onClick={() => setProposalModal({ open: false, match: null })}
+                      className={`w-8 h-8 rounded-xl flex items-center justify-center border transition-all shrink-0 ${dark ? 'bg-white/5 border-white/10 text-slate-400 hover:text-white hover:bg-white/10' : 'bg-slate-50 border-slate-200 text-slate-500 hover:text-slate-900 hover:bg-white'}`}>
+                      <X size={14} />
+                    </button>
+                  </div>
+
+                  {/* Body — smooth scrollbar matching Complétion */}
+                  <div
+                    className="flex-1 overflow-y-auto min-h-0 p-6 space-y-5 scrollbar-thin"
+                    style={{
+                      overscrollBehavior: 'contain',
+                      WebkitOverflowScrolling: 'touch' as any,
+                      transform: 'translateZ(0)',
+                      willChange: 'scroll-position',
+                    }}
+                  >
+                    {/* Owner + Client hero */}
+                    <div className={`grid grid-cols-1 sm:grid-cols-[1.1fr_1fr] gap-3 p-4 rounded-2xl border ${dark ? 'bg-white/[0.04] border-white/10' : 'bg-slate-50 border-slate-200'}`}>
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className={`w-11 h-11 rounded-xl flex items-center justify-center font-extrabold text-sm shrink-0 border ${dark ? 'bg-white/[0.06] border-white/10 text-white' : 'bg-white border-slate-200 text-slate-900'}`}>{ownerInitials}</div>
+                        <div className="min-w-0">
+                          <p className={`text-[10px] font-bold uppercase tracking-widest ${dark ? 'text-slate-500' : 'text-slate-400'}`}>Propriétaire</p>
+                          <p className={`text-sm font-bold truncate ${dark ? 'text-white' : 'text-slate-900'}`}>{property.owner?.name || 'Propriétaire'}</p>
+                          <p className={`text-xs truncate ${dark ? 'text-slate-400' : 'text-slate-500'}`}>{property.city}{property.district ? `, ${property.district}` : ''}</p>
+                        </div>
+                      </div>
+                      <div className={`flex items-center gap-3 p-3 rounded-xl border ${dark ? 'bg-white/[0.03] border-white/10' : 'bg-white border-slate-200'}`}>
+                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 font-extrabold text-xs border ${dark ? 'bg-white/[0.06] border-white/10 text-white' : 'bg-violet-50 border-violet-200 text-violet-700'}`}>{m.name.split(' ').map(n=>n[0]).join('').slice(0,2).toUpperCase()}</div>
+                        <div className="min-w-0 flex-1">
+                          <p className={`text-sm font-bold truncate ${dark ? 'text-white' : 'text-slate-900'}`}>{m.name}</p>
+                          <p className={`text-xs ${dark ? 'text-slate-400' : 'text-slate-500'}`}>{m.type} · {m.secteur || m.area || '—'}</p>
+                        </div>
+                        <div className={`w-11 h-11 rounded-full flex items-center justify-center ring-2 shrink-0 ${sc.lightBg} ${sc.ring} border ${dark ? 'border-white/10' : 'border-white'}`}>
+                          <span className="text-xs font-extrabold" style={{ color: sc.hue.line }}>{m.score}<span className="text-[9px]">%</span></span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Property strip */}
+                    <div className={`flex flex-wrap items-center gap-2 px-3 py-2.5 rounded-xl border text-xs ${dark ? 'bg-white/[0.03] border-white/10 text-slate-300' : 'bg-slate-50 border-slate-200 text-slate-600'}`}>
+                      <span className={`px-2 py-1 rounded-full border text-[10px] font-bold ${dark ? 'bg-white/10 border-white/10 text-white' : 'bg-white border-slate-200 text-slate-700'}`}>{property.reference}</span>
+                      <span className="flex items-center gap-1"><MapPin size={12} className={dark ? 'text-slate-500' : 'text-slate-400'} />{property.city}</span>
+                      <span className="opacity-30">·</span>
+                      <span className="flex items-center gap-1"><Maximize2 size={12} />{property.surface} m²</span>
+                      <span className="opacity-30">·</span>
+                      <span className="flex items-center gap-1"><DollarSign size={12} />{property.price ? property.price.toLocaleString() + ' MAD' : '—'}</span>
+                      <StageBadge variant={sc.hue === STAGE_HUES.emerald ? 'ok' : sc.hue === STAGE_HUES.amber ? 'warn' : 'neutral'} className="ml-auto">{sc.label} · {m.score}%</StageBadge>
+                    </div>
+
+                    {/* Criteria */}
+                    {mCriteria.length > 0 && (
+                      <div className={`p-4 rounded-2xl border ${dark ? 'bg-white/[0.04] border-white/10' : 'bg-white border-slate-200'}`}>
+                        <div className="flex items-center justify-between mb-3">
+                          <p className={`text-[10px] font-bold uppercase tracking-widest flex items-center gap-1.5 ${dark ? 'text-slate-500' : 'text-slate-400'}`}><BarChart2 size={12} />Compatibilité</p>
+                          <span className={`text-xs font-bold px-2 py-1 rounded-full border ${dark ? 'bg-white/10 border-white/10 text-white' : 'bg-slate-900 text-white border-slate-900'}`}>{m.score}% global</span>
+                        </div>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2">
+                          {mCriteria.map(({ key, label, icon, ratio }) => {
+                            const pct = Math.round(ratio * 100);
+                            const CIcon = getIcon(icon);
+                            return (
+                              <div key={key} className="flex items-center gap-2.5">
+                                <span className={`w-7 h-7 rounded-lg flex items-center justify-center border shrink-0 ${dark ? 'bg-white/[0.06] border-white/10' : 'bg-slate-50 border-slate-200'}`}><CIcon size={12} className={pct >= 80 ? 'text-emerald-500' : pct >= 50 ? 'text-amber-500' : 'text-slate-400'} /></span>
+                                <span className={`text-xs font-medium flex-1 truncate ${dark ? 'text-slate-300' : 'text-slate-600'}`}>{label}</span>
+                                <div className={`w-20 h-1.5 rounded-full overflow-hidden shrink-0 ${dark ? 'bg-white/10' : 'bg-slate-200'}`}>
+                                  <motion.div className="h-full rounded-full" initial={{ width: 0 }} animate={{ width: `${pct}%` }} transition={{ duration: 0.6, ease: [0.22,1,0.36,1] }} style={{ background: pct >= 80 ? STAGE_HUES.emerald.line : pct >= 50 ? STAGE_HUES.amber.line : SLATE_HUE.line }} />
+                                </div>
+                                <span className="text-xs font-bold w-8 text-right" style={{ color: pct >= 80 ? STAGE_HUES.emerald.line : pct >= 50 ? STAGE_HUES.amber.line : SLATE_HUE.line }}>{pct}%</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Email */}
+                    <div>
+                      <label className={`flex items-center gap-1.5 text-xs font-semibold mb-1.5 ${dark ? 'text-slate-300' : 'text-slate-700'}`}><Mail size={12} className={dark ? 'text-slate-500' : 'text-slate-400'} /> Email du propriétaire</label>
+                      <div className="relative">
+                        <Mail size={14} className={`absolute left-3 top-1/2 -translate-y-1/2 ${dark ? 'text-slate-500' : 'text-slate-400'}`} />
+                        <input
+                          type="email"
+                          value={proposalEmail}
+                          onChange={(e) => setProposalEmail(e.target.value)}
+                          placeholder="proprietaire@exemple.com"
+                          className={`w-full pl-9 pr-3 py-2.5 rounded-xl border text-sm focus:outline-none focus:ring-2 transition-all ${dark ? 'bg-white/[0.06] border-white/10 text-white placeholder:text-slate-500 focus:ring-violet-500/25 focus:border-violet-500/40' : 'bg-white border-slate-200 text-slate-900 placeholder:text-slate-400 focus:ring-violet-500/20 focus:border-violet-500/40'}`}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Message */}
+                    <div>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <label className={`flex items-center gap-1.5 text-xs font-semibold ${dark ? 'text-slate-300' : 'text-slate-700'}`}><FileText size={12} className={dark ? 'text-slate-500' : 'text-slate-400'} /> Message</label>
+                        <span className={`text-[10px] ${dark ? 'text-slate-500' : 'text-slate-400'}`}>{proposalMessage.length} caractères</span>
+                      </div>
+                      <textarea
+                        value={proposalMessage}
+                        onChange={(e) => setProposalMessage(e.target.value)}
+                        rows={11}
+                        placeholder="Message à envoyer..."
+                        className={`w-full px-3.5 py-3 rounded-xl border text-[13px] leading-relaxed focus:outline-none focus:ring-2 transition-all resize-none font-mono ${dark ? 'bg-white/[0.06] border-white/10 text-white placeholder:text-slate-500 focus:ring-violet-500/25 focus:border-violet-500/40' : 'bg-white border-slate-200 text-slate-900 placeholder:text-slate-400 focus:ring-violet-500/20 focus:border-violet-500/40'}`}
+                      />
+                      <p className={`text-[11px] mt-1.5 ${dark ? 'text-slate-500' : 'text-slate-400'}`}>Le propriétaire recevra un email avec l'analyse détaillée et vos coordonnées.</p>
+                    </div>
+                  </div>
+
+                  {/* Footer */}
+                  <div className={`px-6 py-4 flex items-center justify-between gap-3 shrink-0 border-t ${dark ? 'border-white/[0.08] bg-white/[0.02]' : 'border-slate-200 bg-slate-50/70'}`}>
+                    <span className={`text-xs hidden sm:block ${dark ? 'text-slate-500' : 'text-slate-400'}`}>{m.name} · {m.budget ? m.budget.toLocaleString() + ' MAD' : 'Budget N/C'}</span>
+                    <div className="flex items-center gap-2 ml-auto">
+                      <StageButton variant="glass" size="sm" onClick={() => setProposalModal({ open: false, match: null })}>Annuler</StageButton>
+                      <StageButton variant="primary" size="sm" icon={<Send size={13} />} onClick={submitProposal} className={proposalSending || !proposalEmail ? 'opacity-50 pointer-events-none' : ''}>
+                        {proposalSending ? 'Envoi en cours...' : 'Envoyer la notification'}
+                      </StageButton>
+                    </div>
+                  </div>
+                </motion.div>
+              </motion.div>
+            );
+          })()}
+        </AnimatePresence>,
+        document.body
+      )}
     </div>
   );
 };

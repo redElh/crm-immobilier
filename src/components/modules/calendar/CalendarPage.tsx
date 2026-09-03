@@ -6,11 +6,14 @@ import { motion } from 'framer-motion'
 import {
   CalendarEvent, CalendarView, EventType, Agent,
   getInitials, getAgentColor,
-  getEventsForDay, getEventsForWeek, getEventsForMonth,
-  isSameDay, eventMatchesSelectedAgents,
+  eventMatchesSelectedAgents,
 } from '../../../types/calendar'
 import { getMyEffectivePermissions } from '../../../services/permissionsService'
-import { Lock, RefreshCw } from 'react-feather'
+import {
+  Lock, RefreshCw, Plus, Sun, Columns, Grid, Users,
+} from 'react-feather'
+import { STAGE_HUES, OrbIcon, TiltCard, StageButton } from '../../dashboard/Stage'
+import { useStageChrome } from './useStageChrome'
 import CalendarToolbar from './CalendarToolbar'
 import CalendarFilters from './CalendarFilters'
 import DayView from './DayView'
@@ -89,6 +92,7 @@ function getAgentsInMeeting(events: CalendarEvent[]): number {
 
 export default function CalendarPage() {
   const admin = isAdminRoute()
+  const { staged, dark } = useStageChrome()
   const { toast } = useToast()
 
   const [currentUserName, setCurrentUserName] = useState('')
@@ -212,15 +216,13 @@ export default function CalendarPage() {
     }
   }, [searchParams, events, setSearchParams])
 
-  const agentEvents = useMemo(() => events, [events])
-
   const filteredEvents = useMemo(() => {
-    return agentEvents.filter(e => {
+    return events.filter(e => {
       if (selectedEventTypes.length > 0 && !selectedEventTypes.includes(e.type)) return false
       if (!eventMatchesSelectedAgents(e, selectedAgents, viewAgents)) return false
       return true
     })
-  }, [agentEvents, selectedAgents, selectedEventTypes, viewAgents])
+  }, [events, selectedAgents, selectedEventTypes, viewAgents])
 
   const stats = useMemo(() => ({
     today: getTodayEventsCount(filteredEvents),
@@ -228,6 +230,12 @@ export default function CalendarPage() {
     month: getMonthEventsCount(filteredEvents),
     agentsInMeeting: admin ? getAgentsInMeeting(events) : 0,
   }), [filteredEvents, events, admin])
+
+  const activeFilterCount = useMemo(() => {
+    let n = selectedAgents.length
+    if (selectedEventTypes.length !== ALL_EVENT_TYPES.length) n += 1
+    return n
+  }, [selectedAgents, selectedEventTypes])
 
   const isOwnEvent = useCallback((event: CalendarEvent) => {
     const norm = (s: string) => String(s || '').replace(/\s+/g, ' ').trim().toLowerCase()
@@ -317,174 +325,253 @@ export default function CalendarPage() {
     setView('day')
   }, [])
 
+  /* Token adapter: sub-views & modals use bg-card/text tokens — flipping the
+     `dark` class here makes them follow the Mission Control / Lagoon palette. */
+  const statCards = [
+    { label: "Aujourd'hui", sub: 'événements', value: stats.today, hue: STAGE_HUES.violet, Icon: Sun },
+    { label: 'Cette semaine', sub: 'événements', value: stats.week, hue: STAGE_HUES.sky, Icon: Columns },
+    { label: 'Ce mois', sub: 'événements', value: stats.month, hue: STAGE_HUES.amber, Icon: Grid },
+    { label: 'En réunion', sub: 'agents actuellement', value: stats.agentsInMeeting, hue: STAGE_HUES.emerald, Icon: Users, pulse: true },
+  ]
+
   if (!admin && permissionsLoaded && !canReadCalendar) {
     return (
-      <div className="flex flex-col items-center justify-center py-24 text-center">
-        <div className="w-16 h-16 rounded-2xl bg-border/40 flex items-center justify-center mb-4">
-          <Lock size={28} className="text-text-secondary" />
-        </div>
-        <h2 className="text-lg font-semibold">Calendrier inaccessible</h2>
-        <p className="text-sm text-text-secondary mt-1 max-w-sm">
+      <div className="stage-glass mx-auto mt-10 flex max-w-md flex-col items-center rounded-3xl p-10 text-center">
+        <OrbIcon icon={Lock} hue={STAGE_HUES.fuchsia} size={56} radius={18} />
+        <h2 className={`mt-4 text-lg font-bold tracking-tight ${dark ? 'text-slate-100' : 'text-teal-950'}`}>
+          Calendrier inaccessible
+        </h2>
+        <p className={`mt-1 text-sm ${dark ? 'text-slate-400' : 'text-teal-900/60'}`}>
           Vous n'avez pas la permission de consulter le calendrier. Contactez votre administrateur.
         </p>
       </div>
     )
   }
 
+  const heroText = staged
+    ? dark
+      ? { eyebrow: 'text-[10px] font-bold uppercase tracking-[0.24em] text-slate-400/80', title: 'bg-gradient-to-r from-white via-indigo-100 to-indigo-300 bg-clip-text text-transparent', sub: 'text-sm text-slate-400' }
+      : { eyebrow: 'text-[10px] font-bold uppercase tracking-[0.24em] text-teal-900/50', title: 'bg-gradient-to-r from-teal-900 via-teal-700 to-emerald-600 bg-clip-text text-transparent', sub: 'text-sm text-teal-900/55' }
+    : { eyebrow: 'text-[10px] font-bold uppercase tracking-[0.24em] text-text-secondary', title: 'text-text', sub: 'text-sm text-text-secondary' }
+
   return (
-    <div className="space-y-4">
-      {admin && (
-        <div className="grid grid-cols-4 gap-4">
-          <div className="bg-card rounded-xl border border-border/50 shadow-card p-4">
-            <p className="text-xs text-text-secondary uppercase tracking-wider font-medium">Aujourd'hui</p>
-            <p className="text-2xl font-semibold mt-1">{stats.today}</p>
-            <p className="text-xs text-text-secondary/60 mt-0.5">événements</p>
+    <div className={staged && dark ? 'dark' : undefined}>
+      <div className="space-y-5">
+        {/* ── Hero header ─────────────────────────────────────────────── */}
+        <div className="flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="relative flex h-2 w-2">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60" />
+                <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.9)]" />
+              </span>
+              <p className={heroText.eyebrow}>
+                Mission control · Agenda
+              </p>
+            </div>
+            <h1 className={`mt-1 text-3xl font-extrabold tracking-tight ${heroText.title}`}>
+              Calendrier
+            </h1>
+            <p className={`mt-0.5 ${heroText.sub}`}>
+              Vos rendez-vous, visites et échéances en temps réel.
+            </p>
           </div>
-          <div className="bg-card rounded-xl border border-border/50 shadow-card p-4">
-            <p className="text-xs text-text-secondary uppercase tracking-wider font-medium">Cette semaine</p>
-            <p className="text-2xl font-semibold mt-1">{stats.week}</p>
-            <p className="text-xs text-text-secondary/60 mt-0.5">événements</p>
-          </div>
-          <div className="bg-card rounded-xl border border-border/50 shadow-card p-4">
-            <p className="text-xs text-text-secondary uppercase tracking-wider font-medium">Ce mois</p>
-            <p className="text-2xl font-semibold mt-1">{stats.month}</p>
-            <p className="text-xs text-text-secondary/60 mt-0.5">événements</p>
-          </div>
-          <div className="bg-card rounded-xl border border-border/50 shadow-card p-4">
-            <p className="text-xs text-text-secondary uppercase tracking-wider font-medium">En réunion</p>
-            <p className="text-2xl font-semibold mt-1">{stats.agentsInMeeting}</p>
-            <p className="text-xs text-text-secondary/60 mt-0.5">agents actuellement</p>
-          </div>
-        </div>
-      )}
 
-      <CalendarToolbar
-        view={view}
-        currentDate={currentDate}
-        filtersOpen={filtersOpen}
-        onToggleFilters={() => setFiltersOpen(o => !o)}
-        onViewChange={setView}
-        onDateChange={setCurrentDate}
-        onToday={() => setCurrentDate(new Date())}
-        onAddEvent={canWriteCalendar ? handleAddEvent : undefined}
-      />
-
-      <div className="flex gap-4">
-        {filtersOpen && (
-          <div className="w-64 flex-shrink-0 space-y-3">
-            <CalendarFilters
-              selectedAgents={selectedAgents}
-              selectedEventTypes={selectedEventTypes}
-              onAgentsChange={setSelectedAgents}
-              onEventTypesChange={setSelectedEventTypes}
-              showAgents
-              agents={viewAgents}
-            />
+          <div className="flex items-center gap-2.5">
             <button
               onClick={() => setShowGoogleSync(!showGoogleSync)}
-              className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-xl border border-border/50 bg-card text-sm text-text hover:bg-surface transition-colors"
+              title="Synchronisation Google"
+              className={`group relative flex h-9 items-center gap-2 overflow-hidden rounded-xl border px-3 text-xs font-semibold transition-all duration-200 active:scale-[0.97] ${
+                !staged
+                  ? 'border-border bg-card text-text hover:bg-background'
+                  : showGoogleSync
+                    ? dark
+                      ? 'border-sky-400/40 bg-sky-500/15 text-sky-200 shadow-[0_0_18px_-4px_rgba(56,189,248,0.7),inset_0_1px_0_rgba(255,255,255,0.25)]'
+                      : 'border-teal-500/50 bg-teal-500/15 text-teal-800 shadow-[0_0_18px_-4px_rgba(13,148,136,0.6),inset_0_1px_0_rgba(255,255,255,0.7)]'
+                    : dark
+                      ? 'border-white/12 bg-white/5 text-slate-300 shadow-[inset_0_1px_0_rgba(255,255,255,0.12)] hover:bg-white/10 hover:text-white'
+                      : 'border-teal-900/12 bg-white/70 text-teal-900/70 shadow-[inset_0_1px_0_rgba(255,255,255,0.9)] hover:bg-white hover:text-teal-900'
+              }`}
             >
-              <RefreshCw size={14} className="text-accent" />
-              Synchronisation Google
+              <RefreshCw size={13} className={showGoogleSync ? 'animate-spin' : 'transition-transform duration-500 group-hover:rotate-180'} />
+              Google
             </button>
-            <GoogleSyncSettings isOpen={showGoogleSync} onSynced={handleGoogleSynced} />
+            {canWriteCalendar && (
+              staged ? (
+                <StageButton variant="primary" size="md" onClick={handleAddEvent} icon={<Plus size={15} />}>
+                  Nouvel événement
+                </StageButton>
+              ) : (
+                <button onClick={handleAddEvent} className="btn-primary inline-flex h-9 items-center gap-1.5 rounded-xl px-4 text-sm font-semibold">
+                  <Plus size={15} /> Nouvel événement
+                </button>
+              )
+            )}
+          </div>
+        </div>
+
+        {/* ── Stat orbs (admin only) ──────────────────────────────────── */}
+        {admin && (
+          <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+            {statCards.map(({ label, sub, value, hue, Icon }) =>
+              staged ? (
+                <TiltCard key={label}>
+                  <div className="stage-glass flex h-full items-center gap-3.5 rounded-2xl p-4">
+                    <OrbIcon icon={Icon} hue={hue} size={46} radius={15} />
+                    <div className="min-w-0">
+                      <p className={`truncate text-[9px] font-bold uppercase tracking-[0.2em] ${dark ? 'text-slate-400/75' : 'text-teal-900/45'}`}>
+                        {label}
+                      </p>
+                      <p className={`text-2xl font-extrabold tabular-nums leading-tight tracking-tight ${dark ? 'text-slate-50' : 'text-teal-950'}`}>
+                        {value}
+                        <span className={`ml-1.5 text-[10px] font-semibold normal-case tracking-normal ${dark ? 'text-slate-500' : 'text-teal-900/40'}`}>
+                          {sub}
+                        </span>
+                      </p>
+                    </div>
+                  </div>
+                </TiltCard>
+              ) : (
+                <div key={label} className="rounded-xl border border-border/50 bg-card p-4 shadow-card">
+                  <p className="text-xs font-medium uppercase tracking-wider text-text-secondary">{label}</p>
+                  <p className="mt-1 text-2xl font-semibold">{value}</p>
+                  <p className="mt-0.5 text-xs text-text-secondary/60">{sub}</p>
+                  <Icon size={14} className="mt-1 text-accent" />
+                </div>
+              )
+            )}
           </div>
         )}
 
-        <motion.div
-          key={view}
-          initial={{ opacity: 0, y: 6 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.2 }}
-          className="flex-1 min-w-0"
-        >
-          {view === 'day' && (
-            <DayView
-              currentDate={currentDate}
-              events={filteredEvents}
-              agents={viewAgents}
-              onEventClick={handleEventClick}
-              onSlotClick={handleSlotClick}
-            />
+        {/* ── Command bar ─────────────────────────────────────────────── */}
+        <CalendarToolbar
+          view={view}
+          currentDate={currentDate}
+          filtersOpen={filtersOpen}
+          activeFilterCount={activeFilterCount}
+          onToggleFilters={() => setFiltersOpen(o => !o)}
+          onViewChange={setView}
+          onDateChange={setCurrentDate}
+          onToday={() => setCurrentDate(new Date())}
+        />
+
+        {/* ── Filters rail + views ───────────────────────────────────── */}
+        <div className="flex gap-4">
+          {filtersOpen && (
+            <motion.div
+              initial={{ opacity: 0, x: -14 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
+              className="w-64 flex-shrink-0 space-y-3"
+            >
+              <CalendarFilters
+                selectedAgents={selectedAgents}
+                selectedEventTypes={selectedEventTypes}
+                onAgentsChange={setSelectedAgents}
+                onEventTypesChange={setSelectedEventTypes}
+                showAgents
+                agents={viewAgents}
+              />
+              <GoogleSyncSettings isOpen={showGoogleSync} onSynced={handleGoogleSynced} />
+            </motion.div>
           )}
-          {view === 'week' && (
-            <WeekView
-              currentDate={currentDate}
-              events={filteredEvents}
-              selectedAgents={selectedAgents}
-              selectedEventTypes={selectedEventTypes}
-              agents={viewAgents}
-              canCreate={canWriteCalendar}
-              canEditEvent={canWriteEvent}
-              onEventClick={handleEventClick}
-              onEventUpdate={handleEventUpdate}
-              onSlotClick={handleSlotClick}
-              onDayNameClick={handleWeekDayNameClick}
-            />
-          )}
-          {view === 'month' && (
-            <MonthView
-              currentDate={currentDate}
-              events={filteredEvents}
-              selectedEventTypes={selectedEventTypes}
-              agents={viewAgents}
-              onEventClick={handleEventClick}
-              onDayClick={handleMonthDayClick}
-            />
-          )}
-          {view === 'agenda' && (
-            <AgendaView
-              events={filteredEvents}
-              selectedAgents={selectedAgents}
-              selectedEventTypes={selectedEventTypes}
-              agents={viewAgents}
-              onEventClick={handleEventClick}
-            />
-          )}
-          {view === 'timeline' && (
-            <TimelineView
-              currentDate={currentDate}
-              events={filteredEvents}
-              selectedAgents={selectedAgents}
-              selectedEventTypes={selectedEventTypes}
-              agents={viewAgents}
-              onEventClick={handleEventClick}
-            />
-          )}
-        </motion.div>
+
+          <motion.div
+            key={view}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
+            className="min-w-0 flex-1"
+          >
+            {view === 'day' && (
+              <DayView
+                currentDate={currentDate}
+                events={filteredEvents}
+                agents={viewAgents}
+                onEventClick={handleEventClick}
+                onSlotClick={handleSlotClick}
+              />
+            )}
+            {view === 'week' && (
+              <WeekView
+                currentDate={currentDate}
+                events={filteredEvents}
+                selectedAgents={selectedAgents}
+                selectedEventTypes={selectedEventTypes}
+                agents={viewAgents}
+                canCreate={canWriteCalendar}
+                canEditEvent={canWriteEvent}
+                onEventClick={handleEventClick}
+                onEventUpdate={handleEventUpdate}
+                onSlotClick={handleSlotClick}
+                onDayNameClick={handleWeekDayNameClick}
+              />
+            )}
+            {view === 'month' && (
+              <MonthView
+                currentDate={currentDate}
+                events={filteredEvents}
+                selectedEventTypes={selectedEventTypes}
+                agents={viewAgents}
+                onEventClick={handleEventClick}
+                onDayClick={handleMonthDayClick}
+              />
+            )}
+            {view === 'agenda' && (
+              <AgendaView
+                events={filteredEvents}
+                selectedAgents={selectedAgents}
+                selectedEventTypes={selectedEventTypes}
+                agents={viewAgents}
+                onEventClick={handleEventClick}
+              />
+            )}
+            {view === 'timeline' && (
+              <TimelineView
+                currentDate={currentDate}
+                events={filteredEvents}
+                selectedAgents={selectedAgents}
+                selectedEventTypes={selectedEventTypes}
+                agents={viewAgents}
+                onEventClick={handleEventClick}
+              />
+            )}
+          </motion.div>
+        </div>
+
+        {/* ── Modals (unchanged behavior) ─────────────────────────────── */}
+        <EventFormModal
+          isOpen={formOpen}
+          onClose={() => { setFormOpen(false); setEditEvent(null) }}
+          onSave={handleSaveEvent}
+          editEvent={editEvent}
+          defaultDate={defaultSlotDate}
+          currentAgentId={admin ? undefined : currentAgentId}
+          currentAgentName={admin ? undefined : currentUserName}
+          agentUserId={admin ? undefined : currentUserId}
+          agents={admin ? agents : undefined}
+          adminUserId={admin ? currentUserId : undefined}
+          adminUserName={admin ? currentUserName : undefined}
+        />
+
+        <EventDetailModal
+          event={selectedEvent}
+          agents={viewAgents}
+          onClose={() => setSelectedEvent(null)}
+          onEdit={handleEditFromDetail}
+          onDelete={handleDeleteEvent}
+          canWrite={selectedEvent ? canWriteEvent(selectedEvent) : false}
+        />
+
+        <DayEventsModal
+          isOpen={dayModalDate !== null}
+          date={dayModalDate}
+          events={filteredEvents}
+          agents={viewAgents}
+          onClose={() => setDayModalDate(null)}
+          onEventClick={(event) => { setDayModalDate(null); setSelectedEvent(event) }}
+        />
       </div>
-
-      <EventFormModal
-        isOpen={formOpen}
-        onClose={() => { setFormOpen(false); setEditEvent(null) }}
-        onSave={handleSaveEvent}
-        editEvent={editEvent}
-        defaultDate={defaultSlotDate}
-        currentAgentId={admin ? undefined : currentAgentId}
-        currentAgentName={admin ? undefined : currentUserName}
-        agentUserId={admin ? undefined : currentUserId}
-        agents={admin ? agents : undefined}
-        adminUserId={admin ? currentUserId : undefined}
-        adminUserName={admin ? currentUserName : undefined}
-      />
-
-      <EventDetailModal
-        event={selectedEvent}
-        agents={viewAgents}
-        onClose={() => setSelectedEvent(null)}
-        onEdit={handleEditFromDetail}
-        onDelete={handleDeleteEvent}
-        canWrite={selectedEvent ? canWriteEvent(selectedEvent) : false}
-      />
-
-      <DayEventsModal
-        isOpen={dayModalDate !== null}
-        date={dayModalDate}
-        events={filteredEvents}
-        agents={viewAgents}
-        onClose={() => setDayModalDate(null)}
-        onEventClick={(event) => { setDayModalDate(null); setSelectedEvent(event) }}
-      />
     </div>
   )
 }

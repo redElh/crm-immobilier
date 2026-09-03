@@ -1,15 +1,19 @@
 import { useState, useCallback } from 'react';
 import { motion } from 'framer-motion';
-import { Badge } from '../../ui/Badge';
 import { Select } from '../../ui/Select';
-import { Input } from '../../ui/Input';
-import { Textarea } from '../../ui/Textarea';
-import { Key, Clock, Eye, EyeOff, Plus, Trash2, Edit2, Save } from 'react-feather';
+import { DatePicker } from '../../ui/DatePicker';
+import { TimePicker } from '../../ui/TimePicker';
+import { Key, Clock, Eye, EyeOff, Plus, Trash2, Edit2, Save, Shield, MapPin, Lock, FileText, User, Phone } from 'react-feather';
 import type { Property, KeyMovement } from '../../../types/property';
 import { useConfidential } from '../confidentiality/ConfidentialContext';
-import { ConfidentialValue } from '../confidentiality/ConfidentialField';
 import { updateProperty } from '../../../services/propertyService';
 import { useToast } from '../../ui/Toast';
+import { useStageFormClasses } from '../calendar/StageModal';
+import { useStageChrome } from '../calendar/useStageChrome';
+import {
+  OrbIcon, TiltCard, StageBadge, StageButton,
+  STAGE_HUES, SLATE_HUE,
+} from '../../dashboard/Stage';
 
 interface PropertyKeysProps {
   property: Property;
@@ -65,20 +69,12 @@ const ACTION_OPTIONS = [
   { value: 'perdue', label: 'Perdue' },
 ];
 
-const keysStatusConfig: Record<string, { label: string; className: string }> = {
-  available: { label: 'Disponible', className: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
-  in_visit: { label: 'En visite', className: 'bg-amber-50 text-amber-700 border-amber-200' },
-  unavailable: { label: 'Indisponible', className: 'bg-gray-50 text-gray-700 border-gray-200' },
-  lost: { label: 'Perdue', className: 'bg-red-50 text-red-700 border-red-200' },
+const badgeForStatus: Record<string, 'ok' | 'warn' | 'neutral' | 'danger'> = {
+  available: 'ok',
+  in_visit: 'warn',
+  unavailable: 'neutral',
+  lost: 'danger',
 };
-
-const gerantKeysStatusConfig: Record<string, { label: string; className: string }> = {
-  ...keysStatusConfig,
-  in_visit: { label: 'En visite', className: 'bg-[#F0E2E2] text-[#7D5050] border-[#E0C6C6]' },
-};
-
-const container = { hidden: { opacity: 0 }, show: { opacity: 1, transition: { staggerChildren: 0.04 } } };
-const item = { hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0 } };
 
 const PERSON_OPTIONS = [
   { value: 'agent_1', label: 'Karim Eloui' },
@@ -113,6 +109,9 @@ function initFormData(keys: Property['keys']): KeysFormData {
 export function PropertyKeys({ property, onUpdated, isGerant = false }: PropertyKeysProps) {
   const { revealed } = useConfidential();
   const { toast } = useToast();
+  const { input, label: stageLabel } = useStageFormClasses();
+  const { staged, dark } = useStageChrome();
+  const ctrl = (extra?: string) => (staged ? input(extra) : undefined);
   const [isEditing, setIsEditing] = useState(false);
   const [keys, setKeys] = useState<KeysFormData>(() => initFormData(property.keys));
   const [contactType, setContactType] = useState(keys.contactType);
@@ -121,8 +120,6 @@ export function PropertyKeys({ property, onUpdated, isGerant = false }: Property
   const [history, setHistory] = useState<KeyMovement[]>(keys.history);
   const [newMovement, setNewMovement] = useState({ date: '', action: '', person: '', reason: '' });
   const [saving, setSaving] = useState(false);
-
-  const statusConfig = keys.status ? (isGerant ? gerantKeysStatusConfig[keys.status] : keysStatusConfig[keys.status]) : null;
 
   const addMovement = () => {
     if (!newMovement.date || !newMovement.action || !newMovement.person) return;
@@ -146,256 +143,339 @@ export function PropertyKeys({ property, onUpdated, isGerant = false }: Property
     }
   }, [property.id, keys, history, onUpdated, toast]);
 
-  return (
-    <motion.div variants={container} initial="hidden" animate="show" className="space-y-5">
+  // exact calendar 3D glass skin — ensures Clés matches add/modify event modal
+  const fieldCtrl = ctrl;
+  const labelCls = stageLabel;
 
-      {/* Header actions */}
-      <motion.div variants={item} className="flex items-center justify-end gap-2">
-        {isEditing ? (
-          <button
-            type="button"
-            onClick={handleSave}
-            disabled={saving}
-            className={`inline-flex items-center gap-2 h-9 px-4 text-sm font-medium rounded-lg text-white transition-all active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed ${isGerant ? 'bg-[#905D5D] hover:bg-[#905D5D]/90' : 'bg-accent hover:bg-accent/90'}`}
-          >
-            <Save size={14} /> {saving ? 'Enregistrement...' : 'Enregistrer'}
-          </button>
-        ) : (
-          <button
-            type="button"
-            onClick={() => setIsEditing(true)}
-            className="inline-flex items-center gap-2 h-9 px-4 text-sm font-medium rounded-lg border border-border bg-card text-text hover:bg-background transition-all active:scale-[0.98]"
-          >
-            <Edit2 size={14} /> Modifier
-          </button>
-        )}
+  const SectionHeader = ({ icon, title, subtitle }: { icon: any; title: string; subtitle?: string }) => (
+    <div className="flex items-center gap-3 mb-4">
+      <OrbIcon icon={icon} hue={STAGE_HUES.amber} size={32} radius={10} />
+      <div>
+        <h3 className={`text-[13px] font-bold tracking-tight ${dark ? 'text-white' : 'text-slate-900'}`}>{title}</h3>
+        {subtitle && <p className={`text-xs ${dark ? 'text-slate-400' : 'text-slate-500'}`}>{subtitle}</p>}
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="space-y-4">
+      {/* Header */}
+      <motion.div
+        initial={staged ? { opacity: 0, y: 12 } : undefined}
+        animate={staged ? { opacity: 1, y: 0 } : undefined}
+        transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+        className={`${staged ? 'stage-glass' : 'bg-card border border-border/50 shadow-card rounded-2xl'} p-5 flex items-center justify-between gap-3 relative overflow-hidden`}
+      >
+        <div className="flex items-center gap-3 min-w-0">
+          <OrbIcon icon={Key} hue={STAGE_HUES.amber} size={40} radius={12} />
+          <div className="min-w-0">
+            <h2 className={`text-[15px] font-bold tracking-tight ${dark ? 'text-white' : 'text-slate-900'}`}>Gestion des clés</h2>
+            <p className={`text-xs mt-0.5 ${dark ? 'text-slate-400' : 'text-slate-500'}`}>{property.reference} · {isEditing ? 'Mode édition' : 'Consultation'}</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          {isEditing ? (
+            <>
+              <StageButton variant="glass" size="sm" onClick={() => setIsEditing(false)}>Annuler</StageButton>
+              <StageButton variant="primary" size="sm" icon={<Save size={13} />} onClick={handleSave} className={saving ? 'opacity-50 pointer-events-none' : ''}>
+                {saving ? 'Enregistrement...' : 'Enregistrer'}
+              </StageButton>
+            </>
+          ) : (
+            <StageButton variant="glass" size="sm" icon={<Edit2 size={13} />} onClick={() => setIsEditing(true)}>
+              Modifier
+            </StageButton>
+          )}
+        </div>
       </motion.div>
 
       {/* ZONE 1 : ÉTAT DES CLÉS */}
-      <motion.div variants={item} className="bg-card rounded-xl border border-border/50 shadow-card p-5">
-        <div className="flex items-center gap-2 mb-4">
-          <Key size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />
-          <h3 className="font-semibold">État des clés</h3>
-        </div>
+      <motion.div initial={staged ? { opacity: 0, y: 12 } : undefined} animate={staged ? { opacity: 1, y: 0 } : undefined} transition={{ delay: 0.05, duration: 0.4, ease: [0.22, 1, 0.36, 1] }} className={`${staged ? 'stage-glass' : 'bg-card border border-border/50 shadow-card rounded-2xl'} p-5 relative overflow-hidden`}>
+        <SectionHeader icon={Key} title="État des clés" subtitle="Statut et lieu de stockage" />
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           {isEditing ? (
-            <Select
-              label="Statut des clés"
-              options={STATUS_OPTIONS}
-              value={keys.status}
-              onValueChange={(v) => setKeys(prev => ({ ...prev, status: v }))}
-            />
+            <div>
+              <label className={labelCls}>Statut des clés</label>
+              <Select
+                options={STATUS_OPTIONS}
+                value={keys.status}
+                onValueChange={(v) => setKeys(prev => ({ ...prev, status: v }))}
+                className={fieldCtrl('h-10')}
+              />
+            </div>
           ) : (
             <div>
-              <label className="text-sm font-medium text-text block mb-1.5">Statut des clés</label>
-              {statusConfig ? <Badge className={statusConfig.className}>{statusConfig.label}</Badge> : <span className="text-sm text-text-secondary/60">Non défini</span>}
+              <label className={labelCls}>Statut des clés</label>
+              {keys.status ? <StageBadge variant={badgeForStatus[keys.status] || 'neutral'}>{STATUS_OPTIONS.find(o=>o.value===keys.status)?.label}</StageBadge> : <span className={`text-sm ${dark ? 'text-slate-500' : 'text-slate-400'}`}>Non défini</span>}
             </div>
           )}
-          <Select
-            label="Lieu de garde"
-            options={STORAGE_OPTIONS}
-            value={keys.storageLocation}
-            onValueChange={(v) => setKeys(prev => ({ ...prev, storageLocation: v }))}
-            disabled={!isEditing}
-          />
-          <Input
-            label="Identifiant / Référence"
-            value={keys.identifier}
-            onChange={(e) => setKeys(prev => ({ ...prev, identifier: e.target.value }))}
-            disabled={!isEditing}
-          />
+          {isEditing ? (
+            <div>
+              <label className={labelCls}>Lieu de garde</label>
+              <Select
+                options={STORAGE_OPTIONS}
+                value={keys.storageLocation}
+                onValueChange={(v) => setKeys(prev => ({ ...prev, storageLocation: v }))}
+                className={fieldCtrl('h-10')}
+              />
+            </div>
+          ) : (
+            <div>
+              <label className={labelCls}>Lieu de garde</label>
+              <span className={`mt-1 inline-flex items-center px-3 py-2 rounded-xl border text-sm font-medium backdrop-blur-sm ${dark ? 'text-slate-200' : 'text-slate-700'}`} style={{ borderColor: dark ? 'rgba(255,255,255,0.07)' : 'rgba(15,23,42,0.06)', background: dark ? 'rgba(255,255,255,0.02)' : 'rgba(255,255,255,0.55)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.05)' }}>
+                {keys.storageLocation ? STORAGE_OPTIONS.find(o=>o.value===keys.storageLocation)?.label : <span className={dark ? 'text-slate-500' : 'text-slate-400'}>—</span>}
+              </span>
+            </div>
+          )}
+          {isEditing ? (
+            <div>
+              <label className={labelCls}>Identifiant / Référence</label>
+              <input
+                value={keys.identifier}
+                onChange={(e) => setKeys(prev => ({ ...prev, identifier: e.target.value }))}
+                className={fieldCtrl('h-10')}
+                placeholder="Ex: Trousseau A12"
+              />
+            </div>
+          ) : (
+            <div>
+              <label className={labelCls}>Identifiant / Référence</label>
+              <span className={`mt-1 inline-flex items-center px-3 py-2 rounded-xl border text-sm font-medium backdrop-blur-sm min-w-[120px] ${dark ? 'text-slate-200' : 'text-slate-700'}`} style={{ borderColor: dark ? 'rgba(255,255,255,0.07)' : 'rgba(15,23,42,0.06)', background: dark ? 'rgba(255,255,255,0.02)' : 'rgba(255,255,255,0.55)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.05)' }}>
+                {keys.identifier || <span className={dark ? 'text-slate-500' : 'text-slate-400'}>—</span>}
+              </span>
+            </div>
+          )}
         </div>
       </motion.div>
 
       {/* ZONE 2 : PERSONNE À CONTACTER */}
-      <motion.div variants={item} className="bg-card rounded-xl border border-border/50 shadow-card p-5">
-        <div className="flex items-center gap-2 mb-4">
-          <Key size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />
-          <h3 className="font-semibold">Personne à contacter</h3>
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <Select
-            label="Type de personne"
-            options={CONTACT_TYPE_OPTIONS}
-            value={contactType}
-            onValueChange={(v) => { setContactType(v); setKeys(prev => ({ ...prev, contactType: v, contactPerson: '', contactPhone: '' })); }}
-            disabled={!isEditing}
-          />
+      <motion.div initial={staged ? { opacity: 0, y: 12 } : undefined} animate={staged ? { opacity: 1, y: 0 } : undefined} transition={{ delay: 0.1, duration: 0.4, ease: [0.22, 1, 0.36, 1] }} className={`${staged ? 'stage-glass' : 'bg-card border border-border/50 shadow-card rounded-2xl'} p-5 relative overflow-hidden`}>
+        <SectionHeader icon={User} title="Personne à contacter" subtitle="Interlocuteur pour l'accès" />
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {isEditing ? (
+            <div>
+              <label className={labelCls}>Type de personne</label>
+              <Select
+                options={CONTACT_TYPE_OPTIONS}
+                value={contactType}
+                onValueChange={(v) => { setContactType(v); setKeys(prev => ({ ...prev, contactType: v, contactPerson: '', contactPhone: '' })); }}
+                className={fieldCtrl('h-10')}
+              />
+            </div>
+          ) : (
+            <div>
+              <label className={labelCls}>Type de personne</label>
+              <span className={`mt-1 inline-flex items-center px-3 py-2 rounded-xl border text-sm font-medium backdrop-blur-sm ${dark ? 'text-slate-200' : 'text-slate-700'}`} style={{ borderColor: dark ? 'rgba(255,255,255,0.07)' : 'rgba(15,23,42,0.06)', background: dark ? 'rgba(255,255,255,0.02)' : 'rgba(255,255,255,0.55)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.05)' }}>
+                {CONTACT_TYPE_OPTIONS.find(o=>o.value===contactType)?.label || <span className={dark ? 'text-slate-500' : 'text-slate-400'}>—</span>}
+              </span>
+            </div>
+          )}
           <div>
-            <label className="text-sm font-medium text-text block mb-1.5">Personne</label>
+            <label className={labelCls}>Personne</label>
             {!isEditing && !revealed ? (
-              <span className="text-sm text-text-secondary/30 italic">••••••••</span>
+              <span className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border text-sm backdrop-blur-sm ${dark ? 'text-slate-300' : 'text-slate-400'}`} style={{ borderColor: dark ? 'rgba(255,255,255,0.07)' : 'rgba(15,23,42,0.06)', background: dark ? 'rgba(255,255,255,0.02)' : 'rgba(255,255,255,0.55)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.05)' }}><Shield size={12} /> ••••••••</span>
             ) : isEditing && contactType === 'tiers' ? (
-              <Input
+              <input
                 value={tiersName}
                 onChange={(e) => { setTiersName(e.target.value); setKeys(prev => ({ ...prev, contactPerson: e.target.value })); }}
+                className={fieldCtrl('h-10')}
+                placeholder="Nom du tiers"
               />
             ) : isEditing ? (
               <Select
                 options={[{ value: '', label: 'Sélectionner...' }, ...getPersonOptions(contactType)]}
                 value={keys.contactPerson}
                 onValueChange={(v) => setKeys(prev => ({ ...prev, contactPerson: v }))}
+                className={fieldCtrl('h-10')}
               />
             ) : (
-              <span className="text-sm text-text-secondary">{keys.contactPerson}</span>
+              <span className={`inline-flex items-center px-3 py-2 rounded-xl border text-sm font-medium backdrop-blur-sm w-full ${dark ? 'text-slate-200' : 'text-slate-700'}`} style={{ borderColor: dark ? 'rgba(255,255,255,0.07)' : 'rgba(15,23,42,0.06)', background: dark ? 'rgba(255,255,255,0.02)' : 'rgba(255,255,255,0.55)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.05)' }}>{keys.contactPerson || <span className={dark ? 'text-slate-500' : 'text-slate-400'}>—</span>}</span>
             )}
           </div>
           <div>
-            <label className="text-sm font-medium text-text block mb-1.5">Téléphone</label>
+            <label className={labelCls}>Téléphone</label>
             {!isEditing && !revealed ? (
-              <span className="text-sm text-text-secondary/30 italic">••••••••</span>
-            ) : (
-              <Input
+              <span className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border text-sm backdrop-blur-sm ${dark ? 'text-slate-300' : 'text-slate-400'}`} style={{ borderColor: dark ? 'rgba(255,255,255,0.07)' : 'rgba(15,23,42,0.06)', background: dark ? 'rgba(255,255,255,0.02)' : 'rgba(255,255,255,0.55)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.05)' }}><Phone size={12} /> ••••••••</span>
+            ) : isEditing ? (
+              <input
                 value={keys.contactPhone}
                 onChange={(e) => setKeys(prev => ({ ...prev, contactPhone: e.target.value }))}
-                disabled={!isEditing}
+                className={fieldCtrl('h-10')}
+                placeholder="06 12 34 56 78"
               />
+            ) : (
+              <span className={`inline-flex items-center px-3 py-2 rounded-xl border text-sm font-medium backdrop-blur-sm ${dark ? 'text-slate-200' : 'text-slate-700'}`} style={{ borderColor: dark ? 'rgba(255,255,255,0.07)' : 'rgba(15,23,42,0.06)', background: dark ? 'rgba(255,255,255,0.02)' : 'rgba(255,255,255,0.55)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.05)' }}>
+                {keys.contactPhone || <span className={dark ? 'text-slate-500' : 'text-slate-400'}>—</span>}
+              </span>
             )}
           </div>
         </div>
       </motion.div>
 
       {/* ZONE 3 : EMPLACEMENT PRÉCIS */}
-      <motion.div variants={item} className="bg-card rounded-xl border border-border/50 shadow-card p-5">
-        <div className="flex items-center gap-2 mb-4">
-          <Key size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />
-          <h3 className="font-semibold">Emplacement précis</h3>
-        </div>
+      <motion.div initial={staged ? { opacity: 0, y: 12 } : undefined} animate={staged ? { opacity: 1, y: 0 } : undefined} transition={{ delay: 0.15, duration: 0.4, ease: [0.22, 1, 0.36, 1] }} className={`${staged ? 'stage-glass' : 'bg-card border border-border/50 shadow-card rounded-2xl'} p-5 relative overflow-hidden`}>
+        <SectionHeader icon={MapPin} title="Emplacement précis" subtitle="Localisation exacte et code d'accès" />
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <label className="text-sm font-medium text-text block mb-1.5">Emplacement précis</label>
+            <label className={labelCls}>Emplacement précis</label>
             {!isEditing && !revealed ? (
-              <span className="text-sm text-text-secondary/30 italic">••••••••</span>
-            ) : (
-              <Input
+              <span className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border text-sm w-full backdrop-blur-sm ${dark ? 'text-slate-300' : 'text-slate-400'}`} style={{ borderColor: dark ? 'rgba(255,255,255,0.07)' : 'rgba(15,23,42,0.06)', background: dark ? 'rgba(255,255,255,0.02)' : 'rgba(255,255,255,0.55)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.05)' }}><Shield size={12} /> ••••••••</span>
+            ) : isEditing ? (
+              <input
                 value={keys.preciseLocation}
                 onChange={(e) => setKeys(prev => ({ ...prev, preciseLocation: e.target.value }))}
-                placeholder="Boîte à clés code 1234, Tiroir 3, bureau de Myriam"
-                disabled={!isEditing}
+                placeholder="Boîte à clés code 1234, Tiroir 3..."
+                className={fieldCtrl('h-10')}
               />
+            ) : (
+              <span className={`inline-flex items-center px-3 py-2 rounded-xl border text-sm font-medium backdrop-blur-sm w-full ${dark ? 'text-slate-200' : 'text-slate-700'}`} style={{ borderColor: dark ? 'rgba(255,255,255,0.07)' : 'rgba(15,23,42,0.06)', background: dark ? 'rgba(255,255,255,0.02)' : 'rgba(255,255,255,0.55)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.05)' }}>
+                {keys.preciseLocation || <span className={dark ? 'text-slate-500' : 'text-slate-400'}>—</span>}
+              </span>
             )}
           </div>
           <div>
-            <label className="text-sm font-medium text-text block mb-1.5">Code / Digicode</label>
+            <label className={labelCls}>Code / Digicode</label>
             {!isEditing && !revealed ? (
-              <span className="text-sm text-text-secondary/30 italic">••••••••</span>
-            ) : (
-              <div className="relative">
+              <span className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border text-sm w-full backdrop-blur-sm ${dark ? 'text-slate-300' : 'text-slate-400'}`} style={{ borderColor: dark ? 'rgba(255,255,255,0.07)' : 'rgba(15,23,42,0.06)', background: dark ? 'rgba(255,255,255,0.02)' : 'rgba(255,255,255,0.55)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.05)' }}><Lock size={12} /> ••••••••</span>
+            ) : isEditing ? (
+              <div className="relative group">
                 <input
                   type={showCode ? 'text' : 'password'}
                   value={keys.code}
                   onChange={(e) => setKeys(prev => ({ ...prev, code: e.target.value }))}
                   placeholder="1234"
                   disabled={!isEditing}
-                  className={`w-full h-9 pl-3 pr-9 py-2 text-sm rounded-lg border border-border bg-card text-text placeholder:text-text-secondary/30 focus:outline-none focus:ring-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed ${isGerant ? 'focus:ring-[#905D5D]/15 focus:border-[#905D5D]' : 'focus:ring-accent/15 focus:border-accent'}`}
+                  className={fieldCtrl('h-10 pr-10')}
                 />
                 <button
                   type="button"
                   onClick={() => setShowCode(!showCode)}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-text-secondary hover:text-text transition-colors"
+                  className={`absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-lg transition-colors ${dark ? 'text-slate-400 hover:text-white hover:bg-white/10' : 'text-slate-400 hover:text-slate-600 hover:bg-slate-100'}`}
                 >
                   {showCode ? <EyeOff size={14} /> : <Eye size={14} />}
                 </button>
               </div>
+            ) : (
+              <span className={`inline-flex items-center px-3 py-2 rounded-xl border text-sm font-medium backdrop-blur-sm w-full ${dark ? 'text-slate-200' : 'text-slate-700'}`} style={{ borderColor: dark ? 'rgba(255,255,255,0.07)' : 'rgba(15,23,42,0.06)', background: dark ? 'rgba(255,255,255,0.02)' : 'rgba(255,255,255,0.55)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.05)' }}>
+                {keys.code ? '••••' : <span className={dark ? 'text-slate-500' : 'text-slate-400'}>—</span>}
+                <span className={`ml-2 text-xs ${dark ? 'text-slate-400' : 'text-slate-500'}`}>{keys.code ? '(masqué)' : ''}</span>
+              </span>
             )}
           </div>
         </div>
       </motion.div>
 
       {/* ZONE 4 : INSTRUCTIONS */}
-      <motion.div variants={item} className="bg-card rounded-xl border border-border/50 shadow-card p-5">
-        <div className="flex items-center gap-2 mb-4">
-          <Key size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />
-          <h3 className="font-semibold">Instructions</h3>
-        </div>
+      <motion.div initial={staged ? { opacity: 0, y: 12 } : undefined} animate={staged ? { opacity: 1, y: 0 } : undefined} transition={{ delay: 0.2, duration: 0.4, ease: [0.22, 1, 0.36, 1] }} className={`${staged ? 'stage-glass' : 'bg-card border border-border/50 shadow-card rounded-2xl'} p-5 relative overflow-hidden`}>
+        <SectionHeader icon={FileText} title="Instructions" subtitle="Consignes d'accès" />
         {!isEditing && !revealed ? (
-          <p className="text-sm text-text-secondary/30 italic py-2">••••••••</p>
-        ) : (
-          <Textarea
+          <p className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border text-sm backdrop-blur-sm ${dark ? 'text-slate-300' : 'text-slate-400'}`} style={{ borderColor: dark ? 'rgba(255,255,255,0.07)' : 'rgba(15,23,42,0.06)', background: dark ? 'rgba(255,255,255,0.02)' : 'rgba(255,255,255,0.55)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.05)' }}><Shield size={12} /> ••••••••</p>
+        ) : isEditing ? (
+          <textarea
             value={keys.instructions}
             onChange={(e) => setKeys(prev => ({ ...prev, instructions: e.target.value }))}
-            placeholder="Sonner à l'interphone, demander Monsieur Dupont"
+            placeholder="Sonner à l'interphone, demander Monsieur Dupont..."
             rows={3}
-            disabled={!isEditing}
+            className={fieldCtrl('min-h-[88px] py-3 resize-none')}
           />
+        ) : (
+          <div className={`px-3.5 py-3 rounded-xl border text-sm leading-relaxed whitespace-pre-wrap min-h-[72px] backdrop-blur-sm ${dark ? 'text-slate-200' : 'text-slate-700'}`} style={{ borderColor: dark ? 'rgba(255,255,255,0.07)' : 'rgba(15,23,42,0.06)', background: dark ? 'rgba(255,255,255,0.02)' : 'rgba(255,255,255,0.55)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.05)' }}>
+            {keys.instructions || <span className={dark ? 'text-slate-500' : 'text-slate-400'}>Aucune instruction</span>}
+          </div>
         )}
       </motion.div>
 
       {/* HISTORIQUE DES MOUVEMENTS */}
-      <motion.div variants={item} className="bg-card rounded-xl border border-border/50 shadow-card p-5">
-        <div className="flex items-center gap-2 mb-4">
-          <Clock size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />
-          <h3 className="font-semibold">Historique des mouvements</h3>
+      <motion.div initial={staged ? { opacity: 0, y: 12 } : undefined} animate={staged ? { opacity: 1, y: 0 } : undefined} transition={{ delay: 0.25, duration: 0.4, ease: [0.22, 1, 0.36, 1] }} className={`${staged ? 'stage-glass' : 'bg-card border border-border/50 shadow-card rounded-2xl'} p-5 relative overflow-hidden`}>
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-3">
+            <OrbIcon icon={Clock} hue={STAGE_HUES.sky} size={32} radius={10} />
+            <div>
+              <h3 className={`text-[13px] font-bold ${dark ? 'text-white' : 'text-slate-900'}`}>Historique des mouvements</h3>
+              <p className={`text-xs ${dark ? 'text-slate-400' : 'text-slate-500'}`}>{history.length} mouvement{history.length !== 1 ? 's' : ''}</p>
+            </div>
+          </div>
+          {history.length > 0 && <StageBadge variant="neutral">{history.length}</StageBadge>}
         </div>
 
-        {/* Add movement */}
-        {isEditing && (
-          <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 mb-4 p-3 rounded-lg bg-background/50 border border-border/30">
-            <input
-              type="datetime-local"
-              value={newMovement.date}
-              onChange={(e) => setNewMovement({ ...newMovement, date: e.target.value })}
-              className={`w-full h-9 px-3 text-sm rounded-lg border border-border bg-card text-text focus:outline-none focus:ring-2 transition-all ${isGerant ? 'focus:ring-[#905D5D]/15 focus:border-[#905D5D]' : 'focus:ring-accent/15 focus:border-accent'}`}
-            />
-            <select
-              value={newMovement.action}
-              onChange={(e) => setNewMovement({ ...newMovement, action: e.target.value, person: '' })}
-              className={`w-full h-9 px-3 text-sm rounded-lg border border-border bg-card text-text appearance-none cursor-pointer focus:outline-none focus:ring-2 transition-all ${isGerant ? 'focus:ring-[#905D5D]/15 focus:border-[#905D5D]' : 'focus:ring-accent/15 focus:border-accent'}`}
-            >
-              {ACTION_OPTIONS.map(o => (
-                <option key={o.value} value={o.value}>{o.label}</option>
-              ))}
-            </select>
-            <select
-              value={newMovement.person}
-              onChange={(e) => setNewMovement({ ...newMovement, person: e.target.value })}
-              className={`w-full h-9 px-3 text-sm rounded-lg border border-border bg-card text-text appearance-none cursor-pointer focus:outline-none focus:ring-2 transition-all ${isGerant ? 'focus:ring-[#905D5D]/15 focus:border-[#905D5D]' : 'focus:ring-accent/15 focus:border-accent'}`}
-            >
-              <option value="">Personne concernée</option>
-              {PERSON_OPTIONS.map(o => (
-                <option key={o.value} value={o.value}>{o.label}</option>
-              ))}
-            </select>
-            <button
-              type="button"
-              onClick={addMovement}
-              className={`inline-flex items-center justify-center gap-2 h-9 px-4 text-sm font-medium rounded-lg text-white transition-all active:scale-[0.98] disabled:opacity-40 ${isGerant ? 'bg-[#905D5D] hover:bg-[#905D5D]/90' : 'bg-accent hover:bg-accent/90'}`}
-              disabled={!newMovement.date || !newMovement.action || !newMovement.person}
-            >
-              <Plus size={14} /> Ajouter
-            </button>
-          </div>
-        )}
+        {/* Add movement — calendar-grade pickers with 3D glass */}
+        {isEditing && (() => {
+          const [dPart, tPart] = newMovement.date ? newMovement.date.split('T') : ['', ''];
+          return (
+            <div className="grid grid-cols-1 sm:grid-cols-5 gap-3 mb-4 p-3 rounded-xl border" style={{ borderColor: dark ? 'rgba(255,255,255,0.07)' : 'rgba(15,23,42,0.06)', background: dark ? 'rgba(255,255,255,0.02)' : 'rgba(255,255,255,0.55)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.05)' }}>
+              <DatePicker
+                value={dPart}
+                onChange={e => {
+                  const d = e.target.value;
+                  const t = tPart || '09:00';
+                  setNewMovement({ ...newMovement, date: d ? `${d}T${t}` : '' });
+                }}
+                placeholder="Date"
+                className={fieldCtrl('h-10')}
+              />
+              <TimePicker
+                value={tPart}
+                onChange={e => {
+                  const t = e.target.value;
+                  const d = dPart || new Date().toISOString().slice(0, 10);
+                  setNewMovement({ ...newMovement, date: d ? `${d}T${t}` : '' });
+                }}
+                placeholder="Heure"
+                className={fieldCtrl('h-10')}
+              />
+              <Select
+                options={ACTION_OPTIONS}
+                value={newMovement.action}
+                onValueChange={(v) => setNewMovement({ ...newMovement, action: v, person: '' })}
+                placeholder="Action"
+                className={fieldCtrl('h-10')}
+              />
+              <Select
+                options={[{ value: '', label: 'Personne concernée' }, ...PERSON_OPTIONS]}
+                value={newMovement.person}
+                onValueChange={(v) => setNewMovement({ ...newMovement, person: v })}
+                placeholder="Personne"
+                className={fieldCtrl('h-10')}
+              />
+              <StageButton variant="primary" size="sm" icon={<Plus size={13} />} onClick={addMovement} className={!newMovement.date || !newMovement.action || !newMovement.person ? 'opacity-40 pointer-events-none' : ''}>
+                Ajouter
+              </StageButton>
+            </div>
+          );
+        })()}
 
         {/* History list */}
         {history.length === 0 ? (
-          <p className="text-sm text-text-secondary/60 py-4 text-center">Aucun mouvement enregistré</p>
+          <div className={`flex flex-col items-center justify-center py-10 rounded-xl border border-dashed ${dark ? 'border-white/10 bg-white/[0.02]' : 'border-slate-200 bg-slate-50/50'}`}>
+            <OrbIcon icon={Clock} hue={SLATE_HUE} size={40} radius={12} className="opacity-40 mb-2" />
+            <p className={`text-sm font-medium ${dark ? 'text-slate-400' : 'text-slate-500'}`}>Aucun mouvement enregistré</p>
+            <p className={`text-xs mt-1 ${dark ? 'text-slate-500' : 'text-slate-400'}`}>L'historique apparaîtra ici après ajout</p>
+          </div>
         ) : (
-          <div className="divide-y divide-border/30">
+          <div className={`divide-y ${dark ? 'divide-white/5' : 'divide-slate-200'}`}>
             {history.map((entry) => (
-              <div key={entry.id} className="flex items-center justify-between py-3 text-sm">
-                <div className="flex items-center gap-4 flex-1">
-                  <span className="text-xs text-text-secondary/60 font-mono min-w-[140px]">
+              <div key={entry.id} className={`flex items-center justify-between py-3 gap-3 group rounded-xl px-2 -mx-2 transition-colors ${dark ? 'hover:bg-white/[0.04]' : 'hover:bg-slate-50'}`}>
+                <div className="flex items-center gap-3 flex-1 min-w-0 flex-wrap">
+                  <span className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-full border text-[11px] font-medium shrink-0 ${dark ? 'bg-white/5 border-white/10 text-slate-300' : 'bg-white border-slate-200 text-slate-600'}`}>
+                    <Clock size={10} className={dark ? 'text-slate-500' : 'text-slate-400'} />
                     {new Date(entry.date).toLocaleDateString('fr-FR', {
                       day: '2-digit', month: '2-digit', year: 'numeric',
                       hour: '2-digit', minute: '2-digit',
                     })}
                   </span>
-                  <span className="text-text font-medium">
-                    {ACTION_OPTIONS.find(o => o.value === entry.action)?.label || entry.action}
-                  </span>
-                  <span className="text-text-secondary">
+                  <StageBadge variant="neutral">{ACTION_OPTIONS.find(o => o.value === entry.action)?.label || entry.action}</StageBadge>
+                  <span className={`text-sm font-medium truncate ${dark ? 'text-white' : 'text-slate-900'}`}>
                     {PERSON_OPTIONS.find(o => o.value === entry.person)?.label || entry.person}
                   </span>
                   {entry.reason && (
-                    <span className="text-text-secondary/60 text-xs">— {entry.reason}</span>
+                    <span className={`text-xs truncate ${dark ? 'text-slate-400' : 'text-slate-500'}`}>— {entry.reason}</span>
                   )}
                 </div>
                 {isEditing && (
                   <button
                     type="button"
                     onClick={() => setHistory(prev => prev.filter(h => h.id !== entry.id))}
-                    className="text-text-secondary/40 hover:text-red-500 transition-colors p-1"
+                    className={`p-1.5 rounded-lg transition-colors shrink-0 ${dark ? 'text-slate-500 hover:text-red-300 hover:bg-red-500/10' : 'text-slate-400 hover:text-red-500 hover:bg-red-50'}`}
                   >
                     <Trash2 size={13} />
                   </button>
@@ -405,6 +485,6 @@ export function PropertyKeys({ property, onUpdated, isGerant = false }: Property
           </div>
         )}
       </motion.div>
-    </motion.div>
+    </div>
   );
 }

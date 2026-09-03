@@ -27,6 +27,8 @@ import googleRoutes, { googleCalendarCallback } from './routes/google.routes.js'
 import messageRoutes from './routes/message.routes.js';
 import filesRoutes from './routes/files.routes.js';
 import conciergerieRoutes from './routes/conciergerie.routes.js';
+import toolboxRoutes from './routes/toolbox.routes.js';
+import toolboxPublicRoutes from './routes/toolbox.public.routes.js';
 import { protectPrivatePropertyDocuments } from './middleware/propertyFiles.middleware.js';
 import { setupRealtime } from './ws/server.js';
 import { googleAuth, googleCallback, facebookAuth, facebookCallback } from './controllers/oauth.controller.js';
@@ -49,11 +51,18 @@ const PORT = process.env.PORT || 5000;
 // CORS_ORIGIN can be a single URL or a comma-separated list of allowed origins.
 const corsOrigin = process.env.CORS_ORIGIN || process.env.FRONTEND_URL || 'http://localhost:3000';
 const allowedOrigins = corsOrigin.split(',').map(origin => origin.trim()).filter(Boolean);
+// Public API origins (squaremeter.ma) are always allowed — even if not in CORS_ORIGIN
+const PUBLIC_CORS_ALLOW = [
+  'https://squaremeter.ma',
+  'https://www.squaremeter.ma',
+]
 app.use(cors({
   origin: (origin, callback) => {
     // Allow requests with no origin (server-to-server, curl, etc.)
     if (!origin) return callback(null, true);
     if (allowedOrigins.includes(origin)) return callback(null, true);
+    if (PUBLIC_CORS_ALLOW.includes(origin)) return callback(null, true);
+    if (/^https:\/\/.*\.squaremeter\.ma$/.test(origin)) return callback(null, true);
     // Allow any localhost / 127.0.0.1 origin in development (http or https)
     if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) return callback(null, true);
     console.warn(`[CORS] Rejected origin: ${origin}`);
@@ -61,7 +70,7 @@ app.use(cors({
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-API-Key']
 }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -95,6 +104,8 @@ app.use('/api/google', googleRoutes);
 app.use('/api/messages', messageRoutes);
 app.use('/api/files', filesRoutes);
 app.use('/api/conciergerie', conciergerieRoutes);
+app.use('/api/toolbox', toolboxRoutes);
+app.use('/api/public', toolboxPublicRoutes);
 
 // Google Calendar OAuth callback — reachable through the CRA dev-server proxy
 // at http://localhost:5001/api/auth/google/callback (matches the redirect URI

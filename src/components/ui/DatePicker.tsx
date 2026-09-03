@@ -1,8 +1,9 @@
 import React, { useRef, useState, useEffect, useCallback, useMemo } from 'react'
-import { createPortal } from 'react-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Calendar, ChevronLeft, ChevronRight } from 'react-feather'
 import { cn } from '../../lib/utils'
+import { portalWithTheme } from './dropdownTheme'
+import { useStageChrome } from '../modules/calendar/useStageChrome'
 
 const DAYS = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim']
 const MONTHS = ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre']
@@ -40,6 +41,7 @@ function formatDate(year: number, month: number, day: number): string {
 
 export const DatePicker = React.forwardRef<HTMLInputElement, DatePickerProps>(
   ({ label, value, defaultValue, onChange, onBlur, error, className, placeholder, required, disabled, min, max, name }, ref) => {
+    const { staged, dark } = useStageChrome()
     const [isOpen, setIsOpen] = useState(false)
     const [selectedDate, setSelectedDate] = useState(value || defaultValue || '')
     const containerRef = useRef<HTMLDivElement>(null)
@@ -53,6 +55,7 @@ export const DatePicker = React.forwardRef<HTMLInputElement, DatePickerProps>(
     const [viewYear, setViewYear] = useState(parsed ? parsed.getFullYear() : new Date().getFullYear())
     const [viewMonth, setViewMonth] = useState(parsed ? parsed.getMonth() : new Date().getMonth())
     const [showYearPicker, setShowYearPicker] = useState(false)
+    const [navDir, setNavDir] = useState(0)
     const currentYear = new Date().getFullYear()
     const decadeStart = Math.floor(viewYear / 10) * 10
 
@@ -102,12 +105,12 @@ export const DatePicker = React.forwardRef<HTMLInputElement, DatePickerProps>(
       if (!buttonRef.current) return {}
       const rect = buttonRef.current.getBoundingClientRect()
       const spaceBelow = window.innerHeight - rect.bottom - 8
-      const dh = 320
+      const dh = 380
       const openUp = spaceBelow < dh && rect.top > dh
       return {
         position: 'fixed' as const,
-        left: Math.max(8, Math.min(rect.left, window.innerWidth - 300)) + 'px',
-        width: Math.min(rect.width, 280) + 'px',
+        left: Math.max(8, Math.min(rect.left, window.innerWidth - 320)) + 'px',
+        width: Math.max(Math.min(rect.width, 304), 264) + 'px',
         ...(openUp
           ? { bottom: window.innerHeight - rect.top + 4 + 'px' }
           : { top: rect.bottom + 4 + 'px' }),
@@ -186,11 +189,13 @@ export const DatePicker = React.forwardRef<HTMLInputElement, DatePickerProps>(
     }
 
     const prevMonth = () => {
+      setNavDir(-1)
       setViewMonth((m) => (m === 0 ? 11 : m - 1))
       setViewYear((y) => (viewMonth === 0 ? y - 1 : y))
     }
 
     const nextMonth = () => {
+      setNavDir(1)
       setViewMonth((m) => (m === 11 ? 0 : m + 1))
       setViewYear((y) => (viewMonth === 11 ? y + 1 : y))
     }
@@ -218,10 +223,15 @@ export const DatePicker = React.forwardRef<HTMLInputElement, DatePickerProps>(
       }
     }, [isOpen, computePosition])
 
+    const stagedClass = staged
+      ? dark
+        ? 'w-full h-9 flex items-center justify-between px-3 text-sm rounded-xl border border-white/10 bg-gradient-to-b from-white/[0.08] to-white/[0.02] [background-color:transparent] text-slate-100 outline-none transition-all duration-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.14),inset_0_-8px_16px_-12px_rgba(0,0,0,0.7),0_6px_18px_-8px_rgba(3,5,14,0.9)] hover:border-white/15 focus:border-violet-400/70'
+        : 'w-full h-9 flex items-center justify-between px-3 text-sm rounded-xl border border-teal-900/15 bg-gradient-to-b from-white to-teal-50/70 [background-color:transparent] text-teal-950 outline-none transition-all duration-200 shadow-[inset_0_1px_0_rgba(255,255,255,1),inset_0_-6px_14px_-10px_rgba(13,148,136,0.35),0_6px_18px_-10px_rgba(13,148,136,0.45)] hover:border-teal-900/20 focus:border-teal-500/70'
+      : null
     return (
       <div ref={containerRef}>
         {label && (
-          <label className="block text-sm font-medium text-text mb-1.5">
+          <label className={cn('block mb-1.5', staged ? (dark ? 'text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400/85' : 'text-[11px] font-bold uppercase tracking-[0.14em] text-teal-900/55') : 'text-sm font-medium text-text mb-1.5')}>
             {label}
             {required && <span className="text-error ml-0.5">*</span>}
           </label>
@@ -234,18 +244,21 @@ export const DatePicker = React.forwardRef<HTMLInputElement, DatePickerProps>(
             onClick={handleToggle}
             onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') handleToggle() }}
             className={cn(
-              'w-full h-9 flex items-center justify-between px-3 text-sm rounded-lg border bg-card text-text cursor-pointer',
-              'focus:outline-none focus:ring-2 focus:ring-accent/15 focus:border-accent',
-              'hover:border-text-secondary/30',
-              'transition-all duration-200 ease-out',
-              error ? 'border-error ring-2 ring-error/15' : 'border-border',
-              disabled && 'opacity-50 cursor-not-allowed',
-              className
+              stagedClass ? stagedClass : cn(
+                'w-full h-9 flex items-center justify-between px-3 text-sm rounded-lg cursor-pointer',
+                'transition-all duration-200 ease-out',
+                'border bg-card text-text',
+                'focus:outline-none focus:ring-2 focus:ring-accent/15 focus:border-accent',
+                'hover:border-text-secondary/30'
+              ),
+              className,
+              error && (staged ? '!border-rose-400/60' : 'border-error ring-2 ring-error/15'),
+              disabled && 'opacity-50 cursor-not-allowed pointer-events-none',
             )}
           >
             <div className="flex items-center gap-2 min-w-0">
-              <Calendar size={15} className="text-text-secondary shrink-0" />
-              <span className={cn('truncate', !displayDate && 'text-text-secondary/60')}>
+              <Calendar size={15} className={cn('shrink-0', staged && dark ? 'text-slate-500' : 'text-text-secondary')} />
+              <span className={cn('truncate', !displayDate && (staged && dark ? 'text-slate-500' : 'text-text-secondary/60'))}>
                 {displayDate || placeholder || 'Sélectionner une date'}
               </span>
             </div>
@@ -266,7 +279,8 @@ export const DatePicker = React.forwardRef<HTMLInputElement, DatePickerProps>(
           </div>
         </div>
 
-        {createPortal(
+        {portalWithTheme(
+          buttonRef.current,
           <AnimatePresence>
             {isOpen && (
               <motion.div
@@ -277,27 +291,35 @@ export const DatePicker = React.forwardRef<HTMLInputElement, DatePickerProps>(
                 exit={{ opacity: 0, y: -8, scale: 0.96 }}
                 transition={{ duration: 0.15, ease: 'easeOut' }}
                 style={dropdownStyle}
-                className="bg-card rounded-lg border border-border/50 shadow-dropdown p-3 select-none"
+                className="bg-card rounded-2xl border border-border/50 shadow-dropdown p-4 select-none"
               >
-                <div className="flex items-center justify-between mb-3">
+                {/* header */}
+                <div className="mb-3 flex items-center justify-between gap-2">
                   <button
                     type="button"
                     onClick={prevMonth}
-                    className="p-1 rounded text-text-secondary hover:text-text hover:bg-background transition-colors"
+                    aria-label="Mois précédent"
+                    className="flex h-8 w-8 items-center justify-center rounded-xl text-text-secondary transition-all duration-200 hover:bg-background hover:text-text active:scale-90"
                   >
                     <ChevronLeft size={16} />
                   </button>
                   <button
                     type="button"
                     onClick={() => setShowYearPicker(!showYearPicker)}
-                    className="text-sm font-semibold text-text hover:text-accent transition-colors px-2 py-0.5 rounded-md hover:bg-accent-light/50"
+                    className={`flex items-center gap-1.5 rounded-xl border px-3 py-1.5 font-mono text-[13px] font-bold tabular-nums transition-all duration-200 active:scale-95 ${
+                      showYearPicker
+                        ? 'border-accent/40 bg-accent-light/60 text-accent'
+                        : 'border-border/50 bg-background text-text hover:border-accent/30 hover:text-accent'
+                    }`}
                   >
                     {MONTHS[viewMonth]} {viewYear}
+                    <ChevronRight size={12} className={cn('transition-transform duration-200', showYearPicker && 'rotate-90')} />
                   </button>
                   <button
                     type="button"
                     onClick={nextMonth}
-                    className="p-1 rounded text-text-secondary hover:text-text hover:bg-background transition-colors"
+                    aria-label="Mois suivant"
+                    className="flex h-8 w-8 items-center justify-center rounded-xl text-text-secondary transition-all duration-200 hover:bg-background hover:text-text active:scale-90"
                   >
                     <ChevronRight size={16} />
                   </button>
@@ -309,49 +331,53 @@ export const DatePicker = React.forwardRef<HTMLInputElement, DatePickerProps>(
                       initial={{ opacity: 0, height: 0 }}
                       animate={{ opacity: 1, height: 'auto' }}
                       exit={{ opacity: 0, height: 0 }}
-                      transition={{ duration: 0.2 }}
-                      className="overflow-hidden mb-3"
+                      transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
+                      className="mb-3 overflow-hidden"
                     >
-                      <div className="bg-background rounded-lg border border-border/50 p-3">
-                        <div className="flex items-center justify-between mb-2">
+                      <div className="rounded-xl border border-border/50 bg-background p-3">
+                        <div className="mb-2.5 flex items-center justify-between">
                           <button
                             type="button"
+                            aria-label="Décennie précédente"
                             onClick={() => setViewYear(y => y - 10)}
-                            className="p-1 rounded text-text-secondary hover:text-text hover:bg-card transition-colors"
+                            className="flex h-7 w-7 items-center justify-center rounded-lg text-text-secondary transition-all duration-200 hover:bg-card hover:text-text active:scale-90"
                           >
                             <ChevronLeft size={14} />
                           </button>
-                          <span className="text-xs font-semibold text-text-secondary uppercase tracking-wider">
+                          <span className="font-mono text-[11px] font-bold uppercase tracking-[0.18em] text-text-secondary">
                             {decadeStart} – {decadeStart + 9}
                           </span>
                           <button
                             type="button"
+                            aria-label="Décennie suivante"
                             onClick={() => setViewYear(y => y + 10)}
-                            className="p-1 rounded text-text-secondary hover:text-text hover:bg-card transition-colors"
+                            className="flex h-7 w-7 items-center justify-center rounded-lg text-text-secondary transition-all duration-200 hover:bg-card hover:text-text active:scale-90"
                           >
                             <ChevronRight size={14} />
                           </button>
                         </div>
-                        <div className="grid grid-cols-4 gap-1">
+                        <div className="grid grid-cols-5 gap-1.5">
                           {Array.from({ length: 12 }, (_, i) => decadeStart - 1 + i).map((y) => {
                             const isCurrent = y === currentYear
                             const isSelected = y === viewYear
                             const isInRange = y >= decadeStart && y <= decadeStart + 9
                             return (
-                              <button
+                              <motion.button
                                 key={y}
                                 type="button"
+                                whileHover={!isSelected ? { scale: 1.08, y: -1 } : undefined}
+                                whileTap={{ scale: 0.92 }}
                                 onClick={() => { setViewYear(y); setShowYearPicker(false); }}
                                 className={cn(
-                                  'px-1 py-1.5 text-xs rounded-md transition-all duration-150 font-medium',
-                                  !isInRange && 'text-text-secondary/30',
+                                  'flex h-9 items-center justify-center rounded-lg text-xs font-semibold tabular-nums transition-colors duration-150',
+                                  !isInRange && 'text-text-secondary/25',
                                   isInRange && !isSelected && !isCurrent && 'text-text-secondary hover:bg-card hover:text-text',
-                                  isCurrent && !isSelected && 'bg-accent/10 text-accent ring-1 ring-accent/30',
-                                  isSelected && 'bg-accent text-white shadow-sm',
+                                  isCurrent && !isSelected && 'bg-accent/10 text-accent ring-1 ring-accent/40',
+                                  isSelected && 'dp-selected !text-white',
                                 )}
                               >
                                 {y}
-                              </button>
+                              </motion.button>
                             )
                           })}
                         </div>
@@ -360,42 +386,52 @@ export const DatePicker = React.forwardRef<HTMLInputElement, DatePickerProps>(
                   )}
                 </AnimatePresence>
 
-                <div className="grid grid-cols-7 gap-0.5 mb-1">
+                {/* weekdays */}
+                <div className="mb-1.5 grid grid-cols-7 gap-1">
                   {DAYS.map((d) => (
-                    <div key={d} className="text-center text-[11px] font-medium text-text-secondary/50 py-1">
+                    <div key={d} className="py-1 text-center text-[10px] font-bold uppercase tracking-[0.12em] text-text-secondary/45">
                       {d}
                     </div>
                   ))}
                 </div>
 
-                <div className="grid grid-cols-7 gap-0.5">
-                  {calendarDays.map((cell, idx) => (
-                    <motion.button
-                      key={idx}
-                      initial={{ opacity: 0, scale: 0.85 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      transition={{ duration: 0.1, delay: idx * 0.004 }}
-                      type="button"
-                      disabled={isDisabled(cell.year, cell.month, cell.day)}
-                      onClick={() => selectDay(cell.year, cell.month, cell.day)}
-                      className={cn(
-                        'w-full aspect-square flex items-center justify-center text-xs rounded-md transition-colors',
-                        cell.current
-                          ? 'text-text hover:bg-accent-light/50'
-                          : 'text-text-secondary/20',
-                        isDisabled(cell.year, cell.month, cell.day) && 'text-text-secondary/20 cursor-not-allowed hover:bg-transparent',
-                        isSelected(cell.year, cell.month, cell.day) && 'bg-accent text-white hover:bg-accent font-semibold',
-                        isToday(cell.year, cell.month, cell.day) && !isSelected(cell.year, cell.month, cell.day) && 'ring-1 ring-accent/40',
-                      )}
-                    >
-                      {cell.day}
-                    </motion.button>
-                  ))}
-                </div>
+                {/* day grid — slides with month navigation */}
+                <AnimatePresence mode="wait" initial={false}>
+                  <motion.div
+                    key={`${viewYear}-${viewMonth}`}
+                    initial={{ opacity: 0, x: navDir * 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: navDir * -20 }}
+                    transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+                    className="grid grid-cols-7 gap-1"
+                  >
+                    {calendarDays.map((cell, idx) => (
+                      <motion.button
+                        key={idx}
+                        initial={{ opacity: 0, scale: 0.8 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        transition={{ duration: 0.18, delay: Math.min(idx * 0.006, 0.2), ease: [0.22, 1, 0.36, 1] }}
+                        whileHover={!isDisabled(cell.year, cell.month, cell.day) ? { scale: 1.12, y: -1 } : undefined}
+                        whileTap={{ scale: 0.88 }}
+                        type="button"
+                        disabled={isDisabled(cell.year, cell.month, cell.day)}
+                        onClick={() => selectDay(cell.year, cell.month, cell.day)}
+                        className={cn(
+                          'flex aspect-square w-full items-center justify-center rounded-lg text-[13px] font-medium transition-colors duration-150',
+                          cell.current ? 'text-text hover:bg-accent-light/60' : 'text-text-secondary/25',
+                          isDisabled(cell.year, cell.month, cell.day) && 'cursor-not-allowed text-text-secondary/20 hover:bg-transparent',
+                          isSelected(cell.year, cell.month, cell.day) && 'dp-selected !text-white font-bold hover:brightness-110',
+                          isToday(cell.year, cell.month, cell.day) && !isSelected(cell.year, cell.month, cell.day) && 'ring-1 ring-accent/50',
+                        )}
+                      >
+                        {cell.day}
+                      </motion.button>
+                    ))}
+                  </motion.div>
+                </AnimatePresence>
               </motion.div>
             )}
           </AnimatePresence>,
-          document.body
         )}
 
         <input

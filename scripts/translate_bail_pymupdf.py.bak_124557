@@ -1,0 +1,1482 @@
+#!/usr/bin/env python3
+"""
+Generate clean translated PDFs for Bail templates using PyMuPDF.
+This recreates the PDF content from scratch, removing original French text.
+"""
+
+import fitz  # PyMuPDF
+import json
+import os
+import sys
+
+# Translation dictionaries
+TRANSLATIONS = {
+    "bail-1-an": {
+        "en": {
+            "Bail d'Habitation 1 An": "Residential Lease 1 Year",
+            "Bail d'habitation - 1 an": "Residential Lease - 1 Year",
+            "CONTRAT DE BAIL D'HABITATION — 1 AN": "RESIDENTIAL LEASE AGREEMENT — 1 YEAR",
+            "CONTRAT DE BAIL D'HABITATION - 1 AN": "RESIDENTIAL LEASE AGREEMENT — 1 YEAR",
+            "CONTRAT DE BAIL D'HABITATION À 1 AN": "RESIDENTIAL LEASE AGREEMENT — 1 YEAR",
+            "Usage d'habitation principale — Droit marocain": "Primary residential use — Moroccan law",
+            "Usage d'habitation principale\nDroit marocain": "Primary residential use\nMoroccan law",
+            "Entre les soussignés :": "Between the undersigned:",
+            "Le Bailleur :": "The Landlord:",
+            "Nom et prénom / Dénomination sociale :": "Full name / Company name:",
+            "CIN / Passeport / RC :": "ID Card / Passport / RC:",
+            "Adresse complète :": "Full address:",
+            "Téléphone :": "Phone:",
+            "Adresse e-mail :": "Email address:",
+            "ci-après dénommé « le Bailleur »,": 'hereinafter referred to as "the Landlord",',
+            "Le(s) Locataire(s) :": "The Tenant(s):",
+            "Nom et prénom du locataire principal :": "Main tenant's full name:",
+            "CIN / Passeport :": "ID Card / Passport:",
+            "Adresse actuelle :": "Current address:",
+            "Profession :": "Profession:",
+            "Le cas échéant, co-locataire(s) :": "If applicable, co-tenant(s):",
+            "Nom et prénom / CIN :": "Full name / ID Card:",
+            "ci-après dénommé(s) « le Locataire »,": 'hereinafter referred to as "the Tenant",',
+            "Intermédiaire :": "Intermediary:",
+            "ci-après dénommée « l'Agence »,": 'hereinafter referred to as "the Agency",',
+            "Il a été convenu et arrêté ce qui suit.": "It has been agreed and established as follows.",
+            "ARTICLE 1 — DÉSIGNATION DU BIEN LOUÉ": "ARTICLE 1 — DESCRIPTION OF THE RENTAL PROPERTY",
+            "Le Bailleur donne en location au Locataire, qui accepte, le bien immobilier désigné ci-après :": "The Landlord leases to the Tenant, who accepts, the property designated as follows:",
+            "Nature du bien (appartement, villa, maison, studio…) :": "Type of property (apartment, villa, house, studio...):",
+            "Adresse complète du bien :": "Full property address:",
+            "Étage / Numéro de lot :": "Floor / Lot number:",
+            "Superficie approximative (m²) :": "Approximate area (m²):",
+            "Nombre de pièces :": "Number of rooms:",
+            "Dépendances (cave, parking, terrasse…) :": "Outbuildings (cellar, parking, terrace...):",
+            "Numéro de titre foncier / Réf. cadastrale :": "Land title number / Cadastral ref.:",
+            "ou professionnel, sauf accord écrit préalable du Bailleur.": "or professional use, unless prior written consent of the Landlord.",
+            "ARTICLE 2 — DURÉE DU BAIL": "ARTICLE 2 — LEASE TERM",
+            "Le présent bail est conclu pour une durée de une (1) année, à compter du :": "This lease is concluded for a period of one (1) year, starting from:",
+            "Date de prise d'effet :": "Commencement date:",
+            "Date d'échéance :": "Expiry date:",
+            "législation marocaine.": "Moroccan legislation.",
+            "ARTICLE 3 — LOYER ET CHARGES": "ARTICLE 3 — RENT AND CHARGES",
+            "Le présent bail est consenti et accepté moyennant un loyer mensuel fixé à :": "This lease is granted and accepted for a monthly rent set at:",
+            "Loyer mensuel hors charges :": "Monthly rent excluding charges:",
+            "autre moyen convenu entre les parties.": "other means agreed between the parties.",
+            "ARTICLE 4 — DÉPÔT DE GARANTIE": "ARTICLE 4 — SECURITY DEPOSIT",
+            "un dépôt de garantie correspondant à :": "a security deposit corresponding to:",
+            "Montant du dépôt de garantie :": "Security deposit amount:",
+            "et imputables au Locataire.": "and attributable to the Tenant.",
+            "ARTICLE 5 — HONORAIRES D'AGENCE": "ARTICLE 5 — AGENCY FEES",
+            "SQUARE METER sont fixés comme suit :": "SQUARE METER are set as follows:",
+            "Honoraires à la charge du Bailleur :": "Fees payable by the Landlord:",
+            "Honoraires à la charge du Locataire :": "Fees payable by the Tenant:",
+            "résiliation anticipée du bail, quelle qu'en soit la causa.": "early termination of the lease, whatever the cause.",
+            "ARTICLE 6 — OBLIGATIONS DU LOCATAIRE": "ARTICLE 6 — TENANT'S OBLIGATIONS",
+            "Le Locataire s'engage notamment à :": "The Tenant undertakes, in particular, to:",
+            "pouvoir en changer la destination ;": "being able to change its purpose;",
+            "législation marocaine applicable ;": "applicable Moroccan legislation;",
+            "écrite préalable du Bailleur ;": "authorization from the Landlord;",
+            "ARTICLE 7 — OBLIGATIONS DU BAILLEUR": "ARTICLE 7 — LANDLORD'S OBLIGATIONS",
+            "Le Bailleur s'engage notamment à :": "The Landlord undertakes, in particular, to:",
+            "d'habitabilité ;": "of habitability;",
+            "usages et la législation marocaine applicable ;": "customs and applicable Moroccan legislation;",
+            "ARTICLE 8 — ÉTAT DES LIEUX": "ARTICLE 8 — INVENTORY",
+            "mandatés, à la date de remise des clés. Cet état des lieux fera partie intégrante du présent bail et est joint en Annexe": "authorized representatives, on the date of key handover. This inventory shall form an integral part of this lease and is attached as Annex",
+            "ARTICLE 9 — RÉSILIATION ET CONGÉ": "ARTICLE 9 — TERMINATION AND NOTICE",
+            "Le Locataire peut mettre fin au présent bail à l'expiration de sa durée en notifiant son congé au Bailleur par lettre": "The Tenant may terminate this lease at the end of its term by giving notice to the Landlord by registered",
+            "recommandée avec accusé de réception, au moins un (1) mois avant la date d'échéance.": "letter with acknowledgment of receipt, at least one (1) month before the expiry date.",
+            "l'absence d'état des lieux de sortie signé par les deux parties, le bien sera présumé avoir été rendu en bon état, sauf": "the absence of an exit inventory signed by both parties, the property shall be deemed to have been returned in good condition, unless",
+            "preuve contraire apportée par le Bailleur.": "contrary evidence provided by the Landlord.",
+            "réparation.": "action for damages.",
+            "ARTICLE 10 — CLAUSES DIVERSES": "ARTICLE 10 — MISCELLANEOUS CLAUSES",
+            "10.1 — Animaux domestiques": "10.1 — Pets",
+            "10.2 — Travaux du Bailleur": "10.2 — Landlord's Work",
+            "10.3 — Assurance": "10.3 — Insurance",
+            "10.4 — Solidarité": "10.4 — Joint Liability",
+            "10.5 — Clause attributive de juridiction": "10.5 — Jurisdiction Clause",
+            "Le Bailleur": "The Landlord",
+            "(Lu et approuvé)": "(Read and approved)",
+            "Signature :": "Signature:",
+            "Le(s) Locataire(s)": "The Tenant(s)",
+            "Signature et cachet :": "Signature and stamp:",
+            "ANNEXE — ÉTAT DES LIEUX D'ENTRÉE": "ANNEX — ENTRY INVENTORY",
+            "Adresse du bien :": "Property address:",
+            "Date d'entrée :": "Entry date:",
+            "Heure :": "Time:",
+            "Relevé compteur eau :": "Water meter reading:",
+            "Relevé compteur électricité :": "Electricity meter reading:",
+            "Pièce": "Room",
+            "Élément": "Element",
+            "État (Entrée)": "Condition (Entry)",
+            "État (Sortie)": "Condition (Exit)",
+            "Entrée / Hall": "Entrance / Hall",
+            "Revêtements sols": "Floor coverings",
+            "Revêtements murs": "Wall coverings",
+            "Porte d'entrée / Serrure": "Front door / Lock",
+            "Salon / Séjour": "Living room",
+            "Revêtements murs / plafond": "Wall / ceiling coverings",
+            "Menuiseries / vitres": "Woodwork / windows",
+            "Chambre(s)": "Bedroom(s)",
+            "Volets / portes": "Shutters / doors",
+            "Cuisine": "Kitchen",
+            "Revêtements sols / murs": "Floor / wall coverings",
+            "Équipements (placard, évier…)": "Equipment (cupboard, sink...)",
+            "Salle de bain": "Bathroom",
+            "Sanitaires (WC, douche, lavabo)": "Sanitary facilities (WC, shower, sink)",
+            "Robinetterie": "Fittings",
+            "Communs / Terrasse": "Common areas / Terrace",
+            "État général": "General condition",
+            "Clés remises": "Keys handed over",
+            "Nombre et type": "Number and type",
+            "Observations": "Observations",
+            "Fait à": "Done at",
+            "Les parties déclarent avoir pris connaissance de l'intégralité du présent contrat et de ses annexes, en comprendre": "The parties declare having become acquainted with the entirety of this contract and its annexes, understanding",
+            "la portée et les effets, et les accepter sans réserve.": "the scope and effects, and accepting them without reservation.",
+            "Le bien est loué pour usage d'habitation principale exclusivement, à l'exclusion de tout usage commercial, artisanal ou professionnel, sauf accord écrit préalable du Bailleur.": "The property is leased for primary residential use exclusively, to the exclusion of any commercial, artisanal or professional use, unless prior written consent of the Landlord.",
+            "Ce loyer est payable d'avance, le _______ de chaque mois, par virement bancaire sur le compte du Bailleur ou par tout autre moyen convenu entre les parties.": "This rent is payable in advance, on the _______ of each month, by bank transfer to the Landlord's account or by any other means agreed between the parties.",
+            "En sus du loyer, le Locataire prend en charge, directement et à son nom, les abonnements et consommations d'eau, d'électricité, de gaz, d'internet et de téléphone, ainsi que la taxe d'habitation, les charges de copropriété qui lui incombent légalement en tant qu'occupant, et les charges d'entretien courant.": "In addition to the rent, the Tenant assumes, directly and in their own name, the subscriptions and consumption of water, electricity, gas, internet and telephone, as well as the housing tax, condominium charges legally incumbent on them as occupant, and routine maintenance charges.",
+            "Révision du loyer : le loyer est fixe pour la durée d'un (1) an du présent bail. Toute révision ne pourra intervenir qu'à l'occasion du renouvellement, dans les conditions prévues par la législation marocaine applicable.": "Rent revision: the rent is fixed for the one (1) year term of this lease. Any revision may only occur upon renewal, under the conditions provided by applicable Moroccan legislation.",
+            "À la signature du présent bail, le Locataire verse entre les mains du Bailleur, ou de l'Agence mandatée pour l'encaisser, un dépôt de garantie correspondant à :": "Upon signing this lease, the Tenant pays to the Landlord, or to the Agency mandated to collect it, a security deposit corresponding to:",
+            "Ce dépôt de garantie ne peut en aucun cas être imputé par le Locataire en paiement du dernier mois de loyer. Il sera restitué au Locataire dans un délai de trente (30) jours suivant la remise effective des clés et la signature de l'état des lieux de sortie, après déduction, le cas échéant, des sommes dues au Bailleur au titre de loyers impayés, de charges locatives non réglées ou de réparations locatives résultant de dégradations constatées lors de l'état des lieux de sortie et imputables au Locataire.": "This security deposit may in no case be applied by the Tenant towards payment of the last month's rent. It shall be returned to the Tenant within thirty (30) days following the effective return of keys and the signing of the exit inventory, after deduction, if applicable, of amounts owed to the Landlord for unpaid rent, unpaid rental charges or repairs resulting from damage noted during the exit inventory and attributable to the Tenant.",
+            "En rémunération de ses services d'intermédiation et de constitution du dossier locatif, les honoraires de l'Agence MÉ SQUARE METER sont fixés comme suit :": "As remuneration for its brokerage and lease file preparation services, the fees of MÉ SQUARE METER Agency are set as follows:",
+            "Ces honoraires sont dus et exigibles à la date de signature du présent bail. Ils ne sont pas remboursables en cas de résiliation anticipée du bail, quelle qu'en soit la cause.": "These fees are due and payable on the date of signing of this lease. They are not refundable in case of early termination of the lease, whatever the cause.",
+            "Occuper le bien loué paisiblement et en bon père de famille, à titre de résidence principale et exclusive, sans pouvoir en changer la destination ;": "Occupy the leased property peacefully and as a good steward, as primary and exclusive residence, without being able to change its purpose;",
+            "Régler le loyer et les charges aux termes convenus, sans compensation ni retenue, sauf cas prévus par la loi ;": "Pay the rent and charges at the agreed terms, without offset or deduction, except as provided by law;",
+            "Entretenir le bien et effectuer les réparations locatives qui lui incombent, telles que définies par les usages et la législation marocaine applicable ;": "Maintain the property and carry out the rental repairs incumbent on them, as defined by customs and applicable Moroccan legislation;",
+            "Ne pas effectuer de travaux de transformation, d'aménagement ou de modification du bien sans autorisation écrite préalable du Bailleur ;": "Not to carry out any transformation, fitting out or modification work on the property without prior written authorization from the Landlord;",
+            "Permettre au Bailleur ou à ses représentants l'accès au bien pour les travaux urgents ou nécessaires, après accord préalable sur les horaires sauf urgence ;": "Allow the Landlord or their representatives access to the property for urgent or necessary work, after prior agreement on schedules except in emergencies;",
+            "Ne pas sous-louer le bien, en tout ou en partie, ni céder le présent bail sans accord écrit et préalable du Bailleur ;": "Not to sublet the property, in whole or in part, nor assign this lease without prior written consent of the Landlord;",
+            "Souscrire et maintenir en cours de validité une assurance multirisque habitation couvrant sa responsabilité locative, et en fournir l'attestation annuellement au Bailleur ;": "Take out and maintain a valid multi-risk home insurance covering their rental liability, and provide the certificate annually to the Landlord;",
+            "Restituer le bien en bon état de propreté et d'entretien, conforme à l'état des lieux d'entrée, à la fin du bail.": "Return the property in a good state of cleanliness and maintenance, consistent with the entry inventory, at the end of the lease.",
+            "Délivrer au Locataire un logement décent, en bon état d'usage et de réparation, répondant aux normes minimales d'habitabilité ;": "Deliver to the Tenant a decent dwelling, in good condition of use and repair, meeting minimum habitability standards;",
+            "Assurer au Locataire la jouissance paisible des lieux pendant toute la durée du bail ;": "Ensure the Tenant's peaceful enjoyment of the premises for the entire duration of the lease;",
+            "Prendre en charge les grosses réparations et les travaux relevant de sa responsabilité, tels que définis par les usages et la législation marocaine applicable ;": "Assume responsibility for major repairs and work falling under their responsibility, as defined by customs and applicable Moroccan legislation;",
+            "Restituer le dépôt de garantie dans le délai et dans les conditions prévus à l'Article 4 du présent bail ;": "Return the security deposit within the timeframe and under the conditions provided in Article 4 of this lease;",
+            "Informer le Locataire de tout projet de vente du bien dans les délais légalement prévus.": "Inform the Tenant of any plan to sell the property within the legally prescribed timeframes.",
+            "Un état des lieux contradictoire d'entrée sera établi et signé par les deux parties ou leurs représentants dûment mandatés, à la date de remise des clés. Cet état des lieux fera partie intégrante du présent bail et est joint en Annexe 1.": "A joint entry inventory shall be established and signed by both parties or their duly mandated representatives, on the date of key handover. This inventory shall form an integral part of this lease and is attached as Annex 1.",
+            "Un état des lieux de sortie contradictoire sera établi dans les mêmes conditions à la date de restitution des clés. En l'absence d'état des lieux de sortie signé par les deux parties, le bien sera présumé avoir été rendu en bon état, sauf preuve contraire apportée par le Bailleur.": "A joint exit inventory shall be established under the same conditions on the date of key return. In the absence of an exit inventory signed by both parties, the property shall be presumed to have been returned in good condition, unless contrary evidence is provided by the Landlord.",
+            "Toute dégradation constatée lors de l'état des lieux de sortie, excédant l'usure normale et résultant du comportement du Locataire ou de ses préposés, pourra être imputée sur le dépôt de garantie ou faire l'objet d'une action en réparation.": "Any damage noted during the exit inventory, exceeding normal wear and tear and resulting from the conduct of the Tenant or their agents, may be charged against the security deposit or give rise to an action for damages.",
+            "Le Locataire peut mettre fin au présent bail à l'expiration de sa durée en notifiant son congé au Bailleur par lettre recommandée avec accusé de réception, au moins un (1) mois avant la date d'échéance. En l'absence de congé dans ce délai, le bail sera reconduit aux conditions prévues à l'Article 2.": "The Tenant may terminate this lease at the end of its term by giving notice to the Landlord by registered letter with acknowledgment of receipt, at least one (1) month before the expiry date. In the absence of notice within this period, the lease shall be renewed under the conditions provided in Article 2.",
+            "Le Locataire peut également résilier le bail avant son terme sous réserve du respect d'un préavis de deux (2) mois notifié au Bailleur par lettre recommandée avec accusé de réception, accompagné, le cas échéant, du règlement d'une indemnité forfaitaire d'un (1) mois de loyer brut à titre de clause pénale, sauf accord amiable contraire.": "The Tenant may also terminate the lease before its term subject to observing a two (2) month notice period notified to the Landlord by registered letter with acknowledgment of receipt, accompanied, if applicable, by payment of a lump sum indemnity of one (1) month's gross rent as a penalty clause, unless otherwise agreed amicably.",
+            "Le Bailleur ne peut mettre fin au bail avant son terme que dans les cas limitativement prévus par la loi marocaine applicable aux baux d'habitation.": "The Landlord may only terminate the lease before its term in the cases strictly provided for by Moroccan law applicable to residential leases.",
+            "En cas de résiliation pour manquement du Locataire à ses obligations, notamment défaut de paiement du loyer ou des charges, sous-location non autorisée, troubles de voisinage graves ou utilisation du bien à des fins non autorisées, le Bailleur pourra, après mise en demeure restée sans effet pendant quinze (15) jours, engager toute procédure judiciaire utile et réclamer, outre les loyers échus, une indemnité d'occupation jusqu'à la libération effective des lieux.": "In case of termination for breach by the Tenant of their obligations, notably non-payment of rent or charges, unauthorized subletting, serious neighborhood disturbances or use of the property for unauthorized purposes, the Landlord may, after a formal notice remaining without effect for fifteen (15) days, initiate any appropriate legal proceedings and claim, in addition to accrued rent, an occupation indemnity until effective vacation of the premises.",
+            "L'introduction d'animaux domestiques dans le bien loué est soumise à l'accord écrit préalable du Bailleur. En cas d'accord, le Locataire demeurera seul responsable de tout dommage causé par ses animaux.": "The introduction of pets into the leased property is subject to the prior written consent of the Landlord. In case of consent, the Tenant shall remain solely responsible for any damage caused by their animals.",
+            "Le Bailleur se réserve le droit de faire exécuter des travaux d'amélioration, d'entretien ou de rénovation urgents, sous réserve d'en informer le Locataire avec un préavis raisonnable sauf urgence. Ces travaux ne pourront donner lieu à aucune diminution de loyer si leur durée n'excède pas quarante (40) jours.": "The Landlord reserves the right to carry out improvement, maintenance or urgent renovation work, subject to informing the Tenant with reasonable notice except in emergencies. Such work shall not give rise to any rent reduction if its duration does not exceed forty (40) days.",
+            "Le Locataire s'engage à assurer le bien loué pour les risques locatifs (incendie, dégâts des eaux, explosion) et à maintenir cette assurance pendant toute la durée du bail. Il devra produire annuellement au Bailleur une attestation d'assurance à jour. En cas de défaut d'assurance constaté et non régularisé dans les quinze (15) jours suivant la mise en demeure, le Bailleur pourra résilier le bail.": "The Tenant undertakes to insure the leased property for rental risks (fire, water damage, explosion) and to maintain this insurance for the entire duration of the lease. They shall provide the Landlord with an annual up-to-date insurance certificate. In case of observed lack of insurance not remedied within fifteen (15) days following formal notice, the Landlord may terminate the lease.",
+            "En cas de pluralité de locataires, ceux-ci sont solidaires entre eux de toutes les obligations résultant du présent bail.": "In case of multiple tenants, they shall be jointly and severally liable for all obligations arising from this lease.",
+            "Le présent bail est soumis au droit marocain, notamment au dahir portant loi n° 1-80-311 du 25 décembre 1980 relatif aux loyers des immeubles bâtis à usage d'habitation et aux textes subséquents. Tout litige relatif à son exécution ou à sa résiliation sera soumis, après tentative de règlement amiable, à la compétence du Tribunal de Première Instance du lieu de situation du bien.": "This lease is subject to Moroccan law, notably the Dahir carrying Law No. 1-80-311 of 25 December 1980 relating to rents of buildings for residential use and subsequent texts. Any dispute relating to its execution or termination shall be submitted, after attempt at amicable settlement, to the jurisdiction of the Court of First Instance of the place where the property is situated.",
+            "Les parties déclarent avoir pris connaissance de l'intégralité du présent contrat et de ses annexes, en comprendre la portée et les effets, et les accepter sans réserve.": "The parties declare having become acquainted with the entirety of this contract and its annexes, understanding the scope and effects, and accepting them without reservation.",
+            "En autant d'exemplaires originaux que de parties, chacun d'eux reconnaissant avoir reçu le sien.": "In as many original copies as there are parties, each acknowledging receipt of their copy.",
+            "Usage d'habitation principale Droit marocain": "Primary residential use Moroccan law",
+            "La société MÉ SQUARE METER SARL, agence immobilière immatriculée sous le numéro RC 155495 et ICE 003580341000023, représentée par ses co-gérants, ci-après dénommée « l'Agence »": "The company MÉ SQUARE METER SARL, real estate agency registered under number RC 155495 and ICE 003580341000023, represented by its co-managers, hereinafter referred to as \"the Agency\"",
+            "La société MÉ SQUARE METER SARL, agence immobilière immatriculée sous le numéro RC 155495 et ICE 003580341000023, représentée par ses co-gérants, ci-après dénommée « l'Agence »," : "The company MÉ SQUARE METER SARL, real estate agency registered under number RC 155495 and ICE 003580341000023, represented by its co-managers, hereinafter referred to as \"the Agency\",",
+            "Date de prise d'effet : ______________________    Date d'échéance : ______________________": "Commencement date: ______________________    Expiry date: ______________________",
+            "Superficie approximative (m²) : ______________________    Nombre de pièces : ______________________": "Approximate area (m²) : ______________________    Number of rooms : ______________________",
+            "Relevé compteur eau : ______________________    Relevé compteur électricité : ______________________": "Water meter reading: ______________________    Electricity meter reading: ______________________",
+            "Loyer mensuel hors charges : __________________ MAD  (__________________ dirhams)": "Monthly rent excluding charges: __________________ MAD  (__________________ dirhams)",
+            "Fait à _________________________, le ___________________________": "Done at _________________________, on ___________________________",
+            "MÉ SQUARE METER — Intermédiaire": "MÉ SQUARE METER — Intermediary",
+            "MÉ SQUARE METER – Intermédiaire": "MÉ SQUARE METER — Intermediary",
+            "Loyer mensuel hors charges :": "Monthly rent excluding charges:",
+            "Montant du dépôt de garantie :": "Security deposit amount:",
+            "À l'expiration de la durée d'un (1) an, le bail sera reconduit tacitement pour une nouvelle période d'une (1) année, sauf dénonciation par l'une ou l'autre des parties par lettre recommandée avec accusé de réception adressée au moins un (1) mois avant l'échéance. Le loyer applicable au renouvellement sera fixé dans les conditions prévues par la législation marocaine.": "Upon expiry of the one (1) year term, the lease shall be tacitly renewed for a new period of one (1) year, unless notice is given by either party by registered letter with acknowledgment of receipt at least one (1) month before the expiry date. The rent applicable to the renewal shall be determined under the conditions provided by Moroccan legislation.",
+            "Loyer mensuel hors charges : __________________ MAD  (__________________ dirhams)": "Monthly rent excluding charges: __________________ MAD  (__________________ dirhams)",
+            "recommandée avec accusé de réception, au moins un (1) mois avant la date d'échéance. En l'absence de congé dans ce délai, le bail sera reconduit aux conditions prévues à l'Article 2.": "letter with acknowledgment of receipt, at least one (1) month before the expiry date. In the absence of notice within this period, the lease shall be renewed under the conditions provided in Article 2.",
+            "Le Locataire s'engage à assurer le bien loué pour les risques locatifs (incendie, dégâts des eaux, explosion) et à maintenir cette assurance pendant toute la durée du bail. Il devra produire annuellement au Bailleur une attestation d'assurance à jour. En cas de défaut d'assurance constaté et non régularisé dans les quinze (15) jours suivant la mise en demeure, le Bailleur pourra résilier le bail.": "The Tenant undertakes to insure the leased property for rental risks (fire, water damage, explosion) and to maintain this insurance for the entire duration of the lease. They shall provide the Landlord with an annual up-to-date insurance certificate. In case of observed lack of insurance not remedied within fifteen (15) days following formal notice, the Landlord may terminate the lease.",
+            "Le Locataire s'engage à assurer le bien loué pour les risques locatifs (incendie, dégâts des eaux, explosion) et à maintenir cette assurance pendant toute la durée du bail. Il devra produire annuellement au Bailleur une attestation d'assurance à jour.": "The Tenant undertakes to insure the leased property for rental risks (fire, water damage, explosion) and to maintain this insurance for the entire duration of the lease. They shall provide the Landlord with an annual up-to-date insurance certificate.",
+            "Le Locataire s'engage à assurer le bien loué pour les risques locatifs (incendie, dégâts des eaux, explosion) et à maintenir cette assurance pendant toute la durée du bail. Il devra produire annuellement au Bailleur une attestation": "The Tenant undertakes to insure the leased property for rental risks (fire, water damage, explosion) and to maintain this insurance for the entire duration of the lease. They shall provide the Landlord with an annual",
+            "maintenir cette assurance pendant toute la durée du bail. Il devra produire annuellement au Bailleur une attestation d'assurance à jour.": "maintain this insurance for the entire duration of the lease. They shall provide the Landlord with an annual up-to-date insurance certificate.",
+            "d'assurance à jour. En cas de défaut d'assurance constaté et non régularisé dans les quinze (15) jours suivant la mise en demeure, le Bailleur pourra résilier le bail.": "insurance certificate. In case of observed lack of insurance not remedied within fifteen (15) days following formal notice, the Landlord may terminate the lease.",
+        },
+        "es": {
+            "Bail d'Habitation 1 An": "Contrato de Arrendamiento 1 Año",
+            "Bail d'habitation - 1 an": "Contrato de Arrendamiento - 1 Año",
+            "CONTRAT DE BAIL D'HABITATION — 1 AN": "CONTRATO DE ARRENDAMIENTO — 1 AÑO",
+            "CONTRAT DE BAIL D'HABITATION - 1 AN": "CONTRATO DE ARRENDAMIENTO — 1 AÑO",
+            "CONTRAT DE BAIL D'HABITATION À 1 AN": "CONTRATO DE ARRENDAMIENTO — 1 AÑO",
+            "Usage d'habitation principale — Droit marocain": "Uso de vivienda principal — Derecho marroquí",
+            "Usage d'habitation principale\nDroit marocain": "Uso de vivienda principal\nDerecho marroquí",
+            "Entre les soussignés :": "Entre las partes contratantes:",
+            "Le Bailleur :": "El Arrendador:",
+            "Nom et prénom / Dénomination sociale :": "Nombre y apellido / Razón social:",
+            "CIN / Passeport / RC :": "CIN / Pasaporte / RC:",
+            "Adresse complète :": "Dirección completa:",
+            "Téléphone :": "Teléfono:",
+            "Adresse e-mail :": "Correo electrónico:",
+            "ci-après dénommé « le Bailleur »,": 'en adelante denominado "El Arrendador",',
+            "Le(s) Locataire(s) :": "El/Los Arrendatario(s):",
+            "Nom et prénom du locataire principal :": "Nombre y apellido del arrendatario principal:",
+            "CIN / Passeport :": "CIN / Pasaporte:",
+            "Adresse actuelle :": "Dirección actual:",
+            "Profession :": "Profesión:",
+            "Le cas échéant, co-locataire(s) :": "En su caso, cotitular(es):",
+            "Nom et prénom / CIN :": "Nombre y apellido / CIN:",
+            "ci-après dénommé(s) « le Locataire »,": 'en adelante denominado(s) "El Arrendatario",',
+            "Intermédiaire :": "Intermediario:",
+            "ci-après dénommée « l'Agence »,": 'en adelante denominada "La Agencia",',
+            "La société MÉ SQUARE METER SARL, agence immobilière immatriculée sous le numéro RC 155495 et ICE": "La sociedad MÉ SQUARE METER SARL, agencia inmobiliaria inscrita con el número RC 155495 e ICE",
+            "003580341000023, représentée par ses co-gérants,": "003580341000023, representada por sus cogestores,",
+            "Il a été convenu et arrêté ce qui suit.": "Se ha convenido y establecido lo siguiente.",
+            "ARTICLE 1 — DÉSIGNATION DU BIEN LOUÉ": "ARTÍCULO 1 — DESIGNACIÓN DEL BIEN ARRENDADO",
+            "Le Bailleur donne en location au Locataire, qui accepte, le bien immobilier désigné ci-après :": "El Arrendador da en arrendamiento al Arrendatario, que acepta, el bien inmueble designado a continuación:",
+            "Nature du bien (appartement, villa, maison, studio…) :": "Naturaleza del bien (apartamento, villa, casa, estudio...):",
+            "Adresse complète du bien :": "Dirección completa del bien:",
+            "Étage / Numéro de lot :": "Piso / Número de lote:",
+            "Superficie approximative (m²) :": "Superficie aproximada (m²):",
+            "Nombre de pièces :": "Número de habitaciones:",
+            "Dépendances (cave, parking, terrasse…) :": "Dependencias (bodega, parking, terraza...):",
+            "Numéro de titre foncier / Réf. cadastrale :": "Número de título de propiedad / Ref. catastral:",
+            "ou professionnel, sauf accord écrit préalable du Bailleur.": "o profesional, salvo acuerdo escrito previo del Arrendador.",
+            "ARTICLE 2 — DURÉE DU BAIL": "ARTÍCULO 2 — DURACIÓN DEL ARRENDAMIENTO",
+            "Le présent bail est conclu pour une durée de une (1) année, à compter du :": "El presente arrendamiento se celebra por un plazo de un (1) año, a partir del:",
+            "Date de prise d'effet :": "Fecha de entrada en vigor:",
+            "Date d'échéance :": "Fecha de vencimiento:",
+            "législation marocaine.": "legislación marroquí.",
+            "ARTICLE 3 — LOYER ET CHARGES": "ARTÍCULO 3 — ALQUILER Y CARGOS",
+            "Le présent bail est consenti et accepté moyennant un loyer mensuel fixé à :": "El presente arrendamiento se otorga y acepta mediante un alquiler mensual fijado en:",
+            "Loyer mensuel hors charges :": "Alquiler mensual sin cargos:",
+            "autre moyen convenu entre les parties.": "otro medio acordado entre las partes.",
+            "ARTICLE 4 — DÉPÔT DE GARANTIE": "ARTÍCULO 4 — DEPÓSITO DE GARANTÍA",
+            "un dépôt de garantie correspondant à :": "un depósito de garantía equivalente a:",
+            "Montant du dépôt de garantie :": "Monto del depósito de garantía:",
+            "et imputables au Locataire.": "y atribuibles al Arrendatario.",
+            "ARTICLE 5 — HONORAIRES D'AGENCE": "ARTÍCULO 5 — HONORARIOS DE AGENCIA",
+            "SQUARE METER sont fixés comme suit :": "SQUARE METER se fijan de la siguiente manera:",
+            "Honoraires à la charge du Bailleur :": "Honorarios a cargo del Arrendador:",
+            "Honoraires à la charge du Locataire :": "Honorarios a cargo del Arrendatario:",
+            "résiliation anticipée du bail, quelle qu'en soit la causa.": "resolución anticipada del arrendamiento, sea cual sea la causa.",
+            "ARTICLE 6 — OBLIGATIONS DU LOCATAIRE": "ARTÍCULO 6 — OBLIGACIONES DEL ARRENDATARIO",
+            "Le Locataire s'engage notamment à :": "El Arrendatario se compromete en particular a:",
+            "pouvoir en changer la destination ;": "poder cambiar su destino;",
+            "législation marocaine applicable ;": "legislación marroquí aplicable;",
+            "écrite préalable du Bailleur ;": "escrito previo del Arrendador;",
+            "ARTICLE 7 — OBLIGATIONS DU BAILLEUR": "ARTÍCULO 7 — OBLIGACIONES DEL ARRENDADOR",
+            "Le Bailleur s'engage notamment à :": "El Arrendador se compromete en particular a:",
+            "d'habitabilité ;": "de habitabilidad;",
+            "usages et la législation marocaine applicable ;": "usos y la legislación marroquí aplicable;",
+            "ARTICLE 8 — ÉTAT DES LIEUX": "ARTÍCULO 8 — ESTADO DE LOS LUGARES",
+            "mandatés, à la date de remise des clés. Cet état des lieux fera partie intégrante du présent bail et est joint en Annexe": "autorizados, en la fecha de entrega de llaves. Este estado de los lugares será parte integral del presente arrendamiento y se adjunta como Anexo",
+            "ARTICLE 9 — RÉSILIATION ET CONGÉ": "ARTÍCULO 9 — RESILIACIÓN Y AVISO",
+            "Le Locataire peut mettre fin au présent bail à l'expiration de sa durée en notifiant son congé au Bailleur par lettre": "El Arrendatario puede poner fin al presente arrendamiento al vencer su plazo notificando su desalojo al Arrendador mediante carta",
+            "recommandée avec accusé de réception, au moins un (1) mois avant la date d'échéance.": "certificada con acuse de recibo, con al menos un (1) mes de anticipación a la fecha de vencimiento.",
+            "l'absence d'état des lieux de sortie signé par les deux parties, le bien sera présumé avoir été rendu en bon état, sauf": "la ausencia de un estado de los lugares de salida firmado por ambas partes, se presumirá que el bien fue devuelto en buen estado, salvo",
+            "preuve contraire apportée par le Bailleur.": "prueba en contrario aportada por el Arrendador.",
+            "réparation.": "reparación.",
+            "ARTICLE 10 — CLAUSES DIVERSES": "ARTÍCULO 10 — CLÁUSULAS DIVERSAS",
+            "10.1 — Animaux domestiques": "10.1 — Animales domésticos",
+            "10.2 — Travaux du Bailleur": "10.2 — Trabajos del Arrendador",
+            "10.3 — Assurance": "10.3 — Seguro",
+            "10.4 — Solidarité": "10.4 — Solidaridad",
+            "10.5 — Clause attributive de juridiction": "10.5 — Cláusula atributiva de jurisdicción",
+            "Le Bailleur": "El Arrendador",
+            "(Lu et approuvé)": "(Leído y aprobado)",
+            "Signature :": "Firma:",
+            "Le(s) Locataire(s)": "El/Los Arrendatario(s)",
+            "Signature et cachet :": "Firma y sello:",
+            "ANNEXE — ÉTAT DES LIEUX D'ENTRÉE": "ANEXO — ESTADO DE LOS LUGARES DE ENTRADA",
+            "Adresse du bien :": "Dirección del bien:",
+            "Date d'entrée :": "Fecha de entrada:",
+            "Heure :": "Hora:",
+            "Relevé compteur eau :": "Lectura del contador de agua:",
+            "Relevé compteur électricité :": "Lectura del contador de electricidad:",
+            "Pièce": "Habitación",
+            "Élément": "Elemento",
+            "État (Entrée)": "Estado (Entrada)",
+            "État (Sortie)": "Estado (Salida)",
+            "Entrée / Hall": "Entrada / Vestíbulo",
+            "Revêtements sols": "Revestimientos de suelos",
+            "Revêtements murs": "Revestimientos de paredes",
+            "Porte d'entrée / Serrure": "Puerta principal / Cerradura",
+            "Salon / Séjour": "Salón / Estar",
+            "Revêtements murs / plafond": "Revestimientos de paredes / techo",
+            "Menuiseries / vitres": "Carpintería / cristales",
+            "Chambre(s)": "Dormitorio(s)",
+            "Volets / portes": "Persianas / puertas",
+            "Cuisine": "Cocina",
+            "Revêtements sols / murs": "Revestimientos de suelos / paredes",
+            "Équipements (placard, évier…)": "Equipamientos (armario, fregadero...)",
+            "Salle de bain": "Baño",
+            "Sanitaires (WC, douche, lavabo)": "Sanitarios (WC, ducha, lavabo)",
+            "Robinetterie": "Grifería",
+            "Communs / Terrasse": "Zonas comunes / Terraza",
+            "État général": "Estado general",
+            "Clés remises": "Llaves entregadas",
+            "Nombre et type": "Número y tipo",
+            "Observations": "Observaciones",
+            "Fait à": "Hecho en",
+            "Les parties déclarent avoir pris connaissance de l'intégralité du présent contrat et de ses annexes, en comprendre": "Las partes declaran haber tomado conocimiento de la totalidad del presente contrato y sus anexos, comprender",
+            "la portée et les effets, et les accepter sans réserve.": "el alcance y los efectos, y aceptarlos sin reservas.",
+        },
+        "de": {
+            "Bail d'Habitation 1 An": "Mietvertrag 1 Jahr",
+            "Bail d'habitation - 1 an": "Mietvertrag - 1 Jahr",
+            "CONTRAT DE BAIL D'HABITATION — 1 AN": "MIETVERTRAG — 1 JAHR",
+            "CONTRAT DE BAIL D'HABITATION - 1 AN": "MIETVERTRAG — 1 JAHR",
+            "CONTRAT DE BAIL D'HABITATION À 1 AN": "MIETVERTRAG — 1 JAHR",
+            "Usage d'habitation principale — Droit marocain": "Wohnnutzung — Marokkanisches Recht",
+            "Usage d'habitation principale\nDroit marocain": "Wohnnutzung\nMarokkanisches Recht",
+            "Entre les soussignés :": "Zwischen den Unterzeichnenden:",
+            "Le Bailleur :": "Der Vermieter:",
+            "Nom et prénom / Dénomination sociale :": "Vor- und Nachname / Firmenname:",
+            "CIN / Passeport / RC :": "Personalausweis / Reisepass / RC:",
+            "Adresse complète :": "Vollständige Adresse:",
+            "Téléphone :": "Telefon:",
+            "Adresse e-mail :": "E-Mail-Adresse:",
+            "ci-après dénommé « le Bailleur »,": 'nachfolgend "Der Vermieter" genannt,',
+            "Le(s) Locataire(s) :": "Der/Die Mieter:",
+            "Nom et prénom du locataire principal :": "Vor- und Nachname des Hauptmieters:",
+            "CIN / Passeport :": "Personalausweis / Reisepass:",
+            "Adresse actuelle :": "Aktuelle Adresse:",
+            "Profession :": "Beruf:",
+            "Le cas échéant, co-locataire(s) :": "Ggf. Mitmieter:",
+            "Nom et prénom / CIN :": "Vor- und Nachname / Personalausweis:",
+            "ci-après dénommé(s) « le Locataire »,": 'nachfolgend "Der Mieter" genannt,',
+            "Intermédiaire :": "Vermittler:",
+            "ci-après dénommée « l'Agence »,": 'nachfolgend "Die Agentur" genannt,',
+            "La société MÉ SQUARE METER SARL, agence immobilière immatriculée sous le numéro RC 155495 et ICE": "Die Gesellschaft MÉ SQUARE METER SARL, eine unter der Nummer RC 155495 und ICE",
+            "003580341000023, représentée par ses co-gérants,": "003580341000023, vertreten durch ihre Mitgeschäftsführer,",
+            "Il a été convenu et arrêté ce qui suit.": "Es wurde Folgendes vereinbart und festgelegt.",
+            "ARTICLE 1 — DÉSIGNATION DU BIEN LOUÉ": "ARTIKEL 1 — BEZEICHNUNG DES MIETOBJEKTS",
+            "Le Bailleur donne en location au Locataire, qui accepte, le bien immobilier désigné ci-après :": "Der Vermieter vermietet an den Mieter, der annimmt, das nachstehend bezeichnete Mietobjekt:",
+            "Nature du bien (appartement, villa, maison, studio…) :": "Art des Objekts (Wohnung, Villa, Haus, Studio...):",
+            "Adresse complète du bien :": "Vollständige Adresse des Objekts:",
+            "Étage / Numéro de lot :": "Etage / Lossnummer:",
+            "Superficie approximative (m²) :": "Ungefähre Fläche (m²):",
+            "Nombre de pièces :": "Anzahl der Räume:",
+            "Dépendances (cave, parking, terrasse…) :": "Nebenräume (Keller, Parkplatz, Terrasse...):",
+            "Numéro de titre foncier / Réf. cadastrale :": "Grundbuchnummer / Katasterref.:",
+            "ou professionnel, sauf accord écrit préalable du Bailleur.": "oder berufliche Nutzung, es sei denn, der Vermieter stimmt schriftlich zu.",
+            "ARTICLE 2 — DURÉE DU BAIL": "ARTIKEL 2 — MIETDAUER",
+            "Le présent bail est conclu pour une durée de une (1) année, à compter du :": "Dieser Mietvertrag wird für eine Dauer von einem (1) Jahr abgeschlossen, beginnend ab:",
+            "Date de prise d'effet :": "Beginndatum:",
+            "Date d'échéance :": "Ablaufdatum:",
+            "législation marocaine.": "marokkanisches Recht.",
+            "ARTICLE 3 — LOYER ET CHARGES": "ARTIKEL 3 — MIETZINS UND NEBENKOSTEN",
+            "Le présent bail est consenti et accepté moyennant un loyer mensuel fixé à :": "Dieser Mietvertrag wird gegen einen monatlichen Mietzins in Höhe von erteilt und angenommen:",
+            "Loyer mensuel hors charges :": "Monatlicher Mietzins ohne Nebenkosten:",
+            "autre moyen convenu entre les parties.": "anderer zwischen den Parteien vereinbarter Zahlungsweg.",
+            "ARTICLE 4 — DÉPÔT DE GARANTIE": "ARTIKEL 4 — KAUTION",
+            "un dépôt de garantie correspondant à :": "eine Kaution in Höhe von:",
+            "Montant du dépôt de garantie :": "Kautionshöhe:",
+            "et imputables au Locataire.": "und dem Mieter zuzurechnen sind.",
+            "ARTICLE 5 — HONORAIRES D'AGENCE": "ARTIKEL 5 — PROVISION",
+            "SQUARE METER sont fixés comme suit :": "SQUARE METER wie folgt festgelegt:",
+            "Honoraires à la charge du Bailleur :": "Provision des Vermieters:",
+            "Honoraires à la charge du Locataire :": "Provision des Mieters:",
+            "résiliation anticipée du bail, quelle qu'en soit la causa.": "vorzeitige Kündigung des Mietvertrags, gleich aus welchem Grund.",
+            "ARTICLE 6 — OBLIGATIONS DU LOCATAIRE": "ARTIKEL 6 — PFLICHTEN DES MIETERS",
+            "Le Locataire s'engage notamment à :": "Der Mieter verpflichtet sich insbesondere zu:",
+            "pouvoir en changer la destination ;": "seine Bestimmung ändern zu dürfen;",
+            "législation marocaine applicable ;": "anwendbares marokkanisches Recht;",
+            "écrite préalable du Bailleur ;": "schriftliche Zustimmung des Vermieters;",
+            "ARTICLE 7 — OBLIGATIONS DU BAILLEUR": "ARTIKEL 7 — PFLICHTEN DES VERMIETERS",
+            "Le Bailleur s'engage notamment à :": "Der Vermieter verpflichtet sich insbesondere zu:",
+            "d'habitabilité ;": "der Bewohnbarkeit;",
+            "usages et la législation marocaine applicable ;": "Gepflogenheiten und anwendbares marokkanisches Recht;",
+            "ARTICLE 8 — ÉTAT DES LIEUX": "ARTIKEL 8 — BESCHAFFENHEITSVERZEICHNIS",
+            "mandatés, à la date de remise des clés. Cet état des lieux fera partie intégrante du présent bail et est joint en Annexe": "bevollmächtigten Vertreter am Tag der Schlüsselübergabe. Dieses Beschaffenheitsverzeichnis ist Bestandteil dieses Mietvertrags und wird als Anlage",
+            "ARTICLE 9 — RÉSILIATION ET CONGÉ": "ARTIKEL 9 — KÜNDIGUNG",
+            "Le Locataire peut mettre fin au présent bail à l'expiration de sa durée en notifiant son congé au Bailleur par lettre": "Der Mieter kann den Mietvertrag bei Ablauf der Vertragsdauer kündigen, indem er dem Vermieter ein registriertes",
+            "recommandée avec accusé de réception, au moins un (1) mois avant la date d'échéance.": "Schreiben mit Empfangsbestätigung zustellt, mindestens einen (1) Monat vor Ablauf des Mietvertrags.",
+            "l'absence d'état des lieux de sortie signé par les deux parties, le bien sera présumé avoir été rendu en bon état, sauf": "Fehlen eines von beiden Parteien unterzeichneten Auszugsverzeichnisses wird vermutet, dass das Objekt in ordnungsgemäßem Zustand zurückgegeben wurde, es sei denn,",
+            "preuve contraire apportée par le Bailleur.": "der Vermieter erbringt den Gegenbeweis.",
+            "réparation.": "Schadensersatz.",
+            "ARTICLE 10 — CLAUSES DIVERSES": "ARTIKEL 10 — VERSCHEIDENE BESTIMMUNGEN",
+            "10.1 — Animaux domestiques": "10.1 — Haustiere",
+            "10.2 — Travaux du Bailleur": "10.2 — Arbeiten des Vermieters",
+            "10.3 — Assurance": "10.3 — Versicherung",
+            "10.4 — Solidarité": "10.4 — Gesamtschuld",
+            "10.5 — Clause attributive de juridiction": "10.5 — Gerichtsstandsklausel",
+            "Le Bailleur": "Der Vermieter",
+            "(Lu et approuvé)": "(Gelesen und genehmigt)",
+            "Signature :": "Unterschrift:",
+            "Le(s) Locataire(s)": "Der/Die Mieter",
+            "Signature et cachet :": "Unterschrift und Stempel:",
+            "ANNEXE — ÉTAT DES LIEUX D'ENTRÉE": "ANLAGE — EINZUGSVERZEICHNIS",
+            "Adresse du bien :": "Adresse des Objekts:",
+            "Date d'entrée :": "Einzugsdatum:",
+            "Heure :": "Uhrzeit:",
+            "Relevé compteur eau :": "Wasserzählerstand:",
+            "Relevé compteur électricité :": "Stromzählerstand:",
+            "Pièce": "Raum",
+            "Élément": "Element",
+            "État (Entrée)": "Zustand (Einzug)",
+            "État (Sortie)": "Zustand (Auszug)",
+            "Entrée / Hall": "Eingang / Flur",
+            "Revêtements sols": "Bodenbeläge",
+            "Revêtements murs": "Wandbeläge",
+            "Porte d'entrée / Serrure": "Eingangstür / Schloss",
+            "Salon / Séjour": "Wohnzimmer",
+            "Revêtements murs / plafond": "Wand- / Deckenbeläge",
+            "Menuiseries / vitres": "Holzarbeiten / Fenster",
+            "Chambre(s)": "Schlafzimmer",
+            "Volets / portes": "Fensterläden / Türen",
+            "Cuisine": "Küche",
+            "Revêtements sols / murs": "Boden- / Wandbeläge",
+            "Équipements (placard, évier…)": "Ausstattung (Schrank, Spüle...)",
+            "Salle de bain": "Badezimmer",
+            "Sanitaires (WC, douche, lavabo)": "Sanitäranlagen (WC, Dusche, Waschbecken)",
+            "Robinetterie": "Armaturen",
+            "Communs / Terrasse": "Gemeinschaftsflächen / Terrasse",
+            "État général": "Allgemeiner Zustand",
+            "Clés remises": "Übergebene Schlüssel",
+            "Nombre et type": "Anzahl und Art",
+            "Observations": "Bemerkungen",
+            "Fait à": "Ausgefertigt in",
+            "Les parties déclarent avoir pris connaissance de l'intégralité du présent contrat et de ses annexes, en comprendre": "Die Parteien erklären, den gesamten Vertrag und seine Anlagen zur Kenntnis genommen zu haben, deren Tragweite und",
+            "la portée et les effets, et les accepter sans réserve.": "Auswirkungen zu verstehen und sie bedingungslos anzunehmen.",
+        },
+        "it": {
+            "Bail d'Habitation 1 An": "Contratto di Locazione 1 Anno",
+            "Bail d'habitation - 1 an": "Contratto di Locazione - 1 Anno",
+            "CONTRAT DE BAIL D'HABITATION — 1 AN": "CONTRATTO DI LOCAZIONE — 1 ANNO",
+            "CONTRAT DE BAIL D'HABITATION - 1 AN": "CONTRATTO DI LOCAZIONE — 1 ANNO",
+            "CONTRAT DE BAIL D'HABITATION À 1 AN": "CONTRATTO DI LOCAZIONE — 1 ANNO",
+            "Usage d'habitation principale — Droit marocain": "Uso abitativo principale — Diritto marocchino",
+            "Usage d'habitation principale\nDroit marocain": "Uso abitativo principale\nDiritto marocchino",
+            "Entre les soussignés :": "Tra le parti sottoscritte:",
+            "Le Bailleur :": "Il Locatore:",
+            "Nom et prénom / Dénomination sociale :": "Nome e cognome / Ragione sociale:",
+            "CIN / Passeport / RC :": "CIN / Passaporto / RC:",
+            "Adresse complète :": "Indirizzo completo:",
+            "Téléphone :": "Telefono:",
+            "Adresse e-mail :": "Indirizzo e-mail:",
+            "ci-après dénommé « le Bailleur »,": 'di seguito denominato "Il Locatore",',
+            "Le(s) Locataire(s) :": "Il/Lo/i Conduttore/i:",
+            "Nom et prénom du locataire principal :": "Nome e cognome del conduttore principale:",
+            "CIN / Passeport :": "CIN / Passaporto:",
+            "Adresse actuelle :": "Indirizzo attuale:",
+            "Profession :": "Professione:",
+            "Le cas échéant, co-locataire(s) :": "Se applicabile, covenatario/i:",
+            "Nom et prénom / CIN :": "Nome e cognome / CIN:",
+            "ci-après dénommé(s) « le Locataire »,": 'di seguito denominato "Il Conduttore",',
+            "Intermédiaire :": "Intermediario:",
+            "ci-après dénommée « l'Agence »,": 'di seguito denominata "L\'Agenzia",',
+            "Il a été convenu et arrêté ce qui suit.": "È stato concordato e stabilito quanto segue.",
+            "La société MÉ SQUARE METER SARL, agence immobilière immatriculée sous le numéro RC 155495 et ICE": 'La società MÉ SQUARE METER SARL, agenzia immobiliare registrata con numero RC 155495 e ICE',
+            "003580341000023, représentée par ses co-gérants,": '003580341000023, rappresentata dai suoi cogestori,',
+            "ARTICLE 1 — DÉSIGNATION DU BIEN LOUÉ": "ARTICOLO 1 — DESIGNAZIONE DELL'IMMOBILE AFFITTATO",
+            "Le Bailleur donne en location au Locataire, qui accepte, le bien immobilier désigné ci-après :": "Il Locatore affitta al Conduttore, che accetta, l'immobile designato come segue:",
+            "Nature du bien (appartement, villa, maison, studio…) :": "Natura dell'immobile (appartamento, villa, casa, studio...):",
+            "Adresse complète du bien :": "Indirizzo completo dell'immobile:",
+            "Étage / Numéro de lot :": "Piano / Numero di lotto:",
+            "Superficie approximative (m²) :": "Superficie approssimativa (m²):",
+            "Nombre de pièces :": "Numero di stanze:",
+            "Dépendances (cave, parking, terrasse…) :": "Dipendenze (cantina, parcheggio, terrazza...):",
+            "Numéro de titre foncier / Réf. cadastrale :": "Numero di titolo fondiario / Rif. catastale:",
+            "ou professionnel, sauf accord écrit préalable du Bailleur.": "o professionale, salvo previo consenso scritto del Locatore.",
+            "ARTICLE 2 — DURÉE DU BAIL": "ARTICOLO 2 — DURATA DEL CONTRATTO",
+            "Le présent bail est conclu pour une durée de une (1) année, à compter du :": "Il presente contratto è stipulato per una durata di un (1) anno, a partire dal:",
+            "Date de prise d'effet :": "Data di decorrenza:",
+            "Date d'échéance :": "Data di scadenza:",
+            "législation marocaine.": "legislazione marocchina.",
+            "ARTICLE 3 — LOYER ET CHARGES": "ARTICOLO 3 — CANONE E SPESE",
+            "Le présent bail est consenti et accepté moyennant un loyer mensuel fixé à :": "Il presente contratto è concesso e accettato mediante un canone mensile fissato in:",
+            "Loyer mensuel hors charges :": "Canone mensile al netto delle spese:",
+            "autre moyen convenu entre les parties.": "altro mezzo concordato tra le parti.",
+            "ARTICLE 4 — DÉPÔT DE GARANTIE": "ARTICOLO 4 — DEPOSITO CAUZIONALE",
+            "un dépôt de garantie correspondant à :": "un deposito cauzionale pari a:",
+            "Montant du dépôt de garantie :": "Importo del deposito cauzionale:",
+            "et imputables au Locataire.": "e imputabili al Conduttore.",
+            "ARTICLE 5 — HONORAIRES D'AGENCE": "ARTICOLO 5 — COMPENSI DELL'AGENZIA",
+            "SQUARE METER sont fixés comme suit :": "SQUARE METER sono fissati come segue:",
+            "Honoraires à la charge du Bailleur :": "Compensi a carico del Locatore:",
+            "Honoraires à la charge du Locataire :": "Compensi a carico del Conduttore:",
+            "résiliation anticipée du bail, quelle qu'en soit la causa.": "risoluzione anticipata del contratto, qualunque sia la causa.",
+            "ARTICLE 6 — OBLIGATIONS DU LOCATAIRE": "ARTICOLO 6 — OBBLIGHI DEL CONDUTTORE",
+            "Le Locataire s'engage notamment à :": "Il Conduttore si impegna in particolare a:",
+            "pouvoir en changer la destination ;": "poterne cambiare la destinazione;",
+            "législation marocaine applicable ;": "legislazione marocchina applicabile;",
+            "écrite préalable du Bailleur ;": "autorizzazione scritta preventiva del Locatore;",
+            "ARTICLE 7 — OBLIGATIONS DU BAILLEUR": "ARTICOLO 7 — OBBLIGHI DEL LOCATORE",
+            "Le Bailleur s'engage notamment à :": "Il Locatore si impegna in particolare a:",
+            "d'habitabilité ;": "di abitabilità;",
+            "usages et la législation marocaine applicable ;": "consuetudini e legislazione marocchina applicabile;",
+            "ARTICLE 8 — ÉTAT DES LIEUX": "ARTICOLO 8 — STATO DEI LUOGHI",
+            "mandatés, à la date de remise des clés. Cet état des lieux fera partie intégrante du présent bail et est joint en Annexe": "autorizzati, alla data della consegna delle chiavi. Questo stato dei luoghi farà parte integrante del presente contratto ed è allegato come Annesso",
+            "ARTICLE 9 — RÉSILIATION ET CONGÉ": "ARTICOLO 9 — RECESSO E DISDETTA",
+            "Le Locataire peut mettre fin au présent bail à l'expiration de sa durée en notifiant son congé au Bailleur par lettre": "Il Conduttore può risolvere il presente contratto alla scadenza del termine comunicando il recesso al Locatore tramite raccomandata",
+            "recommandée avec accusé de réception, au moins un (1) mois avant la date d'échéance.": "con ricevuta di ritorno, almeno un (1) mese prima della data di scadenza.",
+            "l'absence d'état des lieux de sortie signé par les deux parties, le bien sera présumé avoir été rendu en bon état, sauf": "l'assenza di uno stato dei luoghi di uscita firmato da entrambe le parti, si presume che l'immobile sia stato restituito in buone condizioni, salvo",
+            "preuve contraire apportée par le Bailleur.": "prova contraria fornita dal Locatore.",
+            "réparation.": "risarcimento.",
+            "ARTICLE 10 — CLAUSES DIVERSES": "ARTICOLO 10 — CLAUSOLE DIVERSE",
+            "10.1 — Animaux domestiques": "10.1 — Animali domestici",
+            "10.2 — Travaux du Bailleur": "10.2 — Lavori del Locatore",
+            "10.3 — Assurance": "10.3 — Assicurazione",
+            "10.4 — Solidarité": "10.4 — Solidarietà",
+            "10.5 — Clause attributive de juridiction": "10.5 — Clausola attributiva di giurisdizione",
+            "Le Bailleur": "Il Locatore",
+            "(Lu et approuvé)": "(Letto e approvato)",
+            "Signature :": "Firma:",
+            "Le(s) Locataire(s)": "Il/Lo/i Conduttore/i",
+            "Signature et cachet :": "Firma e timbro:",
+            "ANNEXE — ÉTAT DES LIEUX D'ENTRÉE": "ALLEGATO — STATO DEI LUOGHI ALL'INGRESSO",
+            "Adresse du bien :": "Indirizzo dell'immobile:",
+            "Date d'entrée :": "Data di ingresso:",
+            "Heure :": "Ora:",
+            "Relevé compteur eau :": "Lettura contatore acqua:",
+            "Relevé compteur électricité :": "Lettura contatore elettricità:",
+            "Pièce": "Stanza",
+            "Élément": "Elemento",
+            "État (Entrée)": "Stato (Ingresso)",
+            "État (Sortie)": "Stato (Uscita)",
+            "Entrée / Hall": "Ingresso / Corridoio",
+            "Revêtements sols": "Rivestimenti pavimenti",
+            "Revêtements murs": "Rivestimenti pareti",
+            "Porte d'entrée / Serrure": "Porta d'ingresso / Serratura",
+            "Salon / Séjour": "Salotto / Soggiorno",
+            "Revêtements murs / plafond": "Rivestimenti pareti / soffitto",
+            "Menuiseries / vitres": "Falegnameria / vetri",
+            "Chambre(s)": "Camera/i",
+            "Volets / portes": "Persiane / porte",
+            "Cuisine": "Cucina",
+            "Revêtements sols / murs": "Rivestimenti pavimenti / pareti",
+            "Équipements (placard, évier…)": "Attrezzature (armadio, lavandino...)",
+            "Salle de bain": "Bagno",
+            "Sanitaires (WC, douche, lavabo)": "Servizi igienici (WC, doccia, lavandino)",
+            "Robinetterie": "Rubinetteria",
+            "Communs / Terrasse": "Parti comuni / Terrazza",
+            "État général": "Stato generale",
+            "Clés remises": "Chiavi consegnate",
+            "Nombre et type": "Numero e tipo",
+            "Observations": "Osservazioni",
+            "Fait à": "Fatto a",
+            "Les parties déclarent avoir pris connaissance de l'intégralité du présent contrat et de ses annexes, en comprendre": "Le parti dichiarano di aver preso visione dell'intero contratto e dei suoi allegati, di comprenderne",
+            "la portée et les effets, et les accepter sans réserve.": "la portata e gli effetti, e di accettarli senza riserve.",
+        },
+    },
+    "bail-3-ans": {
+        "en": {
+            "CONTRAT DE BAIL D'HABITATION \u2014 3 ANS": "RESIDENTIAL LEASE AGREEMENT \u2014 3 YEARS",
+            "Usage d'habitation principale \u2014 Droit marocain": "Primary residential use \u2014 Moroccan law",
+            "Entre les soussign\u00e9s :": "Between the undersigned:",
+            "Le Bailleur :": "The Landlord:",
+            "Nom et pr\u00e9nom / D\u00e9nomination sociale : _____________________________________________": "Full name / Company name: _____________________________________________",
+            "CIN / Passeport / RC : _____________________________________________": "ID Card / Passport / RC: _____________________________________________",
+            "Adresse compl\u00e8te : _____________________________________________": "Full address: _____________________________________________",
+            "T\u00e9l\u00e9phone : _____________________________________________": "Phone: _____________________________________________",
+            "Adresse e-mail : _____________________________________________": "Email: _____________________________________________",
+            "ci-apr\u00e8s d\u00e9nomm\u00e9 \u00ab le Bailleur \u00bb,": 'hereinafter referred to as "the Landlord",',
+            "Le(s) Locataire(s) :": "The Tenant(s):",
+            "Nom et pr\u00e9nom du locataire principal : _____________________________________________": "Main tenant\u2019s full name: _____________________________________________",
+            "CIN / Passeport : _____________________________________________": "ID Card / Passport: _____________________________________________",
+            "Adresse actuelle : _____________________________________________": "Current address: _____________________________________________",
+            "Profession : _____________________________________________": "Occupation: _____________________________________________",
+            "Le cas \u00e9ch\u00e9ant, co-locataire(s) :": "If applicable, co-tenant(s):",
+            "Nom et pr\u00e9nom / CIN : _____________________________________________": "Full name / ID Card: _____________________________________________",
+            "ci-apr\u00e8s d\u00e9nomm\u00e9(s) \u00ab le Locataire \u00bb,": 'hereinafter referred to as "the Tenant",',
+            "Interm\u00e9diaire :": "Intermediary:",
+            "La soci\u00e9t\u00e9 M\u00c9 SQUARE METER SARL, agence immobili\u00e8re immatricul\u00e9e sous le num\u00e9ro RC 155495 et ICE": 'The company M\u00c9 SQUARE METER SARL, real estate agency registered under number RC 155495 and ICE',
+            "003580341000023, repr\u00e9sent\u00e9e par ses co-g\u00e9rants,": '003580341000023, represented by its co-managers,',
+            "ci-apr\u00e8s d\u00e9nomm\u00e9e \u00ab l\u2019Agence \u00bb,": 'hereinafter referred to as "the Agency",',
+            "Il a \u00e9t\u00e9 convenu et arr\u00eat\u00e9 ce qui suit.": "It has been agreed and established as follows.",
+            "ARTICLE 1 \u2014 D\u00c9SIGNATION DU BIEN LOU\u00c9": "ARTICLE 1 \u2014 DESCRIPTION OF THE RENTAL PROPERTY",
+            "Le Bailleur donne en location au Locataire, qui accepte, le bien immobilier d\u00e9sign\u00e9 ci-apr\u00e8s :": "The Landlord leases to the Tenant, who accepts, the property designated as follows:",
+            "Nature du bien (appartement, villa, maison, studio\u2026) : _____________________________________________": "Type of property (apartment, villa, house, studio...): _____________________________________________",
+            "Adresse compl\u00e8te du bien : _____________________________________________": "Full property address: _____________________________________________",
+            "\u00c9tage / Num\u00e9ro de lot : _____________________________________________": "Floor / Lot number: _____________________________________________",
+            "Superficie approximative (m\u00b2) : ______________________    Nombre de pi\u00e8ces : ______________________": "Approximate area (m\u00b2): ______________________    Number of rooms: ______________________",
+            "D\u00e9pendances (cave, parking, terrasse\u2026) : _____________________________________________": "Outbuildings (cellar, parking, terrace...): _____________________________________________",
+            "Num\u00e9ro de titre foncier / R\u00e9f. cadastrale : _____________________________________________": "Land title number / Cadastral ref.: _____________________________________________",
+            "Le bien est lou\u00e9 pour usage d\u2019habitation principale exclusivement, \u00e0 l\u2019exclusion de tout usage commercial, artisanal": "The property is leased for primary residential use exclusively, to the exclusion of any commercial, artisanal",
+            "ou professionnel, sauf accord \u00e9crit pr\u00e9alable du Bailleur.": "or professional use, unless prior written consent of the Landlord.",
+            "ARTICLE 2 \u2014 DUR\u00c9E DU BAIL": "ARTICLE 2 \u2014 LEASE TERM",
+            "Le pr\u00e9sent bail est conclu pour une dur\u00e9e de trois (3) ann\u00e9es, \u00e0 compter du :": "This lease is concluded for a period of three (3) years, starting from:",
+            "Date de prise d\u2019effet : ______________________    Date d\u2019\u00e9ch\u00e9ance : ______________________": "Commencement date: ______________________    Expiry date: ______________________",
+            "\u00c0 l\u2019expiration de la dur\u00e9e de trois (3) ans, le bail sera reconduit tacitement pour des p\u00e9riodes successives d\u2019une (1)": "Upon expiry of the three (3) year term, the lease shall be tacitly renewed for successive periods of one (1)",
+            "ann\u00e9e, sauf d\u00e9nonciation par l\u2019une ou l\u2019autre des parties par lettre recommand\u00e9e avec accus\u00e9 de r\u00e9ception adress\u00e9e": "year, unless notice is given by either party by registered letter with acknowledgment of receipt sent",
+            "au moins trois (3) mois avant l\u2019\u00e9ch\u00e9ance. Pendant les deux premi\u00e8res ann\u00e9es du bail, le Locataire ne peut donner": "at least three (3) months before the expiry date. During the first two years of the lease, the Tenant may not give",
+            "cong\u00e9 qu\u2019en cas de force majeure d\u00fbment justifi\u00e9e ou avec l\u2019accord pr\u00e9alable \u00e9crit du Bailleur.": "notice except in case of duly justified force majeure or with the prior written consent of the Landlord.",
+            "ARTICLE 3 \u2014 LOYER ET CHARGES": "ARTICLE 3 \u2014 RENT AND CHARGES",
+            "Le pr\u00e9sent bail est consenti et accept\u00e9 moyennant un loyer mensuel fix\u00e9 \u00e0 :": "This lease is granted and accepted for a monthly rent set at:",
+            "Loyer mensuel hors charges : __________________ MAD  (__________________ dirhams)": "Monthly rent excluding charges: __________________ MAD  (__________________ dirhams)",
+            "Ce loyer est payable d\u2019avance, le _______ de chaque mois, par virement bancaire sur le compte du Bailleur ou par tout": "This rent is payable in advance, on the _______ of each month, by bank transfer to the Landlord\u2019s account or by any",
+            "autre moyen convenu entre les parties.": "other means agreed between the parties.",
+            "En sus du loyer, le Locataire prend en charge, directement et \u00e0 son nom, les abonnements et consommations d\u2019eau,": "In addition to the rent, the Tenant assumes, directly and in their own name, the subscriptions and consumption of water,",
+            "d\u2019\u00e9lectricit\u00e9, de gaz, d\u2019internet et de t\u00e9l\u00e9phone, ainsi que la taxe d\u2019habitation, les charges de copropri\u00e9t\u00e9 qui lui": "electricity, gas, internet and telephone, as well as the housing tax, condominium charges legally incumbent",
+            "incombent l\u00e9galement en tant qu\u2019occupant, et les charges d\u2019entretien courant.": "on them as occupant, and routine maintenance charges.",
+            "R\u00e9vision du loyer : le loyer pourra \u00eatre r\u00e9vis\u00e9 \u00e0 chaque anniversaire de la date de prise d\u2019effet du bail, dans les": "Rent revision: the rent may be revised on each anniversary of the lease commencement date, under the",
+            "conditions pr\u00e9vues par la l\u00e9gislation marocaine applicable aux baux d\u2019habitation (dahir n\u00b0 1-94-270 du 25 rejeb 1415": "conditions provided by Moroccan legislation applicable to residential leases (Dahir No. 1-94-270 of 25 rejeb 1415",
+            "/ 29 d\u00e9cembre 1994 portant promulgation de la loi n\u00b0 64-99 relative aux loyers des immeubles \u00e0 usage d\u2019habitation),": "/ 29 December 1994 promulgating Law No. 64-99 relating to rents of buildings for residential use),",
+            "et notamment dans les limites fix\u00e9es par les textes r\u00e9glementaires en vigueur. Toute r\u00e9vision sera notifi\u00e9e au Locataire": "and notably within the limits set by current regulatory texts. Any revision shall be notified to the Tenant",
+            "par lettre recommand\u00e9e avec accus\u00e9 de r\u00e9ception au moins soixante (60) jours avant la date de sa prise d\u2019effet.": "by registered letter with acknowledgment of receipt at least sixty (60) days before its effective date.",
+            "ARTICLE 4 \u2014 D\u00c9P\u00d4T DE GARANTIE": "ARTICLE 4 \u2014 SECURITY DEPOSIT",
+            "\u00c0 la signature du pr\u00e9sent bail, le Locataire verse entre les mains du Bailleur, ou de l\u2019Agence mandat\u00e9e pour l\u2019encaisser,": "Upon signing this lease, the Tenant pays to the Landlord, or to the Agency mandated to collect it,",
+            "un d\u00e9p\u00f4t de garantie correspondant \u00e0 :": "a security deposit corresponding to:",
+            "Montant du d\u00e9p\u00f4t de garantie : __________________ MAD": "Security deposit amount: __________________ MAD",
+            "Ce d\u00e9p\u00f4t de garantie ne peut en aucun cas \u00eatre imput\u00e9 par le Locataire en paiement du dernier mois de loyer. Il sera": "This security deposit may in no case be applied by the Tenant towards payment of the last month\u2019s rent. It shall be",
+            "restitu\u00e9 au Locataire dans un d\u00e9lai de trente (30) jours suivant la remise effective des cl\u00e9s et la signature de l\u2019\u00e9tat des": "returned to the Tenant within thirty (30) days following the effective return of keys and the signing of the inventory",
+            "lieux de sortie, apr\u00e8s d\u00e9duction, le cas \u00e9ch\u00e9ant, des sommes dues au Bailleur au titre de loyers impay\u00e9s, de charges": "of exit, after deduction, if applicable, of amounts owed to the Landlord for unpaid rent, unpaid rental",
+            "locatives non r\u00e9gl\u00e9es ou de r\u00e9parations locatives r\u00e9sultant de d\u00e9gradations constat\u00e9es lors de l\u2019\u00e9tat des lieux de sortie": "charges or repairs resulting from damage noted during the exit inventory",
+            "et imputables au Locataire.": "and attributable to the Tenant.",
+            "ARTICLE 5 \u2014 HONORAIRES D\u2019AGENCE": "ARTICLE 5 \u2014 AGENCY FEES",
+            "En r\u00e9mun\u00e9ration de ses services d\u2019interm\u00e9diation et de constitution du dossier locatif, les honoraires de l\u2019Agence M\u00c9": "As remuneration for its brokerage and lease file preparation services, the fees of M\u00c9",
+            "SQUARE METER sont fix\u00e9s comme suit :": "SQUARE METER Agency are set as follows:",
+            "Honoraires \u00e0 la charge du Bailleur : _____________________________________________": "Fees payable by the Landlord: _____________________________________________",
+            "Honoraires \u00e0 la charge du Locataire : _____________________________________________": "Fees payable by the Tenant: _____________________________________________",
+            "Ces honoraires sont dus et exigibles \u00e0 la date de signature du pr\u00e9sent bail. Ils ne sont pas remboursables en cas de": "These fees are due and payable on the date of signing of this lease. They are not refundable in case of",
+            "r\u00e9siliation anticip\u00e9e du bail, quelle qu\u2019en soit la cause.": "early termination of the lease, whatever the cause.",
+            "ARTICLE 6 \u2014 OBLIGATIONS DU LOCATAIRE": "ARTICLE 6 \u2014 TENANT\u2019S OBLIGATIONS",
+            "Le Locataire s\u2019engage notamment \u00e0 :": "The Tenant undertakes, in particular, to:",
+            "\u25a1 Occuper le bien lou\u00e9 paisiblement et en bon p\u00e8re de famille, \u00e0 titre de r\u00e9sidence principale et exclusive, sans": "\u25a1 Occupy the leased property peacefully and as a good steward, as primary and exclusive residence, without",
+            "pouvoir en changer la destination ;": "being able to change its purpose;",
+            "\u25a1 R\u00e9gler le loyer et les charges aux termes convenus, sans compensation ni retenue, sauf cas pr\u00e9vus par la loi ;": "\u25a1 Pay the rent and charges at the agreed terms, without offset or deduction, except as provided by law;",
+            "\u25a1 Entretenir le bien et effectuer les r\u00e9parations locatives qui lui incombent, telles que d\u00e9finies par les usages et la": "\u25a1 Maintain the property and carry out the rental repairs incumbent on them, as defined by customs and",
+            "l\u00e9gislation marocaine applicable ;": "applicable Moroccan legislation;",
+            "\u25a1 Ne pas effectuer de travaux de transformation, d\u2019am\u00e9nagement ou de modification du bien sans autorisation": "\u25a1 Not to carry out any transformation, fitting out or modification work on the property without prior",
+            "\u25a1 \u00e9crite pr\u00e9alable du Bailleur ;": "\u25a1 written authorization from the Landlord;",
+            "\u25a1 Permettre au Bailleur ou \u00e0 ses repr\u00e9sentants l\u2019acc\u00e8s au bien pour les travaux urgents ou n\u00e9cessaires, apr\u00e8s accord": "\u25a1 Allow the Landlord or their representatives access to the property for urgent or necessary work, after prior",
+            "pr\u00e9alable sur les horaires sauf urgence ;": "agreement on schedules except in emergencies;",
+            "\u25a1 Ne pas sous-louer le bien, en tout ou en partie, ni c\u00e9der le pr\u00e9sent bail sans accord \u00e9crit et pr\u00e9alable du Bailleur ;": "\u25a1 Not to sublet the property, in whole or in part, nor assign this lease without prior written consent of the Landlord;",
+            "\u25a1 Souscrire et maintenir en cours de validit\u00e9 une assurance multirisque habitation couvrant sa responsabilit\u00e9": "\u25a1 Take out and maintain a valid multi-risk home insurance covering their rental liability,",
+            "locative, et en fournir l\u2019attestation annuellement au Bailleur ;": "and provide the certificate annually to the Landlord;",
+            "\u25a1 Restituer le bien en bon \u00e9tat de propret\u00e9 et d\u2019entretien, conforme \u00e0 l\u2019\u00e9tat des lieux d\u2019entr\u00e9e, \u00e0 la fin du bail.": "\u25a1 Return the property in a good state of cleanliness and maintenance, consistent with the entry inventory, at the end of the lease.",
+            "ARTICLE 7 \u2014 OBLIGATIONS DU BAILLEUR": "ARTICLE 7 \u2014 LANDLORD\u2019S OBLIGATIONS",
+            "Le Bailleur s\u2019engage notamment \u00e0 :": "The Landlord undertakes, in particular, to:",
+            "\u25a1 D\u00e9livrer au Locataire un logement d\u00e9cent, en bon \u00e9tat d\u2019usage et de r\u00e9paration, r\u00e9pondant aux normes minimales": "\u25a1 Deliver to the Tenant a decent dwelling, in good condition of use and repair, meeting minimum",
+            "d\u2019habitabilit\u00e9 ;": "habitability standards;",
+            "\u25a1 Assurer au Locataire la jouissance paisible des lieux pendant toute la dur\u00e9e du bail ;": "\u25a1 Ensure the Tenant\u2019s peaceful enjoyment of the premises for the entire duration of the lease;",
+            "\u25a1 Prendre en charge les grosses r\u00e9parations et les travaux relevant de sa responsabilit\u00e9, tels que d\u00e9finis par les": "\u25a1 Assume responsibility for major repairs and work falling under their responsibility, as defined by",
+            "usages et la l\u00e9gislation marocaine applicable ;": "customs and applicable Moroccan legislation;",
+            "\u25a1 Restituer le d\u00e9p\u00f4t de garantie dans le d\u00e9lai et dans les conditions pr\u00e9vus \u00e0 l\u2019Article 4 du pr\u00e9sent bail ;": "\u25a1 Return the security deposit within the timeframe and under the conditions provided in Article 4 of this lease;",
+            "\u25a1 Informer le Locataire de tout projet de vente du bien dans les d\u00e9lais l\u00e9galement pr\u00e9vus.": "\u25a1 Inform the Tenant of any plan to sell the property within the legally prescribed timeframes.",
+            "ARTICLE 8 \u2014 \u00c9TAT DES LIEUX": "ARTICLE 8 \u2014 INVENTORY",
+            "Un \u00e9tat des lieux contradictoire d\u2019entr\u00e9e sera \u00e9tabli et sign\u00e9 par les deux parties ou leurs repr\u00e9sentants d\u00fbment": "An entry inventory shall be established and signed by both parties or their duly",
+            "mandat\u00e9s, \u00e0 la date de remise des cl\u00e9s. Cet \u00e9tat des lieux fera partie int\u00e9grante du pr\u00e9sent bail et est joint en Annexe": "authorized representatives, on the date of key handover. This inventory shall form an integral part of this lease and is attached as Annex",
+            "Un \u00e9tat des lieux de sortie contradictoire sera \u00e9tabli dans les m\u00eames conditions \u00e0 la date de restitution des cl\u00e9s. En": "An exit inventory shall be established under the same conditions on the date of key return. In",
+            "l\u2019absence d\u2019\u00e9tat des lieux de sortie sign\u00e9 par les deux parties, le bien sera pr\u00e9sum\u00e9 avoir \u00e9t\u00e9 rendu en bon \u00e9tat, sauf": "the absence of an exit inventory signed by both parties, the property shall be deemed to have been returned in good condition, unless",
+            "preuve contraire apport\u00e9e par le Bailleur.": "contrary evidence provided by the Landlord.",
+            "Toute d\u00e9gradation constat\u00e9e lors de l\u2019\u00e9tat des lieux de sortie, d\u00e9passant l\u2019usure normale et r\u00e9sultant du comportement": "Any damage noted during the exit inventory, exceeding normal wear and resulting from the behavior",
+            "du Locataire ou de ses pr\u00e9pos\u00e9s, pourra \u00eatre imput\u00e9e sur le d\u00e9p\u00f4t de garantie ou faire l\u2019objet d\u2019une action en": "of the Tenant or their agents, may be charged against the security deposit or give rise to",
+            "r\u00e9paration.": "action for damages.",
+            "ARTICLE 9 \u2014 R\u00c9SILIATION ET CONG\u00c9": "ARTICLE 9 \u2014 TERMINATION AND NOTICE",
+            "Le Locataire peut mettre fin au pr\u00e9sent bail \u00e0 tout moment en cours de bail, sous r\u00e9serve de la d\u00e9livrance d\u2019un pr\u00e9avis": "The Tenant may terminate this lease at any time during the lease, subject to giving",
+            "de trois (3) mois notifi\u00e9 au Bailleur par lettre recommand\u00e9e avec accus\u00e9 de r\u00e9ception. Le d\u00e9lai de pr\u00e9avis court \u00e0": "three (3) months\u2019 notice to the Landlord by registered letter with acknowledgment of receipt. The notice period runs from",
+            "compter de la date de premi\u00e8re pr\u00e9sentation de la lettre recommand\u00e9e.": "the date of first presentation of the registered letter.",
+            "Le Bailleur ne peut mettre fin au bail avant son terme que dans les cas limitativement pr\u00e9vus par la loi marocaine": "The Landlord may only terminate the lease before its term in the cases strictly provided by Moroccan",
+            "applicable aux baux d\u2019habitation, notamment pour reprise du bien pour occupation personnelle ou familiale, pour": "legislation applicable to residential leases, notably for personal or family occupation, for",
+            "vente du bien, ou en cas de manquement grave du Locataire \u00e0 ses obligations.": "sale of the property, or in case of serious breach by the Tenant of their obligations.",
+            "En cas de r\u00e9siliation \u00e0 l\u2019initiative du Locataire avant le terme de la premi\u00e8re ann\u00e9e du bail, une indemnit\u00e9 forfaitaire": "In case of termination at the Tenant\u2019s initiative before the end of the first year of the lease, a fixed",
+            "d\u2019un (1) mois de loyer brut sera due au Bailleur \u00e0 titre de clause p\u00e9nale, sauf accord amiable contraire.": "indemnity of one (1) month\u2019s gross rent shall be due to the Landlord as a penalty clause, unless amicable agreement.",
+            "En cas de r\u00e9siliation pour manquement du Locataire \u00e0 ses obligations, notamment d\u00e9faut de paiement du loyer ou": "In case of termination for breach by the Tenant of their obligations, notably non-payment of rent or",
+            "des charges, sous-location non autoris\u00e9e, troubles de voisinage graves ou utilisation du bien \u00e0 des fins non autoris\u00e9es,": "charges, unauthorized subletting, serious neighborhood disturbances or use of the property for unauthorized purposes,",
+            "le Bailleur pourra, apr\u00e8s mise en demeure rest\u00e9e sans effet pendant quinze (15) jours, engager toute proc\u00e9dure": "the Landlord may, after a formal notice remaining without effect for fifteen (15) days, initiate any",
+            "judiciaire utile et r\u00e9clamer, outre les loyers \u00e9chus, une indemnit\u00e9 d\u2019occupation jusqu\u2019\u00e0 la lib\u00e9ration effective des lieux.": "appropriate legal proceedings and claim, in addition to accrued rent, an occupation indemnity until effective vacation of the premises.",
+            "ARTICLE 10 \u2014 CLAUSES DIVERSES": "ARTICLE 10 \u2014 MISCELLANEOUS CLAUSES",
+            "10.1 \u2014 Animaux domestiques": "10.1 \u2014 Pets",
+            "L\u2019introduction d\u2019animaux domestiques dans le bien lou\u00e9 est soumise \u00e0 l\u2019accord \u00e9crit pr\u00e9alable du Bailleur. En cas": "The introduction of pets into the leased property is subject to the prior written consent of the Landlord. In case",
+            "d\u2019accord, le Locataire demeurera seul responsable de tout dommage caus\u00e9 par ses animaux.": "of consent, the Tenant shall remain solely responsible for any damage caused by their animals.",
+            "10.2 \u2014 Travaux du Bailleur": "10.2 \u2014 Landlord\u2019s Work",
+            "Le Bailleur se r\u00e9serve le droit de faire ex\u00e9cuter des travaux d\u2019am\u00e9lioration, d\u2019entretien ou de r\u00e9novation urgents, sous": "The Landlord reserves the right to carry out improvement, maintenance or urgent renovation work, subject",
+            "r\u00e9serve d\u2019en informer le Locataire avec un pr\u00e9avis raisonnable sauf urgence. Ces travaux ne pourront donner lieu \u00e0": "to informing the Tenant with reasonable notice except in emergencies. Such work shall not give rise to",
+            "aucune diminution de loyer si leur dur\u00e9e n\u2019exc\u00e8de pas quarante (40) jours.": "any rent reduction if its duration does not exceed forty (40) days.",
+            "10.3 \u2014 Assurance": "10.3 \u2014 Insurance",
+            "Le Locataire s\u2019engage \u00e0 assurer le bien lou\u00e9 pour les risques locatifs (incendie, d\u00e9g\u00e2ts des eaux, explosion) et \u00e0": "The Tenant undertakes to insure the leased property for rental risks (fire, water damage, explosion) and to",
+            "maintenir cette assurance pendant toute la dur\u00e9e du bail. Il devra produire annuellement au Bailleur une attestation": "maintain this insurance for the entire duration of the lease. They shall provide the Landlord annually with a",
+            "d\u2019assurance \u00e0 jour. En cas de d\u00e9faut d\u2019assurance constat\u00e9 et non r\u00e9gularis\u00e9 dans les quinze (15) jours suivant la mise": "valid insurance certificate. In case of observed lack of insurance not remedied within fifteen (15) days following",
+            "en demeure, le Bailleur pourra r\u00e9silier le bail.": "formal notice, the Landlord may terminate the lease.",
+            "10.4 \u2014 Solidarit\u00e9": "10.4 \u2014 Joint Liability",
+            "En cas de pluralit\u00e9 de locataires, ceux-ci sont solidaires entre eux de toutes les obligations r\u00e9sultant du pr\u00e9sent bail.": "In case of multiple tenants, they shall be jointly and severally liable for all obligations arising from this lease.",
+            "10.5 \u2014 Clause attributive de juridiction": "10.5 \u2014 Jurisdiction Clause",
+            "Le pr\u00e9sent bail est soumis au droit marocain, notamment au dahir portant loi n\u00b0 1-80-311 du 25 d\u00e9cembre 1980 relatif": "This lease is subject to Moroccan law, notably the Dahir carrying Law No. 1-80-311 of 25 December 1980 relating",
+            "aux loyers des immeubles b\u00e2tis \u00e0 usage d\u2019habitation et aux textes subs\u00e9quents. Tout litige relatif \u00e0 son ex\u00e9cution ou \u00e0": "to rents of buildings for residential use and subsequent texts. Any dispute relating to its execution or",
+            "sa r\u00e9siliation sera soumis, apr\u00e8s tentative de r\u00e8glement amiable, \u00e0 la comp\u00e9tence du Tribunal de Premi\u00e8re Instance": "termination shall be submitted, after attempt at amicable settlement, to the jurisdiction of the Court of First Instance",
+            "du lieu de situation du bien.": "of the place where the property is situated.",
+            "Les parties d\u00e9clarent avoir pris connaissance de l\u2019int\u00e9gralit\u00e9 du pr\u00e9sent contrat et de ses annexes, en comprendre": "The parties declare having become acquainted with the entirety of this contract and its annexes, understanding",
+            "la port\u00e9e et les effets, et les accepter sans r\u00e9serve.": "the scope and effects, and accepting them without reservation.",
+            "Fait \u00e0 _________________________, le ___________________________": "Done at _________________________, on ___________________________",
+            "En autant d\u2019exemplaires originaux que de parties, chacun d\u2019eux reconnaissant avoir re\u00e7u le sien.": "In as many original copies as there are parties, each acknowledging receipt of their copy.",
+            "Le Bailleur": "The Landlord",
+            "(Lu et approuv\u00e9)": "(Read and approved)",
+            "Signature :": "Signature:",
+            "Le(s) Locataire(s)": "The Tenant(s)",
+            "M\u00c9 SQUARE METER \u2014 Interm\u00e9diaire": "M\u00c9 SQUARE METER \u2014 Intermediary",
+            "Signature et cachet :": "Signature and stamp:",
+            "ANNEXE \u2014 \u00c9TAT DES LIEUX D\u2019ENTR\u00c9E": "ANNEX \u2014 ENTRY INVENTORY",
+            "Bail d\u2019Habitation 3 Ans": "Residential Lease 3 Years",
+            "Bail d\u2019habitation - 3 ans": "Residential Lease - 3 Years",
+            "Adresse du bien : _____________________________________________": "Property address: _____________________________________________",
+            "Date d\u2019entr\u00e9e : ______________________": "Entry date: ______________________",
+            "Heure : ______________________": "Time: ______________________",
+            "Relev\u00e9 compteur eau : ______________________    Relev\u00e9 compteur \u00e9lectricit\u00e9 : ______________________": "Water meter reading: ______________________    Electricity meter reading: ______________________",
+            "Pi\u00e8ce": "Room",
+            "\u00c9l\u00e9ment": "Element",
+            "\u00c9tat (Entr\u00e9e)": "Condition (Entry)",
+            "\u00c9tat (Sortie)": "Condition (Exit)",
+            "Entr\u00e9e / Hall": "Entrance / Hall",
+            "Rev\u00eatements sols": "Floor coverings",
+            "Rev\u00eatements murs": "Wall coverings",
+            "Porte d\u2019entr\u00e9e / Serrure": "Front door / Lock",
+            "Salon / S\u00e9jour": "Living room",
+            "Rev\u00eatements murs / plafond": "Wall / ceiling coverings",
+            "Menuiseries / vitres": "Woodwork / windows",
+            "Chambre(s)": "Bedroom(s)",
+            "Volets / portes": "Shutters / doors",
+            "Cuisine": "Kitchen",
+            "Rev\u00eatements sols / murs": "Floor / wall coverings",
+            "\u00c9quipements (placard, \u00e9vier\u2026)": "Equipment (cupboard, sink...)",
+            "Salle de bain": "Bathroom",
+            "Sanitaires (WC, douche, lavabo)": "Sanitary facilities (WC, shower, sink)",
+            "Robinetterie": "Fittings",
+            "Communs / Terrasse": "Common areas / Terrace",
+            "\u00c9tat g\u00e9n\u00e9ral": "General condition",
+            "Cl\u00e9s remises": "Keys handed over",
+            "Nombre et type": "Number and type",
+            "Observations": "Observations",
+            "Fait \u00e0": "Done at",
+            "M\u00c9 SQUARE METER \u2013 Interm\u00e9diaire": "M\u00c9 SQUARE METER \u2014 Intermediary",
+        },
+        "es": {
+            "Bail d'Habitation 3 Ans": "Contrato de Arrendamiento 3 Años",
+            "Bail d'habitation - 3 ans": "Contrato de Arrendamiento - 3 Años",
+            "Entre les soussignés :": "Entre las partes contratantes:",
+            "Le Bailleur :": "El Arrendador:",
+            "Nom et prénom / Dénomination sociale :": "Nombre y apellido / Razón social:",
+            "CIN / Passeport / RC :": "CIN / Pasaporte / RC:",
+            "Adresse complète :": "Dirección completa:",
+            "Téléphone :": "Teléfono:",
+            "Adresse e-mail :": "Correo electrónico:",
+            "ci-après dénommé « le Bailleur »,": 'en adelante denominado "El Arrendador",',
+            "Le(s) Locataire(s) :": "El/Los Arrendatario(s):",
+            "Nom et prénom du locataire principal :": "Nombre y apellido del arrendatario principal:",
+            "CIN / Passeport :": "CIN / Pasaporte:",
+            "Adresse actuelle :": "Dirección actual:",
+            "Profession :": "Profesión:",
+            "Le cas échéant, co-locataire(s) :": "En su caso, cotitular(es):",
+            "Nom et prénom / CIN :": "Nombre y apellido / CIN:",
+            "ci-après dénommé(s) « le Locataire »,": 'en adelante denominado(s) "El Arrendatario",',
+            "Intermédiaire :": "Intermediario:",
+            "ci-après dénommée « l'Agence »,": 'en adelante denominada "La Agencia",',
+            "Il a été convenu et arrêté ce qui suit.": "Se ha convenido y establecido lo siguiente.",
+            "ARTICLE 1 — DÉSIGNATION DU BIEN LOUÉ": "ARTÍCULO 1 — DESIGNACIÓN DEL BIEN ARRENDADO",
+            "Le Bailleur donne en location au Locataire, qui accepte, le bien immobilier désigné ci-après :": "El Arrendador da en arrendamiento al Arrendatario, que acepta, el bien inmueble designado a continuación:",
+            "Nature du bien (appartement, villa, maison, studio…) :": "Naturaleza del bien (apartamento, villa, casa, estudio...):",
+            "Adresse complète du bien :": "Dirección completa del bien:",
+            "Étage / Numéro de lot :": "Piso / Número de lote:",
+            "Superficie approximative (m²) :": "Superficie aproximada (m²):",
+            "Nombre de pièces :": "Número de habitaciones:",
+            "Dépendances (cave, parking, terrasse…) :": "Dependencias (bodega, parking, terraza...):",
+            "Numéro de titre foncier / Réf. cadastrale :": "Número de título de propiedad / Ref. catastral:",
+            "ou professionnel, sauf accord écrit préalable du Bailleur.": "o profesional, salvo acuerdo escrito previo del Arrendador.",
+            "ARTICLE 2 — DURÉE DU BAIL": "ARTÍCULO 2 — DURACIÓN DEL ARRENDAMIENTO",
+            "Le présent bail est conclu pour une durée de trois (3) années, à compter du :": "El presente arrendamiento se celebra por un plazo de tres (3) años, a partir del:",
+            "Date de prise d'effet :": "Fecha de entrada en vigor:",
+            "Date d'échéance :": "Fecha de vencimiento:",
+            "législation marocaine.": "legislación marroquí.",
+            "ARTICLE 3 — LOYER ET CHARGES": "ARTÍCULO 3 — ALQUILER Y CARGOS",
+            "Le présent bail est consenti et accepté moyennant un loyer mensuel fixé à :": "El presente arrendamiento se otorga y acepta mediante un alquiler mensual fijado en:",
+            "Loyer mensuel hors charges :": "Alquiler mensual sin cargos:",
+            "autre moyen convenu entre les parties.": "otro medio acordado entre las partes.",
+            "ARTICLE 4 — DÉPÔT DE GARANTIE": "ARTÍCULO 4 — DEPÓSITO DE GARANTÍA",
+            "un dépôt de garantie correspondant à :": "un depósito de garantía equivalente a:",
+            "Montant du dépôt de garantie :": "Monto del depósito de garantía:",
+            "et imputables au Locataire.": "y atribuibles al Arrendatario.",
+            "ARTICLE 5 — HONORAIRES D'AGENCE": "ARTÍCULO 5 — HONORARIOS DE AGENCIA",
+            "SQUARE METER sont fixés comme suit :": "SQUARE METER se fijan de la siguiente manera:",
+            "Honoraires à la charge du Bailleur :": "Honorarios a cargo del Arrendador:",
+            "Honoraires à la charge du Locataire :": "Honorarios a cargo del Arrendatario:",
+            "résiliation anticipée du bail, quelle qu'en soit la causa.": "resolución anticipada del arrendamiento, sea cual sea la causa.",
+            "ARTICLE 6 — OBLIGATIONS DU LOCATAIRE": "ARTÍCULO 6 — OBLIGACIONES DEL ARRENDATARIO",
+            "Le Locataire s'engage notamment à :": "El Arrendatario se compromete en particular a:",
+            "pouvoir en changer la destination ;": "poder cambiar su destino;",
+            "législation marocaine applicable ;": "legislación marroquí aplicable;",
+            "écrite préalable du Bailleur ;": "escrito previo del Arrendador;",
+            "ARTICLE 7 — OBLIGATIONS DU BAILLEUR": "ARTÍCULO 7 — OBLIGACIONES DEL ARRENDADOR",
+            "Le Bailleur s'engage notamment à :": "El Arrendador se compromete en particular a:",
+            "d'habitabilité ;": "de habitabilidad;",
+            "usages et la législation marocaine applicable ;": "usos y la legislación marroquí aplicable;",
+            "ARTICLE 8 — ÉTAT DES LIEUX": "ARTÍCULO 8 — ESTADO DE LOS LUGARES",
+            "mandatés, à la date de remise des clés. Cet état des lieux fera partie intégrante du présent bail et est joint en Annexe": "autorizados, en la fecha de entrega de llaves. Este estado de los lugares será parte integral del presente arrendamiento y se adjunta como Anexo",
+            "ARTICLE 9 — RÉSILIATION ET CONGÉ": "ARTÍCULO 9 — RESILIACIÓN Y AVISO",
+            "Le Locataire peut mettre fin au présent bail à l'expiration de sa durée en notifiant son congé au Bailleur par lettre": "El Arrendatario puede poner fin al presente arrendamiento al vencer su plazo notificando su desalojo al Arrendador mediante carta",
+            "recommandée avec accusé de réception, au moins trois (3) mois avant la date d'échéance.": "certificada con acuse de recibo, con al menos tres (3) meses de anticipación a la fecha de vencimiento.",
+            "l'absence d'état des lieux de sortie signé par les deux parties, le bien sera présumé avoir été rendu en bon état, sauf": "la ausencia de un estado de los lugares de salida firmado por ambas partes, se presumirá que el bien fue devuelto en buen estado, salvo",
+            "preuve contraire apportée par le Bailleur.": "prueba en contrario aportada por el Arrendador.",
+            "réparation.": "reparación.",
+            "ARTICLE 10 — CLAUSES DIVERSES": "ARTÍCULO 10 — CLÁUSULAS DIVERSAS",
+            "10.1 — Animaux domestiques": "10.1 — Animales domésticos",
+            "10.2 — Travaux du Bailleur": "10.2 — Trabajos del Arrendador",
+            "10.3 — Assurance": "10.3 — Seguro",
+            "10.4 — Solidarité": "10.4 — Solidaridad",
+            "10.5 — Clause attributive de juridiction": "10.5 — Cláusula atributiva de jurisdicción",
+            "Le Bailleur": "El Arrendador",
+            "(Lu et approuvé)": "(Leído y aprobado)",
+            "Signature :": "Firma:",
+            "Le(s) Locataire(s)": "El/Los Arrendatario(s)",
+            "Signature et cachet :": "Firma y sello:",
+            "ANNEXE — ÉTAT DES LIEUX D'ENTRÉE": "ANEXO — ESTADO DE LOS LUGARES DE ENTRADA",
+            "Adresse du bien :": "Dirección del bien:",
+            "Date d'entrée :": "Fecha de entrada:",
+            "Heure :": "Hora:",
+            "Relevé compteur eau :": "Lectura del contador de agua:",
+            "Relevé compteur électricité :": "Lectura del contador de electricidad:",
+            "Pièce": "Habitación",
+            "Élément": "Elemento",
+            "État (Entrée)": "Estado (Entrada)",
+            "État (Sortie)": "Estado (Salida)",
+            "Entrée / Hall": "Entrada / Vestíbulo",
+            "Revêtements sols": "Revestimientos de suelos",
+            "Revêtements murs": "Revestimientos de paredes",
+            "Porte d'entrée / Serrure": "Puerta principal / Cerradura",
+            "Salon / Séjour": "Salón / Estar",
+            "Revêtements murs / plafond": "Revestimientos de paredes / techo",
+            "Menuiseries / vitres": "Carpintería / cristales",
+            "Chambre(s)": "Dormitorio(s)",
+            "Volets / portes": "Persianas / puertas",
+            "Cuisine": "Cocina",
+            "Revêtements sols / murs": "Revestimientos de suelos / paredes",
+            "Équipements (placard, évier…)": "Equipamientos (armario, fregadero...)",
+            "Salle de bain": "Baño",
+            "Sanitaires (WC, douche, lavabo)": "Sanitarios (WC, ducha, lavabo)",
+            "Robinetterie": "Grifería",
+            "Communs / Terrasse": "Zonas comunes / Terraza",
+            "État général": "Estado general",
+            "Clés remises": "Llaves entregadas",
+            "Nombre et type": "Número y tipo",
+            "Observations": "Observaciones",
+            "Fait à": "Hecho en",
+            "Les parties déclarent avoir pris connaissance de l'intégralité du présent contrat et de ses annexes, en comprendre": "Las partes declaran haber tomado conocimiento de la totalidad del presente contrato y sus anexos, comprender",
+            "la portée et les effets, et les accepter sans réserve.": "el alcance y los efectos, y aceptarlos sin reservas.",
+        },
+        "de": {
+            "Bail d'Habitation 3 Ans": "Mietvertrag 3 Jahre",
+            "Bail d'habitation - 3 ans": "Mietvertrag - 3 Jahre",
+            "Entre les soussignés :": "Zwischen den Unterzeichnenden:",
+            "Le Bailleur :": "Der Vermieter:",
+            "Nom et prénom / Dénomination sociale :": "Vor- und Nachname / Firmenname:",
+            "CIN / Passeport / RC :": "Personalausweis / Reisepass / RC:",
+            "Adresse complète :": "Vollständige Adresse:",
+            "Téléphone :": "Telefon:",
+            "Adresse e-mail :": "E-Mail-Adresse:",
+            "ci-après dénommé « le Bailleur »,": 'nachfolgend "Der Vermieter" genannt,',
+            "Le(s) Locataire(s) :": "Der/Die Mieter:",
+            "Nom et prénom du locataire principal :": "Vor- und Nachname des Hauptmieters:",
+            "CIN / Passeport :": "Personalausweis / Reisepass:",
+            "Adresse actuelle :": "Aktuelle Adresse:",
+            "Profession :": "Beruf:",
+            "Le cas échéant, co-locataire(s) :": "Ggf. Mitmieter:",
+            "Nom et prénom / CIN :": "Vor- und Nachname / Personalausweis:",
+            "ci-après dénommé(s) « le Locataire »,": 'nachfolgend "Der Mieter" genannt,',
+            "Intermédiaire :": "Vermittler:",
+            "ci-après dénommée « l'Agence »,": 'nachfolgend "Die Agentur" genannt,',
+            "Il a été convenu et arrêté ce qui suit.": "Es wurde Folgendes vereinbart und festgelegt.",
+            "ARTICLE 1 — DÉSIGNATION DU BIEN LOUÉ": "ARTIKEL 1 — BEZEICHNUNG DES MIETOBJEKTS",
+            "Le Bailleur donne en location au Locataire, qui accepte, le bien immobilier désigné ci-après :": "Der Vermieter vermietet an den Mieter, der annimmt, das nachstehend bezeichnete Mietobjekt:",
+            "Nature du bien (appartement, villa, maison, studio…) :": "Art des Objekts (Wohnung, Villa, Haus, Studio...):",
+            "Adresse complète du bien :": "Vollständige Adresse des Objekts:",
+            "Étage / Numéro de lot :": "Etage / Lossnummer:",
+            "Superficie approximative (m²) :": "Ungefähre Fläche (m²):",
+            "Nombre de pièces :": "Anzahl der Räume:",
+            "Dépendances (cave, parking, terrasse…) :": "Nebenräume (Keller, Parkplatz, Terrasse...):",
+            "Numéro de titre foncier / Réf. cadastrale :": "Grundbuchnummer / Katasterref.:",
+            "ou professionnel, sauf accord écrit préalable du Bailleur.": "oder berufliche Nutzung, es sei denn, der Vermieter stimmt schriftlich zu.",
+            "ARTICLE 2 — DURÉE DU BAIL": "ARTIKEL 2 — MIETDAUER",
+            "Le présent bail est conclu pour une durée de trois (3) années, à compter du :": "Dieser Mietvertrag wird für eine Dauer von drei (3) Jahren abgeschlossen, beginnend ab:",
+            "Date de prise d'effet :": "Beginndatum:",
+            "Date d'échéance :": "Ablaufdatum:",
+            "législation marocaine.": "marokkanisches Recht.",
+            "ARTICLE 3 — LOYER ET CHARGES": "ARTIKEL 3 — MIETZINS UND NEBENKOSTEN",
+            "Le présent bail est consenti et accepté moyennant un loyer mensuel fixé à :": "Dieser Mietvertrag wird gegen einen monatlichen Mietzins in Höhe von erteilt und angenommen:",
+            "Loyer mensuel hors charges :": "Monatlicher Mietzins ohne Nebenkosten:",
+            "autre moyen convenu entre les parties.": "anderer zwischen den Parteien vereinbarter Zahlungsweg.",
+            "ARTICLE 4 — DÉPÔT DE GARANTIE": "ARTIKEL 4 — KAUTION",
+            "un dépôt de garantie correspondant à :": "eine Kaution in Höhe von:",
+            "Montant du dépôt de garantie :": "Kautionshöhe:",
+            "et imputables au Locataire.": "und dem Mieter zuzurechnen sind.",
+            "ARTICLE 5 — HONORAIRES D'AGENCE": "ARTIKEL 5 — PROVISION",
+            "SQUARE METER sont fixés comme suit :": "SQUARE METER wie folgt festgelegt:",
+            "Honoraires à la charge du Bailleur :": "Provision des Vermieters:",
+            "Honoraires à la charge du Locataire :": "Provision des Mieters:",
+            "résiliation anticipée du bail, quelle qu'en soit la causa.": "vorzeitige Kündigung des Mietvertrags, gleich aus welchem Grund.",
+            "ARTICLE 6 — OBLIGATIONS DU LOCATAIRE": "ARTIKEL 6 — PFLICHTEN DES MIETERS",
+            "Le Locataire s'engage notamment à :": "Der Mieter verpflichtet sich insbesondere zu:",
+            "pouvoir en changer la destination ;": "seine Bestimmung ändern zu dürfen;",
+            "législation marocaine applicable ;": "anwendbares marokkanisches Recht;",
+            "écrite préalable du Bailleur ;": "schriftliche Zustimmung des Vermieters;",
+            "ARTICLE 7 — OBLIGATIONS DU BAILLEUR": "ARTIKEL 7 — PFLICHTEN DES VERMIETERS",
+            "Le Bailleur s'engage notamment à :": "Der Vermieter verpflichtet sich insbesondere zu:",
+            "d'habitabilité ;": "der Bewohnbarkeit;",
+            "usages et la législation marocaine applicable ;": "Gepflogenheiten und anwendbares marokkanisches Recht;",
+            "ARTICLE 8 — ÉTAT DES LIEUX": "ARTIKEL 8 — BESCHAFFENHEITSVERZEICHNIS",
+            "mandatés, à la date de remise des clés. Cet état des lieux fera partie intégrante du présent bail et est joint en Annexe": "bevollmächtigten Vertreter am Tag der Schlüsselübergabe. Dieses Beschaffenheitsverzeichnis ist Bestandteil dieses Mietvertrags und wird als Anlage",
+            "ARTICLE 9 — RÉSILIATION ET CONGÉ": "ARTIKEL 9 — KÜNDIGUNG",
+            "Le Locataire peut mettre fin au présent bail à l'expiration de sa durée en notifiant son congé au Bailleur par lettre": "Der Mieter kann den Mietvertrag bei Ablauf der Vertragsdauer kündigen, indem er dem Vermieter ein registriertes",
+            "recommandée avec accusé de réception, au moins trois (3) mois avant la date d'échéance.": "Schreiben mit Empfangsbestätigung zustellt, mindestens drei (3) Monate vor Ablauf des Mietvertrags.",
+            "l'absence d'état des lieux de sortie signé par les deux parties, le bien sera présumé avoir été rendu en bon état, sauf": "Fehlen eines von beiden Parteien unterzeichneten Auszugsverzeichnisses wird vermutet, dass das Objekt in ordnungsgemäßem Zustand zurückgegeben wurde, es sei denn,",
+            "preuve contraire apportée par le Bailleur.": "der Vermieter erbringt den Gegenbeweis.",
+            "réparation.": "Schadensersatz.",
+            "ARTICLE 10 — CLAUSES DIVERSES": "ARTIKEL 10 — VERSCHEIDENE BESTIMMUNGEN",
+            "10.1 — Animaux domestiques": "10.1 — Haustiere",
+            "10.2 — Travaux du Bailleur": "10.2 — Arbeiten des Vermieters",
+            "10.3 — Assurance": "10.3 — Versicherung",
+            "10.4 — Solidarité": "10.4 — Gesamtschuld",
+            "10.5 — Clause attributive de juridiction": "10.5 — Gerichtsstandsklausel",
+            "Le Bailleur": "Der Vermieter",
+            "(Lu et approuvé)": "(Gelesen und genehmigt)",
+            "Signature :": "Unterschrift:",
+            "Le(s) Locataire(s)": "Der/Die Mieter",
+            "Signature et cachet :": "Unterschrift und Stempel:",
+            "ANNEXE — ÉTAT DES LIEUX D'ENTRÉE": "ANLAGE — EINZUGSVERZEICHNIS",
+            "Adresse du bien :": "Adresse des Objekts:",
+            "Date d'entrée :": "Einzugsdatum:",
+            "Heure :": "Uhrzeit:",
+            "Relevé compteur eau :": "Wasserzählerstand:",
+            "Relevé compteur électricité :": "Stromzählerstand:",
+            "Pièce": "Raum",
+            "Élément": "Element",
+            "État (Entrée)": "Zustand (Einzug)",
+            "État (Sortie)": "Zustand (Auszug)",
+            "Entrée / Hall": "Eingang / Flur",
+            "Revêtements sols": "Bodenbeläge",
+            "Revêtements murs": "Wandbeläge",
+            "Porte d'entrée / Serrure": "Eingangstür / Schloss",
+            "Salon / Séjour": "Wohnzimmer",
+            "Revêtements murs / plafond": "Wand- / Deckenbeläge",
+            "Menuiseries / vitres": "Holzarbeiten / Fenster",
+            "Chambre(s)": "Schlafzimmer",
+            "Volets / portes": "Fensterläden / Türen",
+            "Cuisine": "Küche",
+            "Revêtements sols / murs": "Boden- / Wandbeläge",
+            "Équipements (placard, évier…)": "Ausstattung (Schrank, Spüle...)",
+            "Salle de bain": "Badezimmer",
+            "Sanitaires (WC, douche, lavabo)": "Sanitäranlagen (WC, Dusche, Waschbecken)",
+            "Robinetterie": "Armaturen",
+            "Communs / Terrasse": "Gemeinschaftsflächen / Terrasse",
+            "État général": "Allgemeiner Zustand",
+            "Clés remises": "Übergebene Schlüssel",
+            "Nombre et type": "Anzahl und Art",
+            "Observations": "Bemerkungen",
+            "Fait à": "Ausgefertigt in",
+            "Les parties déclarent avoir pris connaissance de l'intégralité du présent contrat et de ses annexes, en comprendre": "Die Parteien erklären, den gesamten Vertrag und seine Anlagen zur Kenntnis genommen zu haben, deren Tragweite und",
+            "la portée et les effets, et les accepter sans réserve.": "Auswirkungen zu verstehen und sie bedingungslos anzunehmen.",
+        },
+        "it": {
+            "Bail d'Habitation 3 Ans": "Contratto di Locazione 3 Anni",
+            "Bail d'habitation - 3 ans": "Contratto di Locazione - 3 Anni",
+            "Entre les soussignés :": "Tra le parti sottoscritte:",
+            "Le Bailleur :": "Il Locatore:",
+            "Nom et prénom / Dénomination sociale :": "Nome e cognome / Ragione sociale:",
+            "CIN / Passeport / RC :": "CIN / Passaporto / RC:",
+            "Adresse complète :": "Indirizzo completo:",
+            "Téléphone :": "Telefono:",
+            "Adresse e-mail :": "Indirizzo e-mail:",
+            "ci-après dénommé « le Bailleur »,": 'di seguito denominato "Il Locatore",',
+            "Le(s) Locataire(s) :": "Il/Lo/i Conduttore/i:",
+            "Nom et prénom du locataire principal :": "Nome e cognome del conduttore principale:",
+            "CIN / Passeport :": "CIN / Passaporto:",
+            "Adresse actuelle :": "Indirizzo attuale:",
+            "Profession :": "Professione:",
+            "Le cas échéant, co-locataire(s) :": "Se applicabile, covenatario/i:",
+            "Nom et prénom / CIN :": "Nome e cognome / CIN:",
+            "ci-après dénommé(s) « le Locataire »,": 'di seguito denominato "Il Conduttore",',
+            "Intermédiaire :": "Intermediario:",
+            "ci-après dénommée « l'Agence »,": 'di seguito denominata "L\'Agenzia",',
+            "Il a été convenu et arrêté ce qui suit.": "È stato concordato e stabilito quanto segue.",
+            "ARTICLE 1 — DÉSIGNATION DU BIEN LOUÉ": "ARTICOLO 1 — DESIGNAZIONE DELL'IMMOBILE AFFITTATO",
+            "Le Bailleur donne en location au Locataire, qui accepte, le bien immobilier désigné ci-après :": "Il Locatore affitta al Conduttore, che accetta, l'immobile designato come segue:",
+            "Nature du bien (appartement, villa, maison, studio…) :": "Natura dell'immobile (appartamento, villa, casa, studio...):",
+            "Adresse complète du bien :": "Indirizzo completo dell'immobile:",
+            "Étage / Numéro de lot :": "Piano / Numero di lotto:",
+            "Superficie approximative (m²) :": "Superficie approssimativa (m²):",
+            "Nombre de pièces :": "Numero di stanze:",
+            "Dépendances (cave, parking, terrasse…) :": "Dipendenze (cantina, parcheggio, terrazza...):",
+            "Numéro de titre foncier / Réf. cadastrale :": "Numero di titolo fondiario / Rif. catastale:",
+            "ou professionnel, sauf accord écrit préalable du Bailleur.": "o professionale, salvo previo consenso scritto del Locatore.",
+            "ARTICLE 2 — DURÉE DU BAIL": "ARTICOLO 2 — DURATA DEL CONTRATTO",
+            "Le présent bail est conclu pour une durée de trois (3) années, à compter du :": "Il presente contratto è stipulato per una durata di tre (3) anni, a partire dal:",
+            "Date de prise d'effet :": "Data di decorrenza:",
+            "Date d'échéance :": "Data di scadenza:",
+            "législation marocaine.": "legislazione marocchina.",
+            "ARTICLE 3 — LOYER ET CHARGES": "ARTICOLO 3 — CANONE E SPESE",
+            "Le présent bail est consenti et accepté moyennant un loyer mensuel fixé à :": "Il presente contratto è concesso e accettato mediante un canone mensile fissato in:",
+            "Loyer mensuel hors charges :": "Canone mensile al netto delle spese:",
+            "autre moyen convenu entre les parties.": "altro mezzo concordato tra le parti.",
+            "ARTICLE 4 — DÉPÔT DE GARANTIE": "ARTICOLO 4 — DEPOSITO CAUZIONALE",
+            "un dépôt de garantie correspondant à :": "un deposito cauzionale pari a:",
+            "Montant du dépôt de garantie :": "Importo del deposito cauzionale:",
+            "et imputables au Locataire.": "e imputabili al Conduttore.",
+            "ARTICLE 5 — HONORAIRES D'AGENCE": "ARTICOLO 5 — COMPENSI DELL'AGENZIA",
+            "SQUARE METER sont fixés comme suit :": "SQUARE METER sono fissati come segue:",
+            "Honoraires à la charge du Bailleur :": "Compensi a carico del Locatore:",
+            "Honoraires à la charge du Locataire :": "Compensi a carico del Conduttore:",
+            "résiliation anticipée du bail, quelle qu'en soit la causa.": "risoluzione anticipata del contratto, qualunque sia la causa.",
+            "ARTICLE 6 — OBLIGATIONS DU LOCATAIRE": "ARTICOLO 6 — OBBLIGHI DEL CONDUTTORE",
+            "Le Locataire s'engage notamment à :": "Il Conduttore si impegna in particolare a:",
+            "pouvoir en changer la destination ;": "poterne cambiare la destinazione;",
+            "législation marocaine applicable ;": "legislazione marocchina applicabile;",
+            "écrite préalable du Bailleur ;": "autorizzazione scritta preventiva del Locatore;",
+            "ARTICLE 7 — OBLIGATIONS DU BAILLEUR": "ARTICOLO 7 — OBBLIGHI DEL LOCATORE",
+            "Le Bailleur s'engage notamment à :": "Il Locatore si impegna in particolare a:",
+            "d'habitabilité ;": "di abitabilità;",
+            "usages et la législation marocaine applicable ;": "consuetudini e legislazione marocchina applicabile;",
+            "ARTICLE 8 — ÉTAT DES LIEUX": "ARTICOLO 8 — STATO DEI LUOGHI",
+            "mandatés, à la date de remise des clés. Cet état des lieux fera partie intégrante du présent bail et est joint en Annexe": "autorizzati, alla data della consegna delle chiavi. Questo stato dei luoghi farà parte integrante del presente contratto ed è allegato come Annesso",
+            "ARTICLE 9 — RÉSILIATION ET CONGÉ": "ARTICOLO 9 — RECESSO E DISDETTA",
+            "Le Locataire peut mettre fin au présent bail à l'expiration de sa durée en notifiant son congé au Bailleur par lettre": "Il Conduttore può risolvere il presente contratto alla scadenza del termine comunicando il recesso al Locatore tramite raccomandata",
+            "recommandée avec accusé de réception, au moins trois (3) mois avant la date d'échéance.": "con ricevuta di ritorno, almeno tre (3) mesi prima della data di scadenza.",
+            "l'absence d'état des lieux de sortie signé par les deux parties, le bien sera présumé avoir été rendu en bon état, sauf": "l'assenza di uno stato dei luoghi di uscita firmato da entrambe le parti, si presume che l'immobile sia stato restituito in buone condizioni, salvo",
+            "preuve contraire apportée par le Bailleur.": "prova contraria fornita dal Locatore.",
+            "réparation.": "risarcimento.",
+            "ARTICLE 10 — CLAUSES DIVERSES": "ARTICOLO 10 — CLAUSOLE DIVERSE",
+            "10.1 — Animaux domestiques": "10.1 — Animali domestici",
+            "10.2 — Travaux du Bailleur": "10.2 — Lavori del Locatore",
+            "10.3 — Assurance": "10.3 — Assicurazione",
+            "10.4 — Solidarité": "10.4 — Solidarietà",
+            "10.5 — Clause attributive de juridiction": "10.5 — Clausola attributiva di giurisdizione",
+            "Le Bailleur": "Il Locatore",
+            "(Lu et approuvé)": "(Letto e approvato)",
+            "Signature :": "Firma:",
+            "Le(s) Locataire(s)": "Il/Lo/i Conduttore/i",
+            "Signature et cachet :": "Firma e timbro:",
+            "ANNEXE — ÉTAT DES LIEUX D'ENTRÉE": "ALLEGATO — STATO DEI LUOGHI ALL'INGRESSO",
+            "Adresse du bien :": "Indirizzo dell'immobile:",
+            "Date d'entrée :": "Data di ingresso:",
+            "Heure :": "Ora:",
+            "Relevé compteur eau :": "Lettura contatore acqua:",
+            "Relevé compteur électricité :": "Lettura contatore elettricità:",
+            "Pièce": "Stanza",
+            "Élément": "Elemento",
+            "État (Entrée)": "Stato (Ingresso)",
+            "État (Sortie)": "Stato (Uscita)",
+            "Entrée / Hall": "Ingresso / Corridoio",
+            "Revêtements sols": "Rivestimenti pavimenti",
+            "Revêtements murs": "Rivestimenti pareti",
+            "Porte d'entrée / Serrure": "Porta d'ingresso / Serratura",
+            "Salon / Séjour": "Salotto / Soggiorno",
+            "Revêtements murs / plafond": "Rivestimenti pareti / soffitto",
+            "Menuiseries / vitres": "Falegnameria / vetri",
+            "Chambre(s)": "Camera/i",
+            "Volets / portes": "Persiane / porte",
+            "Cuisine": "Cucina",
+            "Revêtements sols / murs": "Rivestimenti pavimenti / pareti",
+            "Équipements (placard, évier…)": "Attrezzature (armadio, lavandino...)",
+            "Salle de bain": "Bagno",
+            "Sanitaires (WC, douche, lavabo)": "Servizi igienici (WC, doccia, lavandino)",
+            "Robinetterie": "Rubinetteria",
+            "Communs / Terrasse": "Parti comuni / Terrazza",
+            "État général": "Stato generale",
+            "Clés remises": "Chiavi consegnate",
+            "Nombre et type": "Numero e tipo",
+            "Observations": "Osservazioni",
+            "Fait à": "Fatto a",
+            "Les parties déclarent avoir pris connaissance de l'intégralité du présent contrat et de ses annexes, en comprendre": "Le parti dichiarano di aver preso visione dell'intero contratto e dei suoi allegati, di comprenderne",
+            "la portée et les effets, et les accepter sans réserve.": "la portata e gli effetti, e di accettarli senza riserve.",
+        },
+    },
+}
+
+# Text color (dark blue matching original template)
+TEXT_COLOR = fitz.pdfcolor["black"]  # Using black for better compatibility
+
+
+import re
+def normalize_text(text):
+    """Normalize text for matching: strip, collapse whitespace, fix encoding issues."""
+    normalized = re.sub(r'\s+', ' ', text.strip())
+    # Fix common PDF font encoding errors where superscript chars replace accented chars
+    # In this PDF, ² (U+00B2) is used where É (U+00C9) should be
+    normalized = normalized.replace('\u00b2', 'É')
+    # Fix ° (U+00B0) used where à (U+00E0) should be
+    normalized = normalized.replace('\u00b0', 'à')
+    return normalized
+
+
+def normalize_for_match(text):
+    """Full normalization for dictionary matching."""
+    normalized = normalize_text(text)
+    # Strip leading bullet chars: •, –, -, *, □
+    normalized = re.sub(r'^[\u2022\u2013\u2014\-\*\u25a1\u00b7\u2023\u25aa\u25ab\u2043\u2219\uf0b7]+\s*', '', normalized)
+    # Strip trailing punctuation that may/may not be in dictionary
+    normalized = re.sub(r'[,.:;]+$', '', normalized).strip()
+    # Remove underscores AND any text that follows them (form field content)
+    # e.g. "Montant : _____ MAD" → "Montant :"
+    no_underscores = re.sub(r'_+\s*\S*$', '', normalized).strip()
+    # Also remove standalone underscore sequences mid-text
+    no_underscores = re.sub(r'_+', '', no_underscores)
+    return re.sub(r'\s+', ' ', no_underscores).strip()
+
+
+def fix_encoding(text):
+    """Fix PDF font encoding issues by replacing common wrong chars with correct ones."""
+    # The Calibri font in this PDF sometimes maps:
+    # é (U+00E9) → è (U+00E8) in certain contexts
+    # We can't blindly replace è→é because è is used correctly elsewhere
+    # Instead, build a list of known correct words/phrases and try matching with variants
+    return text
+
+
+def build_variants(text):
+    """Build common encoding variants of text for matching."""
+    variants = set()
+    variants.add(text)
+    
+    # Replace é↔è (common Calibri encoding swap)
+    v1 = text.replace('\u00e9', '\u00e8').replace('\u00e8', '\u00e9')
+    variants.add(v1)
+    
+    # Replace â↔à 
+    v2 = text.replace('\u00e2', '\u00e0').replace('\u00e0', '\u00e2')
+    variants.add(v2)
+    
+    # Replace all accented chars with their base forms as last resort
+    # (not ideal but helps with matching)
+    
+    return variants
+
+def build_normalized_dict(translations_dict):
+    """Pre-build a normalized lookup dict for fast matching."""
+    norm_dict = {}
+    for key, value in translations_dict.items():
+        # Store with various normalizations
+        stripped = key.strip()
+        normalized = normalize_text(stripped)
+        nf = normalize_for_match(stripped)
+        no_trail = re.sub(r'[\s,.:;]+$', '', stripped).strip()
+        nf_trail = re.sub(r'[\s,.:;]+$', '', nf).strip()
+
+        for k in [stripped, normalized, nf, no_trail, nf_trail]:
+            if k and k not in norm_dict:
+                norm_dict[k] = value
+    return norm_dict
+
+
+def match_dict(text, translations_dict, norm_dict=None):
+    """Try to match text against dictionary. Returns (translation, matched_key) or (None, None)."""
+    if norm_dict is None:
+        norm_dict = build_normalized_dict(translations_dict)
+
+    # Try all encoding variants
+    for variant in build_variants(text):
+        # Exact match
+        if variant in translations_dict:
+            return translations_dict[variant], variant
+
+        # Stripped match
+        stripped = variant.strip()
+        if stripped in translations_dict:
+            return translations_dict[stripped], stripped
+
+        # Normalized whitespace match
+        normalized = normalize_text(variant)
+        if normalized in translations_dict:
+            return translations_dict[normalized], normalized
+
+        # Underscore-stripped match
+        nf = normalize_for_match(variant)
+        if nf in translations_dict:
+            return translations_dict[nf], nf
+
+        # Strip trailing punctuation (also with preceding space: " ;", " :", " .")
+        no_trail = re.sub(r'[\s,.:;]+$', '', stripped).strip()
+        if no_trail in translations_dict:
+            return translations_dict[no_trail], no_trail
+        no_trail_norm = normalize_text(no_trail)
+        if no_trail_norm in translations_dict:
+            return translations_dict[no_trail_norm], no_trail_norm
+
+        # Strip trailing punctuation from normalized form
+        nf_trail = re.sub(r'[\s,.:;]+$', '', nf).strip()
+        if nf_trail in translations_dict:
+            return translations_dict[nf_trail], nf_trail
+
+        # Try pre-normalized dictionary
+        for k in [stripped, normalized, nf, no_trail, nf_trail]:
+            if k in norm_dict:
+                return norm_dict[k], k
+
+    # Try with different unicode dashes (em dash vs hyphen vs en dash)
+    for dash_char in ['—', '–', '-', '\u2014', '\u2013']:
+        variant = text.replace(dash_char, '—')
+        if variant in translations_dict:
+            return translations_dict[variant], variant
+        variant_nt = re.sub(r'[\s,.:;]+$', '', variant).strip()
+        if variant_nt in translations_dict:
+            return translations_dict[variant_nt], variant_nt
+        if variant in norm_dict:
+            return norm_dict[variant], variant
+        if variant_nt in norm_dict:
+            return norm_dict[variant_nt], variant_nt
+
+    # PREFIX MATCHING: if text is a prefix of a dict key (truncated PDF text)
+    # Find the longest dictionary key that starts with the normalized text
+    normalized = normalize_text(text).strip()
+    nf = normalize_for_match(text).strip()
+    best_prefix_match = None
+    best_prefix_key = None
+    best_prefix_len = 0
+    for dk, dv in translations_dict.items():
+        dk_norm = normalize_text(dk).strip()
+        # Check if the text is a prefix of the dict key
+        if len(normalized) >= 15 and dk_norm.startswith(normalized):
+            if len(normalized) > best_prefix_len:
+                best_prefix_match = dv
+                best_prefix_key = dk
+                best_prefix_len = len(normalized)
+        # Also check with nf (stripped bullets etc)
+        if len(nf) >= 15 and dk_norm.startswith(nf):
+            if len(nf) > best_prefix_len:
+                best_prefix_match = dv
+                best_prefix_key = dk
+                best_prefix_len = len(nf)
+        # Check if the dict key is a prefix of the text (text is longer)
+        if len(dk_norm) >= 20 and normalized.startswith(dk_norm):
+            if len(dk_norm) > best_prefix_len:
+                best_prefix_match = dv
+                best_prefix_key = dk
+                best_prefix_len = len(dk_norm)
+
+    if best_prefix_match is not None:
+        return best_prefix_match, best_prefix_key
+
+    return None, None
+
+
+def extract_text_lines(page):
+    """Extract text lines with positions from a page, grouping spans into lines."""
+    blocks = page.get_text("dict", flags=fitz.TEXT_PRESERVE_WHITESPACE)["blocks"]
+    lines = []
+    for block in blocks:
+        if block["type"] == 0:  # Text block
+            for line in block["lines"]:
+                line_text = ""
+                line_bbox = None
+                line_origin = None
+                line_size = 0
+                line_font = ""
+
+                for span in line["spans"]:
+                    line_text += span["text"]
+                    if line_bbox is None:
+                        line_bbox = span["bbox"]
+                        line_origin = span["origin"]
+                    else:
+                        line_bbox = (
+                            min(line_bbox[0], span["bbox"][0]),
+                            min(line_bbox[1], span["bbox"][1]),
+                            max(line_bbox[2], span["bbox"][2]),
+                            max(line_bbox[3], span["bbox"][3]),
+                        )
+                    line_size = max(line_size, span["size"])
+                    if not line_font:
+                        line_font = span["font"]
+
+                if line_text.strip():
+                    lines.append({
+                        "text": line_text,
+                        "bbox": line_bbox,
+                        "font": line_font,
+                        "size": line_size,
+                        "origin": line_origin,
+                    })
+    return lines
+
+
+def reassemble_paragraphs(lines, translations_dict):
+    """
+    Reassemble split lines into paragraphs and match against dictionary.
+
+    Strategy:
+    1. Try matching each line individually (exact / normalized).
+    2. If no match, greedily combine consecutive lines (up to MAX_JOIN)
+       and try matching the combined text.
+    3. When a match is found, consume all joined lines and record the
+       combined bounding box + first line origin.
+    4. If nothing matches after MAX_JOIN attempts, keep the line as-is.
+
+    Returns a list of dicts:
+        { "text": original, "translation": translated_or_None,
+          "bbox": combined_bbox, "origin": first_origin,
+          "size": font_size, "line_count": N }
+    """
+    MAX_JOIN = 12  # max lines to merge into one paragraph
+    result = []
+    i = 0
+    norm_dict = build_normalized_dict(translations_dict)
+
+    while i < len(lines):
+        line = lines[i]
+
+        # --- single-line match ---
+        translation, _ = match_dict(line["text"], translations_dict, norm_dict)
+        if translation is not None:
+            result.append({
+                "text": line["text"],
+                "translation": translation,
+                "bbox": line["bbox"],
+                "origin": line["origin"],
+                "size": line["size"],
+                "line_count": 1,
+            })
+            i += 1
+            continue
+
+        # --- try combining with next lines ---
+        best_translation = None
+        best_key = None
+        best_count = 1  # how many lines consumed
+        best_combined = line["text"]
+        best_bbox = line["bbox"]
+
+        combined_text = line["text"]
+        combined_bbox = line["bbox"]
+        first_origin = line["origin"]
+        font_size = line["size"]
+
+        for j in range(1, min(MAX_JOIN, len(lines) - i)):
+            nxt = lines[i + j]
+            # Join with a space
+            combined_text = combined_text.strip() + " " + nxt["text"].strip()
+            # Expand bounding box
+            combined_bbox = (
+                min(combined_bbox[0], nxt["bbox"][0]),
+                min(combined_bbox[1], nxt["bbox"][1]),
+                max(combined_bbox[2], nxt["bbox"][2]),
+                max(combined_bbox[3], nxt["bbox"][3]),
+            )
+
+            translation, key = match_dict(combined_text, translations_dict, norm_dict)
+            if translation is not None:
+                best_translation = translation
+                best_key = key
+                best_count = j + 1
+                best_combined = combined_text.strip()
+                best_bbox = combined_bbox
+
+        if best_translation is not None:
+            result.append({
+                "text": best_combined,
+                "translation": best_translation,
+                "bbox": best_bbox,
+                "origin": first_origin,
+                "size": font_size,
+                "line_count": best_count,
+            })
+            i += best_count
+            continue
+
+        # --- no match found – keep original line untranslated ---
+        result.append({
+            "text": line["text"],
+            "translation": None,
+            "bbox": line["bbox"],
+            "origin": line["origin"],
+            "size": line["size"],
+            "line_count": 1,
+        })
+        i += 1
+
+    return result
+
+
+def recreate_pdf(input_path, output_path, translations_dict):
+    """Recreate a PDF with translated text, removing original French text."""
+    src_doc = fitz.open(input_path)
+    dst_doc = fitz.open()
+
+    for page_num in range(len(src_doc)):
+        src_page = src_doc[page_num]
+        text_lines = extract_text_lines(src_page)
+        paragraphs = reassemble_paragraphs(text_lines, translations_dict)
+
+        # Create a new page with same size
+        rect = src_page.rect
+        dst_page = dst_doc.new_page(width=rect.width, height=rect.height)
+
+        # Copy the full page (graphics, images, forms) from source
+        dst_page.show_pdf_page(rect, src_doc, page_num)
+
+        # Redact all text areas with white fill to remove original text
+        for para in paragraphs:
+            bbox = fitz.Rect(para["bbox"])
+            bbox = bbox + (-1, -1, 1, 1)
+            dst_page.add_redact_annot(bbox, fill=(1, 1, 1))
+
+        # Apply redactions
+        dst_page.apply_redactions(images=fitz.PDF_REDACT_IMAGE_NONE)
+
+        # Add translated text
+        for para in paragraphs:
+            translated = para["translation"] if para["translation"] is not None else para["text"]
+
+            # For single-line or short text, use insert_text
+            if para["line_count"] <= 2 or len(translated) < 120:
+                dst_page.insert_text(
+                    fitz.Point(para["origin"][0], para["origin"][1]),
+                    translated,
+                    fontname="helv",
+                    fontsize=para["size"],
+                    color=(0.13, 0.15, 0.35),
+                )
+            else:
+                # For long paragraphs, use insert_textbox with word-wrap
+                bbox_rect = fitz.Rect(para["bbox"])
+                # Expand width to right margin, keep original left/height
+                bbox_rect.x1 = rect.width - 30
+                bbox_rect.y1 = bbox_rect.y0 + (para["line_count"] * para["size"] * 1.5) + 20
+
+                rc = dst_page.insert_textbox(
+                    bbox_rect,
+                    translated,
+                    fontname="helv",
+                    fontsize=para["size"],
+                    color=(0.13, 0.15, 0.35),
+                    align=0,  # left align
+                )
+                # If textbox overflows, fall back to insert_text (truncated)
+                if rc < 0:
+                    dst_page.insert_text(
+                        fitz.Point(para["origin"][0], para["origin"][1]),
+                        translated,
+                        fontname="helv",
+                        fontsize=para["size"],
+                        color=(0.13, 0.15, 0.35),
+                    )
+
+    # Save with garbage collection and compression
+    dst_doc.save(output_path, garbage=4, deflate=True, clean=True)
+    src_doc.close()
+    dst_doc.close()
+
+
+def main():
+    template = sys.argv[1] if len(sys.argv) > 1 else "bail-1-an"
+    lang = sys.argv[2] if len(sys.argv) > 2 else "en"
+    
+    if template not in TRANSLATIONS:
+        print(f"Unknown template: {template}")
+        print(f"Available templates: {list(TRANSLATIONS.keys())}")
+        sys.exit(1)
+    
+    if lang not in TRANSLATIONS[template]:
+        print(f"Unknown language: {lang}")
+        print(f"Available languages: {list(TRANSLATIONS[template].keys())}")
+        sys.exit(1)
+    
+    # Paths
+    base_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    if template == "bail-1-an":
+        input_pdf = os.path.join(base_dir, "public", "templates", "SQUARE_METER_template_Bail_Habitation_1_An.pdf")
+        output_dir = os.path.join(base_dir, "public", "templates", "langues", "bail-habitation-1-an")
+    else:
+        input_pdf = os.path.join(base_dir, "public", "templates", "SQUARE_METER_template_Bail_Habitation_3_Ans.pdf")
+        output_dir = os.path.join(base_dir, "public", "templates", "langues", "bail-habitation-3-ans")
+    
+    os.makedirs(output_dir, exist_ok=True)
+    if template == "bail-1-an":
+        output_pdf = os.path.join(output_dir, f"Bail_Habitation_1_An_{lang.upper()}.pdf")
+    else:
+        output_pdf = os.path.join(output_dir, f"Bail_Habitation_3_Ans_{lang.upper()}.pdf")
+    
+    print(f"Translating {template} to {lang}...")
+    print(f"Input: {input_pdf}")
+    print(f"Output: {output_pdf}")
+    
+    recreate_pdf(input_pdf, output_pdf, TRANSLATIONS[template][lang])
+    
+    # Check file size
+    input_size = os.path.getsize(input_pdf) / 1024
+    output_size = os.path.getsize(output_pdf) / 1024
+    print(f"Input size: {input_size:.1f} KB")
+    print(f"Output size: {output_size:.1f} KB")
+    print(f"Size change: {((output_size - input_size) / input_size * 100):+.1f}%")
+
+
+if __name__ == "__main__":
+    main()

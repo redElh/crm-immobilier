@@ -28,8 +28,58 @@ import {
 import { socialService } from '../../../services/socialService';
 import { PermissionLocked } from '../confidentiality/PermissionLocked';
 import { usePermission } from '../../../hooks/usePermission';
+import { useStageChrome } from '../calendar/useStageChrome';
+import { StagePanel, OrbIcon, STAGE_HUES } from '../../dashboard/Stage';
+import type { StageHue } from '../../dashboard/Stage';
+import { VariableChip } from './PropertyDetails';
 
 const BUFFER_PLATFORMS: SocialPlatform[] = ['facebook', 'instagram', 'linkedin'];
+
+const PLATFORM_STAGE_HUE: Record<string, StageHue> = {
+  facebook: { a: '#60A5FA', b: '#2563EB', glow: 'rgba(96,165,250,0.45)', line: '#60A5FA' },
+  instagram: { a: '#F472B6', b: '#DB2777', glow: 'rgba(244,114,182,0.45)', line: '#F472B6' },
+  linkedin: { a: '#38BDF8', b: '#0369A1', glow: 'rgba(56,189,248,0.45)', line: '#38BDF8' },
+};
+
+const SLATE_STAGE_HUE: StageHue = { a: '#94A3B8', b: '#475569', glow: 'rgba(148,163,184,0.35)', line: '#94A3B8' };
+void SLATE_STAGE_HUE;
+
+function PlatformIconGlyph({ platform }: { platform: SocialPlatform }) {
+  return <>{platformIcons[platform]}</>;
+}
+
+/* Stage switch — glossy violet track, spring-loaded glowing knob */
+function StageSwitch({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      onClick={() => onChange(!checked)}
+      className="relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full border transition-all duration-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/40"
+      style={{
+        borderColor: checked ? 'rgba(139,124,255,0.55)' : 'rgba(148,163,184,0.25)',
+        backgroundImage: checked
+          ? 'linear-gradient(145deg, #8B7CFF, #5646C9)'
+          : 'linear-gradient(180deg, rgba(148,163,184,0.18), rgba(100,116,139,0.12))',
+        boxShadow: checked
+          ? '0 0 18px -2px rgba(124,92,255,0.65), inset 0 1px 0 rgba(255,255,255,0.30)'
+          : 'inset 0 2px 5px rgba(0,0,0,0.28)',
+      }}
+    >
+      <motion.span
+        animate={{ x: checked ? 22 : 3 }}
+        transition={{ type: 'spring', stiffness: 480, damping: 30 }}
+        className="pointer-events-none block h-[18px] w-[18px] rounded-full bg-white"
+        style={{
+          boxShadow: checked
+            ? '0 0 10px rgba(167,139,250,0.9), 0 2px 4px rgba(0,0,0,0.35)'
+            : '0 2px 4px rgba(0,0,0,0.35)',
+        }}
+      />
+    </button>
+  );
+}
 
 function resolveTemplate(text: string | undefined, property: Property): string {
   if (!text) return '';
@@ -134,6 +184,7 @@ interface PropertySocialProps {
 export const PropertySocial = ({ property, onShowPreviewChange, onShowVariablesChange, onPreviewTextChange, isGerant = false }: PropertySocialProps) => {
   const { toast } = useToast();
   const canPublish = usePermission('biens-commercial-publier');
+  const { staged, dark } = useStageChrome();
 
   const [connectedAccounts, setConnectedAccounts] = useState<SocialAccount[]>([
     { id: 'fb-1', platform: 'facebook', label: 'Facebook', connected: false, status: 'disconnected' },
@@ -291,6 +342,377 @@ export const PropertySocial = ({ property, onShowPreviewChange, onShowVariablesC
 
   const platformAccounts = selectedAccounts.filter(a => a.platform === selectedPlatform);
 
+  /* ===================================================================
+     STAGE variant — Mission Control social bay
+  =================================================================== */
+  if (staged) {
+    const STATUS_STAGE: Record<ShareStatus, { fg: string; hue: StageHue }> = {
+      published: { fg: '#6EE7B7', hue: STAGE_HUES.emerald },
+      pending: { fg: '#FCD34D', hue: STAGE_HUES.amber },
+      scheduled: { fg: '#7DD3FC', hue: STAGE_HUES.sky },
+      failed: { fg: '#FDA4AF', hue: { a: '#FB7185', b: '#E11D48', glow: 'rgba(251,113,133,0.45)', line: '#FB7185' } },
+      draft: { fg: '#94A3B8', hue: { a: '#94A3B8', b: '#475569', glow: 'rgba(148,163,184,0.35)', line: '#94A3B8' } },
+    };
+
+    const cellBorder = dark ? 'rgba(255,255,255,0.07)' : 'rgba(15,23,42,0.06)';
+    const cellBg = dark ? 'rgba(255,255,255,0.02)' : 'rgba(255,255,255,0.55)';
+
+    return (
+      <PermissionLocked allowed={canPublish} label="Publication sociale verrouillée">
+        <div className="space-y-5">
+          {/* ── Partage Social ───────────────────────────────────────── */}
+          <StagePanel title="Partage Social" icon={Share2} hue={STAGE_HUES.violet}
+            badge={<span className={`text-[10px] font-bold uppercase tracking-[0.14em] ${dark ? 'text-slate-500' : 'text-teal-900/40'}`}>Buffer</span>}
+          >
+            <p className={`mb-4 text-xs ${dark ? 'text-slate-400' : 'text-teal-900/55'}`}>
+              Publiez automatiquement vos biens sur les réseaux sociaux
+            </p>
+
+            {bufferLoading && (
+              <div className="mb-3 flex items-center gap-2 text-xs text-slate-400">
+                <span className="h-3 w-3 animate-spin rounded-full border-2 border-indigo-400 border-t-transparent" />
+                Connexion à Buffer…
+              </div>
+            )}
+
+            {/* account rows */}
+            <div className="mb-5 space-y-2">
+              {connectedAccounts.map(account => {
+                const pHue = PLATFORM_STAGE_HUE[account.platform] || STAGE_HUES.sky;
+                return (
+                  <div
+                    key={account.id}
+                    className="flex items-center justify-between gap-3 rounded-xl border p-3 transition-all duration-200 hover:-translate-y-px"
+                    style={{
+                      borderColor: account.connected ? `${pHue.a}35` : cellBorder,
+                      background: account.connected
+                        ? `linear-gradient(145deg, ${pHue.a}0C, transparent)`
+                        : cellBg,
+                      boxShadow: account.connected ? `inset 0 1px 0 rgba(255,255,255,0.06)` : 'none',
+                    }}
+                  >
+                    <div className="flex min-w-0 items-center gap-3">
+                      <OrbIcon icon={(props: any) => <PlatformIconGlyph platform={account.platform} {...props} />} hue={pHue} size={36} radius={11} />
+                      <div className="min-w-0">
+                        <p className={`text-sm font-bold ${dark ? 'text-white' : 'text-slate-900'}`}>
+                          {SOCIAL_PLATFORM_LABELS[account.platform]}
+                        </p>
+                        {account.connected ? (
+                          <p className="flex items-center gap-1 text-xs font-medium" style={{ color: STAGE_HUES.emerald.a }}>
+                            <CheckCircle size={11} />
+                            Connecté{account.profileName ? ` · ${account.profileName}` : ''}
+                          </p>
+                        ) : (
+                          <p className="flex items-center gap-1 text-xs" style={{ color: STAGE_HUES.amber.a }}>
+                            <AlertCircle size={11} />
+                            Non connecté
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => toggleAccount(account.id)}
+                      className="shrink-0 rounded-lg border px-3 py-1.5 text-[11px] font-bold transition-all duration-200 active:scale-95"
+                      style={account.connected ? {
+                        color: dark ? '#FDA4AF' : '#BE123C',
+                        borderColor: 'rgba(251,113,133,0.30)',
+                        backgroundImage: 'linear-gradient(145deg, rgba(251,113,133,0.08), transparent)',
+                      } : {
+                        color: pHue.a,
+                        borderColor: `${pHue.a}40`,
+                        backgroundImage: `linear-gradient(145deg, ${pHue.a}14, transparent)`,
+                      }}
+                    >
+                      {account.connected ? 'Déconnecter' : 'Connecter'}
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* automation switches */}
+            <div className="space-y-3" style={{ borderTop: `1px solid ${cellBorder}`, paddingTop: 14 }}>
+              <p className={`text-[10px] font-bold uppercase tracking-[0.18em] ${dark ? 'text-slate-500' : 'text-teal-900/45'}`}>
+                Publication automatique
+              </p>
+
+              <div className="flex items-center justify-between gap-3">
+                <span className={`flex items-center gap-2 text-sm ${dark ? 'text-slate-300' : 'text-slate-600'}`}>
+                  <CheckCircle size={13} className={dark ? 'text-slate-500' : 'text-teal-900/40'} />
+                  Publier automatiquement lors de l'ajout ou de la modification du bien
+                </span>
+                <StageSwitch checked={autoPublish} onChange={setAutoPublish} />
+              </div>
+
+              <div className="flex items-center justify-between gap-3">
+                <span className={`flex items-center gap-2 text-sm ${dark ? 'text-slate-300' : 'text-slate-600'}`}>
+                  <Calendar size={13} className={dark ? 'text-slate-500' : 'text-teal-900/40'} />
+                  Programmer la publication
+                </span>
+                <StageSwitch checked={schedulePublish} onChange={setSchedulePublish} />
+              </div>
+
+              <AnimatePresence>
+                {schedulePublish && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className="flex items-center gap-3 overflow-hidden pl-5"
+                  >
+                    <input
+                      type="date"
+                      value={scheduledDate}
+                      onChange={e => setScheduledDate(e.target.value)}
+                      className="h-9 rounded-xl px-3 text-sm text-slate-200 transition-all focus:border-indigo-400/50 focus:outline-none focus:ring-2 focus:ring-indigo-400/15 [color-scheme:dark]"
+                      style={{ backgroundColor: 'rgba(255,255,255,0.04)', borderColor: 'rgba(255,255,255,0.10)', borderWidth: 1, borderStyle: 'solid' }}
+                    />
+                    <input
+                      type="time"
+                      value={scheduledTime}
+                      onChange={e => setScheduledTime(e.target.value)}
+                      className="h-9 rounded-xl px-3 text-sm text-slate-200 transition-all focus:border-indigo-400/50 focus:outline-none focus:ring-2 focus:ring-indigo-400/15 [color-scheme:dark]"
+                      style={{ backgroundColor: 'rgba(255,255,255,0.04)', borderColor: 'rgba(255,255,255,0.10)', borderWidth: 1, borderStyle: 'solid' }}
+                    />
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          </StagePanel>
+
+          {/* ── Contenu du post ──────────────────────────────────────── */}
+          <StagePanel title="Contenu du post" icon={Image} hue={STAGE_HUES.fuchsia}>
+            <p className={`mb-4 text-xs ${dark ? 'text-slate-400' : 'text-teal-900/55'}`}>
+              Personnalisez le message pour chaque plateforme
+            </p>
+
+            {/* platform pills */}
+            <div className="mb-4 flex flex-wrap items-center gap-2">
+              {BUFFER_PLATFORMS.map(platform => {
+                const isActive = selectedPlatform === platform;
+                const pHue = PLATFORM_STAGE_HUE[platform] || STAGE_HUES.sky;
+                return (
+                  <button
+                    key={platform}
+                    onClick={() => setSelectedPlatform(platform)}
+                    className={`relative flex items-center gap-2 rounded-xl border px-3.5 py-2 text-sm font-bold transition-all duration-200 ${
+                      isActive ? 'border-transparent text-white' : ''
+                    }`}
+                    style={isActive ? {
+                      backgroundImage: `linear-gradient(145deg, ${pHue.a}, ${pHue.b})`,
+                      boxShadow: `inset 0 1px 0 rgba(255,255,255,0.35), 0 8px 22px -8px ${pHue.glow}`,
+                    } : {
+                      color: dark ? 'rgba(226,232,240,0.65)' : 'rgba(15,23,42,0.55)',
+                      borderColor: cellBorder,
+                      backgroundColor: cellBg,
+                    }}
+                  >
+                    <span style={isActive ? undefined : { color: pHue.a }}>{platformIcons[platform]}</span>
+                    {SOCIAL_PLATFORM_LABELS[platform]}
+                  </button>
+                );
+              })}
+            </div>
+
+            <HashtagAutocomplete
+              stage
+              dark={dark}
+              value={templates[selectedPlatform] || ''}
+              onChange={value => handleTemplateChange(selectedPlatform, value)}
+            />
+
+            {/* action pills */}
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              {[
+                {
+                  label: showPreview ? 'Masquer aperçu' : 'Aperçu',
+                  icon: <Eye size={12} />,
+                  active: showPreview,
+                  onClick: () => setShowPreview(!showPreview),
+                  hue: STAGE_HUES.sky,
+                },
+                {
+                  label: 'Variables',
+                  icon: <Plus size={12} />,
+                  active: showVariables,
+                  onClick: () => setShowVariables(!showVariables),
+                  hue: STAGE_HUES.violet,
+                },
+                {
+                  label: 'Réinitialiser',
+                  icon: <HelpCircle size={12} />,
+                  active: false,
+                  onClick: () => setTemplates(prev => ({
+                    ...prev,
+                    [selectedPlatform]: prev[selectedPlatform] === DEFAULT_FACEBOOK_TEMPLATE
+                      ? DEFAULT_INSTAGRAM_TEMPLATE
+                      : DEFAULT_FACEBOOK_TEMPLATE,
+                  })),
+                  hue: STAGE_HUES.amber,
+                },
+              ].map((b, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  onClick={b.onClick}
+                  className="inline-flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-bold transition-all duration-200 active:scale-95"
+                  style={b.active ? {
+                    color: b.hue.a,
+                    borderColor: `${b.hue.a}55`,
+                    backgroundImage: `linear-gradient(145deg, ${b.hue.a}18, transparent)`,
+                    boxShadow: `0 0 16px -4px ${b.hue.glow}`,
+                  } : {
+                    color: dark ? 'rgba(226,232,240,0.60)' : 'rgba(15,23,42,0.55)',
+                    borderColor: cellBorder,
+                    backgroundImage: dark ? 'linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02))' : 'linear-gradient(180deg, rgba(255,255,255,0.85), rgba(255,255,255,0.45))',
+                  }}
+                >
+                  {b.icon}
+                  {b.label}
+                </button>
+              ))}
+            </div>
+
+            {/* footer: accounts + publish */}
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-3 pt-3" style={{ borderTop: `1px solid ${cellBorder}` }}>
+              <div className="flex flex-wrap items-center gap-2">
+                {platformAccounts.length === 0 ? (
+                  <span
+                    className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold"
+                    style={{ color: STAGE_HUES.amber.a, borderColor: `${STAGE_HUES.amber.a}38`, backgroundColor: `${STAGE_HUES.amber.a}0F` }}
+                  >
+                    <AlertCircle size={11} />
+                    Aucun compte connecté pour cette plateforme
+                  </span>
+                ) : (
+                  platformAccounts.map(a => (
+                    <span
+                      key={a.id}
+                      className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold"
+                      style={{
+                        color: (PLATFORM_STAGE_HUE[a.platform] || STAGE_HUES.emerald).a,
+                        borderColor: `${(PLATFORM_STAGE_HUE[a.platform] || STAGE_HUES.emerald).a}40`,
+                        backgroundColor: `${(PLATFORM_STAGE_HUE[a.platform] || STAGE_HUES.emerald).a}10`,
+                      }}
+                    >
+                      <CheckCircle size={11} />
+                      {a.profileName}
+                    </span>
+                  ))
+                )}
+                {schedulePublish && scheduledDate && scheduledTime && (
+                  <motion.span
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    className={`flex items-center gap-1 text-xs tabular-nums ${dark ? 'text-slate-400' : 'text-teal-900/55'}`}
+                  >
+                    <Calendar size={12} />
+                    {formatDate(scheduledDate)} à {scheduledTime}
+                  </motion.span>
+                )}
+              </div>
+
+              <motion.button
+                type="button"
+                whileTap={{ scale: 0.96 }}
+                onClick={handlePublish}
+                disabled={publishing || platformAccounts.length === 0}
+                className="inline-flex h-9 items-center justify-center gap-1.5 rounded-xl border border-white/20 px-4 text-xs font-bold text-white transition-all disabled:cursor-not-allowed disabled:opacity-40"
+                style={{
+                  backgroundImage: `linear-gradient(145deg, ${(PLATFORM_STAGE_HUE[selectedPlatform] || STAGE_HUES.violet).a}, ${(PLATFORM_STAGE_HUE[selectedPlatform] || STAGE_HUES.violet).b})`,
+                  boxShadow: `inset 0 1px 0 rgba(255,255,255,0.35), 0 8px 22px -8px ${(PLATFORM_STAGE_HUE[selectedPlatform] || STAGE_HUES.violet).glow}`,
+                }}
+              >
+                {publishing ? (
+                  <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/40 border-t-white" />
+                ) : schedulePublish ? <Calendar size={13} /> : <Send size={13} />}
+                {schedulePublish ? 'Programmer' : 'Publier maintenant'}
+              </motion.button>
+            </div>
+          </StagePanel>
+
+          {/* ── Variables disponibles (sidebar column while Aperçu is open) */}
+          {showVariables && showPreview && (
+            <StagePanel title="Variables disponibles" icon={Plus} hue={STAGE_HUES.violet}
+              badge={<span className={`text-[10px] font-semibold ${dark ? 'text-slate-500' : 'text-teal-900/40'}`}>cliquez pour copier</span>}
+            >
+              <div className="flex flex-wrap gap-1.5">
+                {TEMPLATE_VARIABLES.map((v: any) => (
+                  <VariableChip key={v.variable} variable={v.variable} description={v.description} />
+                ))}
+              </div>
+            </StagePanel>
+          )}
+
+          {/* ── Activité de partage ──────────────────────────────────── */}
+          <StagePanel title="Activité de partage" icon={Clock} hue={STAGE_HUES.emerald}>
+            <p className={`mb-4 text-xs ${dark ? 'text-slate-400' : 'text-teal-900/55'}`}>
+              Suivi des publications sur les réseaux sociaux
+            </p>
+
+            {shareHistory.length === 0 ? (
+              <div className="flex flex-col items-center py-8 text-center">
+                <OrbIcon icon={Share2} hue={STAGE_HUES.violet} size={44} radius={14} />
+                <p className={`mt-3 text-sm font-semibold ${dark ? 'text-slate-300' : 'text-slate-600'}`}>Aucune publication pour ce bien</p>
+                <p className={`mt-0.5 text-xs ${dark ? 'text-slate-500' : 'text-teal-900/40'}`}>
+                  Utilisez le panneau ci-dessus pour créer votre première publication
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {shareHistory.map(post => {
+                  const st = STATUS_STAGE[post.status];
+                  const pHue = PLATFORM_STAGE_HUE[post.platform] || STAGE_HUES.sky;
+                  return (
+                    <div
+                      key={post.id}
+                      className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border p-3 transition-all duration-200 hover:-translate-y-px"
+                      style={{ borderColor: cellBorder, background: cellBg, boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.05)' }}
+                    >
+                      <span
+                        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border"
+                        style={{ color: pHue.a, borderColor: `${pHue.a}35`, backgroundColor: `${pHue.a}10` }}
+                      >
+                        {platformIcons[post.platform]}
+                      </span>
+                      <span className={`min-w-[90px] text-sm font-bold ${dark ? 'text-white' : 'text-slate-900'}`}>
+                        {SOCIAL_PLATFORM_LABELS[post.platform]}
+                      </span>
+                      <span className={`font-mono text-xs tabular-nums ${dark ? 'text-slate-500' : 'text-teal-900/45'}`}>
+                        {post.publishedAt ? formatDate(post.publishedAt) : post.scheduledAt ? formatDate(post.scheduledAt) : '—'}
+                      </span>
+                      <span
+                        className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] font-bold"
+                        style={{ color: st.fg, borderColor: `${st.hue.a}40`, backgroundColor: `${st.hue.a}12` }}
+                      >
+                        {getStatusIcon(post.status, isGerant)}
+                        {statusLabels[post.status]}
+                      </span>
+                      <span className={`ml-auto flex items-center gap-4 font-mono text-xs tabular-nums ${dark ? 'text-slate-400' : 'text-teal-900/55'}`}>
+                        <span>{post.clicks ?? '—'} clics</span>
+                        <span>{post.impressions ?? '—'} impr.</span>
+                      </span>
+                      <button
+                        className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border transition-all hover:scale-110 ${dark ? 'border-white/10 text-slate-400 hover:bg-white/10 hover:text-white' : 'border-teal-900/10 text-teal-900/50 hover:bg-teal-900/5'}`}
+                        title="Voir sur le réseau"
+                      >
+                        <ExternalLink size={12} />
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </StagePanel>
+        </div>
+      </PermissionLocked>
+    );
+  }
+
+  /* ===================================================================
+     Legacy variant (admin shell)
+  =================================================================== */
   return (
     <PermissionLocked allowed={canPublish} label="Publication sociale verrouillée">
     <div className="space-y-5">

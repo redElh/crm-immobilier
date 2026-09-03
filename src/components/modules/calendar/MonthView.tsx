@@ -4,6 +4,7 @@ import {
   CalendarEvent, getEventTypeConfig, Agent, getEventUserColor, withAlpha, formatEventRange,
   getEventsForMonth, getMonthDays, isToday,
 } from '../../../types/calendar'
+import { useStageChrome } from './useStageChrome'
 
 interface MonthViewProps {
   currentDate: Date
@@ -19,6 +20,7 @@ const DAY_NAMES_SHORT = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim']
 export default function MonthView({
   currentDate, events, selectedEventTypes, agents, onEventClick, onDayClick,
 }: MonthViewProps) {
+  const { staged, dark } = useStageChrome()
   const monthDays = useMemo(() => getMonthDays(currentDate), [currentDate])
   const monthEvents = useMemo(() => getEventsForMonth(events, currentDate), [events, currentDate])
 
@@ -37,36 +39,109 @@ export default function MonthView({
     })
   }
 
+  const skin = staged
+    ? {
+        container: 'stage-glass overflow-hidden',
+        headBg: dark ? 'bg-white/[0.03]' : 'bg-white/40',
+        headBorder: dark ? 'border-white/[0.08]' : 'border-teal-900/[0.10]',
+        cellLine: dark ? 'border-white/[0.05]' : 'border-teal-900/[0.07]',
+        label: dark ? 'text-slate-500' : 'text-teal-900/35',
+      }
+    : {
+        container: 'bg-card overflow-hidden rounded-2xl border border-border/50 shadow-card',
+        headBg: 'bg-background/50',
+        headBorder: 'border-border/40',
+        cellLine: 'border-border/15',
+        label: 'text-text-secondary',
+      }
+
   return (
-    <div className="bg-card rounded-xl border border-border/50 shadow-card overflow-hidden">
-      <div className="grid grid-cols-7 border-b border-border/40 bg-background/50">
-        {DAY_NAMES_SHORT.map(name => (
-          <div key={name} className="p-2 text-center text-xs font-semibold text-text-secondary uppercase tracking-wider border-r border-border/20 last:border-r-0">
+    <div className={skin.container}>
+      {/* Day-of-week header */}
+      <div className={`grid grid-cols-7 border-b ${skin.headBorder} ${skin.headBg} backdrop-blur-xl`}>
+        {DAY_NAMES_SHORT.map((name, i) => (
+          <div
+            key={name}
+            className={`p-2 text-center text-[10px] font-bold uppercase tracking-[0.18em] ${skin.label} ${
+              i > 4 ? 'opacity-60' : ''
+            }`}
+          >
             {name}
           </div>
         ))}
       </div>
-      <div className="grid grid-cols-7 divide-x divide-border/20">
+
+      <div className="grid grid-cols-7">
         {monthDays.map((date, i) => {
           const dayEvents = getEventsForDay(date)
+          const weekend = i % 7 >= 5
+          const todayCell = date ? isToday(date) : false
+          const colIndex = i % 7
+
           return (
             <div
               key={i}
-              className={`min-h-[100px] p-1.5 border-b border-border/20 cursor-pointer transition-colors ${
-                !date ? 'bg-gray-50/50' : ''
-              } ${date && isToday(date) ? 'bg-accent/[0.04]' : ''} hover:bg-accent/[0.04]`}
               onClick={() => date && onDayClick(date)}
+              className={`group relative min-h-[108px] cursor-pointer p-2 transition-colors duration-150 ${
+                !date ? (dark ? 'bg-white/[0.015]' : 'bg-black/[0.02]') : weekend ? 'hover:bg-accent/[0.05]' : 'hover:bg-accent/[0.04]'
+              } ${todayCell ? 'bg-accent/[0.05]' : ''} ${
+                colIndex < 6 ? `border-r border-b ${skin.cellLine}` : `border-b ${skin.cellLine}`
+              }`}
             >
+              {todayCell && (
+                <>
+                  <div className="cal-today-beam" />
+                  <span
+                    className="pointer-events-none absolute inset-1 rounded-xl"
+                    style={{
+                      boxShadow: dark
+                        ? 'inset 0 0 0 1px rgba(139,124,255,0.35)'
+                        : 'inset 0 0 0 1px rgba(13,148,136,0.30)',
+                      background: dark
+                        ? 'radial-gradient(120% 90% at 50% 0%, rgba(139,124,255,0.08) 0%, transparent 60%)'
+                        : 'radial-gradient(120% 90% at 50% 0%, rgba(13,148,136,0.07) 0%, transparent 60%)',
+                    }}
+                  />
+                </>
+              )}
+
               {date && (
                 <>
-                  <div className="flex items-center justify-center mb-1">
-                    <span className={`text-xs font-medium w-7 h-7 flex items-center justify-center rounded-full ${
-                      isToday(date) ? 'bg-accent text-white text-sm font-bold' : 'text-text-secondary'
-                    }`}>
+                  <div className={`relative mb-1 flex ${colIndex === 6 ? 'justify-start pl-1' : 'items-start'}`}>
+                    <span
+                      className={`inline-flex items-center justify-center text-xs font-semibold leading-none ${
+                        todayCell
+                          ? 'cal-day-orb cal-day-orb-sm'
+                          : `h-6 w-6 rounded-full ${weekend ? 'text-text-secondary/70' : 'text-text-secondary'} group-hover:text-text`
+                      }`}
+                      style={
+                        todayCell && !dark
+                          ? {
+                              backgroundImage: 'linear-gradient(145deg,#2DD4BF,#0D9488)',
+                              boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.5), 0 6px 18px -4px rgba(13,148,136,0.55)',
+                            }
+                          : undefined
+                      }
+                    >
                       {date.getDate()}
                     </span>
+                    {dayEvents.length > 0 && !todayCell && (
+                      <span className="ml-auto flex items-center gap-1 pt-0.5">
+                        {dayEvents.slice(0, 3).map(e => (
+                          <span
+                            key={e.id}
+                            className="h-1.5 w-1.5 rounded-full"
+                            style={{
+                              backgroundColor: getEventUserColor(e, agents),
+                              boxShadow: `0 0 5px ${withAlpha(getEventUserColor(e, agents), 'AA')}`,
+                            }}
+                          />
+                        ))}
+                      </span>
+                    )}
                   </div>
-                  <div className="space-y-0.5">
+
+                  <div className="relative space-y-0.5">
                     {dayEvents.slice(0, 3).map(event => {
                       const cfg = getEventTypeConfig(event.type)
                       const color = getEventUserColor(event, agents)
@@ -75,18 +150,27 @@ export default function MonthView({
                           key={event.id}
                           initial={{ opacity: 0 }}
                           animate={{ opacity: 1 }}
-                          className="w-full text-left px-1 py-0.5 rounded text-[10px] font-medium truncate hover:opacity-80 transition-opacity border-l-2"
-                          style={{ backgroundColor: withAlpha(color, '22'), borderLeftColor: color }}
+                          className="flex w-full items-center gap-1 rounded-md px-1 py-0.5 text-left text-[10px] font-medium transition-all duration-150 hover:brightness-110"
+                          style={{ backgroundColor: withAlpha(color, '22') }}
                           onClick={(e) => { e.stopPropagation(); onEventClick(event) }}
                         >
-                          <cfg.icon size={10} className="inline-block -mt-0.5 shrink-0" /> {formatEventRange(event)} {event.title}
+                          <span
+                            className="h-1 w-1 shrink-0 rounded-full"
+                            style={{ backgroundColor: color, boxShadow: `0 0 4px ${color}` }}
+                          />
+                          <cfg.icon size={9} className="shrink-0 opacity-80" />
+                          <span className="truncate">{formatEventRange(event)} {event.title}</span>
                         </motion.button>
                       )
                     })}
                     {dayEvents.length > 3 && (
-                      <p className="text-[10px] text-text-secondary pl-1">
+                      <button
+                        onClick={(e) => { e.stopPropagation(); onDayClick(date) }}
+                        className={`rounded-md px-1 text-[10px] font-bold transition-colors hover:text-accent`}
+                        style={{ color: 'inherit', opacity: 0.65 }}
+                      >
                         +{dayEvents.length - 3} autres
-                      </p>
+                      </button>
                     )}
                   </div>
                 </>

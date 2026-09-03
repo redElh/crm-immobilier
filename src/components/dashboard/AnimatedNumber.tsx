@@ -8,6 +8,7 @@ interface AnimatedNumberProps {
   prefix?: string
   suffix?: string
   className?: string
+  style?: React.CSSProperties
   groupSeparator?: string
 }
 
@@ -18,6 +19,7 @@ export function AnimatedNumber({
   prefix = '',
   suffix = '',
   className,
+  style,
   groupSeparator = ' ',
 }: AnimatedNumberProps) {
   const ref = useRef<HTMLSpanElement>(null)
@@ -45,7 +47,7 @@ export function AnimatedNumber({
   }, [spring, decimals, prefix, suffix, groupSeparator])
 
   return (
-    <span ref={ref} className={className}>
+    <span ref={ref} className={className} style={style}>
       {display}
     </span>
   )

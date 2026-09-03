@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate, useParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Dialog } from '../../ui/Dialog';
@@ -16,6 +17,11 @@ import { calcClientCompletion } from '../../../utils/clientCompletion';
 import { Input } from '../../ui/Input';
 import { fetchReservations, createReservation, updateReservation, deleteReservation } from '../../../services/reservationService';
 import { updateProperty } from '../../../services/propertyService';
+import { useStageChrome } from '../calendar/useStageChrome';
+import { StagePanel, STAGE_HUES } from '../../dashboard/Stage';
+import StageModal from '../calendar/StageModal';
+
+const SLATE_STAGE_HUE = { a: '#94A3B8', b: '#475569', glow: 'rgba(148,163,184,0.40)', line: '#94A3B8' } as const;
 
 type DayStatus = 'available' | 'reserved' | 'blocked';
 
@@ -191,6 +197,7 @@ interface PropertySeasonalProps {
 
 export const PropertySeasonal = ({ property, isGerant = false }: PropertySeasonalProps = {}) => {
   const { revealed } = useConfidential();
+  const { staged, dark } = useStageChrome();
   const navigate = useNavigate();
   const { agentId, adminId } = useParams<{ agentId?: string; adminId?: string }>();
   const basePath = adminId ? `/admin/${adminId}` : agentId ? `/${agentId}` : '';
@@ -359,11 +366,40 @@ export const PropertySeasonal = ({ property, isGerant = false }: PropertySeasona
     return d >= actualStart && d <= actualEnd;
   };
 
-  const statusColors: Record<DayStatus, string> = {
+  const navBtn = `flex h-8 w-8 items-center justify-center rounded-xl border transition-all hover:scale-110 ${
+    dark ? 'border-white/10 text-slate-400 hover:bg-white/10 hover:text-white' : 'border-teal-900/10 text-teal-900/50 hover:bg-teal-900/5 hover:text-teal-900'
+  }`;
+  const formSkin = `seasonal-stage-form${dark ? '' : ' seasonal-light'}`;
+  const monthPill = `min-w-[132px] rounded-xl border px-3 py-1.5 text-center font-mono text-xs font-bold tabular-nums ${
+    dark ? 'border-white/[0.08] bg-white/[0.03] text-slate-200' : 'border-teal-900/10 bg-white/60 text-slate-700'
+  }`;
+
+  const statusColors: Record<DayStatus, string> = staged ? {
+    available: dark
+      ? 'border border-white/[0.07] bg-white/[0.025] hover:border-emerald-400/50 hover:bg-emerald-400/[0.12] hover:shadow-[0_0_16px_-4px_rgba(52,211,153,0.45)]'
+      : 'border border-teal-900/[0.08] bg-white/60 hover:border-emerald-500/50 hover:bg-emerald-50 hover:shadow-[0_4px_14px_-6px_rgba(16,185,129,0.45)]',
+    reserved: dark
+      ? 'border border-rose-400/30 bg-rose-400/[0.10] hover:border-rose-300/60 hover:bg-rose-400/[0.20] hover:shadow-[0_0_16px_-4px_rgba(251,113,133,0.55)]'
+      : 'border border-rose-400/40 bg-rose-100 hover:border-rose-400/70 hover:bg-rose-200/80 hover:shadow-[0_4px_14px_-6px_rgba(244,63,94,0.5)]',
+    blocked: dark
+      ? 'border border-transparent bg-white/[0.02] opacity-45 hover:bg-white/[0.05]'
+      : 'border border-transparent bg-slate-900/[0.04] opacity-45 hover:bg-slate-900/[0.07]',
+  } : {
     available: 'bg-emerald-50/30 hover:bg-emerald-50 text-text',
     reserved: 'bg-rose-50 hover:bg-rose-100 text-rose-800',
     blocked: 'bg-gray-100 hover:bg-gray-200 text-gray-400 line-through',
   };
+
+  const selRing = staged
+    ? dark
+      ? 'ring-2 ring-violet-400 shadow-[0_0_18px_rgba(167,139,250,0.45)] scale-105 z-10'
+      : 'ring-2 ring-teal-600 shadow-[0_0_14px_rgba(13,148,136,0.35)] scale-105 z-10'
+    : '';
+  const endRing = staged
+    ? dark
+      ? 'ring-2 ring-violet-400 shadow-[0_0_22px_rgba(167,139,250,0.6)] z-20'
+      : 'ring-2 ring-teal-600 shadow-[0_0_18px_rgba(13,148,136,0.5)] z-20'
+    : '';
 
   const statusLabels: Record<DayStatus, string> = {
     available: 'Disponible',
@@ -550,25 +586,26 @@ export const PropertySeasonal = ({ property, isGerant = false }: PropertySeasona
     });
   };
 
-  return (
-    <div className="space-y-6" onMouseUp={handleMouseUp}>
-      {/* Calendar */}
-      <div className="bg-card rounded-xl border border-border/50 shadow-card p-5">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-3">
-            <h3 className="font-semibold flex items-center gap-2">
-              <Calendar size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />
-              Calendrier des réservations
-            </h3>
-            <span className="text-xs text-text-secondary/60">Clic : réserver · Clic droit : actions · Glisser : bloquer · Dates passées : non modifiables</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <button className="btn-ghost p-1.5" onClick={() => setCurrentMonth(m => m === 0 ? 11 : m - 1)}><ChevronLeft size={14} /></button>
-            <span className="text-sm font-medium w-32 text-center">{MONTHS[currentMonth]} {currentYear}</span>
-            <button className="btn-ghost p-1.5" onClick={() => setCurrentMonth(m => m === 11 ? 0 : m + 1)}><ChevronRight size={14} /></button>
-          </div>
+  const calendarBody = (
+    <>
+      {/* Legend */}
+      {staged ? (
+        <div className={`mb-4 flex flex-wrap items-center gap-3 text-xs ${dark ? 'text-slate-400' : 'text-teal-900/55'}`}>
+          {([
+            ['Disponible', '#34D399'],
+            ['Réservé', '#FB7185'],
+            ['Indisponible', dark ? '#64748B' : '#94A3B8'],
+          ] as [string, string][]).map(([label, color]) => (
+            <span key={label} className="flex items-center gap-1.5">
+              <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: color, boxShadow: `0 0 8px ${color}88` }} />
+              {label}
+            </span>
+          ))}
+          <span className={`ml-auto flex items-center gap-1 ${dark ? 'text-slate-600' : 'text-teal-900/30'}`}>
+            <Info size={12} /> Cliquer sur une date pour réserver, glisser pour bloquer
+          </span>
         </div>
-
+      ) : (
         <div className="flex items-center gap-4 mb-3 text-xs text-text-secondary flex-wrap">
           <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-emerald-100 border border-emerald-300" /> Disponible</span>
           <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-rose-100 border border-rose-300" /> Réservé</span>
@@ -577,8 +614,10 @@ export const PropertySeasonal = ({ property, isGerant = false }: PropertySeasona
             <Info size={12} /> Cliquer sur une date pour réserver, glisser pour bloquer
           </span>
         </div>
+      )}
 
-        <div className="grid grid-cols-7 gap-0.5 select-none">
+      {/* Day grid */}
+      <div className={`grid select-none ${staged ? 'grid-cols-7 gap-1' : 'grid-cols-7 gap-0.5'}`}>
           {DAYS_SHORT.map(d => (
             <div key={d} className="text-center text-[11px] font-medium text-text-secondary/50 py-1.5">{d}</div>
           ))}
@@ -591,7 +630,12 @@ export const PropertySeasonal = ({ property, isGerant = false }: PropertySeasona
             const price = res && day.status === 'reserved' ? res.pricePerNight : getDayPrice(day.date);
             const past = isPastDate(day.date);
 
-            const miniStatusBadge: Record<string, string> = {
+            const miniStatusBadge: Record<string, string> = staged ? {
+              option: dark ? 'bg-amber-400/15 text-amber-300' : 'bg-amber-200 text-amber-800',
+              confirmed: dark ? 'bg-emerald-400/15 text-emerald-300' : 'bg-emerald-200 text-emerald-800',
+              cancelled: dark ? 'bg-red-400/15 text-red-300' : 'bg-red-200 text-red-700',
+              occupied: dark ? 'bg-sky-400/15 text-sky-300' : 'bg-sky-200 text-sky-800',
+            } : {
               option: isGerant ? 'bg-[#E7D5D5] text-[#7D5050]' : 'bg-amber-200 text-amber-800',
               confirmed: 'bg-emerald-200 text-emerald-800',
               cancelled: 'bg-red-200 text-red-700',
@@ -611,25 +655,39 @@ export const PropertySeasonal = ({ property, isGerant = false }: PropertySeasona
                 className={`relative aspect-square rounded-lg flex flex-col items-center justify-center text-xs transition-all select-none
                   ${past ? 'cursor-not-allowed opacity-40' : 'cursor-pointer'}
                   ${statusColors[day.status]}
-                  ${inRange ? (isGerant ? 'ring-2 ring-[#905D5D] bg-[#905D5D]/5 scale-105 z-10' : 'ring-2 ring-accent bg-accent/5 scale-105 z-10') : ''}
-                  ${isStart || isEnd ? (isGerant ? 'ring-2 ring-[#905D5D] shadow-md z-20' : 'ring-2 ring-accent shadow-md z-20') : ''}
-                  ${hoveredDate === day.date ? 'shadow-sm' : ''}`}
+                  ${inRange ? (staged ? `${selRing}` : isGerant ? 'ring-2 ring-[#905D5D] bg-[#905D5D]/5 scale-105 z-10' : 'ring-2 ring-accent bg-accent/5 scale-105 z-10') : ''}
+                  ${isStart || isEnd ? (staged ? `${endRing}` : isGerant ? 'ring-2 ring-[#905D5D] shadow-md z-20' : 'ring-2 ring-accent shadow-md z-20') : ''}
+                  ${hoveredDate === day.date && !past ? (staged ? 'scale-[1.05] z-10' : 'shadow-sm') : ''}`}
               >
-                <span className="font-medium text-sm leading-none">{day.day}</span>
+                <span className={`font-medium text-sm leading-none ${
+                  staged
+                    ? day.status === 'reserved'
+                      ? dark ? 'text-rose-100' : 'text-rose-900'
+                      : day.status === 'blocked'
+                        ? dark ? 'text-slate-500 line-through' : 'text-slate-400 line-through'
+                        : dark ? 'text-slate-200' : 'text-slate-700'
+                    : 'text-text'
+                }`}>{day.day}</span>
                 {day.status === 'reserved' && res && (
                   <span className={`text-[6px] leading-none mt-0.5 px-1 py-px rounded font-semibold ${miniStatusBadge[res.status] || ''}`}>
                     {revealed ? (miniStatusLabel[res.status] || res.status) : '••'}
                   </span>
                 )}
                 {price && (
-                  <span className={`text-[7px] leading-none mt-0.5 ${day.status === 'reserved' ? 'text-rose-600 font-medium' : 'text-text-secondary/50'}`}>
+                  <span className={`text-[7px] leading-none mt-0.5 ${
+                    day.status === 'reserved'
+                      ? dark ? 'text-rose-300 font-medium' : 'text-rose-600 font-medium'
+                      : staged
+                        ? dark ? 'text-slate-500' : 'text-teal-900/40'
+                        : 'text-text-secondary/50'
+                  }`}>
                     {price} MAD
                   </span>
                 )}
                 {day.status === 'blocked' && (
-                  <Lock size={7} className="text-gray-400 mt-0.5" />
+                  <Lock size={7} className={staged ? (dark ? 'text-slate-600 mt-0.5' : 'text-slate-400 mt-0.5') : 'text-gray-400 mt-0.5'} />
                 )}
-                {inRange && (
+                {inRange && !staged && (
                   <div className={`absolute inset-0 rounded-lg ${isGerant ? 'bg-[#905D5D]/5' : 'bg-accent/5'} border-2 ${isGerant ? 'border-[#905D5D]/30' : 'border-accent/30'} pointer-events-none`} />
                 )}
               </div>
@@ -655,285 +713,656 @@ export const PropertySeasonal = ({ property, isGerant = false }: PropertySeasona
                 const monthEnd = new Date(currentYear, currentMonth + 1, 0);
                 return rs <= monthEnd && re >= monthStart;
               }              ).map(r => (
-                <div key={r.id} className="flex items-center justify-between text-sm p-2.5 rounded-lg bg-background cursor-pointer hover:bg-border/30 transition-colors"
+                <div key={r.id}
+                  className={`flex items-center justify-between text-sm p-2.5 rounded-lg cursor-pointer transition-colors ${
+                    staged
+                      ? dark ? 'border border-white/[0.06] bg-white/[0.02] hover:bg-white/[0.05]' : 'border border-teal-900/[0.07] bg-white/60 hover:bg-emerald-50'
+                      : 'bg-background hover:bg-border/30'
+                  }`}
                   onClick={() => { setEditingReservation(r); setShowReservationModal(true); }}>
                   <div className="flex items-center gap-2.5">
-                    <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${r.status === 'confirmed' ? 'bg-emerald-500' : r.status === 'option' ? (isGerant ? 'bg-[#905D5D]' : 'bg-amber-500') : r.status === 'cancelled' ? 'bg-red-400' : 'bg-blue-500'}`} />
+                    <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${r.status === 'confirmed' ? 'bg-emerald-500' : r.status === 'option' ? (isGerant ? 'bg-[#905D5D]' : 'bg-amber-500') : r.status === 'cancelled' ? 'bg-red-400' : 'bg-blue-500'}`}
+                      style={staged ? { boxShadow: `0 0 8px ${r.status === 'confirmed' ? 'rgba(52,211,153,0.7)' : r.status === 'option' ? 'rgba(251,191,36,0.6)' : 'rgba(148,163,184,0.5)'}` } : undefined} />
                     <div>
-                      <span className="font-medium text-text">{revealed ? r.clientName : '••••••••'}</span>
-                      {revealed && r.email && <span className="text-xs text-text-secondary ml-2">{r.email}</span>}
-                      {revealed && r.phone && <span className="text-xs text-text-secondary ml-2">{r.phone}</span>}
+                      <span className={`font-medium ${staged ? (dark ? 'text-slate-100' : 'text-slate-800') : 'text-text'}`}>{revealed ? r.clientName : '••••••••'}</span>
+                      {revealed && r.email && <span className={`text-xs ml-2 ${staged ? (dark ? 'text-slate-500' : 'text-teal-900/40') : 'text-text-secondary'}`}>{r.email}</span>}
+                      {revealed && r.phone && <span className={`text-xs ml-2 ${staged ? (dark ? 'text-slate-500' : 'text-teal-900/40') : 'text-text-secondary'}`}>{r.phone}</span>}
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
-                    <span className="text-xs text-text-secondary">{formatDateShort(r.startDate)} → {formatDateShort(r.endDate)} · {r.nights} nuits</span>
-                    <span className="text-xs font-medium text-text">{formatCurrency(r.grandTotal)}</span>
-                    <Badge className={reservationStatusColors[r.status]} size="sm">{reservationStatusLabels[r.status]}</Badge>
+                    <span className={`text-xs ${staged ? (dark ? 'text-slate-400 font-mono tabular-nums' : 'text-teal-900/55 font-mono tabular-nums') : 'text-text-secondary'}`}>{formatDateShort(r.startDate)} → {formatDateShort(r.endDate)} · {r.nights} nuits</span>
+                    <span className={`text-xs font-semibold ${staged ? (dark ? 'text-emerald-300' : 'text-emerald-700') : 'text-text'}`}>{formatCurrency(r.grandTotal)}</span>
+                    {staged ? (
+                      <span
+                        className="inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-bold"
+                        style={{
+                          color: r.status === 'confirmed' ? STAGE_HUES.emerald.a : r.status === 'option' ? STAGE_HUES.amber.a : r.status === 'cancelled' ? '#FB7185' : STAGE_HUES.sky.a,
+                          borderColor: r.status === 'confirmed' ? `${STAGE_HUES.emerald.a}40` : r.status === 'option' ? `${STAGE_HUES.amber.a}40` : r.status === 'cancelled' ? 'rgba(251,113,133,0.35)' : `${STAGE_HUES.sky.a}40`,
+                          backgroundColor: r.status === 'confirmed' ? `${STAGE_HUES.emerald.a}10` : r.status === 'option' ? `${STAGE_HUES.amber.a}10` : r.status === 'cancelled' ? 'rgba(251,113,133,0.08)' : `${STAGE_HUES.sky.a}10`,
+                        }}
+                      >
+                        {reservationStatusLabels[r.status]}
+                      </span>
+                    ) : (
+                      <Badge className={reservationStatusColors[r.status]} size="sm">{reservationStatusLabels[r.status]}</Badge>
+                    )}
                   </div>
                 </div>
               ))}
             </div>
           </div>
         )}
-      </div>
+    </>
+  );
+
+  return (
+    <div className="space-y-6" onMouseUp={handleMouseUp}>
+      {/* Calendar */}
+      {staged ? (
+        <StagePanel
+          title="Calendrier des réservations"
+          icon={Calendar}
+          hue={STAGE_HUES.amber}
+          action={
+            <div className="flex items-center gap-2">
+              <button onClick={() => setCurrentMonth(m => m === 0 ? 11 : m - 1)} aria-label="Mois précédent" className={navBtn}><ChevronLeft size={14} /></button>
+              <span className={monthPill}>{MONTHS[currentMonth]} {currentYear}</span>
+              <button onClick={() => setCurrentMonth(m => m === 11 ? 0 : m + 1)} aria-label="Mois suivant" className={navBtn}><ChevronRight size={14} /></button>
+            </div>
+          }
+        >
+          {calendarBody}
+        </StagePanel>
+      ) : (
+        <div className="bg-card rounded-xl border border-border/50 shadow-card p-5">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <h3 className="font-semibold flex items-center gap-2">
+                <Calendar size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />
+                Calendrier des réservations
+              </h3>
+              <span className="text-xs text-text-secondary/60">Clic : réserver · Clic droit : actions · Glisser : bloquer · Dates passées : non modifiables</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <button className="btn-ghost p-1.5" onClick={() => setCurrentMonth(m => m === 0 ? 11 : m - 1)}><ChevronLeft size={14} /></button>
+              <span className="text-sm font-medium w-32 text-center">{MONTHS[currentMonth]} {currentYear}</span>
+              <button className="btn-ghost p-1.5" onClick={() => setCurrentMonth(m => m === 11 ? 0 : m + 1)}><ChevronRight size={14} /></button>
+            </div>
+          </div>
+          {calendarBody}
+        </div>
+      )}
 
       {/* Context Menu */}
-      <AnimatePresence>
-        {contextMenu && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.95 }}
-            className="fixed z-50 w-56 bg-card rounded-xl border border-border/50 shadow-dropdown py-1"
-            style={{ left: contextMenu.x, top: contextMenu.y }}
-          >
-            <div className="px-3 py-1.5 text-xs font-medium text-text-secondary border-b border-border/30 mb-1">
-              {formatDateDisplay(contextMenu.date)}
-            </div>
-            {days.find(d => d.date === contextMenu.date)?.status === 'blocked' ? (
-              <button className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-background transition-colors text-emerald-600"
-                onClick={() => { setBlockedDatesPersistent(prev => prev.filter(d => d !== contextMenu.date)); setContextMenu(null); }}>
-                <CheckCircle size={13} /> Rendre disponible
-              </button>
-            ) : (
-              <button className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-background transition-colors"
-                onClick={() => { setSelectedDate(contextMenu.date); setContextMenu(null); setShowBlockModal(true); }}>
-                <Lock size={13} /> Rendre indisponible
-              </button>
-            )}
-            {days.find(d => d.date === contextMenu.date)?.status === 'reserved' && (
-              <button className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-background transition-colors text-emerald-600"
-                onClick={() => handleMakeAvailable(contextMenu.date)}>
-                <CheckCircle size={13} /> Rendre disponible
-              </button>
-            )}
-            {days.find(d => d.date === contextMenu.date)?.status === 'reserved' ? (
-              <button className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-background transition-colors text-emerald-600"
-                onClick={() => {
-                  const day = days.find(d => d.date === contextMenu.date);
-                  const res = day?.reservationId ? getReservation(day.reservationId) : null;
-                  if (res) { setResPriceReservation(res); setShowResPriceModal(true); }
-                  setContextMenu(null);
-                }}>
-                <DollarSign size={13} /> Modifier le prix de réservation
-              </button>
-            ) : (
-              <button className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-background transition-colors"
-                onClick={() => { setSelectedDate(contextMenu.date); setContextMenu(null); setShowPriceModal(true); }}>
-                <DollarSign size={13} /> Modifier le prix
-              </button>
-            )}
-            {days.find(d => d.date === contextMenu.date)?.status !== 'reserved' && (
-              <button className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-background transition-colors"
-                onClick={() => { setContextMenu(null); setEditingReservation(null); setShowReservationModal(true); }}>
-                <Plus size={13} /> Ajouter une réservation
-              </button>
-            )}
-            {days.find(d => d.date === contextMenu.date)?.status === 'reserved' && (
-              <button className={`w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-background transition-colors ${isGerant ? 'text-[#905D5D]' : 'text-accent'}`}
-                onClick={() => { const res = getReservation(days.find(d => d.date === contextMenu.date)?.reservationId || ''); if (res) { setEditingReservation(res); setShowReservationModal(true); } setContextMenu(null); }}>
-                <Info size={13} /> Voir les détails
-              </button>
-            )}
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {createPortal(
+        <AnimatePresence>
+          {contextMenu && (() => {
+            const menuW = 232;
+            const menuH = 280;
+            const left = Math.min(contextMenu.x, (typeof window !== 'undefined' ? window.innerWidth : 1280) - menuW - 12);
+            const top = Math.min(contextMenu.y, (typeof window !== 'undefined' ? window.innerHeight : 800) - menuH - 12);
+            const itemCls = `w-full flex items-center gap-2.5 px-3.5 py-2.5 text-[13px] font-medium transition-colors text-left ${
+              dark ? 'text-slate-300 hover:bg-white/[0.07] hover:text-white' : 'text-slate-600 hover:bg-teal-900/[0.06] hover:text-teal-900'
+            }`;
+            return (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.94, y: -6 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                transition={{ duration: 0.16, ease: [0.22, 1, 0.36, 1] }}
+                className="fixed z-[150] w-56 overflow-hidden rounded-2xl border py-1.5 backdrop-blur-2xl"
+                style={{
+                  left,
+                  top,
+                  borderColor: dark ? 'rgba(255,255,255,0.12)' : 'rgba(15,23,42,0.10)',
+                  background: dark
+                    ? 'linear-gradient(180deg, rgba(17,24,50,0.96), rgba(9,13,30,0.97))'
+                    : 'linear-gradient(180deg, rgba(255,255,255,0.97), rgba(240,253,250,0.96))',
+                  boxShadow: dark
+                    ? 'inset 0 1px 0 rgba(255,255,255,0.08), 0 30px 70px -20px rgba(0,0,0,0.85)'
+                    : 'inset 0 1px 0 rgba(255,255,255,1), 0 24px 60px -22px rgba(13,148,136,0.5)',
+                }}
+                onClick={e => e.stopPropagation()}
+              >
+                <div className={`mb-1 border-b px-3.5 pb-2 pt-1 font-mono text-[11px] font-semibold tabular-nums ${dark ? 'border-white/[0.07] text-slate-500' : 'border-teal-900/[0.07] text-teal-900/45'}`}>
+                  {formatDateDisplay(contextMenu.date)}
+                </div>
+                {days.find(d => d.date === contextMenu.date)?.status === 'blocked' ? (
+                  <button className={itemCls} style={{ color: STAGE_HUES.emerald.a }}
+                    onClick={() => { setBlockedDatesPersistent(prev => prev.filter(d => d !== contextMenu.date)); setContextMenu(null); }}>
+                    <CheckCircle size={13} /> Rendre disponible
+                  </button>
+                ) : (
+                  <button className={itemCls}
+                    onClick={() => { setSelectedDate(contextMenu.date); setContextMenu(null); setShowBlockModal(true); }}>
+                    <Lock size={13} /> Rendre indisponible
+                  </button>
+                )}
+                {days.find(d => d.date === contextMenu.date)?.status === 'reserved' && (
+                  <button className={itemCls} style={{ color: STAGE_HUES.emerald.a }}
+                    onClick={() => handleMakeAvailable(contextMenu.date)}>
+                    <CheckCircle size={13} /> Rendre disponible
+                  </button>
+                )}
+                {days.find(d => d.date === contextMenu.date)?.status === 'reserved' ? (
+                  <button className={itemCls} style={{ color: dark ? '#FCD34D' : '#B45309' }}
+                    onClick={() => {
+                      const day = days.find(d => d.date === contextMenu.date);
+                      const res = day?.reservationId ? getReservation(day.reservationId) : null;
+                      if (res) { setResPriceReservation(res); setShowResPriceModal(true); }
+                      setContextMenu(null);
+                    }}>
+                    <DollarSign size={13} /> Modifier le prix de réservation
+                  </button>
+                ) : (
+                  <button className={itemCls} style={{ color: dark ? '#FCD34D' : '#B45309' }}
+                    onClick={() => { setSelectedDate(contextMenu.date); setContextMenu(null); setShowPriceModal(true); }}>
+                    <DollarSign size={13} /> Modifier le prix
+                  </button>
+                )}
+                {days.find(d => d.date === contextMenu.date)?.status !== 'reserved' && (
+                  <button className={itemCls} style={{ color: dark ? STAGE_HUES.violet.a : '#6C5ECF' }}
+                    onClick={() => { setContextMenu(null); setEditingReservation(null); setShowReservationModal(true); }}>
+                    <Plus size={13} /> Ajouter une réservation
+                  </button>
+                )}
+                {days.find(d => d.date === contextMenu.date)?.status === 'reserved' && (
+                  <button className={itemCls} style={{ color: dark ? STAGE_HUES.fuchsia.a : '#A21CAF' }}
+                    onClick={() => { const res = getReservation(days.find(d => d.date === contextMenu.date)?.reservationId || ''); if (res) { setEditingReservation(res); setShowReservationModal(true); } setContextMenu(null); }}>
+                    <Info size={13} /> Voir les détails
+                  </button>
+                )}
+              </motion.div>
+            );
+          })()}
+        </AnimatePresence>,
+        document.body,
+      )}
 
       {/* Custom confirm dialog */}
-      <Dialog isOpen={!!confirmDialog} onClose={() => setConfirmDialog(null)} title={confirmDialog?.title || ''} size="sm">
-        {confirmDialog && (
-          <div className="space-y-4">
-            <p className="text-sm text-text-secondary">{confirmDialog.message}</p>
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setConfirmDialog(null)}>Annuler</Button>
-              <Button variant="default" onClick={confirmDialog.onConfirm}>Confirmer</Button>
+      {staged ? (
+        <StageModal open={!!confirmDialog} onClose={() => setConfirmDialog(null)} title={confirmDialog?.title || ''} icon={CheckCircle} hue={STAGE_HUES.amber} maxWidth="max-w-sm">
+          <div className={formSkin}>
+          {confirmDialog && (
+            <div className="space-y-4">
+              <p className={`text-sm ${dark ? 'text-slate-300' : 'text-teal-900/70'}`}>{confirmDialog.message}</p>
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setConfirmDialog(null)}>Annuler</Button>
+                <Button variant="default" onClick={confirmDialog.onConfirm}>Confirmer</Button>
+              </div>
+            </div>
+          )}
+          </div>
+        </StageModal>
+      ) : (
+        <Dialog isOpen={!!confirmDialog} onClose={() => setConfirmDialog(null)} title={confirmDialog?.title || ''} size="sm">
+          {confirmDialog && (
+            <div className="space-y-4">
+              <p className="text-sm text-text-secondary">{confirmDialog.message}</p>
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setConfirmDialog(null)}>Annuler</Button>
+                <Button variant="default" onClick={confirmDialog.onConfirm}>Confirmer</Button>
+              </div>
+            </div>
+          )}
+        </Dialog>
+      )}
+
+      {/* === MODAL 1: Modifier le prix d'une date === */}
+      {staged ? (
+        <StageModal
+          open={showPriceModal}
+          onClose={() => setShowPriceModal(false)}
+          title={`Modifier le tarif${selectedDate ? ` — ${formatDateDisplay(selectedDate)}` : ''}`}
+          icon={DollarSign}
+          hue={STAGE_HUES.emerald}
+          eyebrow="Tarif par nuit"
+          maxWidth="max-w-md"
+        >
+          <div className={formSkin}>
+          <PriceEditForm
+            date={selectedDate || ''}
+            defaultPrice={property?.seasonalPriceMin || 600}
+            isGerant={isGerant}
+            currentPrice={selectedDate ? getDayPrice(selectedDate) : undefined}
+            currentMonth={currentMonth}
+            currentYear={currentYear}
+            onSave={(dates, price) => {
+              setDayPricesPersistent(prev => {
+                const next = { ...prev };
+                dates.forEach(d => { next[d] = price; });
+                return next;
+              });
+              setShowPriceModal(false);
+            }}
+            onCancel={() => setShowPriceModal(false)}
+          />
+          </div>
+        </StageModal>
+      ) : (
+        <Dialog isOpen={showPriceModal} onClose={() => setShowPriceModal(false)} title={`Modifier le tarif - ${selectedDate ? formatDateDisplay(selectedDate) : ''}`} size="md">
+          <PriceEditForm
+            date={selectedDate || ''}
+            defaultPrice={property?.seasonalPriceMin || 600}
+            isGerant={isGerant}
+            currentPrice={selectedDate ? getDayPrice(selectedDate) : undefined}
+            currentMonth={currentMonth}
+            currentYear={currentYear}
+            onSave={(dates, price) => {
+              setDayPricesPersistent(prev => {
+                const next = { ...prev };
+                dates.forEach(d => { next[d] = price; });
+                return next;
+              });
+              setShowPriceModal(false);
+            }}
+            onCancel={() => setShowPriceModal(false)}
+          />
+        </Dialog>
+      )}
+
+      {/* === MODAL: Modifier le prix de réservation === */}
+      {staged ? (
+        <StageModal
+          open={showResPriceModal}
+          onClose={() => { setShowResPriceModal(false); setResPriceReservation(null); }}
+          title="Modifier le prix de réservation"
+          icon={DollarSign}
+          hue={STAGE_HUES.amber}
+          maxWidth="max-w-md"
+        >
+          <div className={formSkin}>
+          {resPriceReservation && (
+            <ReservationPriceEditForm
+              reservation={resPriceReservation}
+              defaultPrice={property?.seasonalPriceMin || 600}
+              isGerant={isGerant}
+              onSave={async (newPricePerNight) => {
+                const res = resPriceReservation;
+                const newTotalPrice = newPricePerNight * res.nights;
+                const newGrandTotal = newTotalPrice + res.optionsPrice;
+                const updated = { ...res, pricePerNight: newPricePerNight, totalPrice: newTotalPrice, grandTotal: newGrandTotal, balanceDue: newGrandTotal - res.depositPaid };
+                setReservations(prev => prev.map(r => r.id === res.id ? updated : r));
+                setShowResPriceModal(false);
+                setResPriceReservation(null);
+                try {
+                  await updateReservation(res.id, { pricePerNight: newPricePerNight, totalPrice: newTotalPrice, grandTotal: newGrandTotal, balanceDue: newGrandTotal - res.depositPaid });
+                  if (property?.id) {
+                    const data = await fetchReservations({ property_id: String(property.id) });
+                    setReservations(Array.isArray(data) ? data : []);
+                  }
+                } catch {}
+              }}
+              onCancel={() => { setShowResPriceModal(false); setResPriceReservation(null); }}
+            />
+          )}
+          </div>
+        </StageModal>
+      ) : (
+        <Dialog isOpen={showResPriceModal} onClose={() => { setShowResPriceModal(false); setResPriceReservation(null); }}
+          title={`Modifier le prix de réservation`} size="md">
+          {resPriceReservation && (
+            <ReservationPriceEditForm
+              reservation={resPriceReservation}
+              defaultPrice={property?.seasonalPriceMin || 600}
+              isGerant={isGerant}
+              onSave={async (newPricePerNight) => {
+                const res = resPriceReservation;
+                const newTotalPrice = newPricePerNight * res.nights;
+                const newGrandTotal = newTotalPrice + res.optionsPrice;
+                const updated = { ...res, pricePerNight: newPricePerNight, totalPrice: newTotalPrice, grandTotal: newGrandTotal, balanceDue: newGrandTotal - res.depositPaid };
+                setReservations(prev => prev.map(r => r.id === res.id ? updated : r));
+                setShowResPriceModal(false);
+                setResPriceReservation(null);
+                try {
+                  await updateReservation(res.id, { pricePerNight: newPricePerNight, totalPrice: newTotalPrice, grandTotal: newGrandTotal, balanceDue: newGrandTotal - res.depositPaid });
+                  if (property?.id) {
+                    const data = await fetchReservations({ property_id: String(property.id) });
+                    setReservations(Array.isArray(data) ? data : []);
+                  }
+                } catch {}
+              }}
+              onCancel={() => { setShowResPriceModal(false); setResPriceReservation(null); }}
+            />
+          )}
+        </Dialog>
+      )}
+
+      {/* === MODAL 2: Bloquer des dates === */}
+      {staged ? (
+        <StageModal
+          open={showBlockModal}
+          onClose={() => setShowBlockModal(false)}
+          title={`Bloquer des dates — ${MONTHS[currentMonth]} ${currentYear}`}
+          icon={Lock}
+          hue={SLATE_STAGE_HUE}
+          maxWidth="max-w-md"
+        >
+          <div className={formSkin}>
+          <BlockDatesForm
+            rangeStart={selectedRange?.start || selectedDate || ''}
+            rangeEnd={selectedRange?.end || selectedDate || ''}
+            isGerant={isGerant}
+            onSave={(reason) => {
+              const start = selectedRange?.start || selectedDate || '';
+              const end = selectedRange?.end || selectedDate || '';
+              const newBlocked: string[] = [];
+              const s = new Date(start + 'T00:00:00');
+              const e = new Date(end + 'T00:00:00');
+              for (let d = new Date(s); d <= e; d.setDate(d.getDate() + 1)) {
+                const y = d.getFullYear();
+                const m = String(d.getMonth() + 1).padStart(2, '0');
+                const day = String(d.getDate()).padStart(2, '0');
+                newBlocked.push(`${y}-${m}-${day}`);
+              }
+              setBlockedDatesPersistent(prev => Array.from(new Set([...prev, ...newBlocked])));
+              setSelectedRange(null);
+              setShowBlockModal(false);
+            }}
+            onCancel={() => { setSelectedRange(null); setShowBlockModal(false); }} />
+          </div>
+        </StageModal>
+      ) : (
+        <Dialog isOpen={showBlockModal} onClose={() => setShowBlockModal(false)}
+          title={`Bloquer des dates - ${MONTHS[currentMonth]} ${currentYear}`} size="md">
+          <BlockDatesForm
+            rangeStart={selectedRange?.start || selectedDate || ''}
+            rangeEnd={selectedRange?.end || selectedDate || ''}
+            isGerant={isGerant}
+            onSave={(reason) => {
+              const start = selectedRange?.start || selectedDate || '';
+              const end = selectedRange?.end || selectedDate || '';
+              const newBlocked: string[] = [];
+              const s = new Date(start + 'T00:00:00');
+              const e = new Date(end + 'T00:00:00');
+              for (let d = new Date(s); d <= e; d.setDate(d.getDate() + 1)) {
+                const y = d.getFullYear();
+                const m = String(d.getMonth() + 1).padStart(2, '0');
+                const day = String(d.getDate()).padStart(2, '0');
+                newBlocked.push(`${y}-${m}-${day}`);
+              }
+              setBlockedDatesPersistent(prev => Array.from(new Set([...prev, ...newBlocked])));
+              setSelectedRange(null);
+              setShowBlockModal(false);
+            }}
+            onCancel={() => { setSelectedRange(null); setShowBlockModal(false); }} />
+        </Dialog>
+      )}
+
+      {/* === MODAL 3: Réservation === */}
+      {staged ? (
+        <StageModal
+          open={showReservationModal}
+          onClose={() => { setEditingReservation(null); setShowReservationModal(false); }}
+          title={editingReservation ? `Réservation — du ${formatDateShort(editingReservation.startDate)} au ${formatDateShort(editingReservation.endDate)}` : 'Nouvelle réservation'}
+          eyebrow={editingReservation ? 'Dossier voyageur' : 'Créer une réservation'}
+          icon={Calendar}
+          hue={STAGE_HUES.violet}
+          maxWidth="max-w-xl"
+          centered
+          bodyClassName="max-h-[calc(100vh-14rem)] overflow-y-auto scrollbar-thin smooth-scroll"
+        >
+          <div className={formSkin}>
+          <ReservationForm
+            reservation={editingReservation}
+            clickedDate={selectedDate}
+            isGerant={isGerant}
+            options={options}
+            revealed={revealed}
+            defaultPricePerNight={property?.seasonalPriceMin || 600}
+            priceGrid={priceGrid}
+            onSave={handleSaveReservation}
+            onCancel={() => { setEditingReservation(null); setShowReservationModal(false); }}
+          />
+          </div>
+        </StageModal>
+      ) : (
+        <Dialog isOpen={showReservationModal} onClose={() => { setEditingReservation(null); setShowReservationModal(false); }}
+          title={editingReservation ? `Réservation - du ${formatDateShort(editingReservation.startDate)} au ${formatDateShort(editingReservation.endDate)}` : 'Nouvelle réservation'} size="xl">
+          <ReservationForm
+            reservation={editingReservation}
+            clickedDate={selectedDate}
+            isGerant={isGerant}
+            options={options}
+            revealed={revealed}
+            defaultPricePerNight={property?.seasonalPriceMin || 600}
+            priceGrid={priceGrid}
+            onSave={handleSaveReservation}
+            onCancel={() => { setEditingReservation(null); setShowReservationModal(false); }}
+          />
+        </Dialog>
+      )}
+
+      {/* === MODAL 4: Grille tarifaire === */}
+      {staged ? (
+        <StageModal
+          open={showPriceGridModal}
+          onClose={() => setShowPriceGridModal(false)}
+          title="Grille tarifaire — 2026"
+          icon={DollarSign}
+          hue={STAGE_HUES.emerald}
+          maxWidth="max-w-[676px]"
+          centered
+          bodyClassName="max-h-[calc(100vh-14rem)] overflow-y-auto scrollbar-thin smooth-scroll"
+        >
+          <div className={formSkin}>
+          <PriceGridForm
+            periods={priceGrid}
+            onUpdate={updatePriceGrid}
+            isGerant={isGerant}
+            onClose={() => setShowPriceGridModal(false)}
+            editingPeriod={editingPricePeriod}
+            setEditingPeriod={setEditingPricePeriod} />
+          </div>
+        </StageModal>
+      ) : (
+        <Dialog isOpen={showPriceGridModal} onClose={() => setShowPriceGridModal(false)} title="Grille tarifaire - 2026" size="xl" className="max-w-[676px]">
+          <PriceGridForm
+            periods={priceGrid}
+            onUpdate={updatePriceGrid}
+            isGerant={isGerant}
+            onClose={() => setShowPriceGridModal(false)}
+            editingPeriod={editingPricePeriod}
+            setEditingPeriod={setEditingPricePeriod} />
+        </Dialog>
+      )}
+
+      {/* === MODAL 5: Options et services === */}
+      {staged ? (
+        <StageModal
+          open={showOptionsModal}
+          onClose={() => setShowOptionsModal(false)}
+          title="Options et services — 2026"
+          icon={Settings}
+          hue={STAGE_HUES.fuchsia}
+          maxWidth="max-w-lg"
+          centered
+          bodyClassName="max-h-[calc(100vh-14rem)] overflow-y-auto scrollbar-thin smooth-scroll"
+        >
+          <div className={formSkin}>
+          <OptionsForm
+            options={options}
+            onUpdate={updateOptions}
+            isGerant={isGerant}
+            onClose={() => setShowOptionsModal(false)}
+            editingOption={editingOption}
+            setEditingOption={setEditingOption} />
+          </div>
+        </StageModal>
+      ) : (
+        <Dialog isOpen={showOptionsModal} onClose={() => setShowOptionsModal(false)} title="Options et services - 2026" size="lg">
+          <OptionsForm
+            options={options}
+            onUpdate={updateOptions}
+            isGerant={isGerant}
+            onClose={() => setShowOptionsModal(false)}
+            editingOption={editingOption}
+            setEditingOption={setEditingOption} />
+        </Dialog>
+      )}
+
+      {/* Price Grid + Options buttons */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        {/* Grille tarifaire */}
+        {staged ? (
+          <StagePanel
+            title="Grille tarifaire"
+            icon={DollarSign}
+            hue={STAGE_HUES.emerald}
+            action={
+              <button
+                type="button"
+                onClick={() => setShowPriceGridModal(true)}
+                className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-bold transition-all duration-200 active:scale-95 ${
+                  dark ? 'border-emerald-400/25 bg-emerald-400/[0.07] text-emerald-300 hover:bg-emerald-400/15' : 'border-emerald-600/25 bg-emerald-500/[0.06] text-emerald-700 hover:bg-emerald-500/10'
+                }`}
+              >
+                <Edit3 size={12} /> Gérer
+              </button>
+            }
+          >
+            <div className="space-y-2">
+              {priceGrid.map(row => (
+                <div
+                  key={row.id}
+                  className={`flex items-center justify-between gap-3 rounded-xl border p-3 transition-all duration-200 hover:-translate-y-px ${
+                    dark ? 'border-white/[0.06] bg-white/[0.02]' : 'border-teal-900/[0.07] bg-white/60'
+                  }`}
+                >
+                  <div className="min-w-0">
+                    <p className={`truncate text-sm font-bold ${dark ? 'text-white' : 'text-slate-900'}`}>{row.name}</p>
+                    <p className={`mt-0.5 font-mono text-[11px] tabular-nums ${dark ? 'text-slate-500' : 'text-teal-900/45'}`}>{row.startDate} → {row.endDate}</p>
+                  </div>
+                  <div className="shrink-0 text-right">
+                    <p className="text-sm font-extrabold tabular-nums" style={{ color: STAGE_HUES.emerald.a }}>
+                      {row.pricePerNight.toLocaleString('fr-FR')} MAD
+                    </p>
+                    <p className={`mt-0.5 text-[10px] font-semibold uppercase tracking-wider ${dark ? 'text-slate-500' : 'text-teal-900/40'}`}>min {row.minNights}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </StagePanel>
+        ) : (
+          <div className="bg-card rounded-xl border border-border/50 shadow-card p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-semibold flex items-center gap-2">
+                <DollarSign size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />
+                Grille tarifaire
+              </h3>
+              <Button variant="outline" size="sm" icon={<Edit3 size={12} />} onClick={() => setShowPriceGridModal(true)}>
+                Gérer
+              </Button>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-border/40">
+                    <th className="text-left py-2 px-3 font-medium text-text-secondary text-xs">Période</th>
+                    <th className="text-left py-2 px-3 font-medium text-text-secondary text-xs">Du</th>
+                    <th className="text-left py-2 px-3 font-medium text-text-secondary text-xs">Au</th>
+                    <th className="text-right py-2 px-3 font-medium text-text-secondary text-xs">Prix/nuit</th>
+                    <th className="text-right py-2 px-3 font-medium text-text-secondary text-xs">Min</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {priceGrid.map(row => (
+                    <tr key={row.id} className="border-b border-border/20 hover:bg-background/50 transition-colors">
+                      <td className="py-2.5 px-3 font-medium text-xs">{row.name}</td>
+                      <td className="py-2.5 px-3 text-xs text-text-secondary">{row.startDate}</td>
+                      <td className="py-2.5 px-3 text-xs text-text-secondary">{row.endDate}</td>
+                      <td className={`py-2.5 px-3 text-right text-xs font-semibold ${isGerant ? 'text-[#905D5D]' : 'text-accent'}`}>{row.pricePerNight.toLocaleString()} MAD</td>
+                      <td className="py-2.5 px-3 text-right text-xs text-text-secondary">{row.minNights}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </div>
         )}
-      </Dialog>
-
-      {/* === MODAL 1: Modifier le prix d'une date === */}
-      <Dialog isOpen={showPriceModal} onClose={() => setShowPriceModal(false)} title={`Modifier le tarif - ${selectedDate ? formatDateDisplay(selectedDate) : ''}`} size="md">
-        <PriceEditForm
-          date={selectedDate || ''}
-          defaultPrice={property?.seasonalPriceMin || 600}
-          isGerant={isGerant}
-          currentPrice={selectedDate ? getDayPrice(selectedDate) : undefined}
-          currentMonth={currentMonth}
-          currentYear={currentYear}
-          onSave={(dates, price) => {
-            setDayPricesPersistent(prev => {
-              const next = { ...prev };
-              dates.forEach(d => { next[d] = price; });
-              return next;
-            });
-            setShowPriceModal(false);
-          }}
-          onCancel={() => setShowPriceModal(false)}
-        />
-      </Dialog>
-
-      {/* === MODAL: Modifier le prix de réservation === */}
-      <Dialog isOpen={showResPriceModal} onClose={() => { setShowResPriceModal(false); setResPriceReservation(null); }}
-        title={`Modifier le prix de réservation`} size="md">
-        {resPriceReservation && (
-          <ReservationPriceEditForm
-            reservation={resPriceReservation}
-            defaultPrice={property?.seasonalPriceMin || 600}
-            isGerant={isGerant}
-            onSave={async (newPricePerNight) => {
-              const res = resPriceReservation;
-              const newTotalPrice = newPricePerNight * res.nights;
-              const newGrandTotal = newTotalPrice + res.optionsPrice;
-              const updated = { ...res, pricePerNight: newPricePerNight, totalPrice: newTotalPrice, grandTotal: newGrandTotal, balanceDue: newGrandTotal - res.depositPaid };
-              setReservations(prev => prev.map(r => r.id === res.id ? updated : r));
-              setShowResPriceModal(false);
-              setResPriceReservation(null);
-              try {
-                await updateReservation(res.id, { pricePerNight: newPricePerNight, totalPrice: newTotalPrice, grandTotal: newGrandTotal, balanceDue: newGrandTotal - res.depositPaid });
-                if (property?.id) {
-                  const data = await fetchReservations({ property_id: String(property.id) });
-                  setReservations(Array.isArray(data) ? data : []);
-                }
-              } catch {}
-            }}
-            onCancel={() => { setShowResPriceModal(false); setResPriceReservation(null); }}
-          />
-        )}
-      </Dialog>
-
-      {/* === MODAL 2: Bloquer des dates === */}
-      <Dialog isOpen={showBlockModal} onClose={() => setShowBlockModal(false)}
-        title={`Bloquer des dates - ${MONTHS[currentMonth]} ${currentYear}`} size="md">
-        <BlockDatesForm
-          rangeStart={selectedRange?.start || selectedDate || ''}
-          rangeEnd={selectedRange?.end || selectedDate || ''}
-          isGerant={isGerant}
-          onSave={(reason) => {
-            const start = selectedRange?.start || selectedDate || '';
-            const end = selectedRange?.end || selectedDate || '';
-            const newBlocked: string[] = [];
-            const s = new Date(start + 'T00:00:00');
-            const e = new Date(end + 'T00:00:00');
-            for (let d = new Date(s); d <= e; d.setDate(d.getDate() + 1)) {
-              const y = d.getFullYear();
-              const m = String(d.getMonth() + 1).padStart(2, '0');
-              const day = String(d.getDate()).padStart(2, '0');
-              newBlocked.push(`${y}-${m}-${day}`);
-            }
-            setBlockedDatesPersistent(prev => Array.from(new Set([...prev, ...newBlocked])));
-            setSelectedRange(null);
-            setShowBlockModal(false);
-          }}
-          onCancel={() => { setSelectedRange(null); setShowBlockModal(false); }} />
-      </Dialog>
-
-      {/* === MODAL 3: Réservation === */}
-      <Dialog isOpen={showReservationModal} onClose={() => { setEditingReservation(null); setShowReservationModal(false); }}
-        title={editingReservation ? `Réservation - du ${formatDateShort(editingReservation.startDate)} au ${formatDateShort(editingReservation.endDate)}` : 'Nouvelle réservation'} size="xl">
-        <ReservationForm
-          reservation={editingReservation}
-          clickedDate={selectedDate}
-          isGerant={isGerant}
-          options={options}
-          revealed={revealed}
-          defaultPricePerNight={property?.seasonalPriceMin || 600}
-          priceGrid={priceGrid}
-          onSave={handleSaveReservation}
-          onCancel={() => { setEditingReservation(null); setShowReservationModal(false); }}
-        />
-      </Dialog>
-
-      {/* === MODAL 4: Grille tarifaire === */}
-      <Dialog isOpen={showPriceGridModal} onClose={() => setShowPriceGridModal(false)} title="Grille tarifaire - 2026" size="xl" className="max-w-[676px]">
-        <PriceGridForm
-          periods={priceGrid}
-          onUpdate={updatePriceGrid}
-          isGerant={isGerant}
-          onClose={() => setShowPriceGridModal(false)}
-          editingPeriod={editingPricePeriod}
-          setEditingPeriod={setEditingPricePeriod} />
-      </Dialog>
-
-      {/* === MODAL 5: Options et services === */}
-      <Dialog isOpen={showOptionsModal} onClose={() => setShowOptionsModal(false)} title="Options et services - 2026" size="lg">
-  <OptionsForm
-    options={options}
-    onUpdate={updateOptions}
-    isGerant={isGerant}
-    onClose={() => setShowOptionsModal(false)}
-    editingOption={editingOption}
-    setEditingOption={setEditingOption} />
-      </Dialog>
-
-      {/* Price Grid + Options buttons */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {/* Grille tarifaire */}
-        <div className="bg-card rounded-xl border border-border/50 shadow-card p-5">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="font-semibold flex items-center gap-2">
-              <DollarSign size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />
-              Grille tarifaire
-            </h3>
-            <Button variant="outline" size="sm" icon={<Edit3 size={12} />} onClick={() => setShowPriceGridModal(true)}>
-              Gérer
-            </Button>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-border/40">
-                  <th className="text-left py-2 px-3 font-medium text-text-secondary text-xs">Période</th>
-                  <th className="text-left py-2 px-3 font-medium text-text-secondary text-xs">Du</th>
-                  <th className="text-left py-2 px-3 font-medium text-text-secondary text-xs">Au</th>
-                  <th className="text-right py-2 px-3 font-medium text-text-secondary text-xs">Prix/nuit</th>
-                  <th className="text-right py-2 px-3 font-medium text-text-secondary text-xs">Min</th>
-                </tr>
-              </thead>
-              <tbody>
-                {priceGrid.map(row => (
-                  <tr key={row.id} className="border-b border-border/20 hover:bg-background/50 transition-colors">
-                    <td className="py-2.5 px-3 font-medium text-xs">{row.name}</td>
-                    <td className="py-2.5 px-3 text-xs text-text-secondary">{row.startDate}</td>
-                    <td className="py-2.5 px-3 text-xs text-text-secondary">{row.endDate}</td>
-                    <td className={`py-2.5 px-3 text-right text-xs font-semibold ${isGerant ? 'text-[#905D5D]' : 'text-accent'}`}>{row.pricePerNight.toLocaleString()} MAD</td>
-                    <td className="py-2.5 px-3 text-right text-xs text-text-secondary">{row.minNights}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
 
         {/* Options */}
-        <div className="bg-card rounded-xl border border-border/50 shadow-card p-5">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="font-semibold flex items-center gap-2">
-              <Settings size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />
-              Options et services
-            </h3>
-            <Button variant="outline" size="sm" icon={<Edit3 size={12} />} onClick={() => setShowOptionsModal(true)}>
-              Gérer
-            </Button>
-          </div>
-          <div className="space-y-2">
-            {options.map(opt => {
-              const labelMap: Record<string, string> = {
-                unique: 'Unique', per_night: 'Par jour',
-                per_person_per_night: 'Par pers./jour', per_stay: 'Par séjour',
-              };
-              return (
-                <div key={opt.id} className="flex items-center justify-between p-2.5 rounded-lg bg-background">
-                  <div className="flex items-center gap-2">
-                    <Badge variant="secondary" size="sm">{labelMap[opt.type] || opt.type}</Badge>
-                    <span className="text-sm">{opt.name}</span>
+        {staged ? (
+          <StagePanel
+            title="Options et services"
+            icon={Settings}
+            hue={STAGE_HUES.fuchsia}
+            action={
+              <button
+                type="button"
+                onClick={() => setShowOptionsModal(true)}
+                className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-bold transition-all duration-200 active:scale-95 ${
+                  dark ? 'border-fuchsia-400/25 bg-fuchsia-400/[0.07] text-fuchsia-300 hover:bg-fuchsia-400/15' : 'border-fuchsia-600/25 bg-fuchsia-500/[0.06] text-fuchsia-700 hover:bg-fuchsia-500/10'
+                }`}
+              >
+                <Edit3 size={12} /> Gérer
+              </button>
+            }
+          >
+            <div className="space-y-2">
+              {options.map(opt => {
+                const labelMap: Record<string, string> = {
+                  unique: 'Unique', per_night: 'Par jour',
+                  per_person_per_night: 'Par pers./jour', per_stay: 'Par séjour',
+                };
+                return (
+                  <div
+                    key={opt.id}
+                    className={`flex items-center justify-between gap-3 rounded-xl border p-3 transition-all duration-200 hover:-translate-y-px ${
+                      dark ? 'border-white/[0.06] bg-white/[0.02]' : 'border-teal-900/[0.07] bg-white/60'
+                    }`}
+                  >
+                    <div className="flex min-w-0 items-center gap-2.5">
+                      <span
+                        className="shrink-0 rounded-full border px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider"
+                        style={{
+                          color: dark ? '#E879F9' : '#A21CAF',
+                          borderColor: dark ? 'rgba(232,121,249,0.30)' : 'rgba(162,28,175,0.22)',
+                          backgroundColor: dark ? 'rgba(232,121,249,0.08)' : 'rgba(162,28,175,0.05)',
+                        }}
+                      >
+                        {labelMap[opt.type] || opt.type}
+                      </span>
+                      <span className={`truncate text-sm font-medium ${dark ? 'text-slate-200' : 'text-slate-700'}`}>{opt.name}</span>
+                    </div>
+                    <span className="shrink-0 text-sm font-extrabold tabular-nums" style={{ color: STAGE_HUES.fuchsia.a }}>
+                      {formatCurrency(opt.price)}
+                    </span>
                   </div>
-                  <span className={`text-sm font-medium ${isGerant ? 'text-[#905D5D]' : 'text-accent'}`}>{formatCurrency(opt.price)}</span>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
+          </StagePanel>
+        ) : (
+          <div className="bg-card rounded-xl border border-border/50 shadow-card p-5">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-semibold flex items-center gap-2">
+                <Settings size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />
+                Options et services
+              </h3>
+              <Button variant="outline" size="sm" icon={<Edit3 size={12} />} onClick={() => setShowOptionsModal(true)}>
+                Gérer
+              </Button>
+            </div>
+            <div className="space-y-2">
+              {options.map(opt => {
+                const labelMap: Record<string, string> = {
+                  unique: 'Unique', per_night: 'Par jour',
+                  per_person_per_night: 'Par pers./jour', per_stay: 'Par séjour',
+                };
+                return (
+                  <div key={opt.id} className="flex items-center justify-between p-2.5 rounded-lg bg-background">
+                    <div className="flex items-center gap-2">
+                      <Badge variant="secondary" size="sm">{labelMap[opt.type] || opt.type}</Badge>
+                      <span className="text-sm">{opt.name}</span>
+                    </div>
+                    <span className={`text-sm font-medium ${isGerant ? 'text-[#905D5D]' : 'text-accent'}`}>{formatCurrency(opt.price)}</span>
+                  </div>
+                );
+              })}
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </div>
   );
@@ -1261,29 +1690,87 @@ function ReservationForm({ reservation, clickedDate, options, revealed, defaultP
   };
 
   const [activeTab, setActiveTab] = useState<'step' | 'participants' | 'pricing' | 'deposit'>('step');
+  const { staged, dark } = useStageChrome();
+  const TAB_ORDER: ('step' | 'participants' | 'pricing' | 'deposit')[] = ['step', 'participants', 'pricing', 'deposit'];
+
+  const ghostBtn = `inline-flex h-9 items-center gap-1.5 rounded-xl border px-4 text-sm font-semibold transition-all duration-200 active:scale-[0.97] ${
+    dark
+      ? 'border-white/12 bg-white/5 text-slate-300 hover:bg-white/10 hover:text-white'
+      : 'border-teal-900/12 bg-white/70 text-teal-900/70 hover:bg-white hover:text-teal-900'
+  }`;
+  const primaryBtn = `inline-flex h-9 items-center gap-1.5 rounded-xl border px-4 text-sm font-bold text-white transition-all duration-200 active:scale-[0.97] ${
+    dark
+      ? 'border-white/25 bg-gradient-to-b from-[#8B7CFF] to-[#5646C9] shadow-[inset_0_1px_0_rgba(255,255,255,0.45),0_10px_26px_-8px_rgba(124,92,255,0.8)] hover:brightness-110'
+      : 'border-white/50 bg-gradient-to-b from-teal-400 to-emerald-600 shadow-[inset_0_1px_0_rgba(255,255,255,0.5),0_10px_26px_-10px_rgba(13,148,136,0.7)] hover:brightness-105'
+  }`;
 
   return (
     <div className="space-y-4">
       {/* Mini tab bar */}
-      <div className="flex border-b border-border/40 -mx-6 px-6">
-        {[
-          { id: 'step', label: 'Étape & Dates', icon: <Calendar size={13} /> },
-          { id: 'participants', label: 'Participants', icon: <User size={13} /> },
-          { id: 'pricing', label: 'Tarifs & Options', icon: <DollarSign size={13} /> },
-          { id: 'deposit', label: 'Acompte', icon: <CheckCircle size={13} /> },
-        ].map(tab => (
-          <button key={tab.id} onClick={() => setActiveTab(tab.id as typeof activeTab)}
-            className={`flex items-center gap-1.5 px-4 py-2.5 text-xs font-medium border-b-2 transition-all whitespace-nowrap ${
-              activeTab === tab.id
-                ? (isGerant ? 'text-[#905D5D] border-[#905D5D]' : 'text-accent border-accent')
-                : 'text-text-secondary border-transparent hover:text-text'
-            }`}
-          >
-            {tab.icon}
-            {tab.label}
-          </button>
-        ))}
-      </div>
+      {staged ? (
+        <div
+          className="flex flex-wrap gap-1 rounded-2xl border p-1.5"
+          style={{
+            borderColor: dark ? 'rgba(255,255,255,0.07)' : 'rgba(15,23,42,0.08)',
+            background: dark ? 'rgba(255,255,255,0.02)' : 'rgba(255,255,255,0.55)',
+          }}
+        >
+          {[
+            { id: 'step', label: 'Étape & Dates', icon: <Calendar size={13} /> },
+            { id: 'participants', label: 'Participants', icon: <User size={13} /> },
+            { id: 'pricing', label: 'Tarifs & Options', icon: <DollarSign size={13} /> },
+            { id: 'deposit', label: 'Acompte', icon: <CheckCircle size={13} /> },
+          ].map(tab => {
+            const active = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id as typeof activeTab)}
+                className={`relative flex items-center gap-1.5 whitespace-nowrap rounded-xl px-3 py-2 text-xs font-bold transition-colors duration-200 ${
+                  active ? 'text-white' : dark ? 'text-slate-400 hover:text-slate-200' : 'text-slate-500 hover:text-teal-900'
+                }`}
+              >
+                {active && (
+                  <motion.span
+                    layoutId="resv-tab-pill"
+                    className="absolute inset-0 rounded-xl border border-white/20"
+                    style={{
+                      backgroundImage: dark
+                        ? 'linear-gradient(145deg, #8B7CFF, #5646C9)'
+                        : 'linear-gradient(145deg, #2DD4BF, #0D9488)',
+                      boxShadow: dark
+                        ? 'inset 0 1px 0 rgba(255,255,255,0.4), 0 8px 20px -8px rgba(124,92,255,0.75)'
+                        : 'inset 0 1px 0 rgba(255,255,255,0.5), 0 8px 20px -8px rgba(13,148,136,0.65)',
+                    }}
+                    transition={{ type: 'spring', stiffness: 380, damping: 32 }}
+                  />
+                )}
+                <span className="relative z-10 flex items-center gap-1.5">{tab.icon}{tab.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="flex border-b border-border/40 -mx-6 px-6">
+          {[
+            { id: 'step', label: 'Étape & Dates', icon: <Calendar size={13} /> },
+            { id: 'participants', label: 'Participants', icon: <User size={13} /> },
+            { id: 'pricing', label: 'Tarifs & Options', icon: <DollarSign size={13} /> },
+            { id: 'deposit', label: 'Acompte', icon: <CheckCircle size={13} /> },
+          ].map(tab => (
+            <button key={tab.id} onClick={() => setActiveTab(tab.id as typeof activeTab)}
+              className={`flex items-center gap-1.5 px-4 py-2.5 text-xs font-medium border-b-2 transition-all whitespace-nowrap ${
+                activeTab === tab.id
+                  ? (isGerant ? 'text-[#905D5D] border-[#905D5D]' : 'text-accent border-accent')
+                  : 'text-text-secondary border-transparent hover:text-text'
+              }`}
+            >
+              {tab.icon}
+              {tab.label}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Tab content */}
       <div className="min-h-[200px]">
@@ -1292,15 +1779,29 @@ function ReservationForm({ reservation, clickedDate, options, revealed, defaultP
             <div>
               <label className="text-xs font-medium text-text-secondary block mb-2">ÉTAPE</label>
               <div className="flex gap-2 flex-wrap">
-                {(['option', 'confirmed', 'cancelled', 'occupied'] as const).map(s => (
-                  <button key={s} onClick={() => setStep(s)}
-                    className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-all ${
-                      step === s
-                        ? reservationStatusColors[s] + ' border-transparent'
-                        : 'bg-background text-text-secondary border-border hover:border-text-secondary/30'
-                    }`}
-                  >{reservationStatusLabels[s]}</button>
-                ))}
+                {(['option', 'confirmed', 'cancelled', 'occupied'] as const).map(s => {
+                  const active = step === s;
+                  const pillHue = s === 'confirmed' ? STAGE_HUES.emerald : s === 'option' ? STAGE_HUES.amber : s === 'cancelled' ? { a: '#FB7185', glow: 'rgba(251,113,133,0.45)' } : STAGE_HUES.sky;
+                  return (
+                    <button key={s} onClick={() => setStep(s)}
+                      className={`relative px-3.5 py-1.5 text-xs font-bold rounded-xl border transition-all duration-200 ${
+                        !staged ? (active
+                          ? reservationStatusColors[s] + ' border-transparent'
+                          : 'bg-background text-text-secondary border-border hover:border-text-secondary/30')
+                          : active ? 'text-white' : ''
+                      }`}
+                      style={staged ? (active ? {
+                        backgroundImage: `linear-gradient(145deg, ${pillHue.a}, ${pillHue.a}CC)`,
+                        borderColor: 'rgba(255,255,255,0.28)',
+                        boxShadow: `inset 0 1px 0 rgba(255,255,255,0.35), 0 6px 18px -6px ${pillHue.glow}`,
+                      } : {
+                        color: dark ? 'rgba(226,232,240,0.60)' : 'rgba(15,23,42,0.55)',
+                        borderColor: dark ? 'rgba(255,255,255,0.09)' : 'rgba(15,23,42,0.10)',
+                        background: dark ? 'rgba(255,255,255,0.02)' : 'rgba(255,255,255,0.55)',
+                      }) : undefined}
+                    >{reservationStatusLabels[s]}</button>
+                  );
+                })}
               </div>
             </div>
             <div className="grid grid-cols-3 gap-3">
@@ -1452,9 +1953,17 @@ function ReservationForm({ reservation, clickedDate, options, revealed, defaultP
       </div>
 
       {/* Actions */}
-      <div className="flex justify-between gap-2 pt-3 border-t border-border/40">
+      <div className={`flex justify-between gap-2 pt-3 ${staged ? '' : 'border-t border-border/40'}`}
+        style={staged ? { borderTop: `1px solid ${dark ? 'rgba(255,255,255,0.07)' : 'rgba(15,23,42,0.07)'}` } : undefined}>
         <div>
-          {activeTab !== 'step' && (
+          {activeTab !== 'step' && (staged ? (
+            <button type="button" className={ghostBtn} onClick={() => {
+              const idx = TAB_ORDER.indexOf(activeTab);
+              if (idx > 0) setActiveTab(TAB_ORDER[idx - 1]);
+            }}>
+              <ChevronLeft size={14} /> Précédent
+            </button>
+          ) : (
             <Button variant="outline" onClick={() => {
               const tabs: ('step' | 'participants' | 'pricing' | 'deposit')[] = ['step', 'participants', 'pricing', 'deposit'];
               const idx = tabs.indexOf(activeTab);
@@ -1463,45 +1972,88 @@ function ReservationForm({ reservation, clickedDate, options, revealed, defaultP
               <ChevronLeft size={14} className="mr-1" />
               Précédent
             </Button>
-          )}
+          ))}
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={onCancel}>Annuler</Button>
-          {activeTab === 'deposit' ? (
-            <Button variant="default" onClick={() => {
-              const nightsCalc = startDate && endDate
-                ? Math.round((new Date(endDate + 'T00:00:00').getTime() - new Date(startDate + 'T00:00:00').getTime()) / 86400000)
-                : 0;
-              const newRes: Reservation = {
-                id: reservation?.id || `r${Date.now()}`,
-                clientId: selectedContactId || reservation?.clientId || undefined,
-                clientName: `${firstName} ${lastName}`,
-                firstName, lastName, email, phone, languages,
-                startDate, endDate, nights: nightsCalc,
-                adults, children, babies,
-                pricePerNight, totalPrice: totalAccommodation,
-                optionsPrice: totalOptions, grandTotal,
-                depositPaid: deposit, balanceDue: balance,
-                status: step,
-                options: selectedOptions.map(so => {
-                  const opt = options.find(o => o.id === so.id);
-                  return { id: so.id, name: opt?.name || '', price: opt?.price || 0, qty: so.qty };
-                }),
-              };
-              onSave(newRes);
-            }}>
-              <CheckCircle size={14} className="mr-1" />
-              {isNew ? 'Enregistrer la réservation' : 'Modifier la réservation'}
-            </Button>
+          {staged ? (
+            <>
+              <button type="button" className={ghostBtn} onClick={onCancel}>Annuler</button>
+              {activeTab === 'deposit' ? (
+                <button type="button" className={primaryBtn} onClick={() => {
+                  const nightsCalc = startDate && endDate
+                    ? Math.round((new Date(endDate + 'T00:00:00').getTime() - new Date(startDate + 'T00:00:00').getTime()) / 86400000)
+                    : 0;
+                  const newRes: Reservation = {
+                    id: reservation?.id || `r${Date.now()}`,
+                    clientId: selectedContactId || reservation?.clientId || undefined,
+                    clientName: `${firstName} ${lastName}`,
+                    firstName, lastName, email, phone, languages,
+                    startDate, endDate, nights: nightsCalc,
+                    adults, children, babies,
+                    pricePerNight, totalPrice: totalAccommodation,
+                    optionsPrice: totalOptions, grandTotal,
+                    depositPaid: deposit, balanceDue: balance,
+                    status: step,
+                    options: selectedOptions.map(so => {
+                      const opt = options.find(o => o.id === so.id);
+                      return { id: so.id, name: opt?.name || '', price: opt?.price || 0, qty: so.qty };
+                    }),
+                  };
+                  onSave(newRes);
+                }}>
+                  <CheckCircle size={14} />
+                  {isNew ? 'Enregistrer la réservation' : 'Modifier la réservation'}
+                </button>
+              ) : (
+                <button type="button" className={primaryBtn} onClick={() => {
+                  const idx = TAB_ORDER.indexOf(activeTab);
+                  if (idx < TAB_ORDER.length - 1) setActiveTab(TAB_ORDER[idx + 1]);
+                }}>
+                  Suivant
+                  <ChevronRight size={14} />
+                </button>
+              )}
+            </>
           ) : (
-            <Button variant="default" onClick={() => {
-              const tabs: ('step' | 'participants' | 'pricing' | 'deposit')[] = ['step', 'participants', 'pricing', 'deposit'];
-              const idx = tabs.indexOf(activeTab);
-              if (idx < tabs.length - 1) setActiveTab(tabs[idx + 1]);
-            }}>
-              Suivant
-              <ChevronRight size={14} className="ml-1" />
-            </Button>
+            <>
+              <Button variant="outline" onClick={onCancel}>Annuler</Button>
+              {activeTab === 'deposit' ? (
+                <Button variant="default" onClick={() => {
+                  const nightsCalc = startDate && endDate
+                    ? Math.round((new Date(endDate + 'T00:00:00').getTime() - new Date(startDate + 'T00:00:00').getTime()) / 86400000)
+                    : 0;
+                  const newRes: Reservation = {
+                    id: reservation?.id || `r${Date.now()}`,
+                    clientId: selectedContactId || reservation?.clientId || undefined,
+                    clientName: `${firstName} ${lastName}`,
+                    firstName, lastName, email, phone, languages,
+                    startDate, endDate, nights: nightsCalc,
+                    adults, children, babies,
+                    pricePerNight, totalPrice: totalAccommodation,
+                    optionsPrice: totalOptions, grandTotal,
+                    depositPaid: deposit, balanceDue: balance,
+                    status: step,
+                    options: selectedOptions.map(so => {
+                      const opt = options.find(o => o.id === so.id);
+                      return { id: so.id, name: opt?.name || '', price: opt?.price || 0, qty: so.qty };
+                    }),
+                  };
+                  onSave(newRes);
+                }}>
+                  <CheckCircle size={14} className="mr-1" />
+                  {isNew ? 'Enregistrer la réservation' : 'Modifier la réservation'}
+                </Button>
+              ) : (
+                <Button variant="default" onClick={() => {
+                  const tabs: ('step' | 'participants' | 'pricing' | 'deposit')[] = ['step', 'participants', 'pricing', 'deposit'];
+                  const idx = tabs.indexOf(activeTab);
+                  if (idx < tabs.length - 1) setActiveTab(tabs[idx + 1]);
+                }}>
+                  Suivant
+                  <ChevronRight size={14} className="ml-1" />
+                </Button>
+              )}
+            </>
           )}
         </div>
       </div>
@@ -1521,6 +2073,27 @@ function PriceGridForm({ periods, onUpdate, onClose, editingPeriod, setEditingPe
   const [pricePerNight, setPricePerNight] = useState(0);
   const [showAdd, setShowAdd] = useState(false);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const { staged, dark } = useStageChrome();
+
+  const ghostBtnSm = `inline-flex h-8 items-center gap-1.5 rounded-xl border px-3 text-xs font-semibold transition-all duration-200 active:scale-[0.97] ${
+    dark
+      ? 'border-white/12 bg-white/5 text-slate-300 hover:bg-white/10 hover:text-white'
+      : 'border-teal-900/12 bg-white/70 text-teal-900/70 hover:bg-white hover:text-teal-900'
+  }`;
+  const primaryBtnSm = `inline-flex h-8 items-center gap-1.5 rounded-xl border px-3 text-xs font-bold text-white transition-all duration-200 active:scale-[0.97] ${
+    dark
+      ? 'border-white/25 bg-gradient-to-b from-[#34D399] to-[#059669] shadow-[inset_0_1px_0_rgba(255,255,255,0.45),0_8px_20px_-8px_rgba(52,211,153,0.7)] hover:brightness-110'
+      : 'border-white/50 bg-gradient-to-b from-teal-400 to-emerald-600 shadow-[inset_0_1px_0_rgba(255,255,255,0.5),0_8px_20px_-10px_rgba(13,148,136,0.7)] hover:brightness-105'
+  }`;
+  const iconBtn = `p-1.5 rounded-lg transition-all duration-150 hover:scale-110 ${
+    dark ? 'text-slate-500 hover:bg-white/10 hover:text-white' : 'text-slate-400 hover:bg-teal-900/[0.07] hover:text-teal-800'
+  }`;
+  const SEASON_HUE: Record<string, { a: string; glow: string }> = {
+    'Basse saison': { a: '#38BDF8', glow: 'rgba(56,189,248,0.5)' },
+    'Saison intermédiaire': { a: '#FBBF24', glow: 'rgba(251,191,36,0.5)' },
+    'Haute saison': { a: '#FB7185', glow: 'rgba(251,113,133,0.5)' },
+    'Événements': { a: '#8B7CFF', glow: 'rgba(139,124,255,0.55)' },
+  };
 
   const seasonColors: Record<string, string> = {
     'Basse saison': 'bg-sky-100 text-sky-700 border-sky-200',
@@ -1572,7 +2145,11 @@ function PriceGridForm({ periods, onUpdate, onClose, editingPeriod, setEditingPe
                 transition={{ duration: 0.2 }}
               >
                 {isEditing ? (
-                  <div className={`p-4 rounded-xl ${isGerant ? 'bg-[#905D5D]/5' : 'bg-accent/5'} border-2 ${isGerant ? 'border-[#905D5D]/30' : 'border-accent/30'} space-y-3`}>
+                  <div className={`p-4 rounded-xl space-y-3 ${staged
+                    ? dark
+                      ? 'bg-violet-400/[0.06] border-2 border-violet-400/30 shadow-[0_0_24px_-8px_rgba(139,124,255,0.45)]'
+                      : 'bg-teal-500/[0.05] border-2 border-teal-600/30 shadow-[0_0_24px_-10px_rgba(13,148,136,0.4)]'
+                    : `${isGerant ? 'bg-[#905D5D]/5' : 'bg-accent/5'} border-2 ${isGerant ? 'border-[#905D5D]/30' : 'border-accent/30'}`}`}>
                     <div className="flex items-center gap-2 mb-1">
                       <span className={`text-xs font-medium ${isGerant ? 'text-[#905D5D]' : 'text-accent'}`}>Modifier la période</span>
                     </div>
@@ -1580,13 +2157,26 @@ function PriceGridForm({ periods, onUpdate, onClose, editingPeriod, setEditingPe
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                         <div>
                           <label className="text-[10px] font-medium text-text-secondary uppercase tracking-wider mb-1 block">Période</label>
-                          <select value={editingPeriod.name} onChange={e => setEditingPeriod({ ...editingPeriod, name: e.target.value })}
-                            className={`w-full h-9 px-3 text-sm rounded-lg border border-border bg-card focus:outline-none focus:ring-2 ${isGerant ? 'focus:ring-[#905D5D]/20' : 'focus:ring-accent/20'} ${isGerant ? 'focus:border-[#905D5D]' : 'focus:border-accent'} transition-all`}>
-                            <option value="Basse saison">Basse saison</option>
-                            <option value="Saison intermédiaire">Saison intermédiaire</option>
-                            <option value="Haute saison">Haute saison</option>
-                            <option value="Événements">Événements</option>
-                          </select>
+                          {staged ? (
+                            <Select
+                              options={[
+                                { value: 'Basse saison', label: 'Basse saison' },
+                                { value: 'Saison intermédiaire', label: 'Saison intermédiaire' },
+                                { value: 'Haute saison', label: 'Haute saison' },
+                                { value: 'Événements', label: 'Événements' },
+                              ]}
+                              value={editingPeriod.name}
+                              onValueChange={v => setEditingPeriod({ ...editingPeriod, name: v })}
+                            />
+                          ) : (
+                            <select value={editingPeriod.name} onChange={e => setEditingPeriod({ ...editingPeriod, name: e.target.value })}
+                              className={`w-full h-9 px-3 text-sm rounded-lg border border-border bg-card focus:outline-none focus:ring-2 ${isGerant ? 'focus:ring-[#905D5D]/20' : 'focus:ring-accent/20'} ${isGerant ? 'focus:border-[#905D5D]' : 'focus:border-accent'} transition-all`}>
+                              <option value="Basse saison">Basse saison</option>
+                              <option value="Saison intermédiaire">Saison intermédiaire</option>
+                              <option value="Haute saison">Haute saison</option>
+                              <option value="Événements">Événements</option>
+                            </select>
+                          )}
                         </div>
                         <div>
                           <label className="text-[10px] font-medium text-text-secondary uppercase tracking-wider mb-1 block">Du</label>
@@ -1611,22 +2201,56 @@ function PriceGridForm({ periods, onUpdate, onClose, editingPeriod, setEditingPe
                       </div>
                     </div>
                     <div className="flex items-center gap-2 pt-1">
-                      <Button variant="default" size="sm" icon={<CheckCircle size={12} />}
-                        onClick={() => { onUpdate(periods.map(p => p.id === editingPeriod.id ? { ...editingPeriod, minNights: daysBetween(editingPeriod.startDate, editingPeriod.endDate) } : p)); setEditingPeriod(null); }}>
-                        Enregistrer
-                      </Button>
-                      <Button variant="ghost" size="sm" onClick={() => setEditingPeriod(null)}>Annuler</Button>
+                      {staged ? (
+                        <>
+                          <button type="button" className={primaryBtnSm}
+                            onClick={() => { onUpdate(periods.map(p => p.id === editingPeriod.id ? { ...editingPeriod, minNights: daysBetween(editingPeriod.startDate, editingPeriod.endDate) } : p)); setEditingPeriod(null); }}>
+                            <CheckCircle size={12} /> Enregistrer
+                          </button>
+                          <button type="button" className={ghostBtnSm} onClick={() => setEditingPeriod(null)}>Annuler</button>
+                        </>
+                      ) : (
+                        <>
+                          <Button variant="default" size="sm" icon={<CheckCircle size={12} />}
+                            onClick={() => { onUpdate(periods.map(p => p.id === editingPeriod.id ? { ...editingPeriod, minNights: daysBetween(editingPeriod.startDate, editingPeriod.endDate) } : p)); setEditingPeriod(null); }}>
+                            Enregistrer
+                          </Button>
+                          <Button variant="ghost" size="sm" onClick={() => setEditingPeriod(null)}>Annuler</Button>
+                        </>
+                      )}
                     </div>
                   </div>
                 ) : (
-                  <div className="flex items-center justify-between p-4 rounded-xl bg-background border border-border/40 hover:border-border/60 hover:shadow-sm transition-all group">
+                  <div className={`flex items-center justify-between p-4 rounded-xl border transition-all duration-200 group ${staged
+                    ? dark
+                      ? 'border-white/[0.06] bg-white/[0.02] hover:border-emerald-400/25 hover:bg-white/[0.04]'
+                      : 'border-teal-900/[0.07] bg-white/60 hover:border-emerald-500/35 hover:shadow-[0_6px_18px_-8px_rgba(16,185,129,0.4)]'
+                    : 'bg-background border-border/40 hover:border-border/60 hover:shadow-sm'}`}>
                     <div className="flex items-center gap-4">
-                      <span className={`w-3 h-3 rounded-full shrink-0 ${seasonDots[p.name] || 'bg-gray-400'}`} />
+                      <span className={`w-3 h-3 rounded-full shrink-0 ${seasonDots[p.name] || 'bg-gray-400'}`}
+                        style={staged ? { backgroundColor: (SEASON_HUE[p.name]?.a) || '#94A3B8', boxShadow: `0 0 10px ${(SEASON_HUE[p.name]?.glow) || 'rgba(148,163,184,0.5)'}` } : undefined} />
                       <div>
-                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${seasonColors[p.name] || 'bg-gray-100 text-gray-700 border-gray-200'}`}>
-                          {p.name}
-                        </span>
-                        <div className="flex items-center gap-2 mt-1.5 text-xs text-text-secondary">
+                        {staged ? (
+                          <span
+                            className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-bold"
+                            style={{
+                              color: (SEASON_HUE[p.name]?.a) || '#94A3B8',
+                              borderColor: `${(SEASON_HUE[p.name]?.a) || '#94A3B8'}40`,
+                              borderWidth: 1,
+                              borderStyle: 'solid',
+                              backgroundColor: `${(SEASON_HUE[p.name]?.a) || '#94A3B8'}12`,
+                            }}
+                          >
+                            {p.name}
+                          </span>
+                        ) : (
+                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${seasonColors[p.name] || 'bg-gray-100 text-gray-700 border-gray-200'}`}>
+                            {p.name}
+                          </span>
+                        )}
+                        <div className={`flex items-center gap-2 mt-1.5 text-xs ${staged
+                          ? dark ? 'text-slate-500 font-mono tabular-nums' : 'text-teal-900/45 font-mono tabular-nums'
+                          : 'text-text-secondary'}`}>
                           <span>{p.startDate} → {p.endDate}</span>
                           <span className="text-border">·</span>
                           <span>{p.minNights} nuit{p.minNights > 1 ? 's' : ''} min</span>
@@ -1634,21 +2258,31 @@ function PriceGridForm({ periods, onUpdate, onClose, editingPeriod, setEditingPe
                       </div>
                     </div>
                     <div className="flex items-center gap-4">
-                      <span className={`text-sm font-bold ${isGerant ? 'text-[#905D5D]' : 'text-accent'}`}>{p.pricePerNight.toLocaleString('fr-FR')} MAD</span>
-                      <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button className="p-1.5 rounded-lg hover:bg-card text-text-secondary hover:text-text transition-colors" onClick={() => setEditingPeriod(p)} title="Modifier">
+                      <span className={`text-sm font-extrabold tabular-nums ${staged ? '' : isGerant ? 'text-[#905D5D]' : 'text-accent'}`}
+                        style={staged ? {
+                          backgroundImage: dark
+                            ? 'linear-gradient(100deg, #34D399, #6EE7B7)'
+                            : 'linear-gradient(100deg, #059669, #10B981)',
+                          WebkitBackgroundClip: 'text',
+                          backgroundClip: 'text',
+                          color: 'transparent',
+                        } : undefined}>
+                        {p.pricePerNight.toLocaleString('fr-FR')} MAD
+                      </span>
+                      <div className={`flex items-center gap-0.5 transition-opacity ${staged ? 'sm:opacity-60 group-hover:opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
+                        <button className={iconBtn} onClick={() => setEditingPeriod(p)} title="Modifier">
                           <Edit3 size={14} />
                         </button>
-                        <button className="p-1.5 rounded-lg hover:bg-card text-text-secondary hover:text-text transition-colors" onClick={() => handleDuplicate(p)} title="Dupliquer">
+                        <button className={iconBtn} onClick={() => handleDuplicate(p)} title="Dupliquer">
                           <Copy size={14} />
                         </button>
                         {deleteConfirmId === p.id ? (
                           <div className="flex items-center gap-1 ml-1">
-                            <button className="text-[10px] font-medium text-red-600 hover:text-red-700 px-1.5 py-0.5 rounded hover:bg-red-50 transition-colors" onClick={() => handleDelete(p.id)}>Suppr.</button>
-                            <button className="text-[10px] font-medium text-text-secondary hover:text-text px-1.5 py-0.5 rounded hover:bg-background transition-colors" onClick={() => setDeleteConfirmId(null)}>Non</button>
+                            <button className="text-[10px] font-bold text-red-400 hover:text-red-300 px-1.5 py-0.5 rounded hover:bg-red-500/10 transition-colors" onClick={() => handleDelete(p.id)}>Suppr.</button>
+                            <button className={`text-[10px] font-semibold px-1.5 py-0.5 rounded transition-colors ${dark ? 'text-slate-500 hover:text-slate-300 hover:bg-white/10' : 'text-slate-500 hover:text-slate-700 hover:bg-teal-900/[0.06]'}`} onClick={() => setDeleteConfirmId(null)}>Non</button>
                           </div>
                         ) : (
-                          <button className="p-1.5 rounded-lg hover:bg-card text-text-secondary hover:text-red-500 transition-colors" onClick={() => setDeleteConfirmId(p.id)} title="Supprimer">
+                          <button className={`${iconBtn} hover:!text-red-400`} onClick={() => setDeleteConfirmId(p.id)} title="Supprimer">
                             <Trash2 size={14} />
                           </button>
                         )}
@@ -1683,14 +2317,28 @@ function PriceGridForm({ periods, onUpdate, onClose, editingPeriod, setEditingPe
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                   <div>
                     <label className="text-[10px] font-medium text-text-secondary uppercase tracking-wider mb-1 block">Période</label>
-                    <select value={name} onChange={e => setName(e.target.value)}
-                      className={`w-full h-9 px-3 text-sm rounded-lg border border-border bg-card focus:outline-none focus:ring-2 ${isGerant ? 'focus:ring-[#905D5D]/20' : 'focus:ring-accent/20'} ${isGerant ? 'focus:border-[#905D5D]' : 'focus:border-accent'} transition-all`}>
-                      <option value="">Sélectionner</option>
-                      <option value="Basse saison">Basse saison</option>
-                      <option value="Saison intermédiaire">Saison intermédiaire</option>
-                      <option value="Haute saison">Haute saison</option>
-                      <option value="Événements">Événements</option>
-                    </select>
+                    {staged ? (
+                      <Select
+                        options={[
+                          { value: '', label: 'Sélectionner' },
+                          { value: 'Basse saison', label: 'Basse saison' },
+                          { value: 'Saison intermédiaire', label: 'Saison intermédiaire' },
+                          { value: 'Haute saison', label: 'Haute saison' },
+                          { value: 'Événements', label: 'Événements' },
+                        ]}
+                        value={name}
+                        onValueChange={v => setName(v)}
+                      />
+                    ) : (
+                      <select value={name} onChange={e => setName(e.target.value)}
+                        className={`w-full h-9 px-3 text-sm rounded-lg border border-border bg-card focus:outline-none focus:ring-2 ${isGerant ? 'focus:ring-[#905D5D]/20' : 'focus:ring-accent/20'} ${isGerant ? 'focus:border-[#905D5D]' : 'focus:border-accent'} transition-all`}>
+                        <option value="">Sélectionner</option>
+                        <option value="Basse saison">Basse saison</option>
+                        <option value="Saison intermédiaire">Saison intermédiaire</option>
+                        <option value="Haute saison">Haute saison</option>
+                        <option value="Événements">Événements</option>
+                      </select>
+                    )}
                   </div>
                   <div>
                     <label className="text-[10px] font-medium text-text-secondary uppercase tracking-wider mb-1 block">Du</label>
@@ -1715,14 +2363,29 @@ function PriceGridForm({ periods, onUpdate, onClose, editingPeriod, setEditingPe
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                <Button variant="default" size="sm" icon={<Plus size={12} />} onClick={handleAdd}>Ajouter</Button>
-                <Button variant="ghost" size="sm" onClick={() => setShowAdd(false)}>Annuler</Button>
+                {staged ? (
+                  <>
+                    <button type="button" className={primaryBtnSm} onClick={handleAdd}><Plus size={12} /> Ajouter</button>
+                    <button type="button" className={ghostBtnSm} onClick={() => setShowAdd(false)}>Annuler</button>
+                  </>
+                ) : (
+                  <>
+                    <Button variant="default" size="sm" icon={<Plus size={12} />} onClick={handleAdd}>Ajouter</Button>
+                    <Button variant="ghost" size="sm" onClick={() => setShowAdd(false)}>Annuler</Button>
+                  </>
+                )}
               </div>
             </motion.div>
           ) : (
             <button
               onClick={() => setShowAdd(true)}
-              className={`w-full flex items-center justify-center gap-2 p-3 rounded-xl border-2 border-dashed border-border/50 text-sm text-text-secondary ${isGerant ? 'hover:text-[#905D5D]' : 'hover:text-accent'} ${isGerant ? 'hover:border-[#905D5D]/40' : 'hover:border-accent/40'} ${isGerant ? 'hover:bg-[#905D5D]/5' : 'hover:bg-accent/5'} transition-all`}
+              className={`w-full flex items-center justify-center gap-2 p-3 rounded-xl border-2 border-dashed text-sm font-semibold transition-all duration-200 ${
+                staged
+                  ? dark
+                    ? 'border-white/12 text-slate-500 hover:text-violet-300 hover:border-violet-400/45 hover:bg-violet-400/[0.05] hover:shadow-[0_0_24px_-10px_rgba(139,124,255,0.55)]'
+                    : 'border-teal-900/15 text-teal-900/50 hover:text-teal-700 hover:border-emerald-500/45 hover:bg-emerald-500/[0.05]'
+                  : `border-border/50 text-text-secondary ${isGerant ? 'hover:text-[#905D5D]' : 'hover:text-accent'} ${isGerant ? 'hover:border-[#905D5D]/40' : 'hover:border-accent/40'} ${isGerant ? 'hover:bg-[#905D5D]/5' : 'hover:bg-accent/5'}`
+              }`}
             >
               <Plus size={16} />
               Ajouter une période
@@ -1731,8 +2394,13 @@ function PriceGridForm({ periods, onUpdate, onClose, editingPeriod, setEditingPe
         </AnimatePresence>
       </div>
 
-      <div className="flex justify-end pt-2 border-t border-border/30">
-        <Button variant="outline" onClick={onClose}>Fermer</Button>
+      <div className="flex justify-end pt-3"
+        style={staged ? { borderTop: `1px solid ${dark ? 'rgba(255,255,255,0.07)' : 'rgba(15,23,42,0.07)'}` } : undefined}>
+        {staged ? (
+          <button type="button" className={ghostBtnSm} onClick={onClose}>Fermer</button>
+        ) : (
+          <Button variant="outline" onClick={onClose}>Fermer</Button>
+        )}
       </div>
     </div>
   );
@@ -1761,60 +2429,158 @@ function OptionsForm({ options, onUpdate, onClose, editingOption, setEditingOpti
 
   const handleDelete = (id: string) => onUpdate(options.filter(o => o.id !== id));
 
+  const { staged, dark } = useStageChrome();
+  const ghostBtnSm = `inline-flex h-8 items-center gap-1.5 rounded-xl border px-3 text-xs font-semibold transition-all duration-200 active:scale-[0.97] ${
+    dark
+      ? 'border-white/12 bg-white/5 text-slate-300 hover:bg-white/10 hover:text-white'
+      : 'border-teal-900/12 bg-white/70 text-teal-900/70 hover:bg-white hover:text-teal-900'
+  }`;
+  const primaryBtnSm = `inline-flex h-8 items-center gap-1.5 rounded-xl border px-3 text-xs font-bold text-white transition-all duration-200 active:scale-[0.97] ${
+    dark
+      ? 'border-white/25 bg-gradient-to-b from-[#E879F9] to-[#A21CAF] shadow-[inset_0_1px_0_rgba(255,255,255,0.45),0_8px_20px_-8px_rgba(232,121,249,0.6)] hover:brightness-110'
+      : 'border-white/50 bg-gradient-to-b from-fuchsia-400 to-fuchsia-600 shadow-[inset_0_1px_0_rgba(255,255,255,0.5),0_8px_20px_-10px_rgba(192,38,211,0.7)] hover:brightness-105'
+  }`;
+  const TYPE_HUE: Record<string, string> = {
+    unique: '#38BDF8',
+    per_night: '#34D399',
+    per_person_per_night: '#FBBF24',
+    per_stay: '#8B7CFF',
+  };
+  const iconBtnCls = dark
+    ? 'text-slate-500 hover:bg-white/10 hover:text-white'
+    : 'text-slate-400 hover:bg-teal-900/[0.07] hover:text-teal-800';
+
   return (
     <div className="space-y-4">
-      <div className="max-h-64 overflow-y-auto space-y-1">
+      <div className="max-h-64 space-y-2 overflow-y-auto scrollbar-thin pr-0.5" style={{
+        transform: 'translateZ(0)',
+        overscrollBehavior: 'contain',
+      }}>
         {options.map(opt => (
-          <div key={opt.id} className="flex items-center justify-between p-3 rounded-lg bg-background hover:bg-border/30 transition-colors group">
-            <div className="flex items-center gap-2">
-              <Badge variant="secondary" size="sm">{typeLabels[opt.type]}</Badge>
-              <span className="text-sm">{opt.name}</span>
+          staged ? (
+            <div
+              key={opt.id}
+              className={`group flex items-center justify-between p-3 rounded-xl border transition-all duration-200 hover:-translate-y-px ${
+                dark
+                  ? 'border-white/[0.06] bg-white/[0.02] hover:border-fuchsia-400/25 hover:bg-white/[0.04]'
+                  : 'border-teal-900/[0.07] bg-white/60 hover:border-fuchsia-500/35 hover:shadow-[0_6px_18px_-8px_rgba(192,38,211,0.35)]'
+              }`}
+            >
+              <div className="flex min-w-0 items-center gap-2.5">
+                <span
+                  className="shrink-0 rounded-full border px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider"
+                  style={{
+                    color: TYPE_HUE[opt.type],
+                    borderColor: `${TYPE_HUE[opt.type]}40`,
+                    backgroundColor: `${TYPE_HUE[opt.type]}12`,
+                  }}
+                >
+                  {typeLabels[opt.type]}
+                </span>
+                <span className={`truncate text-sm font-medium ${dark ? 'text-slate-200' : 'text-slate-700'}`}>{opt.name}</span>
+              </div>
+              <div className="flex shrink-0 items-center gap-1.5">
+                <span className="text-sm font-extrabold tabular-nums" style={{ color: STAGE_HUES.fuchsia.a }}>
+                  {formatCurrency(opt.price)}
+                </span>
+                <button
+                  className={`flex h-7 w-7 items-center justify-center rounded-lg opacity-60 transition-all duration-150 hover:scale-110 group-hover:opacity-100 ${iconBtnCls}`}
+                  onClick={() => setEditingOption(opt)}
+                  title="Modifier"
+                >
+                  <Edit3 size={12} />
+                </button>
+                <button
+                  className={`flex h-7 w-7 items-center justify-center rounded-lg text-red-400 opacity-60 transition-all duration-150 hover:scale-110 hover:!text-red-300 group-hover:opacity-100`}
+                  onClick={() => handleDelete(opt.id)}
+                  title="Supprimer"
+                >
+                  <Trash2 size={12} />
+                </button>
+              </div>
             </div>
-            <div className="flex items-center gap-2">
-              <span className={`text-sm font-medium ${isGerant ? 'text-[#905D5D]' : 'text-accent'}`}>{formatCurrency(opt.price)}</span>
-              <button className="btn-ghost p-1 opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => setEditingOption(opt)}>
-                <Edit3 size={12} />
-              </button>
-              <button className="btn-ghost p-1 opacity-0 group-hover:opacity-100 transition-opacity text-red-500" onClick={() => handleDelete(opt.id)}>
-                <Trash2 size={12} />
-              </button>
+          ) : (
+            <div key={opt.id} className="flex items-center justify-between p-3 rounded-lg bg-background hover:bg-border/30 transition-colors group">
+              <div className="flex items-center gap-2">
+                <Badge variant="secondary" size="sm">{typeLabels[opt.type]}</Badge>
+                <span className="text-sm">{opt.name}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className={`text-sm font-medium ${isGerant ? 'text-[#905D5D]' : 'text-accent'}`}>{formatCurrency(opt.price)}</span>
+                <button className="btn-ghost p-1 opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => setEditingOption(opt)}>
+                  <Edit3 size={12} />
+                </button>
+                <button className="btn-ghost p-1 opacity-0 group-hover:opacity-100 transition-opacity text-red-500" onClick={() => handleDelete(opt.id)}>
+                  <Trash2 size={12} />
+                </button>
+              </div>
             </div>
-          </div>
+          )
         ))}
       </div>
 
       {editingOption && (
-        <div className="p-3 rounded-lg bg-background border border-border/50 space-y-2">
-          <p className="text-xs font-medium text-text-secondary">Modifier l'option</p>
+        <div
+          className={`space-y-2 rounded-xl border p-3 ${staged ? '' : 'bg-background border-border/50'}`}
+          style={staged ? {
+            borderColor: dark ? 'rgba(139,124,255,0.35)' : 'rgba(13,148,136,0.30)',
+            background: dark ? 'rgba(139,124,255,0.06)' : 'rgba(13,148,136,0.05)',
+            boxShadow: dark ? '0 0 24px -10px rgba(139,124,255,0.45)' : '0 0 24px -12px rgba(13,148,136,0.4)',
+          } : undefined}
+        >
+          <p className={`text-xs font-bold uppercase tracking-[0.14em] ${dark ? 'text-indigo-300' : 'text-teal-700'}`}>Modifier l'option</p>
           <div className="flex gap-2 items-end">
             <Input label="Nom" value={editingOption.name} onChange={e => setEditingOption({ ...editingOption, name: e.target.value })} className="flex-1" />
             <Input label="Prix" type="number" min="0" value={editingOption.price || ''} onChange={e => setEditingOption({ ...editingOption, price: +e.target.value })} className="w-24" />
             <div className="w-40">
-              <label className="text-sm font-medium text-text">Type</label>
+              <label className={`text-sm font-medium ${dark ? 'text-slate-200' : 'text-text'}`}>Type</label>
               <Select options={Object.entries(typeLabels).map(([k, v]) => ({ value: k, label: v }))} value={editingOption.type} onValueChange={(v) => setEditingOption({ ...editingOption, type: v as OptionService['type'] })} className="text-xs" />
             </div>
-            <button className="btn-ghost p-1 text-emerald-600 mb-0.5" onClick={() => { onUpdate(options.map(o => o.id === editingOption.id ? editingOption : o)); setEditingOption(null); }}>
-              <CheckCircle size={14} />
-            </button>
+            {staged ? (
+              <button
+                type="button"
+                onClick={() => { onUpdate(options.map(o => o.id === editingOption.id ? editingOption : o)); setEditingOption(null); }}
+                className="mb-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border text-emerald-300 transition-all duration-200 hover:scale-110 active:scale-90"
+                style={{
+                  borderColor: 'rgba(52,211,153,0.40)',
+                  backgroundImage: `linear-gradient(145deg, ${STAGE_HUES.emerald.a}20, transparent)`,
+                }}
+                title="Enregistrer"
+              >
+                <CheckCircle size={14} />
+              </button>
+            ) : (
+              <button className="btn-ghost p-1 text-emerald-600 mb-0.5" onClick={() => { onUpdate(options.map(o => o.id === editingOption.id ? editingOption : o)); setEditingOption(null); }}>
+                <CheckCircle size={14} />
+              </button>
+            )}
           </div>
         </div>
       )}
 
-      <div className="pt-3 border-t border-border/40 space-y-3">
-        <p className="text-xs font-medium text-text-secondary">Ajouter une option</p>
+      <div className="space-y-3 pt-3" style={staged ? { borderTop: `1px solid ${dark ? 'rgba(255,255,255,0.07)' : 'rgba(15,23,42,0.07)'}` } : { borderTopWidth: 1, borderTopStyle: 'solid', borderColor: undefined }}>
+        <p className={`text-xs font-medium ${dark ? 'text-slate-400' : 'text-teal-900/55'}`}>Ajouter une option</p>
         <Input label="Nom du service" placeholder="Nom du service" value={name} onChange={e => setName(e.target.value)} />
         <div className="flex gap-2 items-end">
           <Input label="Prix" type="number" min="0" placeholder="Prix" value={price || ''} onChange={e => setPrice(+e.target.value)} className="w-28" />
           <div className="w-40">
-            <label className="text-sm font-medium text-text">Type</label>
+            <label className={`text-sm font-medium ${dark ? 'text-slate-200' : 'text-text'}`}>Type</label>
             <Select options={Object.entries(typeLabels).map(([k, v]) => ({ value: k, label: v }))} value={type} onValueChange={(v) => setType(v as OptionService['type'])} className="w-full" />
           </div>
-          <Button variant="default" size="sm" icon={<Plus size={12} />} onClick={handleAdd}>Ajouter</Button>
+          {staged ? (
+            <button type="button" className={`${primaryBtnSm} mb-0.5`} onClick={handleAdd}><Plus size={12} /> Ajouter</button>
+          ) : (
+            <Button variant="default" size="sm" icon={<Plus size={12} />} onClick={handleAdd}>Ajouter</Button>
+          )}
         </div>
       </div>
 
-      <div className="flex justify-end pt-3 border-t border-border/40">
-        <Button variant="outline" onClick={onClose}>Fermer</Button>
+      <div className="flex justify-end pt-3" style={staged ? { borderTop: `1px solid ${dark ? 'rgba(255,255,255,0.07)' : 'rgba(15,23,42,0.07)'}` } : undefined}>
+        {staged ? (
+          <button type="button" className={ghostBtnSm} onClick={onClose}>Fermer</button>
+        ) : (
+          <Button variant="outline" onClick={onClose}>Fermer</Button>
+        )}
       </div>
     </div>
   );

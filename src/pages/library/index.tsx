@@ -1,10 +1,11 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 import type { ComponentType } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Library as LibraryIcon, Search, X, LayoutGrid, List, Download, Eye, Globe,
   FolderOpen, TrendingUp, FileText, Share2, Pencil, Trash2, Plus,
-  ChevronLeft, ChevronRight, AlertTriangle, Languages, CalendarDays, Copy,
+  ChevronLeft, ChevronRight, ChevronDown, AlertTriangle, Languages, CalendarDays, Copy,
   Home, Building2, KeyRound, Handshake, ClipboardList, FileSignature,
   Info, Zap, ExternalLink, CheckCircle2, Clock3, FileUp,
 } from 'lucide-react'
@@ -29,6 +30,19 @@ import type {
   LibraryDocType,
   LibraryLang,
 } from '../../data/libraryTemplates'
+import { useStageChrome } from '../../components/modules/calendar/useStageChrome'
+import { useStageFormClasses, useStageModalButtons } from '../../components/modules/calendar/StageModal'
+import { cn } from '../../lib/utils'
+import {
+  Stage,
+  StageBadge,
+  StageButton,
+  OrbIcon,
+  TiltCard,
+  STAGE_HUES,
+  useStageTheme,
+} from '../../components/dashboard/Stage'
+import type { StageHue } from '../../components/dashboard/Stage'
 
 type RuntimeTemplate = LibraryTemplate
 
@@ -48,6 +62,14 @@ const TYPE_ICONS: Record<LibraryDocType, LucideIcon> = {
   contrat: Handshake,
   avenant: ClipboardList,
   document: FileText,
+}
+
+const CATEGORY_HUES: Record<LibraryCategoryKey, StageHue> = {
+  vente: STAGE_HUES.fuchsia,
+  location: STAGE_HUES.sky,
+  baux: STAGE_HUES.emerald,
+  interne: STAGE_HUES.violet,
+  avenants: STAGE_HUES.amber,
 }
 
 type SelectIconType = ComponentType<{ size?: number; className?: string }>
@@ -125,6 +147,9 @@ interface PreviewState {
 export default function LibrairiePage() {
   const admin = useIsAdmin()
   const { toast } = useToast()
+  const { staged } = useStageChrome()
+  const theme = useStageTheme()
+  const isDark = theme === 'dark'
 
   const [hiddenIds, setHiddenIds] = useState<string[]>(() => readLS<string[]>('librairie_hidden', []))
   const [customDocs, setCustomDocs] = useState<LibraryTemplate[]>(() => readLS<LibraryTemplate[]>('librairie_custom', []))
@@ -142,6 +167,7 @@ export default function LibrairiePage() {
   const [fLang, setFLang] = useState<LibraryLang | ''>('')
   const [fType, setFType] = useState<LibraryDocType | ''>('')
   const [page, setPage] = useState(1)
+  const [filtersOpen, setFiltersOpen] = useState(true)
 
   const [detailId, setDetailId] = useState<string | null>(null)
   const [preview, setPreview] = useState<PreviewState | null>(null)
@@ -419,905 +445,1094 @@ export default function LibrairiePage() {
   }
 
   useEffect(() => {
-    if (!preview) return
+    if (!preview && !detailId) return
     const handler = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        setPreview(null)
+        if (preview) setPreview(null)
+        else if (detailId) setDetailId(null)
       }
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [preview])
+  }, [preview, detailId])
 
-  const inputClass =
-    'h-9 px-3 text-sm rounded-lg border border-border bg-background text-text focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent'
+  // Prevent background scroll while a fullscreen portal is open
+  useEffect(() => {
+    const locked = Boolean(detailId || preview)
+    if (locked) {
+      const prev = document.body.style.overflow
+      document.body.style.overflow = 'hidden'
+      return () => { document.body.style.overflow = prev }
+    }
+  }, [detailId, preview])
 
-  const statCards = [
-    {
-      label: 'Documents total',
-      value: stats.total,
-      sub: 'templates prêts à l\'emploi',
-      icon: LibraryIcon,
-      chipClass: 'bg-accent-light text-accent',
-      delay: 0,
-    },
-    {
-      label: 'Catégories',
-      value: stats.categories,
-      sub: 'familles de documents',
-      icon: FolderOpen,
-      chipClass: 'bg-violet-50 text-violet-600',
-      delay: 0.05,
-    },
-    {
-      label: 'Langues disponibles',
-      value: stats.languages,
-      sub: 'FR · EN · ES · DE · IT',
-      icon: Globe,
-      chipClass: 'bg-sky-50 text-sky-600',
-      delay: 0.1,
-    },
-    {
-      label: 'Téléchargés ce mois',
-      value: monthTotal,
-      sub: 'par toute l\'équipe',
-      icon: TrendingUp,
-      chipClass: 'bg-emerald-50 text-emerald-600',
-      delay: 0.15,
-    },
-  ]
+  const heroText = staged
+    ? isDark
+      ? { eyebrow: 'text-[10px] font-bold uppercase tracking-[0.24em] text-slate-400/80', title: 'bg-gradient-to-r from-white via-indigo-100 to-indigo-300 bg-clip-text text-transparent', sub: 'text-sm text-slate-400' }
+      : { eyebrow: 'text-[10px] font-bold uppercase tracking-[0.24em] text-teal-900/50', title: 'bg-gradient-to-r from-teal-900 via-teal-700 to-emerald-600 bg-clip-text text-transparent', sub: 'text-sm text-teal-900/55' }
+    : { eyebrow: 'text-[10px] font-bold uppercase tracking-[0.24em] text-text-secondary', title: 'text-text', sub: 'text-sm text-text-secondary' }
 
-  const renderDocActions = (doc: RuntimeTemplate, compact = false) => (
-    <div className={compact ? 'flex items-center gap-1' : 'flex items-center gap-2'}>
-      <button
-        onClick={e => {
-          e.stopPropagation()
-          handleDownload(doc)
-        }}
-        disabled={!hasFile(doc)}
-        title={hasFile(doc) ? 'Télécharger' : 'Fichier en préparation'}
-        className={`inline-flex items-center justify-center gap-1.5 rounded-lg font-medium transition-all active:scale-[0.98] disabled:opacity-40 disabled:pointer-events-none ${
-          compact ? 'w-8 h-8' : 'h-9 px-3 text-xs'
-        } ${hasFile(doc) ? 'bg-[hsl(var(--button-bg))] text-white hover:bg-[hsl(var(--button-bg-hover))]' : 'bg-background text-text-secondary border border-border'}`}
-      >
-        <Download size={compact ? 14 : 13} />
-        {!compact && 'Télécharger'}
-      </button>
-      <button
-        onClick={e => {
-          e.stopPropagation()
-          handlePreview(doc)
-        }}
-        disabled={!hasFile(doc)}
-        title={hasFile(doc) ? 'Aperçu' : 'Fichier en préparation'}
-        className={`inline-flex items-center justify-center gap-1.5 rounded-lg font-medium transition-all active:scale-[0.98] disabled:opacity-40 disabled:pointer-events-none ${
-          compact ? 'w-8 h-8' : 'h-9 px-3 text-xs'
-        } bg-card text-text border border-border hover:bg-background hover:border-text-secondary/30`}
-      >
-        <Eye size={compact ? 14 : 13} />
-        {!compact && 'Aperçu'}
-      </button>
-    </div>
-  )
+  const { input: stageInput, label: stageLabel } = useStageFormClasses()
+  const stageBtns = useStageModalButtons()
+  const ctrl = (extra?: string) => (staged ? stageInput(extra) : undefined)
+  const sectionTitle = 'mb-2 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.2em] opacity-80'
 
   const renderGridCard = (doc: RuntimeTemplate, index: number) => {
-    const color = LIBRARY_CATEGORIES[doc.category].color
+    const hue = CATEGORY_HUES[doc.category]
     const TypeIcon = TYPE_ICONS[doc.type]
+    const available = hasFile(doc)
     return (
       <motion.div
         key={doc.id}
-        initial={{ opacity: 0, y: 12 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: index * 0.04, duration: 0.25 }}
-        onClick={() => setDetailId(doc.id)}
-        className="group relative cursor-pointer bg-card rounded-xl border border-border/50 shadow-card hover:shadow-card-hover hover:-translate-y-0.5 transition-all duration-200 overflow-hidden"
+        initial={{ opacity: 0, y: 20, scale: 0.97 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        transition={{ delay: index * 0.04, duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
       >
-        <div className="absolute top-0 inset-x-0 h-1" style={{ background: `linear-gradient(90deg, ${color}, ${hexA(color, 0.15)})` }} />
-        <div className="p-5">
-          <div className="flex items-start justify-between mb-3">
-            <div
-              className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 group-hover:scale-105 transition-transform"
-              style={{ backgroundColor: hexA(color, 0.1), color }}
-            >
-              <TypeIcon size={20} />
+        <TiltCard className="h-full" onClick={() => setDetailId(doc.id)}>
+          <div className="relative flex flex-col h-full p-5">
+            {/* top accent */}
+            <div className="absolute top-0 inset-x-0 h-[3px]" style={{ background: `linear-gradient(90deg, ${hue.a}, ${hue.b})`, boxShadow: `0 0 12px ${hue.glow}` }} />
+            {/* header */}
+            <div className="flex items-start justify-between mb-3">
+              <OrbIcon icon={TypeIcon} hue={hue} size={46} radius={14} />
+              <StageBadge variant={available ? 'ok' : 'warn'} className="text-[10px]">
+                {available ? <span className="inline-flex items-center gap-1"><CheckCircle2 size={11} /> Disponible</span> : <span className="inline-flex items-center gap-1"><Clock3 size={11} /> En préparation</span>}
+              </StageBadge>
             </div>
-            {hasFile(doc) ? (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-semibold rounded-full bg-success/10 text-success border border-success/20">
-                <CheckCircle2 size={11} />
-                Disponible
+
+            <h3 className={`text-sm font-bold leading-snug line-clamp-2 min-h-[38px] ${isDark ? 'text-white' : 'text-slate-900'}`}>{doc.name}</h3>
+            <p className={`text-xs line-clamp-2 mt-1 min-h-[32px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{doc.description}</p>
+
+            <div className="flex items-center gap-1.5 mt-3">
+              <span className="h-1.5 w-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: hue.line, boxShadow: `0 0 6px ${hue.glow}` }} />
+              <span className={`text-[11px] truncate ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                {LIBRARY_CATEGORIES[doc.category].label} · {LIBRARY_TYPE_LABELS[doc.type]}
               </span>
-            ) : (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-semibold rounded-full bg-warning/10 text-warning border border-warning/20">
-                <Clock3 size={11} />
-                En préparation
-              </span>
-            )}
-          </div>
-
-          <h3 className="text-sm font-semibold leading-snug line-clamp-2 min-h-[36px]">{doc.name}</h3>
-          <p className="text-xs text-text-secondary line-clamp-2 mt-1 min-h-[32px]">{doc.description}</p>
-
-          <div className="flex items-center gap-1.5 mt-3">
-            <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: color }} />
-            <span className="text-[11px] text-text-secondary truncate">
-              {LIBRARY_CATEGORIES[doc.category].label} · {LIBRARY_TYPE_LABELS[doc.type]}
-            </span>
-          </div>
-
-          <div className="flex items-center justify-between mt-3 pt-3 border-t border-border/40">
-            <div className="flex items-center gap-1">
-              {doc.languages.map(lang => (
-                <span
-                  key={lang}
-                  title={LIBRARY_LANGUAGES[lang].label}
-                  className="px-1.5 py-0.5 text-[9px] font-bold uppercase rounded border border-border/60 bg-background text-text-secondary"
-                >
-                  {lang}
-                </span>
-              ))}
             </div>
-            <span className="inline-flex items-center gap-1 text-[10px] text-text-secondary/70">
-              <Download size={11} />
-              {downloadsOf(doc)}
-            </span>
-          </div>
 
-          <div className="mt-4" onClick={e => e.stopPropagation()}>
-            {renderDocActions(doc)}
+            <div className={`flex items-center justify-between mt-3 pt-3 border-t ${isDark ? 'border-white/8' : 'border-teal-900/8'}`}>
+              <div className="flex items-center gap-1">
+                {doc.languages.map(lang => (
+                  <span
+                    key={lang}
+                    title={LIBRARY_LANGUAGES[lang].label}
+                    className={`px-1.5 py-0.5 text-[9px] font-bold uppercase rounded border ${isDark ? 'bg-white/5 border-white/10 text-slate-300' : 'bg-white border-teal-900/10 text-slate-600'}`}
+                  >
+                    {lang}
+                  </span>
+                ))}
+              </div>
+              <span className={`inline-flex items-center gap-1 text-[11px] tabular-nums ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                <Download size={11} />
+                {downloadsOf(doc)}
+              </span>
+            </div>
+
+            <div className="mt-4 flex items-center gap-2" onClick={e => e.stopPropagation()}>
+              <StageButton
+                variant="primary"
+                size="sm"
+                icon={<Download size={13} />}
+                onClick={available ? () => handleDownload(doc) : undefined}
+                className={!available ? 'opacity-40 pointer-events-none' : ''}
+              >
+                Télécharger
+              </StageButton>
+              <StageButton
+                variant="glass"
+                size="sm"
+                icon={<Eye size={13} />}
+                onClick={available ? () => handlePreview(doc) : undefined}
+                className={!available ? 'opacity-40 pointer-events-none' : ''}
+              >
+                Aperçu
+              </StageButton>
+            </div>
           </div>
-        </div>
+        </TiltCard>
       </motion.div>
     )
   }
 
-  const renderListRow = (doc: RuntimeTemplate, index: number) => {
-    const color = LIBRARY_CATEGORIES[doc.category].color
-    const TypeIcon = TYPE_ICONS[doc.type]
-    return (
-      <motion.tr
-        key={doc.id}
-        initial={{ opacity: 0, y: 6 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: index * 0.02, duration: 0.15 }}
-        onClick={() => setDetailId(doc.id)}
-        className="hover:bg-background/50 transition-colors cursor-pointer"
-      >
-        <td className="px-4 py-3 text-xs text-text-secondary/60">{(safePage - 1) * PAGE_SIZE + index + 1}</td>
-        <td className="px-4 py-3">
-          <div className="flex items-center gap-2.5 min-w-0">
-            <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0" style={{ backgroundColor: hexA(color, 0.1), color }}>
-              <TypeIcon size={15} />
-            </div>
-            <div className="min-w-0">
-              <p className="text-sm font-medium truncate max-w-[280px]">{doc.name}</p>
-              <p className="text-[11px] text-text-secondary/70 truncate max-w-[280px]">{doc.description}</p>
-            </div>
-          </div>
-        </td>
-        <td className="px-4 py-3">
-          <span
-            className="inline-flex items-center gap-1.5 px-2 py-0.5 text-[10px] font-medium rounded border whitespace-nowrap"
-            style={{ backgroundColor: hexA(color, 0.08), color, borderColor: hexA(color, 0.25) }}
-          >
-            <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: color }} />
-            {LIBRARY_CATEGORIES[doc.category].label}
-          </span>
-        </td>
-        <td className="px-4 py-3">
-          <span className="inline-flex items-center gap-1 text-xs text-text-secondary whitespace-nowrap">
-            <Globe size={12} className="text-text-secondary/60" />
-            {doc.languages.length} langues
-          </span>
-        </td>
-        <td className="px-4 py-3">
-          <span className="inline-flex items-center gap-1 text-xs text-text-secondary">
-            <Download size={12} className="text-text-secondary/60" />
-            {downloadsOf(doc)}
-          </span>
-        </td>
-        <td className="px-4 py-3 text-xs text-text-secondary whitespace-nowrap">
-          {formatDate(doc.updatedAt)}
-        </td>
-        <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
-          <div className="flex items-center justify-end gap-1">
-            <button
-              onClick={() => handleDownload(doc)}
-              disabled={!hasFile(doc)}
-              title="Télécharger"
-              className="w-8 h-8 rounded-lg flex items-center justify-center text-text-secondary hover:text-text hover:bg-background transition-all disabled:opacity-30 disabled:pointer-events-none"
-            >
-              <Download size={14} />
-            </button>
-            <button
-              onClick={() => handlePreview(doc)}
-              disabled={!hasFile(doc)}
-              title="Aperçu"
-              className="w-8 h-8 rounded-lg flex items-center justify-center text-text-secondary hover:text-text hover:bg-background transition-all disabled:opacity-30 disabled:pointer-events-none"
-            >
-              <Eye size={14} />
-            </button>
-            {admin && (
-              <>
-                <button
-                  onClick={() => openForm(doc)}
-                  title="Modifier"
-                  className="w-8 h-8 rounded-lg flex items-center justify-center text-text-secondary hover:text-text hover:bg-background transition-all"
-                >
-                  <Pencil size={14} />
-                </button>
-                <button
-                  onClick={() => setDeleteTarget(doc)}
-                  title="Supprimer"
-                  className="w-8 h-8 rounded-lg flex items-center justify-center text-text-secondary hover:text-error hover:bg-error/10 transition-all"
-                >
-                  <Trash2 size={14} />
-                </button>
-              </>
-            )}
-          </div>
-        </td>
-      </motion.tr>
-    )
-  }
-
   return (
-    <div className="space-y-6 animate-fade-in">
-      <div className="flex items-start justify-between flex-wrap gap-3">
-        <div className="flex items-center gap-3">
-          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-premium to-premium-light shadow-lg shadow-premium/25 flex items-center justify-center flex-shrink-0">
-            <LibraryIcon size={22} className="text-white" />
-          </div>
+    <Stage theme={theme}>
+      <div className="space-y-6">
+        {/* ── Hero ──────────────────────────────────────────────────────── */}
+        <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-bold">Librairie</h1>
-            <p className="text-sm text-text-secondary mt-0.5">Centralisation des documents templates de l&apos;agence</p>
+            <div className="flex items-center gap-2">
+              <span className="relative flex h-2 w-2">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60" />
+                <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.9)]" />
+              </span>
+              <p className={heroText.eyebrow}>Mission control · Librairie</p>
+            </div>
+            <h1 className={`mt-1 text-3xl font-extrabold tracking-tight ${heroText.title}`}>Librairie</h1>
+            <p className={`mt-0.5 ${heroText.sub}`}>Centralisation des documents templates de l'agence</p>
           </div>
+          {admin && (
+            <StageButton variant="primary" size="md" icon={<Plus size={15} />} onClick={() => openForm('add')}>
+              Ajouter un document
+            </StageButton>
+          )}
         </div>
-        {admin && (
-          <Button variant="primary" icon={<Plus size={15} />} onClick={() => openForm('add')}>
-            Ajouter un document
-          </Button>
-        )}
-      </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {statCards.map(card => {
-          const Icon = card.icon
-          return (
+        {/* ── Stats ─────────────────────────────────────────────────────── */}
+        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+          {[
+            { label: 'Documents total', value: stats.total, sub: "templates prêts à l'emploi", icon: LibraryIcon, hue: STAGE_HUES.violet },
+            { label: 'Catégories', value: stats.categories, sub: 'familles de documents', icon: FolderOpen, hue: STAGE_HUES.sky },
+            { label: 'Langues', value: stats.languages, sub: 'FR · EN · ES · DE · IT', icon: Globe, hue: STAGE_HUES.emerald },
+            { label: 'Téléchargés ce mois', value: monthTotal, sub: "par toute l'équipe", icon: TrendingUp, hue: STAGE_HUES.amber },
+          ].map((card, i) => (
             <motion.div
               key={card.label}
-              initial={{ opacity: 0, y: 10 }}
+              initial={{ opacity: 0, y: 16 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: card.delay }}
-              className="bg-card rounded-xl border border-border/50 shadow-card p-4 hover:shadow-card-hover transition-all"
+              transition={{ duration: 0.45, delay: i * 0.05, ease: [0.22, 1, 0.36, 1] }}
             >
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-xs text-text-secondary font-medium uppercase tracking-wider">{card.label}</p>
-                <div className={`p-2 rounded-lg ${card.chipClass}`}>
-                  <Icon size={14} />
+              <div className="stage-glass flex items-center gap-3.5 p-4 h-full">
+                <OrbIcon icon={card.icon} hue={card.hue} size={42} radius={13} />
+                <div className="min-w-0">
+                  <p className={`text-[10px] font-bold uppercase tracking-[1.4px] ${isDark ? 'text-slate-400' : 'text-teal-900/50'}`}>{card.label}</p>
+                  <p className={`text-2xl font-extrabold leading-none tracking-tight tabular-nums ${isDark ? 'text-white' : 'text-slate-900'}`}>{card.value}</p>
+                  <p className={`text-[11px] mt-0.5 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>{card.sub}</p>
                 </div>
               </div>
-              <p className="text-2xl font-bold">{card.value}</p>
-              <p className="text-xs text-text-secondary/60 mt-0.5">{card.sub}</p>
             </motion.div>
-          )
-        })}
-      </div>
+          ))}
+        </div>
 
-      <div className="bg-card rounded-xl border border-border/50 shadow-card p-4">
-        <div className="flex items-center gap-3 flex-wrap">
-          <div className="relative w-full sm:w-72">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary/60" />
-            <input
-              type="text"
-              placeholder="Rechercher un document..."
-              value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
-              className="w-full h-9 pl-9 pr-8 text-sm rounded-lg border border-border bg-white shadow-sm text-text placeholder:text-text-secondary/40 focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent"
-            />
-            {searchQuery && (
-              <button
-                onClick={() => setSearchQuery('')}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-text-secondary/60 hover:text-text"
-              >
-                <X size={14} />
-              </button>
-            )}
-          </div>
-
-          <div className="w-full sm:w-[190px]">
-            <Select
-              value={fCategory}
-              onValueChange={v => setFCategory(v as LibraryCategoryKey | '')}
-              options={[
-                { value: '', label: 'Toutes les catégories' },
-                ...LIBRARY_CATEGORY_ORDER.map(key => ({
-                  value: key,
-                  label: LIBRARY_CATEGORIES[key].label,
-                  icon: CATEGORY_DOT_ICONS[key],
-                })),
-              ]}
-              className="bg-white shadow-sm"
-            />
-          </div>
-
-          <div className="w-full sm:w-[160px]">
-            <Select
-              value={fLang}
-              onValueChange={v => setFLang(v as LibraryLang | '')}
-              options={[
-                { value: '', label: 'Toutes les langues' },
-                ...LIBRARY_ALL_LANGS.map(code => ({
-                  value: code,
-                  label: LIBRARY_LANGUAGES[code].label,
-                  icon: LANG_CODE_ICONS[code],
-                })),
-              ]}
-              className="bg-white shadow-sm"
-            />
-          </div>
-
-          <div className="w-full sm:w-[150px]">
-            <Select
-              value={fType}
-              onValueChange={v => setFType(v as LibraryDocType | '')}
-              options={[
-                { value: '', label: 'Tous les types' },
-                ...(Object.keys(LIBRARY_TYPE_LABELS) as LibraryDocType[]).map(key => ({
-                  value: key,
-                  label: LIBRARY_TYPE_LABELS[key],
-                })),
-              ]}
-              className="bg-white shadow-sm"
-            />
-          </div>
-
-          {hasActiveFilters && (
-            <button
-              onClick={clearFilters}
-              className="h-9 px-3 text-xs text-accent hover:text-accent/80 transition-colors flex items-center gap-1 border border-accent/30 rounded-lg flex-shrink-0"
-            >
-              <X size={12} /> Réinitialiser
-            </button>
+        {/* ── Command bar — 3D glass fields like add/modify event modal ─────── */}
+        <div
+          className={cn(
+            'overflow-hidden',
+            staged ? 'pop-glass rounded-3xl' : 'stage-glass rounded-2xl',
+            staged && isDark && 'border border-white/10 shadow-[0_20px_60px_-20px_rgba(0,0,0,0.6)]',
+            staged && !isDark && 'border border-white/80 shadow-[0_20px_60px_-20px_rgba(13,148,136,0.25)]',
           )}
-
-          <div className="flex ml-auto rounded-lg border border-border p-0.5 bg-white flex-shrink-0">
-            <button
-              onClick={() => setView('grid')}
-              title="Vue grille"
-              className={`w-8 h-7 rounded-md flex items-center justify-center transition-all ${
-                view === 'grid' ? 'bg-accent text-white shadow-tab' : 'text-text-secondary hover:text-text'
-              }`}
-            >
-              <LayoutGrid size={14} />
-            </button>
-            <button
-              onClick={() => setView('list')}
-              title="Vue liste"
-              className={`w-8 h-7 rounded-md flex items-center justify-center transition-all ${
-                view === 'list' ? 'bg-accent text-white shadow-tab' : 'text-text-secondary hover:text-text'
-              }`}
-            >
-              <List size={14} />
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <div className="space-y-4">
-        <div className="flex items-center justify-between flex-wrap gap-2 px-1">
-          <h2 className="text-base font-semibold flex items-center gap-2">
-            <FileText size={16} className="text-accent" />
-            Documents disponibles
-            <span className="text-xs font-normal text-text-secondary">({filtered.length})</span>
-          </h2>
-          <p className="text-xs text-text-secondary/60">
-            Affichage {filtered.length === 0 ? 0 : (safePage - 1) * PAGE_SIZE + 1}–{Math.min(safePage * PAGE_SIZE, filtered.length)} sur {filtered.length} documents
-          </p>
-        </div>
-
-        {filtered.length === 0 ? (
-          <div className="bg-card rounded-xl border border-border/50 shadow-card p-16 text-center">
-            <Search size={32} className="mx-auto mb-3 text-text-secondary opacity-40" />
-            <p className="text-sm text-text-secondary">Aucun document trouvé</p>
-            <p className="text-xs text-text-secondary/60 mt-1">Essayez de modifier vos filtres</p>
-            {hasActiveFilters && (
-              <Button variant="outline" size="sm" className="mt-4 mx-auto" onClick={clearFilters}>
-                Réinitialiser les filtres
-              </Button>
-            )}
-          </div>
-        ) : view === 'grid' ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4">
-            {pageDocs.map((doc, i) => renderGridCard(doc, i))}
-          </div>
-        ) : (
-          <div className="bg-card rounded-xl border border-border/50 shadow-card overflow-hidden">
-            <div className="overflow-x-auto scrollbar-thin">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="bg-background border-b border-border/50">
-                    <th className="text-left px-4 py-3 text-xs font-medium text-text-secondary w-10">#</th>
-                    <th className="text-left px-4 py-3 text-xs font-medium text-text-secondary">Document</th>
-                    <th className="text-left px-4 py-3 text-xs font-medium text-text-secondary">Catégorie</th>
-                    <th className="text-left px-4 py-3 text-xs font-medium text-text-secondary">Langues</th>
-                    <th className="text-left px-4 py-3 text-xs font-medium text-text-secondary">Téléch.</th>
-                    <th className="text-left px-4 py-3 text-xs font-medium text-text-secondary">Mise à jour</th>
-                    <th className="text-right px-4 py-3 text-xs font-medium text-text-secondary w-44">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border/50">
-                  {pageDocs.map((doc, i) => renderListRow(doc, i))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-
-        {pageCount > 1 && (
-          <div className="flex items-center justify-center gap-1.5 pt-1">
-            <button
-              onClick={() => setPage(p => Math.max(1, p - 1))}
-              disabled={safePage === 1}
-              className="w-8 h-8 rounded-lg border border-border flex items-center justify-center text-text-secondary hover:text-text hover:bg-background transition-all disabled:opacity-30 disabled:pointer-events-none"
-            >
-              <ChevronLeft size={15} />
-            </button>
-            {Array.from({ length: pageCount }, (_, i) => i + 1).map(p => (
-              <button
-                key={p}
-                onClick={() => setPage(p)}
-                className={`w-8 h-8 rounded-lg text-xs font-semibold transition-all ${
-                  p === safePage
-                    ? 'bg-accent text-white shadow-tab'
-                    : 'border border-border text-text-secondary hover:text-text hover:bg-background'
-                }`}
-              >
-                {p}
-              </button>
-            ))}
-            <button
-              onClick={() => setPage(p => Math.min(pageCount, p + 1))}
-              disabled={safePage === pageCount}
-              className="w-8 h-8 rounded-lg border border-border flex items-center justify-center text-text-secondary hover:text-text hover:bg-background transition-all disabled:opacity-30 disabled:pointer-events-none"
-            >
-              <ChevronRight size={15} />
-            </button>
-          </div>
-        )}
-      </div>
-
-      <AnimatePresence>
-        {detailDoc && (() => {
-          const doc = detailDoc
-          const color = LIBRARY_CATEGORIES[doc.category].color
-          const CatIcon = CATEGORY_ICONS[doc.category]
-          const available = hasFile(doc)
-          return (
-            <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.15 }}
-                className="absolute inset-0 bg-black/40 backdrop-blur-sm"
-                onClick={() => setDetailId(null)}
-              />
-              <motion.div
-                initial={{ opacity: 0, scale: 0.96, y: 12 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.96, y: 12 }}
-                transition={{ duration: 0.2 }}
-                className="relative w-full max-w-2xl max-h-[90vh] bg-card rounded-2xl border border-border/50 shadow-modal flex flex-col overflow-hidden"
-              >
-                <div className="relative px-6 py-5 border-b border-border/40 overflow-hidden flex-shrink-0" style={{ background: `linear-gradient(135deg, ${hexA(color, 0.08)}, transparent 60%)` }}>
-                  <div className="flex items-start gap-3">
-                    <div className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0" style={{ backgroundColor: hexA(color, 0.12), color }}>
-                      <CatIcon size={22} />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <h2 className="text-lg font-bold leading-tight pr-8">{doc.name}</h2>
-                      <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-                        <span
-                          className="inline-flex items-center gap-1.5 px-2 py-0.5 text-[10px] font-medium rounded border"
-                          style={{ backgroundColor: hexA(color, 0.08), color, borderColor: hexA(color, 0.25) }}
-                        >
-                          <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: color }} />
-                          {LIBRARY_CATEGORIES[doc.category].label}
-                        </span>
-                        <span className="text-[11px] text-text-secondary">{LIBRARY_TYPE_LABELS[doc.type]}</span>
-                        {available ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-semibold rounded-full bg-success/10 text-success border border-success/20">
-                            <CheckCircle2 size={10} />
-                            Disponible
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-semibold rounded-full bg-warning/10 text-warning border border-warning/20">
-                            <Clock3 size={10} />
-                            En préparation
-                          </span>
+        >
+          <div
+            className="h-[3px] w-full"
+            style={{
+              background: `linear-gradient(90deg, transparent, ${isDark ? 'rgba(139,124,255,0.9)' : 'rgba(20,184,166,0.9)'} 18%, ${isDark ? '#8B7CFF' : '#14B8A6'} 50%, transparent)`,
+            }}
+          />
+          <div
+            className="px-5 pt-5 pb-4 space-y-5"
+            style={
+              staged
+                ? {
+                    background: `radial-gradient(90% 140% at 0% 0%, ${isDark ? 'rgba(139,124,255,0.07)' : 'rgba(20,184,166,0.06)'}, transparent 65%)`,
+                  }
+                : undefined
+            }
+          >
+            {/* Recherche */}
+            <section>
+              <p className={`${sectionTitle} ${isDark ? 'text-violet-400' : 'text-violet-600'}`}>
+                <span className="h-px w-4 bg-gradient-to-r from-violet-400 to-transparent" />
+                Recherche
+              </p>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+                <div className="flex-1 min-w-0">
+                  <label className={stageLabel}>Rechercher un document</label>
+                  <div className="relative">
+                    <Search
+                      size={13}
+                      className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"
+                      style={{ color: isDark ? '#8B7CFF' : '#0D9488' }}
+                    />
+                    <input
+                      type="text"
+                      placeholder="Rechercher par nom, catégorie ou type..."
+                      value={searchQuery}
+                      onChange={e => setSearchQuery(e.target.value)}
+                      className={stageInput('h-10 pl-9 pr-9')}
+                    />
+                    {searchQuery && (
+                      <button
+                        onClick={() => setSearchQuery('')}
+                        className={cn(
+                          'absolute right-1.5 top-1/2 -translate-y-1/2 w-7 h-7 rounded-lg flex items-center justify-center transition-colors',
+                          isDark ? 'text-slate-400 hover:text-white hover:bg-white/10' : 'text-teal-900/40 hover:text-teal-900 hover:bg-teal-900/5',
                         )}
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => setDetailId(null)}
-                      className="absolute top-4 right-4 w-8 h-8 rounded-lg flex items-center justify-center text-text-secondary hover:text-text hover:bg-background transition-all"
-                    >
-                      <X size={16} />
-                    </button>
-                  </div>
-                </div>
-
-                <div className="flex-1 overflow-y-auto scrollbar-thin px-6 py-5 space-y-5">
-                  <section>
-                    <h3 className="text-[11px] font-semibold text-text-secondary uppercase tracking-wider flex items-center gap-1.5 mb-3">
-                      <Info size={13} className="text-accent" />
-                      Informations du document
-                    </h3>
-                    <div className="rounded-xl border border-border/50 divide-y divide-border/30 overflow-hidden">
-                      {[
-                        {
-                          label: 'Nom',
-                          value: <span className="text-sm font-medium">{doc.name}</span>,
-                        },
-                        {
-                          label: 'Catégorie',
-                          value: (
-                            <span
-                              className="inline-flex items-center gap-1.5 px-2 py-0.5 text-[11px] font-medium rounded border"
-                              style={{ backgroundColor: hexA(color, 0.08), color, borderColor: hexA(color, 0.25) }}
-                            >
-                              {LIBRARY_CATEGORIES[doc.category].label}
-                            </span>
-                          ),
-                        },
-                        {
-                          label: 'Description',
-                          value: <span className="text-sm text-text-secondary">{doc.description}</span>,
-                        },
-                        {
-                          label: 'Langues disponibles',
-                          value: (
-                            <span className="inline-flex items-center gap-1.5 flex-wrap">
-                              <Globe size={13} className="text-text-secondary/60" />
-                              {doc.languages.map(l => (
-                                <span key={l} className="px-1.5 py-0.5 text-[10px] font-bold uppercase rounded border border-border/60 bg-background text-text-secondary">
-                                  {l}
-                                </span>
-                              ))}
-                              <span className="text-xs text-text-secondary">
-                                ({doc.languages.map(l => LIBRARY_LANGUAGES[l].label).join(', ')})
-                              </span>
-                            </span>
-                          ),
-                        },
-                        {
-                          label: 'Dernière mise à jour',
-                          value: (
-                            <span className="inline-flex items-center gap-1.5 text-sm">
-                              <CalendarDays size={13} className="text-text-secondary/60" />
-                              {formatDate(doc.updatedAt)}
-                            </span>
-                          ),
-                        },
-                        {
-                          label: 'Téléchargements',
-                          value: (
-                            <span className="inline-flex items-center gap-1.5 text-sm font-semibold">
-                              <TrendingUp size={13} className="text-text-secondary/60" />
-                              {downloadsOf(doc)}
-                            </span>
-                          ),
-                        },
-                      ].map(row => (
-                        <div key={row.label} className="flex items-start gap-4 px-4 py-2.5">
-                          <span className="w-40 flex-shrink-0 text-[11px] font-medium text-text-secondary uppercase tracking-wide pt-0.5">{row.label}</span>
-                          <div className="flex-1 min-w-0">{row.value}</div>
-                        </div>
-                      ))}
-                    </div>
-                  </section>
-
-                  <section>
-                    <h3 className="text-[11px] font-semibold text-text-secondary uppercase tracking-wider flex items-center gap-1.5 mb-3">
-                      <Languages size={13} className="text-accent" />
-                      Langues disponibles
-                    </h3>
-                    <div className="rounded-xl border border-border/50 divide-y divide-border/30 overflow-hidden">
-                      {doc.languages.map(lang => {
-                        const langAvailable = hasFile(doc, lang)
-                        return (
-                        <div key={lang} className="flex items-center justify-between gap-3 px-4 py-2.5 hover:bg-background/50 transition-colors">
-                          <div className="flex items-center gap-3 min-w-0">
-                            <span className="w-9 h-7 rounded-md border border-border/60 bg-background flex items-center justify-center text-[10px] font-bold uppercase text-text-secondary flex-shrink-0">
-                              {lang}
-                            </span>
-                            <span className="text-sm font-medium truncate">{LIBRARY_LANGUAGES[lang].label}</span>
-                          </div>
-                          {langAvailable ? (
-                            <div className="flex items-center gap-2 flex-shrink-0">
-                              <Button variant="outline" size="sm" icon={<Download size={12} />} onClick={() => handleDownload(doc, lang)}>
-                                Télécharger
-                              </Button>
-                              <Button variant="ghost" size="sm" icon={<Eye size={12} />} onClick={() => handlePreview(doc, lang)}>
-                                Aperçu
-                              </Button>
-                            </div>
-                          ) : (
-                            <span className="text-[11px] italic text-text-secondary/50">Fichier en préparation</span>
-                          )}
-                        </div>
-                        )
-                      })}
-                    </div>
-                  </section>
-                </div>
-
-                <div className="border-t border-border/40 px-6 py-4 flex-shrink-0">
-                  <h3 className="text-[11px] font-semibold text-text-secondary uppercase tracking-wider flex items-center gap-1.5 mb-3">
-                    <Zap size={13} className="text-accent" />
-                    Actions
-                  </h3>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <Button
-                      variant="primary"
-                      size="sm"
-                      icon={<Download size={13} />}
-                      onClick={() => handleDownloadAll(doc)}
-                      disabled={!available}
-                    >
-                      Télécharger toutes les langues
-                    </Button>
-                    <Button variant="outline" size="sm" icon={<Share2 size={13} />} onClick={() => handleShare(doc)}>
-                      Partager
-                    </Button>
-                    {admin && (
-                      <>
-                        <Button variant="outline" size="sm" icon={<Pencil size={13} />} onClick={() => openForm(doc)}>
-                          Modifier
-                        </Button>
-                        <Button variant="outline" size="sm" icon={<Copy size={13} />} onClick={() => handleDuplicate(doc)}>
-                          Dupliquer
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          icon={<Trash2 size={13} />}
-                          className="!text-error !border-error/30 hover:!bg-error/5"
-                          onClick={() => setDeleteTarget(doc)}
-                        >
-                          Supprimer
-                        </Button>
-                      </>
+                      >
+                        <X size={13} />
+                      </button>
                     )}
                   </div>
                 </div>
-              </motion.div>
-            </div>
-          )
-        })()}
-      </AnimatePresence>
-
-      <AnimatePresence>
-        {preview && (() => {
-          const url = resolveUrl(preview.template, preview.lang)
-          const suffix = preview.lang ? ` — ${LIBRARY_LANGUAGES[preview.lang].label}` : ''
-          return (
-            <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.15 }}
-                className="absolute inset-0 bg-black/50 backdrop-blur-sm"
-                onClick={() => setPreview(null)}
-              />
-              <motion.div
-                initial={{ opacity: 0, scale: 0.96, y: 12 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.96, y: 12 }}
-                transition={{ duration: 0.2 }}
-                className="relative w-full max-w-5xl h-[88vh] bg-card rounded-2xl border border-border/50 shadow-modal flex flex-col overflow-hidden"
-              >
-                <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-border/40 flex-shrink-0">
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <div className="w-8 h-8 rounded-lg bg-accent/10 text-accent flex items-center justify-center flex-shrink-0">
-                      <FileText size={15} />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-sm font-semibold truncate">{preview.template.name}{suffix}</p>
-                      <p className="text-[10px] text-text-secondary uppercase tracking-wider">Aperçu du template</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-1 flex-shrink-0">
-                    <button
-                      onClick={() => url && window.open(url, '_blank')}
-                      title="Ouvrir dans un nouvel onglet"
-                      className="w-8 h-8 rounded-lg flex items-center justify-center text-text-secondary hover:text-text hover:bg-background transition-all"
-                    >
-                      <ExternalLink size={15} />
-                    </button>
-                    <button
-                      onClick={() => handleDownload(preview.template, preview.lang)}
-                      className="flex items-center gap-1.5 px-3 h-8 text-xs font-medium rounded-lg bg-[hsl(var(--button-bg))] text-white hover:bg-[hsl(var(--button-bg-hover))] transition-all"
-                    >
-                      <Download size={13} />
-                      Télécharger
-                    </button>
-                    <button
-                      onClick={() => setPreview(null)}
-                      className="w-8 h-8 rounded-lg flex items-center justify-center text-text-secondary hover:text-text hover:bg-background transition-all"
-                    >
-                      <X size={16} />
-                    </button>
-                  </div>
-                </div>
-                <div className="flex-1 bg-gray-100">
-                  {url && <iframe src={url} title={preview.template.name} className="w-full h-full border-0" />}
-                </div>
-              </motion.div>
-            </div>
-          )
-        })()}
-      </AnimatePresence>
-
-      <Dialog
-        isOpen={!!deleteTarget}
-        onClose={() => setDeleteTarget(null)}
-        title="Supprimer le document"
-        size="sm"
-      >
-        {deleteTarget && (
-          <div className="space-y-4">
-            <div className="flex items-start gap-3">
-              <div className="w-10 h-10 rounded-full bg-error/10 flex items-center justify-center flex-shrink-0 mt-0.5">
-                <AlertTriangle size={18} className="text-error" />
-              </div>
-              <div>
-                <p className="text-sm text-text">
-                  Voulez-vous vraiment supprimer <strong>{deleteTarget.name}</strong> ?
-                </p>
-                <p className="text-xs text-text-secondary mt-1">
-                  Le template sera retiré de la librairie pour toute l&apos;équipe.
-                </p>
-              </div>
-            </div>
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" size="sm" onClick={() => setDeleteTarget(null)} disabled={deleting}>
-                Annuler
-              </Button>
-              <Button
-                variant="danger"
-                size="sm"
-                icon={deleting ? undefined : <Trash2 size={14} />}
-                onClick={handleDeleteConfirm}
-                disabled={deleting}
-              >
-                {deleting ? 'Suppression...' : 'Supprimer'}
-              </Button>
-            </div>
-          </div>
-        )}
-      </Dialog>
-
-      <Dialog
-        isOpen={!!formOpen}
-        onClose={() => setFormOpen(null)}
-        title={formOpen === 'add' ? 'Ajouter un document' : 'Modifier le document'}
-        size="lg"
-      >
-        <div className="space-y-4">
-          <div>
-            <label className="text-xs font-medium text-text-secondary mb-1 block">Nom du document *</label>
-            <input
-              type="text"
-              value={formName}
-              onChange={e => setFormName(e.target.value)}
-              placeholder="Ex : Mandat de vente exclusif"
-              className="w-full h-9 px-3 text-sm rounded-lg border border-border bg-background text-text placeholder:text-text-secondary/40 focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent"
-            />
-          </div>
-
-          <div>
-            <label className="text-xs font-medium text-text-secondary mb-1 block">Description</label>
-            <textarea
-              value={formDescription}
-              onChange={e => setFormDescription(e.target.value)}
-              rows={2}
-              placeholder="Description du document..."
-              className="w-full px-3 py-2 text-sm rounded-lg border border-border bg-background text-text placeholder:text-text-secondary/40 focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent resize-none"
-            />
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-xs font-medium text-text-secondary mb-1 block">Catégorie</label>
-              <select
-                value={formCategory}
-                onChange={e => setFormCategory(e.target.value as LibraryCategoryKey)}
-                className={`${inputClass} w-full`}
-              >
-                {LIBRARY_CATEGORY_ORDER.map(key => (
-                  <option key={key} value={key}>{LIBRARY_CATEGORIES[key].label}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="text-xs font-medium text-text-secondary mb-1 block">Type</label>
-              <select
-                value={formType}
-                onChange={e => setFormType(e.target.value as LibraryDocType)}
-                className={`${inputClass} w-full`}
-              >
-                {(Object.keys(LIBRARY_TYPE_LABELS) as LibraryDocType[]).map(key => (
-                  <option key={key} value={key}>{LIBRARY_TYPE_LABELS[key]}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          <div>
-            <label className="text-xs font-medium text-text-secondary mb-1.5 block">Langues disponibles</label>
-            <div className="flex items-center gap-1.5 flex-wrap">
-              {LIBRARY_ALL_LANGS.map(code => {
-                const active = formLangs.has(code)
-                return (
-                  <button
-                    key={code}
-                    type="button"
-                    onClick={() =>
-                      setFormLangs(prev => {
-                        const next = new Set(prev)
-                        if (next.has(code)) next.delete(code)
-                        else next.add(code)
-                        return next.size > 0 ? next : prev
-                      })
-                    }
-                    className={`px-2.5 h-7 text-xs font-semibold uppercase rounded-lg border transition-all ${
-                      active
-                        ? 'bg-accent/10 border-accent/40 text-accent'
-                        : 'bg-background border-border text-text-secondary/50 hover:text-text-secondary'
-                    }`}
+                <div className="flex items-center gap-2 shrink-0">
+                  <div
+                    className={cn(
+                      'flex rounded-xl border p-1 gap-1',
+                      staged
+                        ? isDark
+                          ? 'border-white/10 bg-white/[0.04]'
+                          : 'border-teal-900/10 bg-white/70'
+                        : 'border-border bg-card',
+                    )}
                   >
-                    {code}
-                  </button>
-                )
-              })}
-            </div>
-          </div>
+                    <button
+                      onClick={() => setView('grid')}
+                      title="Vue grille"
+                      className={cn(
+                        'w-9 h-8 rounded-lg flex items-center justify-center transition-all duration-200',
+                        view === 'grid'
+                          ? 'text-white shadow-lg'
+                          : staged
+                            ? isDark
+                              ? 'text-slate-400 hover:text-white hover:bg-white/5'
+                              : 'text-teal-900/60 hover:text-teal-900 hover:bg-white'
+                            : 'text-text-secondary hover:text-text',
+                      )}
+                      style={
+                        view === 'grid'
+                          ? {
+                              backgroundImage: isDark ? 'linear-gradient(135deg, #8B7CFF, #6C5ECF)' : 'linear-gradient(135deg, #2DD4BF, #0D9488)',
+                              boxShadow: isDark ? '0 4px 14px -4px rgba(124,92,255,0.6)' : '0 4px 14px -4px rgba(13,148,136,0.5)',
+                            }
+                          : undefined
+                      }
+                    >
+                      <LayoutGrid size={14} />
+                    </button>
+                    <button
+                      onClick={() => setView('list')}
+                      title="Vue liste"
+                      className={cn(
+                        'w-9 h-8 rounded-lg flex items-center justify-center transition-all duration-200',
+                        view === 'list'
+                          ? 'text-white shadow-lg'
+                          : staged
+                            ? isDark
+                              ? 'text-slate-400 hover:text-white hover:bg-white/5'
+                              : 'text-teal-900/60 hover:text-teal-900 hover:bg-white'
+                            : 'text-text-secondary hover:text-text',
+                      )}
+                      style={
+                        view === 'list'
+                          ? {
+                              backgroundImage: isDark ? 'linear-gradient(135deg, #8B7CFF, #6C5ECF)' : 'linear-gradient(135deg, #2DD4BF, #0D9488)',
+                              boxShadow: isDark ? '0 4px 14px -4px rgba(124,92,255,0.6)' : '0 4px 14px -4px rgba(13,148,136,0.5)',
+                            }
+                          : undefined
+                      }
+                    >
+                      <List size={14} />
+                    </button>
+                  </div>
+                  {hasActiveFilters && (
+                    <button onClick={clearFilters} className={cn(stageBtns.ghost, 'h-10 whitespace-nowrap')}>
+                      <X size={12} />
+                      Réinitialiser
+                    </button>
+                  )}
+                </div>
+              </div>
+            </section>
 
-          <div>
-            <label className="text-xs font-medium text-text-secondary mb-1.5 block">
-              Fichier PDF {formOpen === 'add' ? '' : '(remplacer le fichier actuel)'}
-            </label>
-            <label className="flex items-center justify-center gap-2 h-16 rounded-lg border border-dashed border-border bg-background cursor-pointer hover:border-accent/40 hover:bg-accent/5 transition-all text-text-secondary hover:text-accent">
-              <FileUp size={16} />
-              <span className="text-xs">
-                {formFile ? formFile.name : 'Cliquer pour sélectionner un fichier PDF'}
-              </span>
-              <input
-                type="file"
-                accept=".pdf,application/pdf"
-                className="hidden"
-                onChange={e => setFormFile(e.target.files?.[0] || null)}
-              />
-            </label>
-            {formOpen !== 'add' && formOpen !== null && !formFile && hasFile(formOpen) && (
-              <p className="text-[11px] text-text-secondary/60 mt-1">
-                Laissez vide pour conserver le fichier actuel.
-              </p>
-            )}
-          </div>
+            {/* Filtres — collapsible */}
+            <section>
+              <div className="flex items-center justify-between gap-2">
+                <button
+                  type="button"
+                  onClick={() => setFiltersOpen(o => !o)}
+                  className="group flex items-center gap-2 text-left"
+                >
+                  <p className={`${sectionTitle} !mb-0 ${isDark ? 'text-sky-400' : 'text-sky-600'} group-hover:opacity-100 transition-opacity`}>
+                    <span className="h-px w-4 bg-gradient-to-r from-sky-400 to-transparent" />
+                    Filtres
+                    {(fCategory || fLang || fType) && (
+                      <span
+                        className={cn(
+                          'ml-1 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-bold',
+                          isDark
+                            ? 'bg-sky-500/20 text-sky-300 border border-sky-400/30'
+                            : 'bg-sky-500/15 text-sky-700 border border-sky-500/20',
+                        )}
+                      >
+                        {(fCategory ? 1 : 0) + (fLang ? 1 : 0) + (fType ? 1 : 0)}
+                      </span>
+                    )}
+                  </p>
+                  <motion.span
+                    animate={{ rotate: filtersOpen ? 180 : 0 }}
+                    transition={{ duration: 0.2, ease: 'easeOut' }}
+                    className={cn(
+                      'flex h-6 w-6 items-center justify-center rounded-lg border transition-colors',
+                      staged
+                        ? isDark
+                          ? 'border-white/10 bg-white/[0.04] text-slate-400 group-hover:bg-white/10 group-hover:text-white'
+                          : 'border-teal-900/10 bg-white/60 text-teal-900/50 group-hover:bg-white group-hover:text-teal-900'
+                        : 'border-border bg-card text-text-secondary',
+                    )}
+                  >
+                    <ChevronDown size={13} />
+                  </motion.span>
+                </button>
+                <div className="flex items-center gap-2">
+                  {(fCategory || fLang || fType) && (
+                    <button
+                      onClick={clearFilters}
+                      className={cn(
+                        'inline-flex items-center gap-1 text-[11px] font-semibold transition-colors',
+                        isDark ? 'text-slate-400 hover:text-white' : 'text-teal-900/60 hover:text-teal-900',
+                      )}
+                    >
+                      <X size={11} />
+                      Effacer
+                    </button>
+                  )}
+                  <span className={cn('text-[11px]', isDark ? 'text-slate-500' : 'text-slate-400')}>
+                    {filtersOpen ? 'Réduire' : 'Développer'}
+                  </span>
+                </div>
+              </div>
 
-          <div className="flex justify-end gap-2 pt-1">
-            <Button variant="outline" size="sm" onClick={() => setFormOpen(null)}>
-              Annuler
-            </Button>
-            <Button variant="primary" size="sm" icon={<CheckCircle2 size={14} />} onClick={handleFormSave} disabled={!formName.trim()}>
-              {formOpen === 'add' ? 'Ajouter' : 'Enregistrer'}
-            </Button>
+              <AnimatePresence initial={false}>
+                {filtersOpen && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: 'auto', opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+                    className="overflow-hidden"
+                  >
+                    <div className="grid gap-3 sm:grid-cols-3 pt-3">
+                      <div>
+                        <label className={stageLabel}>Catégorie</label>
+                        <Select
+                          value={fCategory}
+                          onValueChange={v => setFCategory(v as LibraryCategoryKey | '')}
+                          options={[
+                            { value: '', label: 'Toutes les catégories' },
+                            ...LIBRARY_CATEGORY_ORDER.map(key => ({
+                              value: key,
+                              label: LIBRARY_CATEGORIES[key].label,
+                              icon: CATEGORY_DOT_ICONS[key],
+                            })),
+                          ]}
+                          className={ctrl('h-10')}
+                        />
+                      </div>
+                      <div>
+                        <label className={stageLabel}>Langue</label>
+                        <Select
+                          value={fLang}
+                          onValueChange={v => setFLang(v as LibraryLang | '')}
+                          options={[
+                            { value: '', label: 'Toutes les langues' },
+                            ...LIBRARY_ALL_LANGS.map(code => ({
+                              value: code,
+                              label: LIBRARY_LANGUAGES[code].label,
+                              icon: LANG_CODE_ICONS[code],
+                            })),
+                          ]}
+                          className={ctrl('h-10')}
+                        />
+                      </div>
+                      <div>
+                        <label className={stageLabel}>Type</label>
+                        <Select
+                          value={fType}
+                          onValueChange={v => setFType(v as LibraryDocType | '')}
+                          options={[
+                            { value: '', label: 'Tous les types' },
+                            ...(Object.keys(LIBRARY_TYPE_LABELS) as LibraryDocType[]).map(key => ({
+                              value: key,
+                              label: LIBRARY_TYPE_LABELS[key],
+                            })),
+                          ]}
+                          className={ctrl('h-10')}
+                        />
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              {!filtersOpen && (fCategory || fLang || fType) && (
+                <div className="flex flex-wrap gap-1.5 pt-2">
+                  {fCategory && (
+                    <span
+                      className={cn(
+                        'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold border',
+                        isDark
+                          ? 'bg-white/[0.06] border-white/10 text-slate-300'
+                          : 'bg-teal-50 border-teal-900/10 text-teal-800',
+                      )}
+                    >
+                      <span className="w-1.5 h-1.5 rounded-full" style={{ background: LIBRARY_CATEGORIES[fCategory].color }} />
+                      {LIBRARY_CATEGORIES[fCategory].label}
+                    </span>
+                  )}
+                  {fLang && (
+                    <span
+                      className={cn(
+                        'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold border uppercase',
+                        isDark
+                          ? 'bg-white/[0.06] border-white/10 text-slate-300'
+                          : 'bg-white border-teal-900/10 text-teal-800',
+                      )}
+                    >
+                      <Globe size={11} />
+                      {LIBRARY_LANGUAGES[fLang].label}
+                    </span>
+                  )}
+                  {fType && (
+                    <span
+                      className={cn(
+                        'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold border',
+                        isDark
+                          ? 'bg-white/[0.06] border-white/10 text-slate-300'
+                          : 'bg-white border-teal-900/10 text-teal-800',
+                      )}
+                    >
+                      <FileText size={11} />
+                      {LIBRARY_TYPE_LABELS[fType]}
+                    </span>
+                  )}
+                </div>
+              )}
+            </section>
           </div>
         </div>
-      </Dialog>
-    </div>
+
+        {/* ── Documents ─────────────────────────────────────────────────── */}
+        <div className="space-y-4">
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <h2 className={`text-sm font-bold flex items-center gap-2 ${isDark ? 'text-white' : 'text-slate-900'}`}>
+              <span className="flex h-7 w-7 items-center justify-center rounded-lg" style={{ background: isDark ? 'rgba(139,124,255,0.12)' : 'rgba(13,148,136,0.10)', border: `1px solid ${isDark ? 'rgba(139,124,255,0.18)' : 'rgba(13,148,136,0.15)'}` }}>
+                <FileText size={13} style={{ color: isDark ? '#8B7CFF' : '#0D9488' }} />
+              </span>
+              Documents disponibles
+              <StageBadge variant="neutral" className="ml-1">{filtered.length}</StageBadge>
+            </h2>
+            <p className={`text-xs ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+              Affichage {filtered.length === 0 ? 0 : (safePage - 1) * PAGE_SIZE + 1}–{Math.min(safePage * PAGE_SIZE, filtered.length)} sur {filtered.length}
+            </p>
+          </div>
+
+          {filtered.length === 0 ? (
+            <div className="stage-glass p-12 text-center">
+              <div className="mx-auto w-14 h-14 rounded-2xl flex items-center justify-center mb-4" style={{ background: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(15,23,42,0.04)', border: `1px solid ${isDark ? 'rgba(255,255,255,0.06)' : 'rgba(15,23,42,0.06)'}` }}>
+                <Search size={22} className={isDark ? 'text-slate-500' : 'text-slate-400'} />
+              </div>
+              <p className={`text-sm font-semibold ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>Aucun document trouvé</p>
+              <p className={`text-xs mt-1 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>Essayez de modifier vos filtres</p>
+              {hasActiveFilters && (
+                <div className="mt-4 flex justify-center">
+                  <StageButton variant="glass" size="sm" onClick={clearFilters}>Réinitialiser les filtres</StageButton>
+                </div>
+              )}
+            </div>
+          ) : view === 'grid' ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4">
+              {pageDocs.map((doc, i) => renderGridCard(doc, i))}
+            </div>
+          ) : (
+            <div className="stage-glass overflow-hidden p-0">
+              <div className="overflow-x-auto scrollbar-thin">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className={`border-b ${isDark ? 'border-white/5 bg-white/[0.02]' : 'border-teal-900/5 bg-slate-50/60'}`}>
+                      <th className={`text-left px-4 py-2.5 text-[11px] font-bold uppercase tracking-wider ${isDark ? 'text-slate-500' : 'text-slate-500'} w-10`}>#</th>
+                      <th className={`text-left px-4 py-2.5 text-[11px] font-bold uppercase tracking-wider ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>Document</th>
+                      <th className={`text-left px-4 py-2.5 text-[11px] font-bold uppercase tracking-wider ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>Catégorie</th>
+                      <th className={`text-left px-4 py-2.5 text-[11px] font-bold uppercase tracking-wider ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>Langues</th>
+                      <th className={`text-left px-4 py-2.5 text-[11px] font-bold uppercase tracking-wider ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>Téléch.</th>
+                      <th className={`text-left px-4 py-2.5 text-[11px] font-bold uppercase tracking-wider ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>Mise à jour</th>
+                      <th className={`text-right px-4 py-2.5 text-[11px] font-bold uppercase tracking-wider ${isDark ? 'text-slate-500' : 'text-slate-500'} w-44`}>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className={`divide-y ${isDark ? 'divide-white/5' : 'divide-slate-100'}`}>
+                    {pageDocs.map((doc, index) => {
+                      const hue = CATEGORY_HUES[doc.category]
+                      const TypeIcon = TYPE_ICONS[doc.type]
+                      return (
+                        <motion.tr
+                          key={doc.id}
+                          initial={{ opacity: 0, x: -8 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ delay: index * 0.02, duration: 0.25 }}
+                          onClick={() => setDetailId(doc.id)}
+                          className={`group relative cursor-pointer transition-colors ${isDark ? 'hover:bg-white/[0.04]' : 'hover:bg-teal-50/50'}`}
+                        >
+                          <td className={`px-4 py-3 text-xs ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>{(safePage - 1) * PAGE_SIZE + index + 1}</td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: `linear-gradient(135deg, ${hue.a}18, ${hue.b}10)`, border: `1px solid ${hue.a}20`, boxShadow: `0 2px 8px ${hue.glow}` }}>
+                                <TypeIcon size={15} style={{ color: hue.a }} />
+                              </div>
+                              <div className="min-w-0">
+                                <p className={`text-sm font-semibold truncate max-w-[280px] ${isDark ? 'text-white' : 'text-slate-900'}`}>{doc.name}</p>
+                                <p className={`text-[11px] truncate max-w-[280px] ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>{doc.description}</p>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3">
+                            <span
+                              className="inline-flex items-center gap-1.5 px-2 py-1 text-[10px] font-bold rounded-lg border whitespace-nowrap"
+                              style={{ backgroundColor: `${hue.a}12`, color: hue.a, borderColor: `${hue.a}22` }}
+                            >
+                              <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: hue.line, boxShadow: `0 0 6px ${hue.glow}` }} />
+                              {LIBRARY_CATEGORIES[doc.category].label}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3">
+                            <span className={`inline-flex items-center gap-1 text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'} whitespace-nowrap`}>
+                              <Globe size={12} className={isDark ? 'text-slate-500' : 'text-slate-400'} />
+                              {doc.languages.length} langues
+                            </span>
+                          </td>
+                          <td className="px-4 py-3">
+                            <span className={`inline-flex items-center gap-1 text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                              <Download size={12} className={isDark ? 'text-slate-500' : 'text-slate-400'} />
+                              {downloadsOf(doc)}
+                            </span>
+                          </td>
+                          <td className={`px-4 py-3 text-xs whitespace-nowrap ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                            {formatDate(doc.updatedAt)}
+                          </td>
+                          <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
+                            <div className="flex items-center justify-end gap-1">
+                              <button
+                                onClick={() => handleDownload(doc)}
+                                disabled={!hasFile(doc)}
+                                title="Télécharger"
+                                className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all disabled:opacity-30 disabled:pointer-events-none ${isDark ? 'text-slate-400 hover:text-white hover:bg-white/10' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100'}`}
+                              >
+                                <Download size={14} />
+                              </button>
+                              <button
+                                onClick={() => handlePreview(doc)}
+                                disabled={!hasFile(doc)}
+                                title="Aperçu"
+                                className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all disabled:opacity-30 disabled:pointer-events-none ${isDark ? 'text-slate-400 hover:text-white hover:bg-white/10' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100'}`}
+                              >
+                                <Eye size={14} />
+                              </button>
+                              {admin && (
+                                <>
+                                  <button
+                                    onClick={() => openForm(doc)}
+                                    title="Modifier"
+                                    className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all ${isDark ? 'text-slate-400 hover:text-white hover:bg-white/10' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100'}`}
+                                  >
+                                    <Pencil size={14} />
+                                  </button>
+                                  <button
+                                    onClick={() => setDeleteTarget(doc)}
+                                    title="Supprimer"
+                                    className="w-8 h-8 rounded-lg flex items-center justify-center text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 transition-all"
+                                  >
+                                    <Trash2 size={14} />
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          </td>
+                        </motion.tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {pageCount > 1 && (
+            <div className="flex items-center justify-center gap-1.5 pt-1">
+              <button
+                onClick={() => setPage(p => Math.max(1, p - 1))}
+                disabled={safePage === 1}
+                className={`w-8 h-8 rounded-lg border flex items-center justify-center transition-all disabled:opacity-30 disabled:pointer-events-none ${isDark ? 'border-white/10 text-slate-400 hover:text-white hover:bg-white/5' : 'border-teal-900/10 text-slate-500 hover:text-slate-900 hover:bg-white'}`}
+              >
+                <ChevronLeft size={15} />
+              </button>
+              {Array.from({ length: pageCount }, (_, i) => i + 1).map(p => (
+                <button
+                  key={p}
+                  onClick={() => setPage(p)}
+                  className={`w-8 h-8 rounded-lg text-xs font-bold transition-all ${
+                    p === safePage
+                      ? 'text-white shadow-lg'
+                      : isDark ? 'border border-white/10 text-slate-400 hover:text-white hover:bg-white/5' : 'border border-teal-900/10 text-slate-500 hover:text-slate-900 hover:bg-white'
+                  }`}
+                  style={p === safePage ? { backgroundImage: isDark ? 'linear-gradient(135deg, #8B7CFF, #6C5ECF)' : 'linear-gradient(135deg, #2DD4BF, #0D9488)' } : undefined}
+                >
+                  {p}
+                </button>
+              ))}
+              <button
+                onClick={() => setPage(p => Math.min(pageCount, p + 1))}
+                disabled={safePage === pageCount}
+                className={`w-8 h-8 rounded-lg border flex items-center justify-center transition-all disabled:opacity-30 disabled:pointer-events-none ${isDark ? 'border-white/10 text-slate-400 hover:text-white hover:bg-white/5' : 'border-teal-900/10 text-slate-500 hover:text-slate-900 hover:bg-white'}`}
+              >
+                <ChevronRight size={15} />
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* ── Detail modal — portalled to body, covers entire viewport (sidebar + topbar) ── */}
+        {typeof document !== 'undefined' && createPortal(
+          <AnimatePresence>
+            {detailDoc && (() => {
+              const doc = detailDoc
+              const hue = CATEGORY_HUES[doc.category]
+              const CatIcon = CATEGORY_ICONS[doc.category]
+              const available = hasFile(doc)
+              return (
+                <motion.div
+                  className="fixed inset-0 z-[100] flex items-center justify-center p-4"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  onClick={e => e.stopPropagation()}
+                >
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.15 }}
+                    className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+                    onClick={() => setDetailId(null)}
+                  />
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.96, y: 12 }}
+                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.96, y: 12 }}
+                    transition={{ duration: 0.2 }}
+                    className="relative w-full max-w-2xl max-h-[90vh] rounded-2xl border flex flex-col overflow-hidden"
+                    style={{
+                      background: isDark ? 'linear-gradient(180deg, rgba(17,24,50,0.98), rgba(9,13,30,0.99))' : 'linear-gradient(180deg, rgba(255,255,255,0.98), rgba(248,250,252,0.99))',
+                      borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(15,23,42,0.08)',
+                      boxShadow: isDark ? '0 24px 60px -18px rgba(0,0,0,0.85), inset 0 1px 0 rgba(255,255,255,0.06)' : '0 24px 60px -20px rgba(13,148,136,0.35), inset 0 1px 0 rgba(255,255,255,1)',
+                    }}
+                  >
+                    <div className="absolute top-0 inset-x-0 h-[3px]" style={{ background: `linear-gradient(90deg, ${hue.a}, ${hue.b})` }} />
+                    <div className="relative px-6 py-5 border-b flex-shrink-0" style={{ borderColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(15,23,42,0.06)', background: `radial-gradient(ellipse at 20% 0%, ${hue.glow}, transparent 60%)` }}>
+                      <div className="flex items-start gap-3">
+                        <OrbIcon icon={CatIcon} hue={hue} size={48} radius={14} />
+                        <div className="min-w-0 flex-1">
+                          <h2 className={`text-lg font-extrabold leading-tight pr-8 ${isDark ? 'text-white' : 'text-slate-900'}`}>{doc.name}</h2>
+                          <div className="flex items-center gap-2 mt-2 flex-wrap">
+                            <span
+                              className="inline-flex items-center gap-1.5 px-2 py-1 text-[10px] font-bold rounded-lg border"
+                              style={{ backgroundColor: `${hue.a}12`, color: hue.a, borderColor: `${hue.a}22` }}
+                            >
+                              <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: hue.line, boxShadow: `0 0 6px ${hue.glow}` }} />
+                              {LIBRARY_CATEGORIES[doc.category].label}
+                            </span>
+                            <span className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{LIBRARY_TYPE_LABELS[doc.type]}</span>
+                            <StageBadge variant={available ? 'ok' : 'warn'}>{available ? 'Disponible' : 'En préparation'}</StageBadge>
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => setDetailId(null)}
+                          className={`absolute top-4 right-4 w-8 h-8 rounded-xl flex items-center justify-center border transition-all ${isDark ? 'border-white/10 bg-white/5 text-slate-400 hover:text-white hover:bg-white/10' : 'border-slate-200 bg-white text-slate-500 hover:text-slate-900'}`}
+                        >
+                          <X size={16} />
+                        </button>
+                      </div>
+                    </div>
+
+                    <div
+                      className="flex-1 overflow-y-auto scrollbar-thin px-6 py-5 space-y-5"
+                      style={{
+                        overscrollBehavior: 'contain',
+                        WebkitOverflowScrolling: 'touch' as any,
+                        transform: 'translateZ(0)',
+                        willChange: 'scroll-position',
+                        scrollBehavior: 'smooth' as any,
+                      }}
+                    >
+                    <section>
+                      <h3 className={`text-[11px] font-bold uppercase tracking-wider flex items-center gap-1.5 mb-3 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                        <Info size={13} style={{ color: hue.a }} />
+                        Informations du document
+                      </h3>
+                      <div className={`rounded-xl border divide-y overflow-hidden ${isDark ? 'border-white/8 divide-white/5' : 'border-slate-200 divide-slate-100'}`}>
+                        {[
+                          {
+                            label: 'Nom',
+                            value: <span className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-slate-900'}`}>{doc.name}</span>,
+                          },
+                          {
+                            label: 'Catégorie',
+                            value: (
+                              <span
+                                className="inline-flex items-center gap-1.5 px-2 py-1 text-[11px] font-bold rounded-lg border"
+                                style={{ backgroundColor: `${hue.a}12`, color: hue.a, borderColor: `${hue.a}22` }}
+                              >
+                                {LIBRARY_CATEGORIES[doc.category].label}
+                              </span>
+                            ),
+                          },
+                          {
+                            label: 'Description',
+                            value: <span className={`text-sm ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>{doc.description}</span>,
+                          },
+                          {
+                            label: 'Langues',
+                            value: (
+                              <span className="inline-flex items-center gap-1.5 flex-wrap">
+                                <Globe size={13} className={isDark ? 'text-slate-500' : 'text-slate-400'} />
+                                {doc.languages.map(l => (
+                                  <span key={l} className={`px-1.5 py-0.5 text-[10px] font-bold uppercase rounded border ${isDark ? 'bg-white/5 border-white/10 text-slate-300' : 'bg-white border-slate-200 text-slate-600'}`}>
+                                    {l}
+                                  </span>
+                                ))}
+                              </span>
+                            ),
+                          },
+                          {
+                            label: 'Mise à jour',
+                            value: (
+                              <span className={`inline-flex items-center gap-1.5 text-sm ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
+                                <CalendarDays size={13} className={isDark ? 'text-slate-500' : 'text-slate-400'} />
+                                {formatDate(doc.updatedAt)}
+                              </span>
+                            ),
+                          },
+                          {
+                            label: 'Téléchargements',
+                            value: (
+                              <span className={`inline-flex items-center gap-1.5 text-sm font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                                <TrendingUp size={13} className={isDark ? 'text-slate-500' : 'text-slate-400'} />
+                                {downloadsOf(doc)}
+                              </span>
+                            ),
+                          },
+                        ].map(row => (
+                          <div key={row.label} className="flex items-start gap-4 px-4 py-2.5">
+                            <span className={`w-40 flex-shrink-0 text-[11px] font-semibold uppercase tracking-wide pt-0.5 ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>{row.label}</span>
+                            <div className="flex-1 min-w-0">{row.value}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </section>
+
+                    <section>
+                      <h3 className={`text-[11px] font-bold uppercase tracking-wider flex items-center gap-1.5 mb-3 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                        <Languages size={13} style={{ color: hue.a }} />
+                        Langues disponibles
+                      </h3>
+                      <div className={`rounded-xl border divide-y overflow-hidden ${isDark ? 'border-white/8 divide-white/5' : 'border-slate-200 divide-slate-100'}`}>
+                        {doc.languages.map(lang => {
+                          const langAvailable = hasFile(doc, lang)
+                          return (
+                            <div key={lang} className={`flex items-center justify-between gap-3 px-4 py-2.5 transition-colors ${isDark ? 'hover:bg-white/[0.03]' : 'hover:bg-slate-50'}`}>
+                              <div className="flex items-center gap-3 min-w-0">
+                                <span className={`w-9 h-7 rounded-lg border flex items-center justify-center text-[10px] font-bold uppercase flex-shrink-0 ${isDark ? 'bg-white/5 border-white/10 text-slate-300' : 'bg-white border-slate-200 text-slate-600'}`}>
+                                  {lang}
+                                </span>
+                                <span className={`text-sm font-medium truncate ${isDark ? 'text-white' : 'text-slate-900'}`}>{LIBRARY_LANGUAGES[lang].label}</span>
+                              </div>
+                              {langAvailable ? (
+                                <div className="flex items-center gap-2 flex-shrink-0">
+                                  <StageButton variant="glass" size="sm" icon={<Download size={12} />} onClick={() => handleDownload(doc, lang)}>
+                                    Télécharger
+                                  </StageButton>
+                                  <StageButton variant="glass" size="sm" icon={<Eye size={12} />} onClick={() => handlePreview(doc, lang)}>
+                                    Aperçu
+                                  </StageButton>
+                                </div>
+                              ) : (
+                                <span className={`text-[11px] italic ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>Fichier en préparation</span>
+                              )}
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </section>
+                  </div>
+
+                  <div className={`border-t px-6 py-4 flex-shrink-0 ${isDark ? 'border-white/5 bg-white/[0.02]' : 'border-slate-100 bg-slate-50/50'}`}>
+                    <h3 className={`text-[11px] font-bold uppercase tracking-wider flex items-center gap-1.5 mb-3 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                      <Zap size={13} style={{ color: hue.a }} />
+                      Actions
+                    </h3>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <StageButton
+                        variant="primary"
+                        size="sm"
+                        icon={<Download size={13} />}
+                        onClick={() => handleDownloadAll(doc)}
+                        className={!available ? 'opacity-40 pointer-events-none' : ''}
+                      >
+                        Télécharger toutes les langues
+                      </StageButton>
+                      <StageButton variant="glass" size="sm" icon={<Share2 size={13} />} onClick={() => handleShare(doc)}>
+                        Partager
+                      </StageButton>
+                      {admin && (
+                        <>
+                          <StageButton variant="glass" size="sm" icon={<Pencil size={13} />} onClick={() => openForm(doc)}>
+                            Modifier
+                          </StageButton>
+                          <StageButton variant="glass" size="sm" icon={<Copy size={13} />} onClick={() => handleDuplicate(doc)}>
+                            Dupliquer
+                          </StageButton>
+                          <button
+                            onClick={() => setDeleteTarget(doc)}
+                            className="inline-flex items-center gap-1.5 h-8 px-3 text-xs font-semibold rounded-xl border text-rose-400 border-rose-400/20 bg-rose-500/10 hover:bg-rose-500/20 transition-colors"
+                          >
+                            <Trash2 size={13} />
+                            Supprimer
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </motion.div>
+              </motion.div>
+            )
+          })()}
+          </AnimatePresence>,
+          document.body,
+        )}
+
+        {/* ── Preview modal — portalled full viewport, like dossier de completion ── */}
+        {typeof document !== 'undefined' && createPortal(
+          <AnimatePresence>
+            {preview && (() => {
+              const url = resolveUrl(preview.template, preview.lang)
+              const suffix = preview.lang ? ` — ${LIBRARY_LANGUAGES[preview.lang].label}` : ''
+              return (
+                <motion.div
+                  className="fixed inset-0 z-[100] flex flex-col p-2 sm:p-4"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  onClick={e => e.stopPropagation()}
+                >
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.15 }}
+                  className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+                  onClick={() => setPreview(null)}
+                />
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.98, y: 12 }}
+                  animate={{ opacity: 1, scale: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.98, y: 12 }}
+                  transition={{ type: 'spring', stiffness: 320, damping: 30 }}
+                  className="relative w-full h-full flex flex-col overflow-hidden rounded-2xl border"
+                  style={{
+                    background: isDark ? '#0F1220' : '#FFF',
+                    borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(15,23,42,0.08)',
+                    boxShadow: isDark ? '0 24px 80px -18px rgba(0,0,0,0.9), inset 0 1px 0 rgba(255,255,255,0.06)' : '0 24px 80px -20px rgba(13,148,136,0.4), inset 0 1px 0 rgba(255,255,255,1)',
+                  }}
+                >
+                  <div className={`flex items-center justify-between gap-3 px-4 py-3 border-b flex-shrink-0 ${isDark ? 'border-white/5 bg-white/[0.02]' : 'border-slate-100 bg-slate-50/50'}`}>
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <OrbIcon icon={FileText} hue={STAGE_HUES.violet} size={34} radius={10} />
+                      <div className="min-w-0">
+                        <p className={`text-sm font-bold truncate ${isDark ? 'text-white' : 'text-slate-900'}`}>{preview.template.name}{suffix}</p>
+                        <p className={`text-[10px] uppercase tracking-wider ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>Aperçu du template — plein écran</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1.5 flex-shrink-0">
+                      <button
+                        onClick={() => url && window.open(url, '_blank')}
+                        title="Ouvrir dans un nouvel onglet"
+                        className={`w-8 h-8 rounded-xl flex items-center justify-center border transition-all ${isDark ? 'border-white/10 bg-white/5 text-slate-400 hover:text-white' : 'border-slate-200 bg-white text-slate-500 hover:text-slate-900'}`}
+                      >
+                        <ExternalLink size={15} />
+                      </button>
+                      <StageButton variant="primary" size="sm" icon={<Download size={13} />} onClick={() => handleDownload(preview.template, preview.lang)}>
+                        Télécharger
+                      </StageButton>
+                      <button
+                        onClick={() => setPreview(null)}
+                        className={`w-8 h-8 rounded-xl flex items-center justify-center border transition-all ${isDark ? 'border-white/10 bg-white/5 text-slate-400 hover:text-white' : 'border-slate-200 bg-white text-slate-500 hover:text-slate-900'}`}
+                      >
+                        <X size={16} />
+                      </button>
+                    </div>
+                  </div>
+                  <div
+                    className="flex-1 bg-gray-100 overflow-hidden"
+                    style={{
+                      WebkitOverflowScrolling: 'touch' as any,
+                      transform: 'translateZ(0)',
+                    }}
+                  >
+                    {url && <iframe src={url} title={preview.template.name} className="w-full h-full border-0" style={{ display: 'block' }} />}
+                  </div>
+                </motion.div>
+              </motion.div>
+            )
+          })()}
+          </AnimatePresence>,
+          document.body,
+        )}
+
+        <Dialog
+          isOpen={!!deleteTarget}
+          onClose={() => setDeleteTarget(null)}
+          title="Supprimer le document"
+          size="sm"
+        >
+          {deleteTarget && (
+            <div className="space-y-4">
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 rounded-xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center flex-shrink-0">
+                  <AlertTriangle size={18} className="text-rose-500" />
+                </div>
+                <div>
+                  <p className={`text-sm ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
+                    Voulez-vous vraiment supprimer <strong>{deleteTarget.name}</strong> ?
+                  </p>
+                  <p className={`text-xs mt-1 ${isDark ? 'text-slate-500' : 'text-slate-500'}`}>
+                    Le template sera retiré de la librairie pour toute l'équipe.
+                  </p>
+                </div>
+              </div>
+              <div className="flex justify-end gap-2">
+                <StageButton variant="glass" size="sm" onClick={() => setDeleteTarget(null)} className={deleting ? 'opacity-50 pointer-events-none' : ''}>
+                  Annuler
+                </StageButton>
+                <StageButton
+                  variant="primary"
+                  size="sm"
+                  icon={deleting ? undefined : <Trash2 size={14} />}
+                  onClick={deleting ? undefined : handleDeleteConfirm}
+                  className={`${deleting ? 'opacity-50 pointer-events-none' : ''} !bg-gradient-to-r !from-rose-500 !to-red-600`}
+                >
+                  {deleting ? 'Suppression...' : 'Supprimer'}
+                </StageButton>
+              </div>
+            </div>
+          )}
+        </Dialog>
+
+        <Dialog
+          isOpen={!!formOpen}
+          onClose={() => setFormOpen(null)}
+          title={formOpen === 'add' ? 'Ajouter un document' : 'Modifier le document'}
+          size="lg"
+        >
+          <div className="space-y-4">
+            <div>
+              <label className={`text-xs font-semibold mb-1 block ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>Nom du document *</label>
+              <input
+                type="text"
+                value={formName}
+                onChange={e => setFormName(e.target.value)}
+                placeholder="Ex : Mandat de vente exclusif"
+                className={`w-full h-10 px-3 text-sm rounded-xl border outline-none transition-all ${isDark ? 'bg-white/[0.04] border-white/10 text-white placeholder:text-slate-500 focus:border-violet-400/40' : 'bg-white border-slate-200 text-slate-900 placeholder:text-slate-400 focus:border-teal-500/30'}`}
+              />
+            </div>
+
+            <div>
+              <label className={`text-xs font-semibold mb-1 block ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>Description</label>
+              <textarea
+                value={formDescription}
+                onChange={e => setFormDescription(e.target.value)}
+                rows={2}
+                placeholder="Description du document..."
+                className={`w-full px-3 py-2.5 text-sm rounded-xl border outline-none resize-none transition-all ${isDark ? 'bg-white/[0.04] border-white/10 text-white placeholder:text-slate-500 focus:border-violet-400/40' : 'bg-white border-slate-200 text-slate-900 placeholder:text-slate-400 focus:border-teal-500/30'}`}
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className={`text-xs font-semibold mb-1 block ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>Catégorie</label>
+                <select
+                  value={formCategory}
+                  onChange={e => setFormCategory(e.target.value as LibraryCategoryKey)}
+                  className={`w-full h-10 px-3 text-sm rounded-xl border outline-none transition-all ${isDark ? 'bg-white/[0.04] border-white/10 text-white focus:border-violet-400/40' : 'bg-white border-slate-200 text-slate-900 focus:border-teal-500/30'}`}
+                >
+                  {LIBRARY_CATEGORY_ORDER.map(key => (
+                    <option key={key} value={key}>{LIBRARY_CATEGORIES[key].label}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className={`text-xs font-semibold mb-1 block ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>Type</label>
+                <select
+                  value={formType}
+                  onChange={e => setFormType(e.target.value as LibraryDocType)}
+                  className={`w-full h-10 px-3 text-sm rounded-xl border outline-none transition-all ${isDark ? 'bg-white/[0.04] border-white/10 text-white focus:border-violet-400/40' : 'bg-white border-slate-200 text-slate-900 focus:border-teal-500/30'}`}
+                >
+                  {(Object.keys(LIBRARY_TYPE_LABELS) as LibraryDocType[]).map(key => (
+                    <option key={key} value={key}>{LIBRARY_TYPE_LABELS[key]}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label className={`text-xs font-semibold mb-1.5 block ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>Langues disponibles</label>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {LIBRARY_ALL_LANGS.map(code => {
+                  const active = formLangs.has(code)
+                  return (
+                    <button
+                      key={code}
+                      type="button"
+                      onClick={() =>
+                        setFormLangs(prev => {
+                          const next = new Set(prev)
+                          if (next.has(code)) next.delete(code)
+                          else next.add(code)
+                          return next.size > 0 ? next : prev
+                        })
+                      }
+                      className={`px-2.5 h-7 text-xs font-bold uppercase rounded-xl border transition-all ${
+                        active
+                          ? isDark ? 'bg-violet-500/15 border-violet-400/30 text-violet-300' : 'bg-teal-500/10 border-teal-500/25 text-teal-700'
+                          : isDark ? 'bg-white/5 border-white/10 text-slate-500 hover:text-slate-300' : 'bg-white border-slate-200 text-slate-400 hover:text-slate-600'
+                      }`}
+                    >
+                      {code}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+
+            <div>
+              <label className={`text-xs font-semibold mb-1.5 block ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+                Fichier PDF {formOpen === 'add' ? '' : '(remplacer le fichier actuel)'}
+              </label>
+              <label className={`flex items-center justify-center gap-2 h-16 rounded-xl border border-dashed cursor-pointer transition-all ${isDark ? 'border-white/10 bg-white/[0.02] text-slate-400 hover:border-violet-400/30 hover:bg-violet-500/5 hover:text-violet-300' : 'border-slate-200 bg-slate-50 text-slate-500 hover:border-teal-500/30 hover:bg-teal-50 hover:text-teal-700'}`}>
+                <FileUp size={16} />
+                <span className="text-xs font-medium">
+                  {formFile ? formFile.name : 'Cliquer pour sélectionner un fichier PDF'}
+                </span>
+                <input
+                  type="file"
+                  accept=".pdf,application/pdf"
+                  className="hidden"
+                  onChange={e => setFormFile(e.target.files?.[0] || null)}
+                />
+              </label>
+              {formOpen !== 'add' && formOpen !== null && !formFile && hasFile(formOpen) && (
+                <p className={`text-[11px] mt-1 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+                  Laissez vide pour conserver le fichier actuel.
+                </p>
+              )}
+            </div>
+
+            <div className="flex justify-end gap-2 pt-1">
+              <StageButton variant="glass" size="sm" onClick={() => setFormOpen(null)}>
+                Annuler
+              </StageButton>
+              <StageButton variant="primary" size="sm" icon={<CheckCircle2 size={14} />} onClick={!formName.trim() ? undefined : handleFormSave} className={!formName.trim() ? 'opacity-50 pointer-events-none' : ''}>
+                {formOpen === 'add' ? 'Ajouter' : 'Enregistrer'}
+              </StageButton>
+            </div>
+          </div>
+        </Dialog>
+      </div>
+    </Stage>
   )
 }

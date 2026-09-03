@@ -1,11 +1,14 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
+import { createPortal } from 'react-dom'
 import { motion } from 'framer-motion'
 import { Plus } from 'react-feather'
 import {
   CalendarEvent, getEventTypeConfig, AGENTS, Agent, formatEventRange, formatTime, getEventDayOverlap, getEventDayHours,
   getWeekDays, getEventsForWeek, isToday, isSameDay, formatFrenchShortDate, withAlpha, getEventUserColor,
-  eventMatchesSelectedAgents,
+  eventMatchesSelectedAgents, readableChipText,
 } from '../../../types/calendar'
+import { cn } from '../../../lib/utils'
+import { useStageChrome } from './useStageChrome'
 
 interface WeekViewProps {
   currentDate: Date
@@ -77,6 +80,7 @@ interface CellContextMenu {
 export default function WeekView({
   currentDate, events, selectedAgents, selectedEventTypes, overrideAgent, agents, canCreate = true, canEditEvent, onEventClick, onEventUpdate, onSlotClick, onDayNameClick,
 }: WeekViewProps) {
+  const { staged, dark } = useStageChrome()
   const weekDays = useMemo(() => getWeekDays(currentDate), [currentDate])
   const weekEvents = useMemo(() => getEventsForWeek(events, currentDate), [events, currentDate])
   const filteredEvents = useMemo(() =>
@@ -153,6 +157,15 @@ export default function WeekView({
       const { start, end } = getEventDayOverlap(e, day)
       return start.getTime() < end.getTime()
     })
+
+  /* Live "now" indicator — ticks every 30s */
+  const [nowTs, setNowTs] = useState(() => new Date())
+  useEffect(() => {
+    const t = window.setInterval(() => setNowTs(new Date()), 30000)
+    return () => window.clearInterval(t)
+  }, [])
+  const nowMinutes = nowTs.getHours() * 60 + nowTs.getMinutes()
+  const showNowLine = nowMinutes >= START_HOUR * 60 && nowMinutes <= END_HOUR * 60
 
   const [dayColWidth, setDayColWidth] = useState(148)
   const dayColWidthRef = useRef(148)
@@ -310,42 +323,90 @@ export default function WeekView({
 
   const gridCols = `${TIME_COL_WIDTH}px 1fr`
 
+  const skin = staged
+    ? {
+        container: dark
+          ? 'stage-glass overflow-hidden'
+          : 'stage-glass overflow-hidden',
+        headBg: dark ? 'bg-white/[0.03]' : 'bg-white/40',
+        headBorder: dark ? 'border-white/[0.08]' : 'border-teal-900/[0.10]',
+        divide: dark ? 'divide-white/[0.06]' : 'divide-teal-900/[0.08]',
+        cellLine: dark ? 'border-white/[0.05]' : 'border-teal-900/[0.07]',
+        timeText: dark ? 'text-slate-500' : 'text-teal-900/35',
+        label: dark ? 'text-[9px] font-bold uppercase tracking-[0.22em] text-slate-500' : 'text-[9px] font-bold uppercase tracking-[0.22em] text-teal-900/35',
+      }
+    : {
+        container: 'bg-card rounded-2xl border border-border/50 shadow-card overflow-hidden',
+        headBg: 'bg-background/50',
+        headBorder: 'border-border/40',
+        divide: 'divide-border/20',
+        cellLine: 'border-border/20',
+        timeText: 'text-text-secondary/50',
+        label: 'text-xs font-semibold text-text-secondary uppercase tracking-wider',
+      }
+
   return (
-    <div className="bg-card rounded-xl border border-border/50 shadow-card overflow-hidden">
+    <div className={skin.container}>
       <div className="overflow-x-auto scrollbar-thin">
         <div className="min-w-[1100px]">
           {/* Day headers */}
-          <div className="grid border-b border-border/40 bg-background/50 sticky top-0 z-20" style={{ gridTemplateColumns: gridCols }}>
-            <div className="p-3 text-xs font-semibold text-text-secondary uppercase tracking-wider border-r border-border/30 text-center">
+          <div className={`grid border-b ${skin.headBorder} ${skin.headBg} sticky top-0 z-20 backdrop-blur-xl`} style={{ gridTemplateColumns: gridCols }}>
+            <div className={`p-3 text-center ${skin.label} border-r ${skin.headBorder}`}>
               Horaire
             </div>
-            <div className="grid grid-cols-7 divide-x divide-border/20">
-              {weekDays.map((day, i) => (
-                <div
-                  key={i}
-                  className={`py-3 px-2 text-center cursor-pointer transition-colors ${isToday(day) ? 'bg-accent/5' : ''} hover:bg-accent/10`}
-                  onClick={() => onDayNameClick(day)}
-                >
-                  <p className={`text-sm font-semibold ${isToday(day) ? 'text-accent' : 'text-text-secondary'}`}>
-                    {day.toLocaleDateString('fr-FR', { weekday: 'short' }).replace('.', '')}
-                  </p>
-                  <p className={`text-xl font-bold mt-0.5 ${isToday(day) ? 'text-accent' : 'text-text'}`}>
-                    {day.getDate()}
-                  </p>
-                  <p className="text-xs text-text-secondary mt-0.5">{formatFrenchShortDate(day)}</p>
-                </div>
-              ))}
+            <div className={`grid grid-cols-7 divide-x ${skin.divide}`}>
+              {weekDays.map((day, i) => {
+                const today = isToday(day)
+                const weekend = [0, 6].includes(day.getDay())
+                return (
+                  <div
+                    key={i}
+                    className={`relative py-3 px-2 text-center cursor-pointer transition-colors ${today ? 'bg-accent/5' : ''} hover:bg-accent/10`}
+                    onClick={() => onDayNameClick(day)}
+                  >
+                    <p className={`text-[10px] font-bold uppercase tracking-[0.14em] ${today ? 'text-accent' : weekend ? (dark ? 'text-slate-600' : staged ? 'text-teal-900/30' : 'text-text-secondary/60') : dark ? 'text-slate-500' : staged ? 'text-teal-900/45' : 'text-text-secondary'}`}>
+                      {day.toLocaleDateString('fr-FR', { weekday: 'short' }).replace('.', '')}
+                    </p>
+                    {today ? (
+                      <span
+                        className="cal-day-orb mx-auto mt-0.5 text-lg"
+                        style={
+                          !dark
+                            ? {
+                                backgroundImage: 'linear-gradient(145deg,#2DD4BF,#0D9488)',
+                                boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.5), 0 6px 18px -4px rgba(13,148,136,0.55)',
+                              }
+                            : undefined
+                        }
+                      >
+                        {day.getDate()}
+                      </span>
+                    ) : (
+                      <p className={`text-xl font-extrabold mt-0.5 tabular-nums tracking-tight ${
+                        weekend
+                          ? dark ? 'text-slate-600' : staged ? 'text-teal-900/30' : 'text-text-secondary/50'
+                          : dark ? 'text-slate-200' : staged ? 'text-teal-950' : 'text-text'
+                      }`}>
+                        {day.getDate()}
+                      </p>
+                    )}
+                    <p className={`text-[9px] mt-0.5 font-mono uppercase tracking-wider ${dark ? 'text-slate-600' : staged ? 'text-teal-900/30' : 'text-text-secondary/60'}`}>
+                      {formatFrenchShortDate(day)}
+                    </p>
+                  </div>
+                )
+              })}
             </div>
           </div>
 
           {/* Shared body row: time column + 7 day columns */}
           <div className="relative">
             <div className="grid" style={{ gridTemplateColumns: gridCols }}>
-            <div className="relative border-r border-border/30" style={{ height: CELL_HEIGHT }}>
+            <div className={`relative border-r ${skin.headBorder}`} style={{ height: CELL_HEIGHT }}>
               {Array.from({ length: TOTAL_HOURS }, (_, h) => (
                 <div
                   key={h}
-                  className="absolute right-2 text-[10px] text-text-secondary/40 font-medium leading-none pointer-events-none"
+                  className={`absolute right-2 text-[10px] font-mono font-medium leading-none pointer-events-none ${skin.timeText}`}
                   style={{ top: `calc(${(h / TOTAL_HOURS) * CELL_HEIGHT}px - 5px)` }}
                 >
                   {String(START_HOUR + h).padStart(2, '0')}:00
@@ -353,7 +414,7 @@ export default function WeekView({
               ))}
             </div>
 
-            <div ref={gridRef} className="grid grid-cols-7 divide-x divide-border/20">
+            <div ref={gridRef} className={`grid grid-cols-7 divide-x ${skin.divide}`}>
               {weekDays.map((day, i) => {
                 const { placed, clusters } = layoutDay(getDayOverlapping(day), day)
                 return (
@@ -379,14 +440,40 @@ export default function WeekView({
                     {Array.from({ length: TOTAL_HOURS - 1 }, (_, h) => (
                       <div
                         key={h}
-                        className="absolute left-0 right-0 border-t border-border/20 pointer-events-none"
+                        className={`absolute left-0 right-0 border-t ${skin.cellLine} pointer-events-none`}
                         style={{ top: `${((h + 1) / TOTAL_HOURS) * CELL_HEIGHT}px` }}
                       />
                     ))}
 
-                    {/* Today highlight bar */}
+                    {/* Today: gradient beam wash + glowing edge */}
                     {isToday(day) && (
-                      <div className="absolute left-0 top-0 bottom-0 w-0.5 bg-accent z-20" />
+                      <>
+                        <div className="cal-today-beam" />
+                        <div
+                          className="absolute left-0 top-0 bottom-0 w-[3px] z-20 rounded-r-full"
+                          style={{
+                            background: dark
+                              ? 'linear-gradient(180deg, #8B7CFF, #5646C9)'
+                              : 'linear-gradient(180deg, #2DD4BF, #0D9488)',
+                            boxShadow: dark
+                              ? '0 0 12px rgba(124,92,255,0.7)'
+                              : '0 0 12px rgba(13,148,136,0.55)',
+                          }}
+                        />
+                      </>
+                    )}
+
+                    {/* Live now-line sweeping today's column */}
+                    {isToday(day) && showNowLine && (
+                      <div
+                        className="cal-now-line"
+                        style={{ top: `${((nowMinutes - START_HOUR * 60) / (TOTAL_HOURS * 60)) * CELL_HEIGHT}px` }}
+                      >
+                        <span className="cal-now-dot" style={{ left: -4, top: -3.5 }} />
+                        <span className="cal-now-chip">
+                          {String(nowTs.getHours()).padStart(2, '0')}:{String(nowTs.getMinutes()).padStart(2, '0')}
+                        </span>
+                      </div>
                     )}
 
                     {/* Events positioned by time, colored by creator */}
@@ -403,17 +490,17 @@ export default function WeekView({
                           initial={{ opacity: 0 }}
                           animate={{ opacity: 1 }}
                           title={event.title}
-                          className="absolute rounded-md border hover:opacity-85 hover:shadow-md transition-all overflow-hidden z-10 text-left select-none"
+                          className="cal-event-glow absolute rounded-md border overflow-hidden z-10 text-left select-none backdrop-blur-sm transition-[filter] hover:brightness-110"
                           style={{
                             top: layout.top,
                             height: layout.height,
                             left: `calc(1px + ${offset}px)`,
                             width: `calc(100% - ${2 + offset}px)`,
                             zIndex: 10 + level,
-                            backgroundColor: withAlpha(color, level === 0 ? '1F' : '17'),
-                            borderColor: withAlpha(color, '40'),
+                            background: `linear-gradient(135deg, ${withAlpha(color, level === 0 ? '40' : '2E')} 0%, ${withAlpha(color, '14')} 100%)`,
+                            borderColor: withAlpha(color, '4D'),
                             borderLeft: `3px solid ${color}`,
-                            boxShadow: level > 0 ? '0 1px 3px rgba(0,0,0,0.12)' : undefined,
+                            ['--evc' as never]: withAlpha(color, '55'),
                             cursor: canDragThis ? 'grab' : 'pointer',
                             touchAction: 'none',
                             visibility: isDragging ? 'hidden' : undefined,
@@ -459,14 +546,17 @@ export default function WeekView({
                               <div data-resize="resize-bottom" className="absolute bottom-0 left-0 right-0 h-2 cursor-ns-resize rounded-b-md z-10" style={{ touchAction: 'none' }} />
                             </>
                           )}
-                          <div className="px-2 py-1 h-full flex flex-col justify-center">
+                          <div
+                            className="px-2 py-1 h-full flex flex-col justify-center"
+                            style={{ color: readableChipText(color, dark) }}
+                          >
                             <div className="flex items-center gap-1">
                               <span className="text-xs inline-flex"><cfg.icon size={12} /></span>
-                              <span className={`text-xs font-bold ${cfg.textColor} leading-tight`}>
+                              <span className="text-xs font-bold leading-tight">
                                 {formatEventRange(event)}
                               </span>
                             </div>
-                            <p className={`text-xs font-medium leading-tight truncate ${cfg.textColor}`}>
+                            <p className="text-xs font-medium leading-tight truncate">
                               {event.title}
                             </p>
                           </div>
@@ -506,73 +596,102 @@ export default function WeekView({
         </div>
       </div>
 
-      {/* Hover popup for simultaneous events */}
-      {popup && (
-        <div
-          className="fixed z-50 w-80 max-h-[320px] overflow-y-auto rounded-xl border border-border/60 bg-card shadow-2xl p-2 space-y-1.5"
-          style={{
-            left: Math.max(8, Math.min(popup.x + 12, (typeof window !== 'undefined' ? window.innerWidth : 1024) - 340)),
-            top: Math.max(8, Math.min(popup.y + 12, (typeof window !== 'undefined' ? window.innerHeight : 768) - 340)),
-          }}
-          onMouseEnter={cancelClose}
-          onMouseLeave={scheduleClose}
-        >
-          <div className="px-2 pt-1 pb-1.5 flex items-center justify-between border-b border-border/30 mb-1">
-            <span className="text-xs font-semibold text-text-secondary uppercase tracking-wider">
-              Événements simultanés
-            </span>
-            <span className="text-xs font-bold text-accent">{popup.events.length}</span>
+      {/* Hover popup for simultaneous events — portaled to body so the
+          stage-glass backdrop-filter / overflow ancestors can't clip or
+          re-anchor its fixed positioning */}
+      {popup && createPortal(
+        <div className={cn(staged && 'agent-theme', dark && 'dark', staged && !dark && 'stage-light', staged && 'cosmic-scope')}>
+          <div
+            className="pop-glass fixed z-[60] w-80 max-h-[320px] overflow-y-auto scrollbar-thin p-2 space-y-1.5"
+            style={{
+              left: Math.max(8, Math.min(popup.x + 12, (typeof window !== 'undefined' ? window.innerWidth : 1024) - 340)),
+              top: Math.max(8, Math.min(popup.y + 12, (typeof window !== 'undefined' ? window.innerHeight : 768) - 340)),
+            }}
+            onMouseEnter={cancelClose}
+            onMouseLeave={scheduleClose}
+          >
+            <div className={`px-2 pt-1 pb-1.5 flex items-center justify-between border-b mb-1 ${
+              staged ? (dark ? 'border-white/10' : 'border-teal-900/10') : 'border-border'
+            }`}>
+              <span className="text-text-secondary text-[9px] font-bold uppercase tracking-[0.18em]">
+                Événements simultanés
+              </span>
+              <span className="text-xs font-extrabold text-accent">{popup.events.length}</span>
+            </div>
+            {popup.events.map(event => {
+              const cfg = getEventTypeConfig(event.type)
+              const color = getEventColor(event)
+              const txt = readableChipText(color, dark)
+              return (
+                <button
+                  key={event.id}
+                  onClick={() => { setPopup(null); onEventClick(event) }}
+                  className={`w-full text-left p-2 rounded-xl border border-transparent transition-all ${
+                    staged
+                      ? dark
+                        ? 'bg-white/[0.03] hover:bg-white/[0.07]'
+                        : 'bg-white/50 hover:bg-teal-500/10'
+                      : 'bg-background/40 hover:bg-background'
+                  }`}
+                  style={{ borderLeft: `3px solid ${color}` }}
+                >
+                  <div className="flex items-center gap-2">
+                    <span
+                      className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                      style={{ backgroundColor: color, boxShadow: `0 0 8px ${withAlpha(color, '99')}` }}
+                    />
+                    <span className="inline-flex flex-shrink-0" style={{ color: txt }}><cfg.icon size={13} /></span>
+                    <span className="text-sm font-semibold text-text truncate">{event.title}</span>
+                  </div>
+                  <div className="flex items-center gap-2 mt-1 pl-5">
+                    <span
+                      className="text-[10px] px-1.5 py-0.5 rounded font-semibold"
+                      style={{
+                        backgroundColor: withAlpha(color, dark ? '26' : '1A'),
+                        color: txt,
+                        boxShadow: `inset 0 0 0 1px ${withAlpha(color, dark ? '40' : '33')}`,
+                      }}
+                    >
+                      {cfg.label}
+                    </span>
+                    <span className="text-xs text-text-secondary">{formatEventRange(event)}</span>
+                  </div>
+                  {event.clientName && (
+                    <p className="text-xs text-text-secondary truncate mt-1 pl-5">Client : {event.clientName}</p>
+                  )}
+                </button>
+              )
+            })}
           </div>
-          {popup.events.map(event => {
-            const cfg = getEventTypeConfig(event.type)
-            const color = getEventColor(event)
-            return (
-              <button
-                key={event.id}
-                onClick={() => { setPopup(null); onEventClick(event) }}
-                className="w-full text-left p-2 rounded-lg border bg-card hover:bg-surface hover:shadow-md transition-all"
-                style={{ borderLeft: `3px solid ${color}` }}
-              >
-                <div className="flex items-center gap-2">
-                  <span className="w-2.5 h-2.5 rounded-full flex-shrink-0 border border-white/40" style={{ backgroundColor: color }} />
-                  <span className={`inline-flex flex-shrink-0`}><cfg.icon size={13} className={cfg.textColor} /></span>
-                  <span className="text-sm font-semibold text-text truncate">{event.title}</span>
-                </div>
-                <div className="flex items-center gap-2 mt-1 pl-5">
-                  <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${cfg.bgColor} ${cfg.textColor}`}>
-                    {cfg.label}
-                  </span>
-                  <span className="text-xs text-text-secondary">{formatEventRange(event)}</span>
-                </div>
-                {event.clientName && (
-                  <p className="text-xs text-text-secondary truncate mt-1 pl-5">Client : {event.clientName}</p>
-                )}
-              </button>
-            )
-          })}
-        </div>
+        </div>,
+        document.body,
       )}
       {/* Right-click context menu: add another event in an occupied cell */}
-      {ctxMenu && (
-        <div
-          className="fixed z-50 w-56 rounded-xl border border-border/60 bg-card shadow-2xl p-1.5"
-          style={{
-            left: Math.max(8, Math.min(ctxMenu.x, (typeof window !== 'undefined' ? window.innerWidth : 1024) - 236)),
-            top: Math.max(8, Math.min(ctxMenu.y, (typeof window !== 'undefined' ? window.innerHeight : 768) - 88)),
-          }}
-          onMouseDown={(e) => e.stopPropagation()}
-        >
-          <button
-            onClick={() => {
-              setCtxMenu(null)
-              onSlotClick(ctxMenu.date)
+      {ctxMenu && createPortal(
+        <div className={cn(staged && 'agent-theme', dark && 'dark', staged && !dark && 'stage-light', staged && 'cosmic-scope')}>
+          <div
+            className="pop-glass fixed z-[60] w-56 p-1.5"
+            style={{
+              left: Math.max(8, Math.min(ctxMenu.x, (typeof window !== 'undefined' ? window.innerWidth : 1024) - 236)),
+              top: Math.max(8, Math.min(ctxMenu.y, (typeof window !== 'undefined' ? window.innerHeight : 768) - 88)),
             }}
-            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-text hover:bg-surface transition-colors"
+            onMouseDown={(e) => e.stopPropagation()}
           >
-            <Plus size={15} className="text-accent" />
-            Ajouter un autre événement
-          </button>
-        </div>
+            <button
+              onClick={() => {
+                setCtxMenu(null)
+                onSlotClick(ctxMenu.date)
+              }}
+              className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-text transition-colors ${
+                staged ? (dark ? 'hover:bg-white/[0.07]' : 'hover:bg-teal-900/[0.06]') : 'hover:bg-background'
+              }`}
+            >
+              <Plus size={15} className="text-accent" />
+              Ajouter un autre événement
+            </button>
+          </div>
+        </div>,
+        document.body,
       )}
     </div>
   )

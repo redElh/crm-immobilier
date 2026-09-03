@@ -121,15 +121,12 @@ export default function TwoFactorVerify({ userId, email, rememberMe, role }: Two
   return (
     <div className="space-y-5">
       <div className="text-center">
-        <div className="w-12 h-12 rounded-xl bg-accent-light text-accent flex items-center justify-center mx-auto mb-3">
-          <Shield size={24} />
+        <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.06] backdrop-blur-xl shadow-[inset_0_1px_0_rgba(255,255,255,0.12)]">
+          <Shield size={22} className="text-white" />
         </div>
-        <h3 className="text-lg font-semibold">Authentification à deux facteurs</h3>
-        <p className="text-sm text-text-secondary mt-1">
-          {useBackup
-            ? 'Entrez l\'un de vos codes de récupération'
-            : `Entrez le code à 6 chiffres depuis votre application d'authentification`
-          }
+        <h3 className="bg-gradient-to-r from-white to-white/70 bg-clip-text text-lg font-extrabold text-transparent">Authentification à deux facteurs</h3>
+        <p className="mt-1 text-sm text-white/55">
+          {useBackup ? "Entrez l'un de vos codes de récupération" : "Entrez le code à 6 chiffres depuis votre application d'authentification"}
         </p>
       </div>
 
@@ -139,72 +136,65 @@ export default function TwoFactorVerify({ userId, email, rememberMe, role }: Two
             {code.map((digit, i) => (
               <input
                 key={i}
-                ref={(el) => { inputRefs.current[i] = el }}
+                ref={el => { inputRefs.current[i] = el }}
                 type="text"
                 maxLength={1}
                 value={digit}
-                onChange={(e) => handleChange(i, e.target.value)}
-                onKeyDown={(e) => handleKeyDown(i, e)}
-                className="w-10 h-12 text-center text-lg font-semibold rounded-lg border border-border bg-card text-text focus:border-accent focus:ring-2 focus:ring-accent/15 outline-none transition-all"
+                onChange={e => handleChange(i, e.target.value)}
+                onKeyDown={e => handleKeyDown(i, e)}
+                className="h-12 w-10 rounded-xl border border-white/10 bg-white/[0.06] text-center text-lg font-bold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08)] outline-none backdrop-blur-xl transition-all placeholder:text-white/30 focus:border-violet-400/60 focus:bg-white/[0.09] focus:shadow-[0_0_0_3px_rgba(139,124,255,0.25)]"
               />
             ))}
           </div>
 
-          {error && <p className="text-xs text-error text-center">{error}</p>}
+          {error && (
+            <div className="rounded-xl border border-rose-400/20 bg-rose-500/10 px-3 py-2 text-xs font-medium text-rose-300 backdrop-blur-xl">{error}</div>
+          )}
 
-          <Button variant="primary" className="w-full" onClick={handleVerify} loading={loading}>
+          <Button variant="primary" className="w-full !bg-[linear-gradient(145deg,#8B7CFF,#6C5ECF)] !border-white/15 !text-white shadow-[0_10px_24px_-6px_rgba(124,92,255,0.55)]" onClick={handleVerify} loading={loading}>
             <Lock size={14} className="mr-1.5" />
             Vérifier
           </Button>
 
           <div className="text-center">
-            <button
-              onClick={() => { setUseBackup(true); setError('') }}
-              className="text-xs text-accent hover:text-accent-hover transition-colors"
-            >
+            <button onClick={() => { setUseBackup(true); setError('') }} className="text-xs font-medium text-violet-300 transition-colors hover:text-white">
               Utiliser un code de récupération
             </button>
           </div>
         </>
       ) : (
         <>
-          <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+          <div className="rounded-xl border border-amber-400/20 bg-amber-500/10 p-3 backdrop-blur-xl">
             <div className="flex items-start gap-2">
-              <AlertTriangle size={14} className="text-amber-600 mt-0.5 shrink-0" />
-              <p className="text-xs text-amber-800">
-                Chaque code de récupération ne peut être utilisé qu'une seule fois.
-                Après utilisation, il sera retiré de votre liste.
+              <AlertTriangle size={14} className="mt-0.5 shrink-0 text-amber-300" />
+              <p className="text-xs leading-relaxed text-amber-200/90">
+                Chaque code de récupération ne peut être utilisé qu'une seule fois. Après utilisation, il sera retiré de votre liste.
               </p>
             </div>
           </div>
-
           <div>
             <input
               type="text"
               value={backupCode}
-              onChange={(e) => setBackupCode(e.target.value)}
+              onChange={e => setBackupCode(e.target.value)}
               placeholder="XXXX-XXXX-XXXX"
-              className="w-full h-10 px-3 rounded-lg border border-border bg-card text-sm text-text placeholder:text-text-secondary/40 focus:outline-none focus:ring-2 focus:ring-accent/15 focus:border-accent"
-              onKeyDown={(e) => e.key === 'Enter' && handleBackupVerify()}
+              className="h-10 w-full rounded-xl border border-white/10 bg-white/[0.06] px-3 text-sm text-white placeholder:text-white/30 outline-none backdrop-blur-xl transition-all focus:border-violet-400/60 focus:bg-white/[0.09] focus:shadow-[0_0_0_3px_rgba(139,124,255,0.25)]"
+              onKeyDown={e => e.key === 'Enter' && handleBackupVerify()}
             />
           </div>
-
-          {error && <p className="text-xs text-error text-center">{error}</p>}
-
+          {error && <div className="rounded-xl border border-rose-400/20 bg-rose-500/10 px-3 py-2 text-xs font-medium text-rose-300">{error}</div>}
           <div className="flex gap-2">
-            <Button variant="outline" className="flex-1" onClick={() => { setUseBackup(false); setError(''); setBackupCode('') }}>
+            <Button variant="outline" className="flex-1 !border-white/10 !bg-white/[0.06] !text-white hover:!bg-white/[0.10]" onClick={() => { setUseBackup(false); setError(''); setBackupCode('') }}>
               Retour
             </Button>
-            <Button variant="primary" className="flex-1" onClick={handleBackupVerify} loading={loading}>
+            <Button variant="primary" className="flex-1 !bg-[linear-gradient(145deg,#8B7CFF,#6C5ECF)] !border-white/15 !text-white" onClick={handleBackupVerify} loading={loading}>
               Vérifier
             </Button>
           </div>
         </>
       )}
 
-      <p className="text-xs text-text-secondary text-center">
-        {email}
-      </p>
+      <p className="text-center text-xs text-white/35">{email}</p>
     </div>
   )
 }

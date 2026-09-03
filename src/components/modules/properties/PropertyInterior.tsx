@@ -1,6 +1,9 @@
 import Card from '../../ui/Card'
 import { InfoField } from '../../ui/InfoField'
-import { Home, Grid, Layers, Star } from 'react-feather'
+import { Home, Grid, Layers, Star, Check, Droplet, Coffee, Moon, MessageSquare } from 'react-feather'
+import { useStageChrome } from '../calendar/useStageChrome'
+import { StagePanel, OrbIcon, STAGE_HUES, SLATE_HUE, useStageTheme } from '../../dashboard/Stage'
+import type { StageHue } from '../../dashboard/Stage'
 
 const STYLE_LABELS: Record<string, string> = {
   moderne: 'Moderne', traditionnel: 'Traditionnel', minimaliste: 'Minimaliste',
@@ -32,7 +35,78 @@ function pickLabels(obj: unknown, labels: Record<string, string>): string[] {
   return []
 }
 
+/* ---------------------------------------------------------------------
+   Stage primitives
+--------------------------------------------------------------------- */
+
+function GlassField({
+  icon: Icon, hue, label, value,
+}: {
+  icon: React.ComponentType<{ size?: number | string; style?: React.CSSProperties }>
+  hue: StageHue
+  label: string
+  value: React.ReactNode
+}) {
+  const dark = useStageTheme() === 'dark'
+  return (
+    <div
+      className="rounded-xl border p-3 transition-all duration-200 hover:-translate-y-px"
+      style={{
+        borderColor: dark ? 'rgba(255,255,255,0.07)' : 'rgba(15,23,42,0.06)',
+        background: dark ? 'rgba(255,255,255,0.02)' : 'rgba(255,255,255,0.55)',
+        boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.05)',
+      }}
+    >
+      <div className="mb-1 flex items-center gap-1.5">
+        <Icon size={12} style={{ color: hue.a }} />
+        <span className={`text-[10px] font-bold uppercase tracking-[0.14em] ${dark ? 'text-slate-500' : 'text-teal-900/45'}`}>
+          {label}
+        </span>
+      </div>
+      <p className={`text-sm font-semibold leading-relaxed break-words ${dark ? 'text-slate-100' : 'text-slate-800'}`}>
+        {value}
+      </p>
+    </div>
+  )
+}
+
+function ChipRow({ items, hue }: { items: string[]; hue: StageHue }) {
+  const dark = useStageTheme() === 'dark'
+  return (
+    <div className="flex flex-wrap gap-2">
+      {items.map((item, i) => (
+        <span
+          key={i}
+          className="inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold transition-transform duration-200 hover:-translate-y-px"
+          style={{
+            color: dark ? hue.line : hue.a,
+            borderColor: `${hue.a}${dark ? '40' : '30'}`,
+            backgroundColor: `${hue.a}${dark ? '14' : '0a'}`,
+          }}
+        >
+          <Check size={11} strokeWidth={3} />
+          {item}
+        </span>
+      ))}
+    </div>
+  )
+}
+
+function SubLabel({ children }: { children: React.ReactNode }) {
+  const dark = useStageTheme() === 'dark'
+  return (
+    <p className={`mb-2 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.16em] ${dark ? 'text-slate-500' : 'text-teal-900/45'}`}>
+      {children}
+    </p>
+  )
+}
+
+/* ---------------------------------------------------------------------
+   Main
+--------------------------------------------------------------------- */
+
 export default function PropertyInterior({ property }: { property: any }) {
+  const { staged, dark } = useStageChrome()
   const p = property
 
   const interiorStyles = p.interiorStyles || {}
@@ -68,32 +142,26 @@ export default function PropertyInterior({ property }: { property: any }) {
     details: p.bedrooms_details,
   }
   const spaces = p.interiorSpaces || {}
-  const lux = p.luxuryInterior || {}
-  const vac = p.interiorVacation || {}
 
-  const sections: { title: string; icon: React.ReactNode; fields: React.ReactNode[] }[] = []
+  /* ---- shared derived data ---- */
+
+  const selectedStyles = pickLabels(interiorStyles, STYLE_LABELS)
+  const luxList = pickLabels(p.luxuryInterior || {}, LUXURY_INTERIOR_LABELS)
+  const vacList = pickLabels(p.interiorVacation || {}, VACATION_LABELS)
 
   const styleItems: { label: string; value: string }[] = []
-  const selectedStyles = pickLabels(interiorStyles, STYLE_LABELS)
   if (selectedStyles.length > 0) styleItems.push({ label: 'Styles', value: selectedStyles.join(', ') })
   if (interiorComment) styleItems.push({ label: 'Commentaires', value: interiorComment })
-  const luxList = pickLabels(lux, LUXURY_INTERIOR_LABELS)
   if (luxList.length > 0) styleItems.push({ label: 'Prestations haut de gamme', value: luxList.join(', ') })
-  const vacList = pickLabels(vac, VACATION_LABELS)
   if (vacList.length > 0) styleItems.push({ label: 'Équipements vacance', value: vacList.join(', ') })
-  if (styleItems.length > 0) sections.push({ title: 'Styles & Prestations', icon: <Home size={15} />, fields: styleItems.map((item, i) => (
-    <InfoField key={i} label={item.label} value={item.value} icon={<Star size={14} />} />
-  )) })
 
-  const roomItems: { label: string; value: string }[] = []
   const bathParts = [
     bath.count && `${bath.count} salle(s)`,
     bath.parentalSuiteCount && `dont ${bath.parentalSuiteCount} suite parentale`,
     bath.shower && 'Douche',
     bath.bathtub && 'Baignoire',
     bath.toiletType && `WC: ${bath.toiletType === 'separate' ? 'Indépendante' : "Dans salle d'eau"}`,
-  ].filter(Boolean)
-  if (bathParts.length > 0) roomItems.push({ label: 'Salle de bain', value: bathParts.join(' · ') })
+  ].filter(Boolean) as string[]
 
   const kitchenParts = [
     kitchen.count && `${kitchen.count} cuisine(s)`,
@@ -105,8 +173,7 @@ export default function PropertyInterior({ property }: { property: any }) {
     kitchen.details,
     guarantees.furniture && 'Garantie meubles',
     guarantees.appliances && 'Garantie électroménager',
-  ].filter(Boolean)
-  if (kitchenParts.length > 0) roomItems.push({ label: 'Cuisine', value: kitchenParts.join(' · ') })
+  ].filter(Boolean) as string[]
 
   const lrParts = [
     lr.count && `${lr.count} salon(s)`,
@@ -116,8 +183,7 @@ export default function PropertyInterior({ property }: { property: any }) {
     lr.bright && 'Lumineux',
     lr.fiber && 'Fibre',
     lr.details,
-  ].filter(Boolean)
-  if (lrParts.length > 0) roomItems.push({ label: 'Salon', value: lrParts.join(' · ') })
+  ].filter(Boolean) as string[]
 
   const bdParts = [
     bd.total && `Total: ${bd.total}`,
@@ -129,31 +195,115 @@ export default function PropertyInterior({ property }: { property: any }) {
     bd.exteriorAccess && 'Accès extérieur',
     bd.poolAccess && 'Accès piscine',
     bd.details,
-  ].filter(Boolean)
+  ].filter(Boolean) as string[]
+
+  const roomItems: { label: string; value: string }[] = []
+  if (bathParts.length > 0) roomItems.push({ label: 'Salle de bain', value: bathParts.join(' · ') })
+  if (kitchenParts.length > 0) roomItems.push({ label: 'Cuisine', value: kitchenParts.join(' · ') })
+  if (lrParts.length > 0) roomItems.push({ label: 'Salon', value: lrParts.join(' · ') })
   if (bdParts.length > 0) roomItems.push({ label: 'Détails chambres', value: bdParts.join(' · ') })
 
+  const spaceLabels: Record<string, string> = { entree: 'Entrée', salon: 'Salon', cuisine: 'Cuisine', chambre: 'Chambre', salle_de_bain: 'Salle de bain', bureau: 'Bureau', buanderie: 'Buanderie', dressing: 'Dressing' }
+  const spaceEntries = Object.entries(spaces).map(([key, sp]: any) => {
+    const parts = [
+      sp.surface && `${sp.surface} m²`,
+      sp.floorCovering && `Sol: ${sp.floorCovering}`,
+      sp.state && `État: ${STATE_LABELS[sp.state] || sp.state}`,
+      sp.exteriorAccess && 'Accès ext.',
+      sp.closet && 'Placard',
+      sp.heating && `Chauffage: ${sp.heating}`,
+      sp.comments,
+    ].filter(Boolean) as string[]
+    return { key, label: spaceLabels[key] || key, parts }
+  }).filter(e => e.parts.length > 0)
+
+  const sections: { title: string; icon: React.ReactNode; fields: React.ReactNode[] }[] = []
+  if (styleItems.length > 0) sections.push({ title: 'Styles & Prestations', icon: <Home size={15} />, fields: styleItems.map((item, i) => (
+    <InfoField key={i} label={item.label} value={item.value} icon={<Star size={14} />} />
+  )) })
   if (roomItems.length > 0) sections.push({ title: 'Pièces', icon: <Grid size={15} />, fields: roomItems.map((item, i) => (
     <InfoField key={i} label={item.label} value={item.value} icon={<Home size={14} />} />
   )) })
+  if (spaceEntries.length > 0) sections.push({ title: 'Espaces intérieurs', icon: <Layers size={15} />, fields: spaceEntries.map(e => (
+    <InfoField key={e.key} label={e.label} value={e.parts.join(' · ')} icon={<Layers size={14} />} />
+  )) })
 
-  if (Object.keys(spaces).length > 0) {
-    const spaceLabels: Record<string, string> = { entree: 'Entrée', salon: 'Salon', cuisine: 'Cuisine', chambre: 'Chambre', salle_de_bain: 'Salle de bain', bureau: 'Bureau', buanderie: 'Buanderie', dressing: 'Dressing' }
-    const spaceFields = Object.entries(spaces).map(([key, sp]: any) => {
-      const label = spaceLabels[key] || key
-      const parts = [
-        sp.surface && `${sp.surface} m²`,
-        sp.floorCovering && `Sol: ${sp.floorCovering}`,
-        sp.state && `État: ${STATE_LABELS[sp.state] || sp.state}`,
-        sp.exteriorAccess && 'Accès ext.',
-        sp.closet && 'Placard',
-        sp.heating && `Chauffage: ${sp.heating}`,
-        sp.comments,
-      ].filter(Boolean)
-      if (parts.length === 0) return null
-      return <InfoField key={key} label={label} value={parts.join(' · ')} icon={<Layers size={14} />} />
-    }).filter(Boolean)
-    if (spaceFields.length > 0) sections.push({ title: 'Espaces intérieurs', icon: <Layers size={15} />, fields: spaceFields })
+  /* ===================================================================
+     STAGE variant
+  =================================================================== */
+  if (staged) {
+    if (sections.length === 0) {
+      return (
+        <div className="flex flex-col items-center justify-center gap-3 py-16 text-center">
+          <OrbIcon icon={Home} hue={SLATE_HUE} size={48} radius={15} />
+          <p className={`text-sm ${dark ? 'text-slate-500' : 'text-teal-900/45'}`}>
+            Aucune information intérieure renseignée
+          </p>
+        </div>
+      )
+    }
+
+    return (
+      <div className="space-y-5">
+        {(selectedStyles.length > 0 || luxList.length > 0 || vacList.length > 0 || !!interiorComment) && (
+          <StagePanel title="Styles & Prestations" icon={Star} hue={STAGE_HUES.fuchsia}>
+            <div className="space-y-4">
+              {selectedStyles.length > 0 && (
+                <div>
+                  <SubLabel>Styles</SubLabel>
+                  <ChipRow items={selectedStyles} hue={STAGE_HUES.violet} />
+                </div>
+              )}
+              {luxList.length > 0 && (
+                <div>
+                  <SubLabel>Prestations haut de gamme</SubLabel>
+                  <ChipRow items={luxList} hue={STAGE_HUES.amber} />
+                </div>
+              )}
+              {vacList.length > 0 && (
+                <div>
+                  <SubLabel>Équipements vacance</SubLabel>
+                  <ChipRow items={vacList} hue={STAGE_HUES.sky} />
+                </div>
+              )}
+              {interiorComment && (
+                <GlassField icon={MessageSquare} hue={STAGE_HUES.fuchsia} label="Commentaires" value={
+                  <span className={`font-normal leading-relaxed ${dark ? 'text-slate-300' : 'text-slate-600'}`}>
+                    {interiorComment}
+                  </span>
+                } />
+              )}
+            </div>
+          </StagePanel>
+        )}
+
+        {roomItems.length > 0 && (
+          <StagePanel title="Pièces" icon={Grid} hue={STAGE_HUES.sky}>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {bathParts.length > 0 && <GlassField icon={Droplet} hue={STAGE_HUES.fuchsia} label="Salle de bain" value={bathParts.join(' · ')} />}
+              {kitchenParts.length > 0 && <GlassField icon={Coffee} hue={STAGE_HUES.amber} label="Cuisine" value={kitchenParts.join(' · ')} />}
+              {lrParts.length > 0 && <GlassField icon={Home} hue={STAGE_HUES.violet} label="Salon" value={lrParts.join(' · ')} />}
+              {bdParts.length > 0 && <GlassField icon={Moon} hue={STAGE_HUES.emerald} label="Chambres" value={bdParts.join(' · ')} />}
+            </div>
+          </StagePanel>
+        )}
+
+        {spaceEntries.length > 0 && (
+          <StagePanel title="Espaces intérieurs" icon={Layers} hue={STAGE_HUES.emerald}>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {spaceEntries.map(e => (
+                <GlassField key={e.key} icon={Layers} hue={STAGE_HUES.emerald} label={e.label} value={e.parts.join(' · ')} />
+              ))}
+            </div>
+          </StagePanel>
+        )}
+      </div>
+    )
   }
+
+  /* ===================================================================
+     Legacy variant (admin shell) — unchanged
+  =================================================================== */
 
   if (sections.length === 0) return <p className="text-center text-text-secondary py-8">Aucune information intérieure renseignée</p>
 

@@ -302,6 +302,27 @@ export function withAlpha(hex: string, alpha: string): string {
   return /^#[0-9a-f]{6}$/i.test(hex) ? `${hex}${alpha}` : hex
 }
 
+function hexToRgb(hex: string): [number, number, number] | null {
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex.trim())
+  if (!m) return null
+  const n = parseInt(m[1], 16)
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255]
+}
+
+/**
+ * Returns a text color that stays legible when placed on a translucent
+ * surface derived from `hex` — lightened on dark surfaces, deepened on
+ * light ones. Falls back to neutral slate when `hex` is not parseable.
+ */
+export function readableChipText(hex: string, dark: boolean): string {
+  const rgb = hexToRgb(hex)
+  if (!rgb) return dark ? '#E2E8F0' : '#1E293B'
+  const target: [number, number, number] = dark ? [237, 241, 252] : [16, 38, 54]
+  const k = dark ? 0.82 : 0.32
+  const [r, g, b] = rgb.map((c, i) => Math.round(c + (target[i] - c) * k))
+  return `rgb(${r}, ${g}, ${b})`
+}
+
 export function getEventUserColor(event: CalendarEvent, agents?: Agent[]): string {
   const catalog = agents && agents.length > 0 ? agents : AGENTS
   const byId = (id: string) => catalog.find(a => a.id === id)?.color

@@ -1,7 +1,7 @@
-import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ChevronDown, Filter } from 'react-feather'
-import { AGENTS, EVENT_TYPE_CONFIG, EventType, Agent } from '../../../types/calendar'
+import { Check, RotateCcw, Users } from 'react-feather'
+import { AGENTS, EVENT_TYPE_CONFIG, EVENT_TYPE_COLORS, EventType, Agent, readableChipText } from '../../../types/calendar'
+import { useStageChrome } from './useStageChrome'
 
 interface CalendarFiltersProps {
   selectedAgents: string[]
@@ -15,10 +15,11 @@ interface CalendarFiltersProps {
 export default function CalendarFilters({
   selectedAgents, selectedEventTypes, onAgentsChange, onEventTypesChange, showAgents = true, agents,
 }: CalendarFiltersProps) {
-  const [open, setOpen] = useState(true)
-  const [openAgents, setOpenAgents] = useState(true)
-  const [openTypes, setOpenTypes] = useState(true)
+  const { staged, dark } = useStageChrome()
   const agentList = agents && agents.length > 0 ? agents : AGENTS
+
+  const allSelected = selectedEventTypes.length === Object.keys(EVENT_TYPE_CONFIG).length
+  const isFiltered = !allSelected || (showAgents && selectedAgents.length > 0)
 
   const toggleAgent = (id: string) => {
     if (selectedAgents.includes(id)) {
@@ -36,149 +37,235 @@ export default function CalendarFilters({
     }
   }
 
-  return (
-    <div className="bg-card rounded-xl border border-border/50 shadow-card">
-      <button
-        onClick={() => setOpen(!open)}
-        className="w-full flex items-center justify-between px-4 py-3 border-b border-border/30"
-      >
-        <div className="flex items-center gap-2 text-sm font-medium">
-          <Filter size={14} className="text-text-secondary" />
-          Filtres
+  const reset = () => {
+    onAgentsChange([])
+    onEventTypesChange(Object.values(EVENT_TYPE_CONFIG).map(c => c.value))
+  }
+
+  /* Admin shell — classic token styling */
+  if (!staged) {
+    return (
+      <div className="rounded-2xl border border-border/50 bg-card p-4 shadow-card">
+        <div className="mb-3 flex items-center justify-between">
+          <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-text-secondary">Filtrage</p>
+          <AnimatePresence>
+            {isFiltered && (
+              <motion.button
+                initial={{ opacity: 0, scale: 0.85 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.85 }}
+                onClick={reset}
+                className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-accent"
+              >
+                <RotateCcw size={10} /> Réinitialiser
+              </motion.button>
+            )}
+          </AnimatePresence>
         </div>
-        <ChevronDown
-          size={14}
-          className={`text-text-secondary transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
-        />
-      </button>
-      <AnimatePresence>
-        {open && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            className="overflow-hidden"
-          >
-            <div className="p-4 space-y-4">
-              {showAgents && (
-                <div>
-                  <button
-                    onClick={() => setOpenAgents(!openAgents)}
-                    className="w-full flex items-center justify-between mb-2"
-                  >
-                    <p className="text-xs font-medium text-text-secondary uppercase tracking-wider">
-                      Afficher les responsables
-                    </p>
-                    <ChevronDown
-                      size={14}
-                      className={`text-text-secondary transition-transform duration-200 ${openAgents ? 'rotate-180' : ''}`}
-                    />
-                  </button>
-                  <AnimatePresence>
-                    {openAgents && (
-                      <motion.div
-                        initial={{ height: 0, opacity: 0 }}
-                        animate={{ height: 'auto', opacity: 1 }}
-                        exit={{ height: 0, opacity: 0 }}
-                        transition={{ duration: 0.2 }}
-                        className="overflow-hidden"
-                      >
-                        <div className="space-y-1.5">
-                          {agentList.map(agent => (
-                            <div
-                              key={agent.id}
-                              onClick={() => toggleAgent(agent.id)}
-                              className="flex items-center gap-2 cursor-pointer group"
-                            >
-                              <div
-                                className="w-4 h-4 rounded border-2 flex items-center justify-center transition-all duration-200"
-                                style={{
-                                  borderColor: selectedAgents.includes(agent.id) ? agent.color : undefined,
-                                  backgroundColor: selectedAgents.includes(agent.id) ? agent.color : undefined,
-                                }}
-                              >
-                                {selectedAgents.includes(agent.id) && (
-                                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                                    <polyline points="20 6 9 17 4 12" />
-                                  </svg>
-                                )}
-                              </div>
-                              <span className="flex items-center gap-2 text-sm text-text">
-                                <span
-                                  className="w-2.5 h-2.5 rounded-full flex-shrink-0 border border-white/40"
-                                  style={{ backgroundColor: agent.color }}
-                                />
-                                {agent.name}
-                              </span>
-                            </div>
-                          ))}
-                        </div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </div>
-              )}
-              <div>
-                <button
-                  onClick={() => setOpenTypes(!openTypes)}
-                  className="w-full flex items-center justify-between mb-2"
-                >
-                  <p className="text-xs font-medium text-text-secondary uppercase tracking-wider">
-                    Types d'événements
-                  </p>
-                  <ChevronDown
-                    size={14}
-                    className={`text-text-secondary transition-transform duration-200 ${openTypes ? 'rotate-180' : ''}`}
-                  />
-                </button>
-                <AnimatePresence>
-                  {openTypes && (
-                    <motion.div
-                      initial={{ height: 0, opacity: 0 }}
-                      animate={{ height: 'auto', opacity: 1 }}
-                      exit={{ height: 0, opacity: 0 }}
-                      transition={{ duration: 0.2 }}
-                      className="overflow-hidden"
-                    >
-                      <div className="grid grid-cols-2 gap-1.5">
-                        {Object.values(EVENT_TYPE_CONFIG).map(cfg => {
-                          const Icon = cfg.icon
-                          return (
-                            <div
-                              key={cfg.value}
-                              onClick={() => toggleEventType(cfg.value)}
-                              className="flex items-center gap-1.5 cursor-pointer group"
-                            >
-                              <div
-                                className={`w-4 h-4 rounded border-2 flex items-center justify-center transition-all duration-200 ${
-                                  selectedEventTypes.includes(cfg.value)
-                                    ? 'bg-accent border-accent'
-                                    : 'border-border group-hover:border-text-secondary/40'
-                                }`}
-                              >
-                                {selectedEventTypes.includes(cfg.value) && (
-                                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                                    <polyline points="20 6 9 17 4 12" />
-                                  </svg>
-                                )}
-                              </div>
-                              <span className="text-xs flex items-center gap-1">
-                                <Icon size={11} />
-                                {cfg.label}
-                              </span>
-                            </div>
-                          )
-                        })}
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </div>
+
+        {showAgents && (
+          <div className="border-b border-border/30 pb-3">
+            <div className="mb-2 flex items-center gap-1.5">
+              <Users size={11} className="text-text-secondary" />
+              <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-text-secondary">Équipe · {agentList.length}</p>
             </div>
-          </motion.div>
+            <div className="space-y-0.5">
+              {agentList.map(agent => {
+                const active = selectedAgents.includes(agent.id)
+                return (
+                  <button
+                    key={agent.id}
+                    onClick={() => toggleAgent(agent.id)}
+                    className={`flex w-full items-center gap-2 rounded-xl px-2 py-1.5 text-left transition-all ${
+                      active ? 'bg-accent-light/60' : 'hover:bg-background'
+                    }`}
+                  >
+                    <span
+                      className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[9px] font-bold text-white"
+                      style={{ backgroundColor: agent.color, opacity: selectedAgents.length === 0 || active ? 1 : 0.38 }}
+                    >
+                      {agent.initials}
+                    </span>
+                    <span className={`flex-1 truncate text-xs font-medium ${selectedAgents.length === 0 || active ? 'text-text' : 'text-text-secondary/60'}`}>
+                      {agent.name}
+                    </span>
+                    {active && (
+                      <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: agent.color }} />
+                    )}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
         )}
-      </AnimatePresence>
+
+        <div className={showAgents ? 'pt-3' : ''}>
+          <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.18em] text-text-secondary">Types d'événements</p>
+          <div className="scrollbar-thin max-h-[240px] space-y-0.5 overflow-y-auto pr-0.5">
+            {Object.values(EVENT_TYPE_CONFIG).map(cfg => {
+              const Icon = cfg.icon
+              const active = selectedEventTypes.includes(cfg.value)
+              return (
+                <button
+                  key={cfg.value}
+                  onClick={() => toggleEventType(cfg.value)}
+                  className={`flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left transition-all ${active ? 'bg-background' : ''}`}
+                >
+                  <span
+                    className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-md border transition-all ${
+                      active ? 'border-accent bg-accent shadow-sm' : 'border-border'
+                    }`}
+                  >
+                    {active && <Check size={10} strokeWidth={3.5} className="text-white" />}
+                  </span>
+                  <Icon
+                    size={11}
+                    className={`shrink-0 ${active ? '' : 'text-text-secondary/40'}`}
+                    style={active ? { color: readableChipText(EVENT_TYPE_COLORS[cfg.value], dark) } : undefined}
+                  />
+                  <span className={`truncate text-[11px] font-medium ${active ? 'text-text' : 'text-text-secondary/70'}`}>
+                    {cfg.label}
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  const sectionLabel = `text-[10px] font-bold uppercase tracking-[0.18em] ${dark ? 'text-slate-400/70' : 'text-teal-900/45'}`
+  const hairline = dark ? 'border-white/[0.07]' : 'border-teal-900/[0.08]'
+
+  return (
+    <div className="stage-glass rounded-2xl p-4">
+      {/* Header */}
+      <div className="mb-3 flex items-center justify-between">
+        <p className={sectionLabel}>Filtrage</p>
+        <AnimatePresence>
+          {isFiltered && (
+            <motion.button
+              initial={{ opacity: 0, scale: 0.85 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.85 }}
+              onClick={reset}
+              className={`flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider transition-colors ${
+                dark ? 'text-violet-300 hover:text-violet-200' : 'text-teal-700 hover:text-teal-600'
+              }`}
+            >
+              <RotateCcw size={10} />
+              Réinitialiser
+            </motion.button>
+          )}
+        </AnimatePresence>
+      </div>
+
+      {/* Agents */}
+      {showAgents && (
+        <div className={`border-b pb-3 ${hairline}`}>
+          <div className="mb-2 flex items-center gap-1.5">
+            <Users size={11} className={dark ? 'text-slate-400/70' : 'text-teal-900/45'} />
+            <p className={sectionLabel}>Équipe · {agentList.length}</p>
+          </div>
+          <div className="space-y-0.5">
+            {agentList.map(agent => {
+              const active = selectedAgents.includes(agent.id)
+              return (
+                <button
+                  key={agent.id}
+                  onClick={() => toggleAgent(agent.id)}
+                  className={`group flex w-full items-center gap-2 rounded-xl px-2 py-1.5 text-left transition-all duration-200 ${
+                    active
+                      ? dark
+                        ? 'bg-white/[0.07]'
+                        : 'bg-teal-900/[0.05]'
+                      : dark ? 'hover:bg-white/[0.04]' : 'hover:bg-teal-900/[0.03]'
+                  }`}
+                >
+                  <span
+                    className="relative flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-[9px] font-bold text-white"
+                    style={{
+                      backgroundColor: agent.color,
+                      boxShadow: active
+                        ? `0 0 12px -2px ${agent.color}, inset 0 1px 0 rgba(255,255,255,0.4)`
+                        : `inset 0 1px 0 rgba(255,255,255,0.35)`,
+                      opacity: selectedAgents.length === 0 || active ? 1 : 0.38,
+                    }}
+                  >
+                    {agent.initials}
+                  </span>
+                  <span
+                    className={`flex-1 truncate text-xs font-medium transition-colors ${
+                      selectedAgents.length === 0 || active
+                        ? dark ? 'text-slate-200' : 'text-teal-950/80'
+                        : dark ? 'text-slate-500' : 'text-teal-900/40'
+                    }`}
+                  >
+                    {agent.name}
+                  </span>
+                  {active && (
+                    <span
+                      className="h-1.5 w-1.5 shrink-0 rounded-full"
+                      style={{ backgroundColor: agent.color, boxShadow: `0 0 8px ${agent.color}` }}
+                    />
+                  )}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Event types */}
+      <div className={showAgents ? 'pt-3' : ''}>
+        <p className={`${sectionLabel} mb-2`}>Types d'événements</p>
+        <div className="scrollbar-thin max-h-[240px] space-y-0.5 overflow-y-auto pr-0.5">
+          {Object.values(EVENT_TYPE_CONFIG).map(cfg => {
+            const Icon = cfg.icon
+            const active = selectedEventTypes.includes(cfg.value)
+            return (
+              <button
+                key={cfg.value}
+                onClick={() => toggleEventType(cfg.value)}
+                className={`flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left transition-all duration-200 ${
+                  active
+                    ? dark ? 'bg-white/[0.06]' : 'bg-teal-900/[0.04]'
+                    : ''
+                }`}
+              >
+                <span
+                  className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-md border transition-all duration-200 ${
+                    active
+                      ? dark
+                        ? 'border-violet-400/50 bg-gradient-to-br from-violet-400 to-indigo-600 shadow-[0_0_10px_-2px_rgba(124,92,255,0.8)]'
+                        : 'border-teal-500/60 bg-gradient-to-br from-teal-400 to-emerald-600 shadow-[0_0_10px_-2px_rgba(13,148,136,0.7)]'
+                      : dark
+                        ? 'border-white/15 group-hover:border-white/30'
+                        : 'border-teal-900/20'
+                  }`}
+                >
+                  {active && <Check size={10} strokeWidth={3.5} className="text-white" />}
+                </span>
+                <Icon
+                  size={11}
+                  className={`shrink-0 ${active ? '' : dark ? 'text-slate-600' : 'text-teal-900/25'}`}
+                  style={active ? { color: readableChipText(EVENT_TYPE_COLORS[cfg.value], dark) } : undefined}
+                />
+                <span
+                  className={`truncate text-[11px] font-medium transition-colors ${
+                    active
+                      ? dark ? 'text-slate-200' : 'text-teal-950/80'
+                      : dark ? 'text-slate-500' : 'text-teal-900/40'
+                  }`}
+                >
+                  {cfg.label}
+                </span>
+              </button>
+            )
+          })}
+        </div>
+      </div>
     </div>
   )
 }

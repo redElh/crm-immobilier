@@ -58,6 +58,8 @@ import AdminResetPasswordPage from './pages/auth/admin/reset-password'
 import ContractsPage from './pages/contracts/index'
 import ContractDetailPage from './pages/contracts/[id]'
 import ConciergeriePage from './pages/conciergerie/index'
+import ToolboxPage from './pages/toolbox/index'
+import VacancesManagementPage from './pages/toolbox/vacances'
 
 // Admin imports
 import { AdminLayout } from './pages/admin/AdminLayout'
@@ -223,7 +225,7 @@ function AppRoutes() {
   return (
     <AnimatePresence mode="wait">
       {isAuthRoute ? (
-        <Routes location={location} key={location.pathname}>
+        <Routes location={location} key="auth">
           <Route path="/auth/login" element={<LoginPage />} />
           <Route path="/auth/register" element={<RegisterPage />} />
           <Route path="/auth/verify-email" element={<VerifyEmailPage />} />
@@ -235,7 +237,7 @@ function AppRoutes() {
           <Route path="/auth/admin/reset-password" element={<AdminResetPasswordPage />} />
         </Routes>
       ) : isPublicRoute ? (
-        <div className="max-w-4xl mx-auto px-6 py-10">
+        <div className="max-w-4xl mx-auto px-6 py-10" key="public">
           <Routes location={location} key={location.pathname}>
             <Route path="/privacy" element={<ConfidentialitePage />} />
             <Route path="/terms" element={<ConditionsPage />} />
@@ -279,6 +281,8 @@ function AppRoutes() {
           <Route path="/admin/:adminId/messages/settings" element={<AdminLayout><MessagesSettingsPage /></AdminLayout>} />
           <Route path="/admin/:adminId/messages/:id" element={<AdminLayout><MessageDetailPage /></AdminLayout>} />
           <Route path="/admin/:adminId/conciergerie" element={<AdminLayout><ConciergeriePage /></AdminLayout>} />
+          <Route path="/admin/:adminId/toolbox" element={<AdminLayout><ToolboxPage /></AdminLayout>} />
+          <Route path="/admin/:adminId/toolbox/vacances" element={<AdminLayout><VacancesManagementPage /></AdminLayout>} />
           <Route path="/admin/:adminId/settings" element={<AdminLayout><AdminSettingsPage /></AdminLayout>} />
           <Route path="/admin/:adminId/settings/compte/profil" element={<AdminLayout><ProfileSettingsPage /></AdminLayout>} />
           <Route path="/admin/:adminId/settings/compte/securite" element={<AdminLayout><SecuritySettingsPage /></AdminLayout>} />
@@ -302,7 +306,7 @@ function AppRoutes() {
           } />
         </Routes>
       ) : (
-        <Routes location={location} key={location.pathname}>
+        <Routes location={location} key="app">
           <Route path="/" element={<AgentRedirect />} />
           {/* Legacy flat-route redirects — old navigate() calls still work */}
           <Route path="/clients" element={<RedirectToAgent />} />
@@ -333,6 +337,8 @@ function AppRoutes() {
           <Route path="/messages/settings" element={<RedirectToAgent />} />
           <Route path="/messages/:id" element={<RedirectToAgent />} />
           <Route path="/conciergerie" element={<RedirectToAgent />} />
+          <Route path="/toolbox" element={<RedirectToAgent />} />
+          <Route path="/toolbox/vacances" element={<RedirectToAgent />} />
           <Route path="/settings" element={<RedirectToAgent />} />
           <Route path="/settings/compte/profil" element={<RedirectToAgent />} />
           <Route path="/settings/compte/securite" element={<RedirectToAgent />} />
@@ -346,51 +352,63 @@ function AppRoutes() {
           <Route path="/settings/aide" element={<RedirectToAgent />} />
           <Route path="/settings/privacy" element={<RedirectToAgent />} />
           <Route path="/settings/terms" element={<RedirectToAgent />} />
-          {/* New ID-prefixed routes */}
-          <Route path="/:agentId" element={<AgentLayout><Dashboard /></AgentLayout>} />
-          <Route path="/:agentId/clients" element={<AgentLayout><ClientTypesPage /></AgentLayout>} />
-          <Route path="/:agentId/clients/type/:type" element={<AgentLayout><ClientsPageWithType /></AgentLayout>} />
-          <Route path="/:agentId/clients/type/:type/:id" element={<AgentLayout><ClientPage /></AgentLayout>} />
-          <Route path="/:agentId/clients/:id" element={<AgentLayout><ClientPage /></AgentLayout>} />
-          <Route path="/:agentId/contacts" element={<AgentLayout><ContactsPage /></AgentLayout>} />
-          <Route path="/:agentId/contacts/:id" element={<AgentLayout><ContactPage /></AgentLayout>} />
-          <Route path="/:agentId/prospects" element={<AgentLayout><ProspectsPage /></AgentLayout>} />
-          <Route path="/:agentId/prospects/:id" element={<AgentLayout><ProspectPage /></AgentLayout>} />
-          <Route path="/:agentId/properties" element={<AgentLayout><PropertyTypesPage /></AgentLayout>} />
-          <Route path="/:agentId/properties/type/:type" element={<AgentLayout><PropertiesPageWithType /></AgentLayout>} />
-          <Route path="/:agentId/properties/type/:type/add" element={<AgentLayout><AddPropertyForm /></AgentLayout>} />
-          <Route path="/:agentId/properties/type/:type/edit/:id" element={<AgentLayout><AddPropertyForm /></AgentLayout>} />
-          <Route path="/:agentId/properties/type/:type/:id" element={<AgentLayout><PropertyPage /></AgentLayout>} />
-          <Route path="/:agentId/properties/:id" element={<AgentLayout><PropertyPage /></AgentLayout>} />
-          <Route path="/:agentId/properties/add" element={<AgentLayout><AddPropertyForm /></AgentLayout>} />
-          <Route path="/:agentId/register" element={<AgentLayout><TransactionRegisterPage /></AgentLayout>} />
-          <Route path="/:agentId/contracts" element={<AgentLayout><ContractsPage /></AgentLayout>} />
-          <Route path="/:agentId/contracts/:id" element={<AgentLayout><ContractDetailPage /></AgentLayout>} />
-          <Route path="/:agentId/extranet" element={<AgentLayout><AgentExtranetPage /></AgentLayout>} />
-          <Route path="/:agentId/automator" element={<AgentLayout><AutomatorPage /></AgentLayout>} />
-          <Route path="/:agentId/pret" element={<AgentLayout><PretPage /></AgentLayout>} />
-          <Route path="/:agentId/calendar" element={<AgentLayout><CalendarPage /></AgentLayout>} />
-          <Route path="/:agentId/documents" element={<AgentLayout><DocumentsPage /></AgentLayout>} />
-          <Route path="/:agentId/documents/:id" element={<AgentLayout><DocumentDetailPage /></AgentLayout>} />
-          <Route path="/:agentId/library" element={<AgentLayout><LibrairiePage /></AgentLayout>} />
-          <Route path="/:agentId/messages" element={<AgentLayout><MessagesPage /></AgentLayout>} />
-          <Route path="/:agentId/messages/compose" element={<AgentLayout><ComposeMessagePage /></AgentLayout>} />
-          <Route path="/:agentId/messages/settings" element={<AgentLayout><MessagesSettingsPage /></AgentLayout>} />
-          <Route path="/:agentId/messages/:id" element={<AgentLayout><MessageDetailPage /></AgentLayout>} />
-          <Route path="/:agentId/conciergerie" element={<AgentLayout><ConciergeriePage /></AgentLayout>} />
-          <Route path="/:agentId/settings" element={<AgentLayout><SettingsPage /></AgentLayout>} />
-          <Route path="/:agentId/settings/compte/profil" element={<AgentLayout><ProfileSettingsPage /></AgentLayout>} />
-          <Route path="/:agentId/settings/compte/securite" element={<AgentLayout><SecuritySettingsPage /></AgentLayout>} />
-          <Route path="/:agentId/settings/compte/preferences" element={<AgentLayout><PreferencesSettingsPage /></AgentLayout>} />
-          <Route path="/:agentId/settings/communication/signature" element={<AgentLayout><SignatureSettingsPage /></AgentLayout>} />
-          <Route path="/:agentId/settings/communication/reponses-automatiques" element={<AgentLayout><AutoReplySettingsPage /></AgentLayout>} />
-          <Route path="/:agentId/settings/notifications" element={<AgentLayout><NotificationSettingsPage /></AgentLayout>} />
-          <Route path="/:agentId/settings/integrations" element={<AgentLayout><IntegrationsSettingsPage /></AgentLayout>} />
-          <Route path="/:agentId/settings/equipe" element={<AgentLayout><TeamSettingsPage /></AgentLayout>} />
-          <Route path="/:agentId/settings/donnees" element={<AgentLayout><DataSettingsPage /></AgentLayout>} />
-          <Route path="/:agentId/settings/aide" element={<AgentLayout><HelpSettingsPage /></AgentLayout>} />
-          <Route path="/:agentId/settings/privacy" element={<AgentLayout><ConfidentialitePage /></AgentLayout>} />
-          <Route path="/:agentId/settings/terms" element={<AgentLayout><ConditionsPage /></AgentLayout>} />
+          {/* New ID-prefixed routes — one persistent agent shell */}
+          <Route path="/:agentId" element={<AgentLayout />}>
+            <Route index element={<Dashboard />} />
+            <Route path="clients" element={<ClientTypesPage />} />
+            <Route path="clients/type/:type" element={<ClientsPageWithType />} />
+            <Route path="clients/type/:type/:id" element={<ClientPage />} />
+            <Route path="clients/:id" element={<ClientPage />} />
+            <Route path="contacts" element={<ContactsPage />} />
+            <Route path="contacts/:id" element={<ContactPage />} />
+            <Route path="prospects" element={<ProspectsPage />} />
+            <Route path="prospects/:id" element={<ProspectPage />} />
+            <Route path="properties" element={<PropertyTypesPage />} />
+            <Route path="properties/type/:type" element={<PropertiesPageWithType />} />
+            <Route path="properties/type/:type/add" element={<AddPropertyForm />} />
+            <Route path="properties/type/:type/edit/:id" element={<AddPropertyForm />} />
+            <Route path="properties/type/:type/:id" element={<PropertyPage />} />
+            <Route path="properties/:id" element={<PropertyPage />} />
+            <Route path="properties/add" element={<AddPropertyForm />} />
+            <Route path="register" element={<TransactionRegisterPage />} />
+            <Route path="contracts" element={<ContractsPage />} />
+            <Route path="contracts/:id" element={<ContractDetailPage />} />
+            <Route path="extranet" element={<AgentExtranetPage />} />
+            <Route path="automator" element={<AutomatorPage />} />
+            <Route path="pret" element={<PretPage />} />
+            <Route path="calendar" element={<CalendarPage />} />
+            <Route path="documents" element={<DocumentsPage />} />
+            <Route path="documents/:id" element={<DocumentDetailPage />} />
+            <Route path="library" element={<LibrairiePage />} />
+            <Route path="messages" element={<MessagesPage />} />
+            <Route path="messages/compose" element={<ComposeMessagePage />} />
+            <Route path="messages/settings" element={<MessagesSettingsPage />} />
+            <Route path="messages/:id" element={<MessageDetailPage />} />
+            <Route path="conciergerie" element={<ConciergeriePage />} />
+            <Route path="toolbox" element={<ToolboxPage />} />
+            <Route path="toolbox/vacances" element={<VacancesManagementPage />} />
+            <Route path="settings" element={<SettingsPage />} />
+            <Route path="settings/compte/profil" element={<ProfileSettingsPage />} />
+            <Route path="settings/compte/securite" element={<SecuritySettingsPage />} />
+            <Route path="settings/compte/preferences" element={<PreferencesSettingsPage />} />
+            <Route path="settings/communication/signature" element={<SignatureSettingsPage />} />
+            <Route path="settings/communication/reponses-automatiques" element={<AutoReplySettingsPage />} />
+            <Route path="settings/notifications" element={<NotificationSettingsPage />} />
+            <Route path="settings/integrations" element={<IntegrationsSettingsPage />} />
+            <Route path="settings/equipe" element={<TeamSettingsPage />} />
+            <Route path="settings/donnees" element={<DataSettingsPage />} />
+            <Route path="settings/aide" element={<HelpSettingsPage />} />
+            <Route path="settings/privacy" element={<ConfidentialitePage />} />
+            <Route path="settings/terms" element={<ConditionsPage />} />
+            <Route path="*" element={
+              <div className="flex items-center justify-center h-full">
+                <div className="text-center">
+                  <p className="text-4xl font-semibold text-text-secondary/30">404</p>
+                  <p className="text-text-secondary mt-2">Page non trouvée</p>
+                </div>
+              </div>
+            } />
+          </Route>
           <Route path="*" element={
             <div className="flex items-center justify-center h-full">
               <div className="text-center">

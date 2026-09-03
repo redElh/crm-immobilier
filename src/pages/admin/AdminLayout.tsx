@@ -12,7 +12,7 @@ import {
   Home, Users, FileText, MessageSquare, Settings,
   Calendar, BookOpen, Eye, Zap,
   Edit3, Crosshair, CheckCircle, Shield, ChevronRight,
-  LogOut, Bell, HelpCircle, Loader, Compass,
+  LogOut, Bell, HelpCircle, Loader, Compass, Tool,
 } from 'react-feather'
 import { AnimatePresence, motion } from 'framer-motion'
 import SidebarToggle from '../../components/layout/SidebarToggle'
@@ -55,6 +55,7 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
     { icon: FileText, label: 'Documents', to: `${basePath}/documents` },
     { icon: MessageSquare, label: 'Messages', to: `${basePath}/messages`, badge: messageUnread },
     { icon: Compass, label: 'Activités Conciergerie', to: `${basePath}/conciergerie` },
+    { icon: Tool, label: 'Toolbox', to: `${basePath}/toolbox` },
     { icon: Settings, label: 'Paramètres', to: `${basePath}/settings` },
   ]
 

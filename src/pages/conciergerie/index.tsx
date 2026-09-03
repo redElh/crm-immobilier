@@ -1,25 +1,29 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { API_ORIGIN } from '../../utils/config'
 import { getAuthToken } from '../../utils/auth'
-import Card from '../../components/ui/Card'
-import { Button } from '../../components/ui/Button'
 import { Badge } from '../../components/ui/Badge'
 import { Select } from '../../components/ui/Select'
-import { Dialog } from '../../components/ui/Dialog'
-import { ConfirmDialog } from '../../components/ui/ConfirmDialog'
-import { Tabs, TabsList, TabsTrigger, TabsContent } from '../../components/ui/Tabs/Tabs'
 import { useToast } from '../../components/ui/Toast'
+import { cn } from '../../lib/utils'
 import {
   Search, Plus, Compass, Calendar, DollarSign, MoreHorizontal,
   Edit3, Trash2, X, Star, MapPin, Clock, Briefcase, Users,
   TrendingUp, BarChart, Activity, UserCheck, Clipboard,
-  Anchor, Coffee, Heart, BookOpen, Zap, Camera, ChevronLeft, ChevronRight,
+  Anchor, Coffee, Heart, BookOpen, Zap, Camera, ChevronLeft, ChevronRight, ChevronDown,
   MessageCircle, Mail, Check, XCircle, Image, Hash
 } from 'react-feather'
 import { motion, AnimatePresence } from 'framer-motion'
 import ActivityForm from './components/ActivityForm'
 import PartnerForm from './components/PartnerForm'
 import ReservationForm from './components/ReservationForm'
+import { useStageChrome } from '../../components/modules/calendar/useStageChrome'
+import { useStageFormClasses, useStageModalButtons } from '../../components/modules/calendar/StageModal'
+import {
+  Stage, StageTabs, StagePanel, StageBadge, StageButton, OrbIcon, TiltCard,
+  STAGE_HUES, SLATE_HUE, useStageTheme, AnimatedNumber,
+} from '../../components/dashboard/Stage'
+import type { StageHue } from '../../components/dashboard/Stage'
 
 const CATEGORIES = [
   { value: 'Nautique', label: 'Nautique' },
@@ -39,6 +43,16 @@ const CATEGORY_CONFIG: Record<string, { icon: any; color: string; bg: string; gr
   Aventure: { icon: Zap, color: 'text-amber-600', bg: 'bg-amber-100', gradient: 'from-amber-500 to-yellow-500', lightBg: 'bg-amber-50' },
   Bienfait: { icon: Star, color: 'text-pink-600', bg: 'bg-pink-100', gradient: 'from-pink-500 to-rose-500', lightBg: 'bg-pink-50' },
   Autre: { icon: Compass, color: 'text-slate-600', bg: 'bg-slate-100', gradient: 'from-slate-500 to-gray-500', lightBg: 'bg-slate-50' },
+}
+
+const CATEGORY_HUES: Record<string, StageHue> = {
+  Nautique: STAGE_HUES.sky,
+  Gastronomie: STAGE_HUES.amber,
+  'Bien-être': STAGE_HUES.emerald,
+  Culture: STAGE_HUES.violet,
+  Aventure: STAGE_HUES.fuchsia,
+  Bienfait: { a: '#F472B6', b: '#BE185D', glow: 'rgba(244,114,182,0.45)', line: '#F472B6' },
+  Autre: SLATE_HUE,
 }
 
 const RESERVATION_STATUSES: Record<string, { label: string; variant: 'success' | 'warning' | 'error' | 'default' | 'primary' }> = {
@@ -73,10 +87,13 @@ function formatMAD(n: number) { return new Intl.NumberFormat('fr-FR', { style: '
 
 function ActionMenu({ onEdit, onDelete }: { onEdit: () => void; onDelete: () => void }) {
   const [open, setOpen] = useState(false)
+  const { staged } = useStageChrome()
+  const theme = useStageTheme()
+  const isDark = theme === 'dark'
   return (
     <div className="relative">
       <button onClick={() => setOpen(!open)}
-        className="p-1.5 rounded-lg hover:bg-background transition-colors text-text-secondary hover:text-text">
+        className={cn('p-1.5 rounded-lg transition-colors', isDark ? 'text-slate-400 hover:text-white hover:bg-white/10' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100')}>
         <MoreHorizontal size={16} />
       </button>
       {open && <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />}
@@ -87,14 +104,14 @@ function ActionMenu({ onEdit, onDelete }: { onEdit: () => void; onDelete: () => 
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: -4, scale: 0.95 }}
             transition={{ duration: 0.12 }}
-            className="absolute right-0 top-full mt-1 w-40 bg-card rounded-xl border border-border/50 shadow-dropdown py-1 z-50"
+            className={cn('absolute right-0 top-full mt-1 w-40 rounded-xl border py-1 z-50 overflow-hidden', isDark ? 'bg-[#111832] border-white/10 shadow-[0_20px_40px_rgba(0,0,0,0.5)]' : 'bg-white border-slate-200 shadow-xl')}
           >
             <button onClick={() => { onEdit(); setOpen(false) }}
-              className="flex w-full items-center gap-2 px-3 py-2 text-sm text-text-secondary hover:text-text hover:bg-background transition-colors">
+              className={cn('flex w-full items-center gap-2 px-3 py-2 text-sm transition-colors', isDark ? 'text-slate-300 hover:text-white hover:bg-white/5' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50')}>
               <Edit3 size={14} /> Modifier
             </button>
             <button onClick={() => { onDelete(); setOpen(false) }}
-              className="flex w-full items-center gap-2 px-3 py-2 text-sm text-text-secondary hover:text-error hover:bg-error/5 transition-colors">
+              className="flex w-full items-center gap-2 px-3 py-2 text-sm text-rose-500 hover:text-rose-600 hover:bg-rose-500/10 transition-colors">
               <Trash2 size={14} /> Supprimer
             </button>
           </motion.div>
@@ -104,28 +121,23 @@ function ActionMenu({ onEdit, onDelete }: { onEdit: () => void; onDelete: () => 
   )
 }
 
-function StatCard({ icon: Icon, label, value, sub, color, bg, delay }: { icon: any; label: string; value: string | number; sub: string; color: string; bg: string; delay?: number }) {
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: delay || 0 }}
-      className="bg-card rounded-xl border border-border/50 shadow-card p-4 hover:shadow-card-hover transition-all"
-    >
-      <div className="flex items-center justify-between mb-3">
-        <p className="text-xs text-text-secondary font-medium uppercase tracking-wider">{label}</p>
-        <div className={`p-2.5 rounded-xl ${bg}`}>
-          <Icon size={16} className={color} />
-        </div>
-      </div>
-      <p className="text-2xl font-bold">{value}</p>
-      <p className="text-xs text-text-secondary/60 mt-0.5">{sub}</p>
-    </motion.div>
-  )
-}
+const TABS = [
+  { id: 'activites', label: 'Activités', icon: Compass },
+  { id: 'partenaires', label: 'Partenaires', icon: Briefcase },
+  { id: 'reservations', label: 'Réservations', icon: Calendar },
+  { id: 'commissions', label: 'Commissions', icon: DollarSign },
+]
 
 export default function ConciergeriePage() {
   const { toast } = useToast()
+  const { staged } = useStageChrome()
+  const theme = useStageTheme()
+  const isDark = theme === 'dark'
+  const { input: stageInput, label: stageLabel } = useStageFormClasses()
+  const stageBtns = useStageModalButtons()
+  const ctrl = (extra?: string) => (staged ? stageInput(extra) : undefined)
+  const sectionTitle = 'mb-2 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.2em] opacity-80'
+
   const [activeTab, setActiveTab] = useState('activites')
   const [activities, setActivities] = useState<Activity[]>([])
   const [partners, setPartners] = useState<Partner[]>([])
@@ -146,6 +158,7 @@ export default function ConciergeriePage() {
   const [detailPartner, setDetailPartner] = useState<Partner | null>(null)
   const [photoIndex, setPhotoIndex] = useState(0)
   const [form, setForm] = useState<any>({})
+  const [filtersOpen, setFiltersOpen] = useState(true)
 
   const loadAll = async () => {
     setLoading(true)
@@ -337,138 +350,284 @@ export default function ConciergeriePage() {
     ? `Modifier ${modalType === 'activity' ? "l'activité" : modalType === 'partner' ? 'le partenaire' : 'la réservation'}`
     : `Nouveau${modalType === 'activity' ? 'lle activité' : modalType === 'partner' ? ' partenaire' : 'lle réservation'}`
 
+  const heroText = staged
+    ? isDark
+      ? { eyebrow: 'text-[10px] font-bold uppercase tracking-[0.24em] text-slate-400/80', title: 'bg-gradient-to-r from-white via-indigo-100 to-indigo-300 bg-clip-text text-transparent', sub: 'text-sm text-slate-400' }
+      : { eyebrow: 'text-[10px] font-bold uppercase tracking-[0.24em] text-teal-900/50', title: 'bg-gradient-to-r from-teal-900 via-teal-700 to-emerald-600 bg-clip-text text-transparent', sub: 'text-sm text-teal-900/55' }
+    : { eyebrow: 'text-[10px] font-bold uppercase tracking-[0.24em] text-text-secondary', title: 'text-text', sub: 'text-sm text-text-secondary' }
+
+  // Prevent background scroll when fullscreen portal is open
+  useEffect(() => {
+    const locked = Boolean(detailActivity || detailPartner || showModal)
+    if (locked) {
+      const prev = document.body.style.overflow
+      document.body.style.overflow = 'hidden'
+      return () => { document.body.style.overflow = prev }
+    }
+  }, [detailActivity, detailPartner, showModal])
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (detailActivity) setDetailActivity(null)
+        else if (detailPartner) setDetailPartner(null)
+        else if (showModal) setShowModal(false)
+      }
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [detailActivity, detailPartner, showModal])
+
   return (
-    <div className="space-y-6 animate-fade-in">
-      {/* Header */}
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight flex items-center gap-3">
-            <div className="p-2 rounded-xl bg-accent/10">
-              <Compass size={22} className="text-accent" />
+    <Stage theme={theme}>
+      <div className="space-y-6">
+        {/* ── Hero ──────────────────────────────────────────────────────── */}
+        <div className="flex flex-wrap items-end justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="relative flex h-2 w-2">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60" />
+                <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.9)]" />
+              </span>
+              <p className={heroText.eyebrow}>Mission control · Conciergerie</p>
             </div>
-            Activités Conciergerie
-          </h1>
-          <p className="text-sm text-text-secondary mt-1 ml-[52px]">Gérez les activités proposées aux voyageurs</p>
-        </div>
-        {activeTab !== 'commissions' && (
-          <Button
-            onClick={() => openCreate(activeTab === 'activites' ? 'activity' : activeTab === 'partenaires' ? 'partner' : 'reservation')}
-            className="flex items-center gap-2"
-          >
-            <Plus size={16} />
-            {activeTab === 'activites' ? 'Nouvelle activité' : activeTab === 'partenaires' ? 'Nouveau partenaire' : 'Nouvelle réservation'}
-          </Button>
-        )}
-      </div>
-
-      {/* Statistics */}
-      {stats && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <StatCard icon={Activity} label="Activités actives" value={stats.activeActivities} sub={`${stats.totalActivities} au total`} color="text-accent" bg="bg-accent-light" delay={0} />
-          <StatCard icon={UserCheck} label="Partenaires actifs" value={stats.activePartners} sub={`${stats.totalPartners} au total`} color="text-blue-600" bg="bg-blue-50" delay={0.05} />
-          <StatCard icon={Calendar} label="Réservations" value={stats.totalReservations} sub={`${stats.pendingReservations} en attente`} color="text-violet-600" bg="bg-violet-50" delay={0.1} />
-          <StatCard icon={DollarSign} label="Commissions totales" value={formatMAD(stats.totalCommissions)} sub={`${stats.confirmedReservations} confirmées`} color="text-emerald-600" bg="bg-emerald-50" delay={0.15} />
-        </div>
-      )}
-
-      {/* Reservation sub-stats row */}
-      {stats && stats.totalReservations > 0 && (
-        <div className="grid grid-cols-3 gap-4">
-          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}
-            className="bg-card rounded-xl border border-border/50 shadow-card p-4 hover:shadow-card-hover transition-all flex items-center gap-4">
-            <div className="p-3 rounded-xl bg-amber-50">
-              <Clipboard size={20} className="text-amber-600" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold text-amber-600">{stats.pendingReservations}</p>
-              <p className="text-xs text-text-secondary">En attente</p>
-            </div>
-          </motion.div>
-          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }}
-            className="bg-card rounded-xl border border-border/50 shadow-card p-4 hover:shadow-card-hover transition-all flex items-center gap-4">
-            <div className="p-3 rounded-xl bg-emerald-50">
-              <Check size={20} className="text-emerald-600" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold text-emerald-600">{stats.confirmedReservations}</p>
-              <p className="text-xs text-text-secondary">Confirmées</p>
-            </div>
-          </motion.div>
-          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}
-            className="bg-card rounded-xl border border-border/50 shadow-card p-4 hover:shadow-card-hover transition-all flex items-center gap-4">
-            <div className="p-3 rounded-xl bg-rose-50">
-              <BarChart size={20} className="text-rose-600" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold text-rose-600">{stats.completedReservations}</p>
-              <p className="text-xs text-text-secondary">Terminées</p>
-            </div>
-          </motion.div>
-        </div>
-      )}
-
-      {/* Tabs */}
-      <Tabs value={activeTab} onValueChange={handleTabChange}>
-        <TabsList>
-          <TabsTrigger value="activites" className="gap-2">
-            <Compass size={15} /> Activités
-          </TabsTrigger>
-          <TabsTrigger value="partenaires" className="gap-2">
-            <Briefcase size={15} /> Partenaires
-          </TabsTrigger>
-          <TabsTrigger value="reservations" className="gap-2">
-            <Calendar size={15} /> Réservations
-          </TabsTrigger>
-          <TabsTrigger value="commissions" className="gap-2">
-            <DollarSign size={15} /> Commissions
-          </TabsTrigger>
-        </TabsList>
-
-        {/* Filters */}
-        <div className="flex items-center gap-3 flex-wrap mb-5">
-          <div className="relative flex-1 min-w-[200px] max-w-sm">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary/60" />
-            <input
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              placeholder="Rechercher par nom, catégorie, partenaire..."
-              className="w-full h-9 pl-9 pr-8 text-sm rounded-lg border border-border bg-card text-text placeholder:text-text-secondary/40 focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent transition-all"
-            />
+            <h1 className={`mt-1 text-3xl font-extrabold tracking-tight ${heroText.title} flex items-center gap-3`}>
+              Activités Conciergerie
+            </h1>
+            <p className={`mt-0.5 ${heroText.sub}`}>Gérez les activités proposées aux voyageurs</p>
           </div>
-          {activeTab === 'activites' && (
-            <>
-              <Select options={categoryOptions} value={catFilter} onChange={setCatFilter} className="w-44" />
-              <Select options={partnerOptions} value={partnerFilter} onChange={setPartnerFilter} className="w-48" />
-            </>
-          )}
-          {activeTab === 'reservations' && (
-            <Select options={statusOptions} value={statusFilter} onChange={setStatusFilter} className="w-44" />
-          )}
-          {activeTab === 'partenaires' && (
-            <>
-              <Select options={contractStatusOptions} value={contractStatusFilter} onChange={setContractStatusFilter} className="w-44" />
-              <Select options={activeOptions} value={partnerActiveFilter} onChange={setPartnerActiveFilter} className="w-36" />
-            </>
+          {activeTab !== 'commissions' && (
+            <StageButton variant="primary" size="md" icon={<Plus size={15} />} onClick={() => openCreate(activeTab === 'activites' ? 'activity' : activeTab === 'partenaires' ? 'partner' : 'reservation')}>
+              {activeTab === 'activites' ? 'Nouvelle activité' : activeTab === 'partenaires' ? 'Nouveau partenaire' : 'Nouvelle réservation'}
+            </StageButton>
           )}
         </div>
 
-        {/* Content */}
+        {/* ── Stats — Stage glass + OrbIcon ─────────────────────────────── */}
+        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+          {[
+            { label: 'Activités actives', value: stats.activeActivities, sub: `${stats.totalActivities} au total`, icon: Activity, hue: STAGE_HUES.violet },
+            { label: 'Partenaires actifs', value: stats.activePartners, sub: `${stats.totalPartners} au total`, icon: Users, hue: STAGE_HUES.sky },
+            { label: 'Réservations', value: stats.totalReservations, sub: `${stats.pendingReservations} en attente`, icon: Calendar, hue: STAGE_HUES.amber },
+            { label: 'Commissions du mois', value: stats.totalCommissions, sub: `${stats.confirmedReservations} confirmées`, icon: DollarSign, hue: STAGE_HUES.emerald, isPrice: true },
+          ].map((card, i) => (
+            <motion.div
+              key={card.label}
+              initial={{ opacity: 0, y: 16 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.45, delay: i * 0.05, ease: [0.22, 1, 0.36, 1] }}
+            >
+              <div className="stage-glass flex items-center gap-3.5 p-4 h-full">
+                <OrbIcon icon={card.icon} hue={card.hue} size={42} radius={13} />
+                <div className="min-w-0">
+                  <p className={`text-[10px] font-bold uppercase tracking-[1.4px] ${isDark ? 'text-slate-400' : 'text-teal-900/50'}`}>{card.label}</p>
+                  <p className={`text-2xl font-extrabold leading-none tracking-tight tabular-nums ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                    {card.isPrice ? formatMAD(card.value as number) : <AnimatedNumber value={card.value as number} />}
+                  </p>
+                  <p className={`text-[11px] mt-0.5 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>{card.sub}</p>
+                </div>
+              </div>
+            </motion.div>
+          ))}
+        </div>
+
+        {stats.totalReservations > 0 && (
+          <div className="grid grid-cols-3 gap-4">
+            {[
+              { label: 'En attente', value: stats.pendingReservations, icon: Clipboard, hue: STAGE_HUES.amber },
+              { label: 'Confirmées', value: stats.confirmedReservations, icon: Check, hue: STAGE_HUES.emerald },
+              { label: 'Terminées', value: stats.completedReservations, icon: BarChart, hue: STAGE_HUES.sky },
+            ].map((s, i) => (
+              <motion.div
+                key={s.label}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.2 + i * 0.05 }}
+                className="stage-glass flex items-center gap-3.5 p-4"
+              >
+                <OrbIcon icon={s.icon} hue={s.hue} size={40} radius={12} />
+                <div>
+                  <p className={`text-xl font-extrabold tabular-nums ${isDark ? 'text-white' : 'text-slate-900'}`} style={{ color: i === 0 ? '#F59E0B' : i === 1 ? '#10B981' : '#38BDF8' }}>
+                    <AnimatedNumber value={s.value} />
+                  </p>
+                  <p className={`text-[11px] font-medium ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>{s.label}</p>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        )}
+
+        {/* ── Tabs — StageTabs ──────────────────────────────────────────── */}
+        <StageTabs tabs={TABS} activeId={activeTab} onChange={handleTabChange} />
+
+        {/* ── Filters — 3D glass fields like Librairie / EventFormModal ─── */}
+        <div
+          className={cn(
+            'overflow-hidden',
+            staged ? 'pop-glass rounded-3xl' : 'stage-glass rounded-2xl',
+            staged && isDark && 'border border-white/10 shadow-[0_20px_60px_-20px_rgba(0,0,0,0.6)]',
+            staged && !isDark && 'border border-white/80 shadow-[0_20px_60px_-20px_rgba(13,148,136,0.25)]',
+          )}
+        >
+          <div
+            className="h-[3px] w-full"
+            style={{
+              background: `linear-gradient(90deg, transparent, ${isDark ? 'rgba(139,124,255,0.9)' : 'rgba(20,184,166,0.9)'} 18%, ${isDark ? '#8B7CFF' : '#14B8A6'} 50%, transparent)`,
+            }}
+          />
+          <div
+            className="px-5 pt-5 pb-4 space-y-5"
+            style={
+              staged
+                ? {
+                    background: `radial-gradient(90% 140% at 0% 0%, ${isDark ? 'rgba(139,124,255,0.07)' : 'rgba(20,184,166,0.06)'}, transparent 65%)`,
+                  }
+                : undefined
+            }
+          >
+            {/* Recherche */}
+            <section>
+              <p className={`${sectionTitle} ${isDark ? 'text-violet-400' : 'text-violet-600'}`}>
+                <span className="h-px w-4 bg-gradient-to-r from-violet-400 to-transparent" />
+                Recherche
+              </p>
+              <div>
+                <label className={stageLabel}>Rechercher</label>
+                <div className="relative">
+                  <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: isDark ? '#8B7CFF' : '#0D9488' } as any} />
+                  <input
+                    value={search}
+                    onChange={e => setSearch(e.target.value)}
+                    placeholder={activeTab === 'activites' ? 'Rechercher par nom, catégorie, partenaire...' : activeTab === 'partenaires' ? 'Rechercher par nom, contact, email...' : activeTab === 'reservations' ? 'Rechercher par voyageur, activité...' : 'Rechercher...'}
+                    className={stageInput('h-10 pl-9 pr-9')}
+                  />
+                  {search && (
+                    <button
+                      onClick={() => setSearch('')}
+                      className={cn(
+                        'absolute right-1.5 top-1/2 -translate-y-1/2 w-7 h-7 rounded-lg flex items-center justify-center transition-colors',
+                        isDark ? 'text-slate-400 hover:text-white hover:bg-white/10' : 'text-teal-900/40 hover:text-teal-900 hover:bg-teal-900/5',
+                      )}
+                    >
+                      <X size={13} />
+                    </button>
+                  )}
+                </div>
+              </div>
+            </section>
+
+            {/* Filtres — collapsible */}
+            <section>
+              <div className="flex items-center justify-between gap-2">
+                <button type="button" onClick={() => setFiltersOpen(o => !o)} className="group flex items-center gap-2 text-left">
+                  <p className={`${sectionTitle} !mb-0 ${isDark ? 'text-sky-400' : 'text-sky-600'} group-hover:opacity-100 transition-opacity`}>
+                    <span className="h-px w-4 bg-gradient-to-r from-sky-400 to-transparent" />
+                    Filtres
+                    {(catFilter !== 'all' || partnerFilter !== 'all' || statusFilter !== 'all' || contractStatusFilter !== 'all' || partnerActiveFilter !== 'all') && (
+                      <span className={cn('ml-1 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-bold', isDark ? 'bg-sky-500/20 text-sky-300 border border-sky-400/30' : 'bg-sky-500/15 text-sky-700 border border-sky-500/20')}>
+                        {[catFilter, partnerFilter, statusFilter, contractStatusFilter, partnerActiveFilter].filter(v => v !== 'all').length}
+                      </span>
+                    )}
+                  </p>
+                  <motion.span
+                    animate={{ rotate: filtersOpen ? 180 : 0 }}
+                    transition={{ duration: 0.2, ease: 'easeOut' }}
+                    className={cn('flex h-6 w-6 items-center justify-center rounded-lg border transition-colors', staged ? isDark ? 'border-white/10 bg-white/[0.04] text-slate-400 group-hover:bg-white/10 group-hover:text-white' : 'border-teal-900/10 bg-white/60 text-teal-900/50 group-hover:bg-white group-hover:text-teal-900' : 'border-border bg-card text-text-secondary')}
+                  >
+                    <ChevronDown size={13} />
+                  </motion.span>
+                </button>
+                <span className={cn('text-[11px]', isDark ? 'text-slate-500' : 'text-slate-400')}>{filtersOpen ? 'Réduire' : 'Développer'}</span>
+              </div>
+
+              <AnimatePresence initial={false}>
+                {filtersOpen && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: 'auto', opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+                    className="overflow-hidden"
+                  >
+                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 pt-3">
+                      {activeTab === 'activites' && (
+                        <>
+                          <div>
+                            <label className={stageLabel}>Catégorie</label>
+                            <Select options={categoryOptions} value={catFilter} onChange={setCatFilter as any} onValueChange={v => setCatFilter(v)} className={ctrl('h-10')} />
+                          </div>
+                          <div>
+                            <label className={stageLabel}>Partenaire</label>
+                            <Select options={partnerOptions} value={partnerFilter} onChange={setPartnerFilter as any} onValueChange={v => setPartnerFilter(v)} className={ctrl('h-10')} />
+                          </div>
+                        </>
+                      )}
+                      {activeTab === 'reservations' && (
+                        <div>
+                          <label className={stageLabel}>Statut</label>
+                          <Select options={statusOptions} value={statusFilter} onChange={setStatusFilter as any} onValueChange={v => setStatusFilter(v)} className={ctrl('h-10')} />
+                        </div>
+                      )}
+                      {activeTab === 'partenaires' && (
+                        <>
+                          <div>
+                            <label className={stageLabel}>Contrat</label>
+                            <Select options={contractStatusOptions} value={contractStatusFilter} onChange={setContractStatusFilter as any} onValueChange={v => setContractStatusFilter(v)} className={ctrl('h-10')} />
+                          </div>
+                          <div>
+                            <label className={stageLabel}>Statut</label>
+                            <Select options={activeOptions} value={partnerActiveFilter} onChange={setPartnerActiveFilter as any} onValueChange={v => setPartnerActiveFilter(v)} className={ctrl('h-10')} />
+                          </div>
+                        </>
+                      )}
+                      {activeTab === 'commissions' && (
+                        <div className={cn('text-xs py-2', isDark ? 'text-slate-500' : 'text-slate-400')}>Aucun filtre pour cet onglet.</div>
+                      )}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
+              {!filtersOpen && (catFilter !== 'all' || partnerFilter !== 'all' || statusFilter !== 'all' || contractStatusFilter !== 'all' || partnerActiveFilter !== 'all') && (
+                <div className="flex flex-wrap gap-1.5 pt-2">
+                  {catFilter !== 'all' && <span className={cn('inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold border', isDark ? 'bg-white/[0.06] border-white/10 text-slate-300' : 'bg-teal-50 border-teal-900/10 text-teal-800')}><Compass size={11} />{catFilter}</span>}
+                  {partnerFilter !== 'all' && <span className={cn('inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold border', isDark ? 'bg-white/[0.06] border-white/10 text-slate-300' : 'bg-white border-teal-900/10 text-teal-800')}><Briefcase size={11} />{partners.find(p => String(p.id) === partnerFilter)?.name || partnerFilter}</span>}
+                  {statusFilter !== 'all' && <span className={cn('inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold border', isDark ? 'bg-white/[0.06] border-white/10 text-slate-300' : 'bg-white border-teal-900/10 text-teal-800')}><Calendar size={11} />{statusFilter}</span>}
+                  {contractStatusFilter !== 'all' && <span className={cn('inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold border', isDark ? 'bg-white/[0.06] border-white/10 text-slate-300' : 'bg-white border-teal-900/10 text-teal-800')}><Clipboard size={11} />{contractStatusFilter}</span>}
+                  {partnerActiveFilter !== 'all' && <span className={cn('inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold border', isDark ? 'bg-white/[0.06] border-white/10 text-slate-300' : 'bg-white border-teal-900/10 text-teal-800')}><UserCheck size={11} />{partnerActiveFilter}</span>}
+                </div>
+              )}
+            </section>
+          </div>
+        </div>
+
+        {/* ── Content ───────────────────────────────────────────────────── */}
         {loading ? (
-          <div className="flex items-center justify-center py-20">
-            <div className="w-8 h-8 border-2 border-accent/30 border-t-accent rounded-full animate-spin" />
+          <div className="flex flex-col items-center justify-center py-20 gap-3">
+            <motion.div
+              className="h-10 w-10 rounded-full border-[3px] border-indigo-400/30 border-t-indigo-400"
+              animate={{ rotate: 360 }}
+              transition={{ repeat: Infinity, duration: 0.9, ease: 'linear' }}
+              style={{ filter: 'drop-shadow(0 0 14px rgba(139,124,255,0.6))' }}
+            />
+            <p className={`text-xs font-semibold uppercase tracking-[0.22em] ${isDark ? 'text-slate-500' : 'text-teal-900/50'}`}>Chargement…</p>
           </div>
         ) : (
           <>
-            {/* Activities Tab */}
-            <TabsContent value="activites">
+            {/* Activities */}
+            {activeTab === 'activites' && (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                 {filteredActivities.length === 0 ? (
-                  <Card className="p-12 text-center col-span-full">
-                    <Compass size={32} className="text-text-secondary/30 mx-auto mb-3" />
-                    <p className="text-text-secondary/50 text-sm">Aucune activité trouvée</p>
-                  </Card>
+                  <div className="col-span-full stage-glass p-12 text-center">
+                    <div className="mx-auto w-14 h-14 rounded-2xl flex items-center justify-center mb-3" style={{ background: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(15,23,42,0.04)', border: `1px solid ${isDark ? 'rgba(255,255,255,0.06)' : 'rgba(15,23,42,0.06)'}` }}>
+                      <Compass size={22} className={isDark ? 'text-slate-500' : 'text-slate-400'} />
+                    </div>
+                    <p className={`text-sm font-semibold ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>Aucune activité trouvée</p>
+                    <p className={`text-xs mt-1 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>Essayez de modifier vos filtres</p>
+                  </div>
                 ) : filteredActivities.map((a, i) => {
                   const cat = CATEGORY_CONFIG[a.category] || CATEGORY_CONFIG.Autre
+                  const hue = CATEGORY_HUES[a.category] || CATEGORY_HUES.Autre
                   const CatIcon = cat.icon
                   const allPhotos: string[] = []
                   if (a.photo_url) allPhotos.push(a.photo_url)
@@ -483,821 +642,846 @@ export default function ConciergeriePage() {
                       key={a.id}
                       initial={{ opacity: 0, y: 20 }}
                       animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: i * 0.05, duration: 0.35, ease: [0.4, 0, 0.2, 1] }}
+                      transition={{ delay: i * 0.04, duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
                     >
-                      <div
-                        onClick={() => { setDetailActivity(a); setPhotoIndex(0) }}
-                        className="bg-card rounded-xl border border-border/50 shadow-card hover:shadow-card-hover transition-all duration-200 group overflow-hidden relative h-full flex flex-col cursor-pointer"
-                      >
-                        {/* Image */}
-                        <div className="relative h-44 bg-gradient-to-br from-accent-light via-background to-violet-50">
-                          {allPhotos.length > 0 ? (
-                            <img src={`${API_ORIGIN}${allPhotos[0]}`} alt={a.name}
-                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
-                          ) : (
-                            <div className="flex items-center justify-center h-full">
-                              <CatIcon size={36} className="text-text-secondary/20" />
-                            </div>
-                          )}
-                          {/* Status badge top-left */}
-                          <div className="absolute top-3 left-3">
-                            <Badge variant={a.is_active ? 'success' : 'default'} size="sm">
-                              <span className={`w-1.5 h-1.5 rounded-full inline-block mr-1 ${a.is_active ? 'bg-white' : 'bg-gray-400'}`} />
-                              {a.is_active ? 'Actif' : 'Inactif'}
-                            </Badge>
-                          </div>
-                          {/* Category badge top-right */}
-                          <div className="absolute top-3 right-3">
-                            <Badge variant="primary" size="sm">{a.category}</Badge>
-                          </div>
-                          {/* Photo count */}
-                          {allPhotos.length > 1 && (
-                            <div className="absolute bottom-3 right-3">
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-black/50 text-white backdrop-blur-sm">
-                                <Camera size={10} /> {allPhotos.length}
-                              </span>
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Content */}
-                        <div className="p-4 space-y-3 flex-1">
-                          {/* Reference + Title */}
-                          <div>
-                            <div className="flex items-center gap-1.5 text-[11px] text-text-secondary/60 mb-0.5">
-                              <Hash size={10} />
-                              <span>ACT-{String(a.id).padStart(4, '0')}</span>
-                            </div>
-                            <h3 className="font-semibold text-sm leading-snug group-hover:text-accent transition-colors line-clamp-1">{a.name}</h3>
-                            {a.short_description && (
-                              <p className="text-[11px] text-text-secondary/70 line-clamp-1 mt-0.5">{a.short_description}</p>
-                            )}
-                          </div>
-
-                          {/* Partner */}
-                          {a.partner_name && (
-                            <div className="flex items-center gap-1.5 text-xs text-text-secondary">
-                              <Briefcase size={11} />
-                              <span className="truncate">{a.partner_name}</span>
-                            </div>
-                          )}
-
-                          {/* Price */}
-                          <div className="flex items-baseline gap-1">
-                            <span className="text-base font-bold text-accent">{formatPrice(a.price)}</span>
-                            <span className="text-[11px] text-text-secondary">/pers.</span>
-                          </div>
-
-                          {/* Details row */}
-                          <div className="flex items-center gap-3 pt-2 border-t border-border/30 text-xs text-text-secondary">
-                            {a.duration_hours && (
-                              <div className="flex items-center gap-1">
-                                <Clock size={11} />
-                                <span>{a.duration_hours}h</span>
+                      <TiltCard className="h-full" onClick={() => { setDetailActivity(a); setPhotoIndex(0) }}>
+                        <div className="relative h-full flex flex-col overflow-hidden">
+                          <div className="absolute top-0 inset-x-0 h-[3px]" style={{ background: `linear-gradient(90deg, ${hue.a}, ${hue.b})`, boxShadow: `0 0 12px ${hue.glow}` }} />
+                          <div className="relative h-44 overflow-hidden bg-gradient-to-br from-violet-500/5 via-transparent to-sky-500/5">
+                            {allPhotos.length > 0 ? (
+                              <img src={`${API_ORIGIN}${allPhotos[0]}`} alt={a.name}
+                                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" />
+                            ) : (
+                              <div className="flex items-center justify-center h-full">
+                                <OrbIcon icon={CatIcon} hue={hue} size={44} radius={12} />
                               </div>
                             )}
-                            <div className="flex items-center gap-1">
-                              <Users size={11} />
-                              <span>{a.min_capacity}-{a.max_capacity}</span>
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-transparent opacity-60" />
+                            <div className="absolute top-3 left-3">
+                              <StageBadge variant={a.is_active ? 'ok' : 'neutral'}>{a.is_active ? 'Actif' : 'Inactif'}</StageBadge>
                             </div>
-                            {tierCount > 0 && (
-                              <div className="flex items-center gap-1 text-accent font-medium">
-                                <DollarSign size={11} />
-                                <span>{tierCount} palier{tierCount > 1 ? 's' : ''}</span>
-                              </div>
-                            )}
-                          </div>
-
-                          {/* Status indicators */}
-                          <div className="flex items-center gap-2 flex-wrap">
-                            {a.availability && (
-                              <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-medium ${
-                                a.availability === 'hebdomadaire' ? 'bg-blue-50 text-blue-600' :
-                                a.availability === 'weekends' ? 'bg-violet-50 text-violet-600' :
-                                a.availability === 'saisonnier' ? 'bg-amber-50 text-amber-600' :
-                                'bg-emerald-50 text-emerald-600'
-                              }`}>
-                                {a.availability === 'sur_demande' ? '7/7' :
-                                 a.availability === 'hebdomadaire' ? 'Hebdo' :
-                                 a.availability === 'weekends' ? 'WE' : 'Saison'}
+                            <div className="absolute top-3 right-3">
+                              <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold text-white border border-white/20 backdrop-blur-md" style={{ background: `linear-gradient(135deg, ${hue.a}, ${hue.b})`, boxShadow: `0 2px 10px ${hue.glow}` }}>
+                                <CatIcon size={11} /> {a.category}
                               </span>
-                            )}
-                            {includedCount > 0 && (
-                              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-medium bg-emerald-50 text-emerald-600">
-                                <Check size={9} /> {includedCount} inclus
-                              </span>
-                            )}
-                            {notIncludedCount > 0 && (
-                              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-medium bg-red-50 text-red-500">
-                                <X size={9} /> {notIncludedCount} exclu
-                              </span>
-                            )}
-                            {hasContact && (
-                              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-medium bg-blue-50 text-blue-500">
-                                <MessageCircle size={9} /> Contact
-                              </span>
-                            )}
+                            </div>
                             {allPhotos.length > 1 && (
-                              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-medium bg-pink-50 text-pink-500">
-                                <Image size={9} /> {allPhotos.length} photos
-                              </span>
+                              <div className="absolute bottom-3 right-3">
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-black/55 text-white backdrop-blur-md border border-white/15">
+                                  <Camera size={10} /> {allPhotos.length}
+                                </span>
+                              </div>
                             )}
                           </div>
-                        </div>
 
-                        {/* Bottom bar */}
-                        <div className="flex items-center justify-between px-3 py-2 border-t border-border/30 bg-background/30">
-                          <span className="text-[10px] text-text-secondary font-medium">{a.commission_rate}% comm.</span>
-                          <div className="flex items-center gap-0.5">
-                            <button onClick={(e) => { e.stopPropagation(); openEdit('activity', a) }}
-                              className="p-1.5 rounded-lg text-text-secondary hover:text-accent hover:bg-accent/10 transition-colors">
-                              <Edit3 size={13} />
-                            </button>
-                            <button onClick={(e) => { e.stopPropagation(); setDeleteTarget({ type: 'activity', id: a.id }) }}
-                              className="p-1.5 rounded-lg text-text-secondary hover:text-error hover:bg-error/5 transition-colors">
-                              <Trash2 size={13} />
-                            </button>
+                          <div className="p-4 space-y-3 flex-1">
+                            <div>
+                              <div className={cn('flex items-center gap-1.5 text-[11px] mb-0.5', isDark ? 'text-slate-500' : 'text-slate-400')}>
+                                <Hash size={10} />
+                                <span>ACT-{String(a.id).padStart(4, '0')}</span>
+                              </div>
+                              <h3 className={cn('font-bold text-sm leading-snug line-clamp-1', isDark ? 'text-white' : 'text-slate-900')}>{a.name}</h3>
+                              {a.short_description && (
+                                <p className={cn('text-[11px] line-clamp-1 mt-0.5', isDark ? 'text-slate-500' : 'text-slate-500')}>{a.short_description}</p>
+                              )}
+                            </div>
+
+                            {a.partner_name && (
+                              <div className={cn('flex items-center gap-1.5 text-xs', isDark ? 'text-slate-400' : 'text-slate-500')}>
+                                <Briefcase size={11} />
+                                <span className="truncate">{a.partner_name}</span>
+                              </div>
+                            )}
+
+                            <div className="flex items-baseline gap-1">
+                              <span className="text-base font-extrabold" style={{ color: hue.a }}>{formatPrice(a.price)}</span>
+                              <span className={cn('text-[11px]', isDark ? 'text-slate-500' : 'text-slate-400')}>/pers.</span>
+                            </div>
+
+                            <div className={cn('flex items-center gap-3 pt-2 border-t text-xs', isDark ? 'border-white/5 text-slate-400' : 'border-slate-100 text-slate-500')}>
+                              {a.duration_hours && (
+                                <div className="flex items-center gap-1">
+                                  <Clock size={11} />
+                                  <span>{a.duration_hours}h</span>
+                                </div>
+                              )}
+                              <div className="flex items-center gap-1">
+                                <Users size={11} />
+                                <span>{a.min_capacity}-{a.max_capacity}</span>
+                              </div>
+                              {tierCount > 0 && (
+                                <div className="flex items-center gap-1 font-bold" style={{ color: hue.a }}>
+                                  <DollarSign size={11} />
+                                  <span>{tierCount} palier{tierCount > 1 ? 's' : ''}</span>
+                                </div>
+                              )}
+                            </div>
+
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              {a.availability && (
+                                <span className={cn('inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-bold border', isDark ? 'bg-white/5 border-white/10 text-slate-300' : 'bg-sky-50 border-sky-200 text-sky-700')}>
+                                  {a.availability === 'sur_demande' ? '7/7' : a.availability === 'hebdomadaire' ? 'Hebdo' : a.availability === 'weekends' ? 'WE' : 'Saison'}
+                                </span>
+                              )}
+                              {includedCount > 0 && (
+                                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-emerald-500/15 text-emerald-600 border border-emerald-500/20">
+                                  <Check size={9} /> {includedCount} inclus
+                                </span>
+                              )}
+                              {notIncludedCount > 0 && (
+                                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-rose-500/10 text-rose-600 border border-rose-500/20">
+                                  <X size={9} /> {notIncludedCount} exclu
+                                </span>
+                              )}
+                              {hasContact && (
+                                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-sky-500/10 text-sky-600 border border-sky-500/20">
+                                  <MessageCircle size={9} /> Contact
+                                </span>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className={cn('flex items-center justify-between px-3 py-2.5 border-t', isDark ? 'border-white/5 bg-white/[0.02]' : 'border-slate-100 bg-slate-50/50')}>
+                            <span className={cn('text-[10px] font-bold', isDark ? 'text-slate-500' : 'text-slate-400')}>{a.commission_rate}% comm.</span>
+                            <div className="flex items-center gap-0.5" onClick={e => e.stopPropagation()}>
+                              <button onClick={() => openEdit('activity', a)}
+                                className={cn('p-1.5 rounded-lg transition-colors', isDark ? 'text-slate-400 hover:text-white hover:bg-white/10' : 'text-slate-500 hover:text-violet-600 hover:bg-violet-50')}>
+                                <Edit3 size={13} />
+                              </button>
+                              <button onClick={() => setDeleteTarget({ type: 'activity', id: a.id })}
+                                className="p-1.5 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-500/10 transition-colors">
+                                <Trash2 size={13} />
+                              </button>
+                            </div>
                           </div>
                         </div>
-                      </div>
+                      </TiltCard>
                     </motion.div>
                   )
                 })}
               </div>
-            </TabsContent>
+            )}
 
-            {/* Partners Tab */}
-            <TabsContent value="partenaires">
+            {activeTab === 'partenaires' && (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                 {filteredPartners.length === 0 ? (
-                  <Card className="p-12 text-center col-span-full">
-                    <Briefcase size={32} className="text-text-secondary/30 mx-auto mb-3" />
-                    <p className="text-text-secondary/50 text-sm">Aucun partenaire trouvé</p>
-                  </Card>
+                  <div className="col-span-full stage-glass p-12 text-center">
+                    <div className="mx-auto w-14 h-14 rounded-2xl flex items-center justify-center mb-3" style={{ background: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(15,23,42,0.04)', border: `1px solid ${isDark ? 'rgba(255,255,255,0.06)' : 'rgba(15,23,42,0.06)'}` }}>
+                      <Briefcase size={22} className={isDark ? 'text-slate-500' : 'text-slate-400'} />
+                    </div>
+                    <p className={`text-sm font-semibold ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>Aucun partenaire trouvé</p>
+                  </div>
                 ) : filteredPartners.map((p, i) => {
                   const isActive = (p as any).is_active !== false
+                  const hue: StageHue = p.commission_rate >= 15 ? STAGE_HUES.emerald : p.commission_rate >= 10 ? STAGE_HUES.violet : STAGE_HUES.amber
                   const contractInfo = CONTRACT_STATUSES[p.contract_status] || { label: p.contract_status, variant: 'default' as const }
-                  const commissionColor = p.commission_rate >= 20 ? 'text-emerald-600' : p.commission_rate >= 10 ? 'text-accent' : 'text-amber-600'
-
                   return (
                     <motion.div
                       key={p.id}
                       initial={{ opacity: 0, y: 20 }}
                       animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: i * 0.05, duration: 0.35, ease: [0.4, 0, 0.2, 1] }}
+                      transition={{ delay: i * 0.04, duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
                     >
-                      <div onClick={() => setDetailPartner(p)}
-                        className="bg-card rounded-xl border border-border/50 shadow-card hover:shadow-card-hover transition-all duration-200 group overflow-hidden relative h-full flex flex-col cursor-pointer">
-                        {/* Top gradient header */}
-                        <div className="relative h-20 bg-gradient-to-br from-accent/20 via-blue-50 to-violet-50">
-                          <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_50%,rgba(99,102,241,0.12),transparent_60%)]" />
-                          {/* Avatar */}
-                          <div className="absolute -bottom-6 left-5">
-                            <div className="w-14 h-14 rounded-2xl bg-card border-2 border-border/50 shadow-card flex items-center justify-center text-lg font-bold text-accent group-hover:scale-105 transition-transform">
-                              {p.name.substring(0, 2).toUpperCase()}
+                      <TiltCard className="h-full" onClick={() => setDetailPartner(p)}>
+                        <div className="relative h-full flex flex-col overflow-hidden">
+                          <div className="absolute top-0 inset-x-0 h-[3px]" style={{ background: `linear-gradient(90deg, ${hue.a}, ${hue.b})` }} />
+                          <div className="relative h-20" style={{ background: isDark ? `linear-gradient(135deg, ${hue.a}18, transparent)` : `linear-gradient(135deg, ${hue.a}14, ${STAGE_HUES.sky.a}08)` }}>
+                            <div className="absolute inset-0 opacity-40 rounded-t-[inherit]" style={{ background: `radial-gradient(circle at 30% 50%, ${hue.glow}, transparent 60%)` }} />
+                            <div className="absolute -bottom-6 left-5 z-10">
+                              <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-sm font-extrabold border shadow-lg" style={{ background: isDark ? '#0F1220' : 'white', borderColor: `${hue.a}30`, color: hue.a, boxShadow: `0 8px 20px ${hue.glow}` }}>
+                                {p.name.substring(0, 2).toUpperCase()}
+                              </div>
+                            </div>
+                            <div className="absolute top-3 right-3 flex items-center gap-1.5">
+                              <StageBadge variant={contractInfo.variant as any}>{contractInfo.label}</StageBadge>
+                              {!isActive && <StageBadge variant="neutral">Inactif</StageBadge>}
+                            </div>
+                            <div className="absolute top-3 left-3">
+                              <span className={cn('inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-bold border backdrop-blur-md', isDark ? 'bg-black/20 text-slate-300 border-white/10' : 'bg-white/70 text-slate-600 border-slate-200')}>
+                                <Hash size={9} /> PAR-{String(p.id).padStart(3, '0')}
+                              </span>
                             </div>
                           </div>
-                          {/* Status + Contract top-right */}
-                          <div className="absolute top-3 right-3 flex items-center gap-2">
-                            <Badge variant={contractInfo.variant} size="sm">
-                              {contractInfo.label}
-                            </Badge>
-                            {!isActive && (
-                              <Badge variant="default" size="sm">
-                                <span className="w-1.5 h-1.5 rounded-full bg-gray-400 inline-block mr-1" />
-                                Inactif
-                              </Badge>
-                            )}
+
+                          <div className="pt-8 px-5 pb-4 space-y-3 flex-1">
+                            <div>
+                              <h3 className={cn('font-bold text-sm leading-snug line-clamp-1', isDark ? 'text-white' : 'text-slate-900')}>{p.name}</h3>
+                              {p.contact_name && (
+                                <p className={cn('text-[11px] flex items-center gap-1 mt-0.5', isDark ? 'text-slate-500' : 'text-slate-500')}>
+                                  <UserCheck size={10} /> {p.contact_name}
+                                </p>
+                              )}
+                            </div>
+
+                            <div className="space-y-1.5">
+                              {p.email && (
+                                <div className={cn('flex items-center gap-1.5 text-xs truncate', isDark ? 'text-slate-400' : 'text-slate-500')}>
+                                  <Mail size={11} className={isDark ? 'text-slate-500' : 'text-slate-400'} />
+                                  <span className="truncate">{p.email}</span>
+                                </div>
+                              )}
+                              {p.phone && (
+                                <div className={cn('flex items-center gap-1.5 text-xs', isDark ? 'text-slate-400' : 'text-slate-500')}>
+                                  <MessageCircle size={11} className={isDark ? 'text-slate-500' : 'text-slate-400'} />
+                                  <span>{p.phone}</span>
+                                </div>
+                              )}
+                              {p.address && (
+                                <div className={cn('flex items-center gap-1.5 text-xs truncate', isDark ? 'text-slate-400' : 'text-slate-500')}>
+                                  <MapPin size={11} className={isDark ? 'text-slate-500' : 'text-slate-400'} />
+                                  <span className="truncate">{p.address}</span>
+                                </div>
+                              )}
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-2 pt-2">
+                              <div className={cn('rounded-xl p-2.5 text-center border', isDark ? 'bg-white/[0.04] border-white/5' : 'bg-slate-50 border-slate-100')}>
+                                <Briefcase size={13} className="mx-auto mb-1" style={{ color: STAGE_HUES.violet.a }} />
+                                <p className={cn('text-base font-extrabold', isDark ? 'text-white' : 'text-slate-900')}><AnimatedNumber value={p.activity_count} /></p>
+                                <p className={cn('text-[9px] uppercase tracking-wider font-bold', isDark ? 'text-slate-500' : 'text-slate-400')}>Activités</p>
+                              </div>
+                              <div className={cn('rounded-xl p-2.5 text-center border', isDark ? 'bg-white/[0.04] border-white/5' : 'bg-slate-50 border-slate-100')}>
+                                <TrendingUp size={13} className="mx-auto mb-1" style={{ color: hue.a }} />
+                                <p className="text-base font-extrabold" style={{ color: hue.a }}>{p.commission_rate}%</p>
+                                <p className={cn('text-[9px] uppercase tracking-wider font-bold', isDark ? 'text-slate-500' : 'text-slate-400')}>Commission</p>
+                              </div>
+                            </div>
                           </div>
-                          {/* Reference top-left */}
-                          <div className="absolute top-3 left-3">
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-medium bg-black/10 text-text-secondary backdrop-blur-sm">
-                              <Hash size={9} /> PAR-{String(p.id).padStart(3, '0')}
+
+                          <div className={cn('flex items-center justify-between px-4 py-2.5 border-t', isDark ? 'border-white/5 bg-white/[0.02]' : 'border-slate-100 bg-slate-50/50')}>
+                            <span className={cn('text-[10px] font-medium', isDark ? 'text-slate-500' : 'text-slate-400')}>
+                              Depuis {new Date(p.created_at).toLocaleDateString('fr-FR', { month: 'short', year: 'numeric' })}
                             </span>
-                          </div>
-                        </div>
-
-                        {/* Content */}
-                        <div className="pt-8 px-5 pb-4 space-y-3 flex-1">
-                          {/* Name + Contact */}
-                          <div>
-                            <h3 className="font-semibold text-sm leading-snug group-hover:text-accent transition-colors line-clamp-1">{p.name}</h3>
-                            {p.contact_name && (
-                              <p className="text-[11px] text-text-secondary/70 flex items-center gap-1 mt-0.5">
-                                <UserCheck size={10} /> {p.contact_name}
-                              </p>
-                            )}
-                          </div>
-
-                          {/* Contact details */}
-                          <div className="space-y-1.5">
-                            {p.email && (
-                              <div className="flex items-center gap-1.5 text-xs text-text-secondary">
-                                <Mail size={11} />
-                                <span className="truncate">{p.email}</span>
-                              </div>
-                            )}
-                            {p.phone && (
-                              <div className="flex items-center gap-1.5 text-xs text-text-secondary">
-                                <MessageCircle size={11} />
-                                <span>{p.phone}</span>
-                              </div>
-                            )}
-                            {p.address && (
-                              <div className="flex items-center gap-1.5 text-xs text-text-secondary">
-                                <MapPin size={11} />
-                                <span className="truncate">{p.address}</span>
-                              </div>
-                            )}
-                          </div>
-
-                          {/* Stats row */}
-                          <div className="grid grid-cols-2 gap-2 pt-2 border-t border-border/30">
-                            <div className="bg-background/80 rounded-lg p-2.5 text-center border border-border/20">
-                              <Briefcase size={13} className="text-accent mx-auto mb-1" />
-                              <p className="text-base font-bold text-text">{p.activity_count}</p>
-                              <p className="text-[9px] text-text-secondary uppercase tracking-wider">Activités</p>
-                            </div>
-                            <div className="bg-background/80 rounded-lg p-2.5 text-center border border-border/20">
-                              <TrendingUp size={13} className={`${commissionColor} mx-auto mb-1`} />
-                              <p className={`text-base font-bold ${commissionColor}`}>{p.commission_rate}%</p>
-                              <p className="text-[9px] text-text-secondary uppercase tracking-wider">Commission</p>
+                            <div className="flex items-center gap-0.5" onClick={e => e.stopPropagation()}>
+                              <button onClick={() => openEdit('partner', p)}
+                                className={cn('p-1.5 rounded-lg transition-colors', isDark ? 'text-slate-400 hover:text-white hover:bg-white/10' : 'text-slate-500 hover:text-violet-600 hover:bg-violet-50')}>
+                                <Edit3 size={13} />
+                              </button>
+                              <button onClick={() => setDeleteTarget({ type: 'partner', id: p.id })}
+                                className="p-1.5 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-500/10 transition-colors">
+                                <Trash2 size={13} />
+                              </button>
                             </div>
                           </div>
                         </div>
-
-                        {/* Bottom action bar */}
-                        <div className="flex items-center justify-between px-4 py-2.5 border-t border-border/30 bg-background/30">
-                          <span className="text-[10px] text-text-secondary/60 font-medium">
-                            Depuis {new Date(p.created_at).toLocaleDateString('fr-FR', { month: 'short', year: 'numeric' })}
-                          </span>
-                          <div className="flex items-center gap-0.5">
-                            <button onClick={(e) => { e.stopPropagation(); openEdit('partner', p) }}
-                              className="p-1.5 rounded-lg text-text-secondary hover:text-accent hover:bg-accent/10 transition-colors">
-                              <Edit3 size={13} />
-                            </button>
-                            <button onClick={(e) => { e.stopPropagation(); setDeleteTarget({ type: 'partner', id: p.id }) }}
-                              className="p-1.5 rounded-lg text-text-secondary hover:text-error hover:bg-error/5 transition-colors">
-                              <Trash2 size={13} />
-                            </button>
-                          </div>
-                        </div>
-                      </div>
+                      </TiltCard>
                     </motion.div>
                   )
                 })}
               </div>
-            </TabsContent>
+            )}
 
-            {/* Reservations Tab */}
-            <TabsContent value="reservations">
-              <Card className="overflow-hidden">
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="border-b border-border/30 text-left text-xs text-text-secondary">
-                          <th className="px-5 py-3 font-medium">Voyageur</th>
-                          <th className="px-5 py-3 font-medium">Activité</th>
-                          <th className="px-5 py-3 font-medium">Date</th>
-                          <th className="px-5 py-3 font-medium text-center">Participants</th>
-                          <th className="px-5 py-3 font-medium">Statut</th>
-                          <th className="px-5 py-3 font-medium text-right">Commission</th>
-                          <th className="px-5 py-3 font-medium w-12"></th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {filteredReservations.length === 0 ? (
-                          <tr>
-                            <td colSpan={7} className="px-5 py-12 text-center">
-                              <Calendar size={32} className="text-text-secondary/30 mx-auto mb-3" />
-                              <p className="text-text-secondary/50 text-sm">Aucune réservation trouvée</p>
-                            </td>
-                          </tr>
-                        ) : filteredReservations.map((r, i) => (
-                          <motion.tr
-                            key={r.id}
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            transition={{ delay: i * 0.03 }}
-                            className="border-b border-border/20 hover:bg-background/50 transition-colors"
-                          >
-                            <td className="px-5 py-3.5">
-                              <p className="font-medium text-text">{r.client_name}</p>
-                              {r.client_email && <p className="text-[11px] text-text-secondary">{r.client_email}</p>}
-                            </td>
-                            <td className="px-5 py-3.5">
-                              <p className="text-text">{r.activity_name}</p>
-                              <p className="text-[11px] text-text-secondary">{r.activity_category}</p>
-                            </td>
-                            <td className="px-5 py-3.5 text-text-secondary">{new Date(r.reservation_date).toLocaleDateString('fr-FR')}</td>
-                            <td className="px-5 py-3.5 text-center">{r.participants}</td>
-                            <td className="px-5 py-3.5">
-                              <Badge variant={RESERVATION_STATUSES[r.status]?.variant || 'default'} size="sm">
-                                {RESERVATION_STATUSES[r.status]?.label || r.status}
-                              </Badge>
-                            </td>
-                            <td className="px-5 py-3.5 text-right font-medium text-emerald-600">{formatMAD(r.commission_amount)}</td>
-                            <td className="px-5 py-3.5">
-                              <ActionMenu onEdit={() => openEdit('reservation', r)} onDelete={() => setDeleteTarget({ type: 'reservation', id: r.id })} />
-                            </td>
-                          </motion.tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </Card>
-            </TabsContent>
-
-            {/* Commissions Tab */}
-            <TabsContent value="commissions">
-              <Card className="overflow-hidden">
-                <div className="px-5 py-4 border-b border-border/30 flex items-center gap-2">
-                  <div className="p-1.5 rounded-lg bg-accent/10">
-                    <DollarSign size={14} className="text-accent" />
-                  </div>
-                  <h3 className="font-semibold text-sm">Commissions par partenaire</h3>
-                </div>
-                <div className="overflow-x-auto">
+            {activeTab === 'reservations' && (
+              <StagePanel title="Réservations" icon={Calendar} hue={STAGE_HUES.amber} badge={<StageBadge variant="neutral">{filteredReservations.length}</StageBadge>}>
+                <div className="overflow-x-auto -mx-5 -mb-5">
                   <table className="w-full text-sm">
                     <thead>
-                      <tr className="border-b border-border/30 text-left text-xs text-text-secondary">
-                        <th className="px-5 py-3 font-medium">Partenaire</th>
-                        <th className="px-5 py-3 font-medium text-center">Taux</th>
-                        <th className="px-5 py-3 font-medium text-center">Réservations</th>
-                        <th className="px-5 py-3 font-medium text-right">Chiffre d'affaires</th>
-                        <th className="px-5 py-3 font-medium text-right">Commission</th>
+                      <tr className={cn('border-b text-left text-[11px] font-bold uppercase tracking-wider', isDark ? 'border-white/5 text-slate-500 bg-white/[0.02]' : 'border-slate-100 text-slate-500 bg-slate-50/50')}>
+                        <th className="px-5 py-3">Voyageur</th>
+                        <th className="px-5 py-3">Activité</th>
+                        <th className="px-5 py-3">Date</th>
+                        <th className="px-5 py-3 text-center">Pers.</th>
+                        <th className="px-5 py-3">Statut</th>
+                        <th className="px-5 py-3 text-right">Commission</th>
+                        <th className="px-5 py-3 w-10"></th>
                       </tr>
                     </thead>
-                    <tbody>
+                    <tbody className={cn('divide-y', isDark ? 'divide-white/5' : 'divide-slate-100')}>
+                      {filteredReservations.length === 0 ? (
+                        <tr>
+                          <td colSpan={7} className="px-5 py-12 text-center">
+                            <div className="mx-auto w-12 h-12 rounded-xl flex items-center justify-center mb-2" style={{ background: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(15,23,42,0.04)' }}>
+                              <Calendar size={18} className={isDark ? 'text-slate-500' : 'text-slate-400'} />
+                            </div>
+                            <p className={cn('text-sm', isDark ? 'text-slate-500' : 'text-slate-400')}>Aucune réservation trouvée</p>
+                          </td>
+                        </tr>
+                      ) : filteredReservations.map((r, i) => (
+                        <motion.tr
+                          key={r.id}
+                          initial={{ opacity: 0, x: -6 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ delay: i * 0.02 }}
+                          className={cn('transition-colors', isDark ? 'hover:bg-white/[0.03]' : 'hover:bg-slate-50')}
+                        >
+                          <td className="px-5 py-3.5">
+                            <p className={cn('font-semibold text-sm', isDark ? 'text-white' : 'text-slate-900')}>{r.client_name}</p>
+                            {r.client_email && <p className={cn('text-[11px]', isDark ? 'text-slate-500' : 'text-slate-500')}>{r.client_email}</p>}
+                          </td>
+                          <td className="px-5 py-3.5">
+                            <p className={cn('text-sm', isDark ? 'text-slate-300' : 'text-slate-700')}>{r.activity_name}</p>
+                            <p className={cn('text-[11px]', isDark ? 'text-slate-500' : 'text-slate-400')}>{r.activity_category}</p>
+                          </td>
+                          <td className={cn('px-5 py-3.5 text-sm', isDark ? 'text-slate-400' : 'text-slate-600')}>{new Date(r.reservation_date).toLocaleDateString('fr-FR')}</td>
+                          <td className="px-5 py-3.5 text-center">
+                            <span className={cn('inline-flex items-center justify-center w-7 h-7 rounded-lg text-xs font-bold border', isDark ? 'bg-white/5 border-white/10 text-white' : 'bg-white border-slate-200 text-slate-700')}>{r.participants}</span>
+                          </td>
+                          <td className="px-5 py-3.5">
+                            <StageBadge variant={RESERVATION_STATUSES[r.status]?.variant === 'success' ? 'ok' : RESERVATION_STATUSES[r.status]?.variant === 'warning' ? 'warn' : RESERVATION_STATUSES[r.status]?.variant === 'error' ? 'danger' : 'neutral'}>
+                              {RESERVATION_STATUSES[r.status]?.label || r.status}
+                            </StageBadge>
+                          </td>
+                          <td className="px-5 py-3.5 text-right font-bold text-emerald-600">{formatMAD(r.commission_amount)}</td>
+                          <td className="px-5 py-3.5">
+                            <ActionMenu onEdit={() => openEdit('reservation', r)} onDelete={() => setDeleteTarget({ type: 'reservation', id: r.id })} />
+                          </td>
+                        </motion.tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </StagePanel>
+            )}
+
+            {activeTab === 'commissions' && (
+              <StagePanel title="Commissions par partenaire" icon={DollarSign} hue={STAGE_HUES.emerald}>
+                <div className="overflow-x-auto -mx-5 -mb-5">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className={cn('border-b text-left text-[11px] font-bold uppercase tracking-wider', isDark ? 'border-white/5 text-slate-500 bg-white/[0.02]' : 'border-slate-100 text-slate-500 bg-slate-50/50')}>
+                        <th className="px-5 py-3">Partenaire</th>
+                        <th className="px-5 py-3 text-center">Taux</th>
+                        <th className="px-5 py-3 text-center">Réservations</th>
+                        <th className="px-5 py-3 text-right">CA</th>
+                        <th className="px-5 py-3 text-right">Commission</th>
+                      </tr>
+                    </thead>
+                    <tbody className={cn('divide-y', isDark ? 'divide-white/5' : 'divide-slate-100')}>
                       {commissions.length === 0 ? (
                         <tr>
                           <td colSpan={5} className="px-5 py-12 text-center">
-                            <BarChart size={32} className="text-text-secondary/30 mx-auto mb-3" />
-                            <p className="text-text-secondary/50 text-sm">Aucune donnée de commission</p>
+                            <BarChart size={22} className={cn('mx-auto mb-2', isDark ? 'text-slate-600' : 'text-slate-300')} />
+                            <p className={cn('text-sm', isDark ? 'text-slate-500' : 'text-slate-400')}>Aucune donnée de commission</p>
                           </td>
                         </tr>
                       ) : commissions.map((c, i) => (
                         <motion.tr
                           key={c.partner_id}
-                          initial={{ opacity: 0 }}
-                          animate={{ opacity: 1 }}
-                          transition={{ delay: i * 0.03 }}
-                          className="border-b border-border/20 hover:bg-background/50 transition-colors"
+                          initial={{ opacity: 0, x: -6 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ delay: i * 0.02 }}
+                          className={cn('transition-colors', isDark ? 'hover:bg-white/[0.03]' : 'hover:bg-slate-50')}
                         >
-                          <td className="px-5 py-3.5 font-medium text-text">{c.partner_name}</td>
-                          <td className="px-5 py-3.5 text-center">{c.commission_rate}%</td>
-                          <td className="px-5 py-3.5 text-center">{c.reservation_count}</td>
+                          <td className={cn('px-5 py-3.5 font-semibold', isDark ? 'text-white' : 'text-slate-900')}>{c.partner_name}</td>
+                          <td className="px-5 py-3.5 text-center">
+                            <span className="inline-flex items-center justify-center px-2 py-0.5 rounded-full text-xs font-bold bg-violet-500/10 text-violet-600 border border-violet-500/20">{c.commission_rate}%</span>
+                          </td>
+                          <td className="px-5 py-3.5 text-center font-medium">{c.reservation_count}</td>
                           <td className="px-5 py-3.5 text-right">{formatMAD(c.total_revenue)}</td>
-                          <td className="px-5 py-3.5 text-right font-bold text-emerald-600">{formatMAD(c.total_commission)}</td>
+                          <td className="px-5 py-3.5 text-right font-extrabold text-emerald-600">{formatMAD(c.total_commission)}</td>
                         </motion.tr>
                       ))}
                     </tbody>
                     {commissions.length > 0 && (
                       <tfoot>
-                        <tr className="border-t-2 border-accent/20 bg-accent/5">
-                          <td className="px-5 py-3 font-bold text-text">Total</td>
+                        <tr className={cn('border-t-2 font-bold', isDark ? 'border-violet-500/20 bg-violet-500/10 text-white' : 'border-violet-500/20 bg-violet-50 text-slate-900')}>
+                          <td className="px-5 py-3">Total</td>
                           <td className="px-5 py-3"></td>
-                          <td className="px-5 py-3 text-center font-bold">{commissions.reduce((s, c) => s + c.reservation_count, 0)}</td>
-                          <td className="px-5 py-3 text-right font-bold">{formatMAD(commissions.reduce((s, c) => s + c.total_revenue, 0))}</td>
-                          <td className="px-5 py-3 text-right font-bold text-accent">{formatMAD(commissions.reduce((s, c) => s + c.total_commission, 0))}</td>
+                          <td className="px-5 py-3 text-center">{commissions.reduce((s, c) => s + c.reservation_count, 0)}</td>
+                          <td className="px-5 py-3 text-right">{formatMAD(commissions.reduce((s, c) => s + c.total_revenue, 0))}</td>
+                          <td className="px-5 py-3 text-right text-emerald-600">{formatMAD(commissions.reduce((s, c) => s + c.total_commission, 0))}</td>
                         </tr>
                       </tfoot>
                     )}
                   </table>
                 </div>
-              </Card>
-            </TabsContent>
+              </StagePanel>
+            )}
           </>
         )}
-      </Tabs>
+      </div>
 
-      {/* Modal */}
-      <Dialog isOpen={showModal} onClose={() => setShowModal(false)} size="2xl">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-border/30 -mx-6 -mt-4 mb-0">
-          <h2 className="text-lg font-bold text-text">{modalTitle}</h2>
-          <button onClick={() => setShowModal(false)}
-            className="p-1.5 rounded-lg hover:bg-background transition-colors text-text-secondary hover:text-text">
-            <X size={18} />
-          </button>
-        </div>
-        <div className="max-h-[65vh] overflow-y-auto -mx-6 px-6 py-5">
-          {modalType === 'activity' && (
-            <ActivityForm form={form} setForm={setForm} partners={partners} editing={!!editingItem} activityId={editingItem?.id || null} onSaved={() => loadAll()} />
-          )}
-          {modalType === 'partner' && (
-            <PartnerForm form={form} setForm={setForm} />
-          )}
-          {modalType === 'reservation' && (
-            <ReservationForm form={form} setForm={setForm} activities={activities} editing={!!editingItem} />
-          )}
-        </div>
-        <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-border/30 -mx-6 -mb-4 mt-0">
-          <Button variant="outline" onClick={() => setShowModal(false)}>Annuler</Button>
-          <Button onClick={handleSubmit}>{editingItem ? 'Enregistrer' : 'Ajouter'}</Button>
-        </div>
-      </Dialog>
+      {/* ── Create/Edit Modal — portal full viewport like Librairie ───────── */}
+      {typeof document !== 'undefined' && createPortal(
+        <AnimatePresence>
+          {showModal && (
+            <motion.div
+              className="fixed inset-0 z-[100] flex items-center justify-center p-4"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+            >
+              <motion.div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowModal(false)} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} />
+              <motion.div
+                initial={{ opacity: 0, scale: 0.96, y: 12 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.96, y: 12 }}
+                transition={{ type: 'spring', stiffness: 320, damping: 30 }}
+                className="relative w-full max-w-2xl max-h-[90vh] rounded-2xl border flex flex-col overflow-hidden"
+                style={{
+                  background: isDark ? 'linear-gradient(180deg, rgba(17,24,50,0.98), rgba(9,13,30,0.99))' : 'linear-gradient(180deg, rgba(255,255,255,0.98), rgba(248,250,252,0.99))',
+                  borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(15,23,42,0.08)',
+                  boxShadow: isDark ? '0 24px 60px -18px rgba(0,0,0,0.85), inset 0 1px 0 rgba(255,255,255,0.06)' : '0 24px 60px -20px rgba(13,148,136,0.35), inset 0 1px 0 rgba(255,255,255,1)',
+                }}
+              >
+                <div className="absolute top-0 inset-x-0 h-[3px]" style={{ background: `linear-gradient(90deg, ${modalType === 'activity' ? STAGE_HUES.violet.a : modalType === 'partner' ? STAGE_HUES.sky.a : STAGE_HUES.amber.a}, ${modalType === 'activity' ? STAGE_HUES.violet.b : modalType === 'partner' ? STAGE_HUES.sky.b : STAGE_HUES.amber.b})` }} />
+                <div className="flex items-center justify-between px-6 py-4 border-b shrink-0" style={{ borderColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(15,23,42,0.06)', background: `radial-gradient(90% 140% at 0% 0%, ${isDark ? 'rgba(139,124,255,0.08)' : 'rgba(20,184,166,0.06)'}, transparent 65%)` }}>
+                  <div className="flex items-center gap-3">
+                    <OrbIcon icon={modalType === 'activity' ? Compass : modalType === 'partner' ? Briefcase : Calendar} hue={modalType === 'activity' ? STAGE_HUES.violet : modalType === 'partner' ? STAGE_HUES.sky : STAGE_HUES.amber} size={40} radius={12} />
+                    <div>
+                      <h2 className={cn('text-base font-bold', isDark ? 'text-white' : 'text-slate-900')}>{modalTitle}</h2>
+                      <p className={cn('text-xs', isDark ? 'text-slate-500' : 'text-slate-500')}>{editingItem ? 'Modifiez les informations puis validez.' : 'Renseignez les informations puis validez.'}</p>
+                    </div>
+                  </div>
+                  <button onClick={() => setShowModal(false)} className={cn('w-8 h-8 rounded-xl flex items-center justify-center border transition-all', isDark ? 'border-white/10 bg-white/5 text-slate-400 hover:text-white hover:bg-white/10' : 'border-slate-200 bg-white text-slate-500 hover:text-slate-900')}>
+                    <X size={16} />
+                  </button>
+                </div>
 
-      {/* Delete confirmation */}
-      {deleteTarget && (
-        <ConfirmDialog
-          isOpen={true}
-          onClose={() => setDeleteTarget(null)}
-          title="Confirmer la suppression"
-          message="Cette action est irréversible. Voulez-vous vraiment continuer ?"
-          confirmLabel="Supprimer"
-          onConfirm={handleDelete}
-          variant="danger"
-        />
+                <div
+                  className="flex-1 overflow-y-auto scrollbar-thin px-6 py-5 space-y-4"
+                  style={{
+                    overscrollBehavior: 'contain',
+                    WebkitOverflowScrolling: 'touch' as any,
+                    transform: 'translateZ(0)',
+                    willChange: 'scroll-position',
+                    scrollBehavior: 'smooth' as any,
+                  }}
+                >
+                  {modalType === 'activity' && (
+                    <ActivityForm form={form} setForm={setForm} partners={partners} editing={!!editingItem} activityId={editingItem?.id || null} onSaved={() => loadAll()} />
+                  )}
+                  {modalType === 'partner' && (
+                    <PartnerForm form={form} setForm={setForm} />
+                  )}
+                  {modalType === 'reservation' && (
+                    <ReservationForm form={form} setForm={setForm} activities={activities} editing={!!editingItem} />
+                  )}
+                </div>
+
+                <div className={cn('flex items-center justify-end gap-2 px-6 py-4 border-t shrink-0', isDark ? 'border-white/5 bg-white/[0.02]' : 'border-slate-100 bg-slate-50/50')}>
+                  <button onClick={() => setShowModal(false)} className={stageBtns.ghost}>Annuler</button>
+                  <button onClick={handleSubmit} className={stageBtns.primary}>{editingItem ? 'Enregistrer' : 'Ajouter'}</button>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>,
+        document.body,
       )}
 
-      {/* Activity Detail Modal */}
-      <Dialog isOpen={!!detailActivity} onClose={() => setDetailActivity(null)} size="2xl">
-        {detailActivity && (() => {
-          const cat = CATEGORY_CONFIG[detailActivity.category] || CATEGORY_CONFIG.Autre
-          const CatIcon = cat.icon
-          const allPhotos: string[] = []
-          if (detailActivity.photo_url) allPhotos.push(detailActivity.photo_url)
-          if (detailActivity.photos?.length) allPhotos.push(...detailActivity.photos)
-          const hasMultiplePhotos = allPhotos.length > 1
-          return (
-            <>
-              {/* Header */}
-              <div className="flex items-center justify-between px-6 py-4 border-b border-border/30 -mx-6 -mt-4 mb-0">
-                <div className="flex items-center gap-3">
-                  <div className={`p-2 rounded-xl ${cat.bg}`}>
-                    <CatIcon size={18} className={cat.color} />
-                  </div>
-                  <div>
-                    <h2 className="text-lg font-bold text-text">{detailActivity.name}</h2>
-                    {detailActivity.short_description && <p className="text-xs text-text-secondary">{detailActivity.short_description}</p>}
-                  </div>
-                </div>
-                <button onClick={() => setDetailActivity(null)} className="p-1.5 rounded-lg hover:bg-background transition-colors text-text-secondary hover:text-text">
-                  <X size={18} />
-                </button>
+      {/* ── Delete confirmation — portal ────────────────────────────────── */}
+      {typeof document !== 'undefined' && deleteTarget && createPortal(
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setDeleteTarget(null)} />
+          <motion.div
+            initial={{ opacity: 0, scale: 0.96, y: 8 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.96, y: 8 }}
+            className="relative w-full max-w-md rounded-2xl border p-6"
+            style={{
+              background: isDark ? 'linear-gradient(180deg, rgba(17,24,50,0.98), rgba(9,13,30,0.99))' : 'white',
+              borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(15,23,42,0.08)',
+              boxShadow: '0 24px 60px -18px rgba(0,0,0,0.4)',
+            }}
+          >
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center shrink-0">
+                <Trash2 size={18} className="text-rose-500" />
               </div>
-
-              <div className="max-h-[70vh] overflow-y-auto -mx-6 px-6 py-5 space-y-5">
-                {/* Photo Gallery */}
-                {allPhotos.length > 0 && (
-                  <div className="rounded-xl overflow-hidden border border-border/30">
-                    <div className="relative aspect-[16/9] overflow-hidden bg-gray-900 group">
-                      <img src={`${API_ORIGIN}${allPhotos[photoIndex]}`} alt={detailActivity.name}
-                        className="w-full h-full object-cover" />
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                      {hasMultiplePhotos && (
-                        <>
-                          <button onClick={() => setPhotoIndex((photoIndex - 1 + allPhotos.length) % allPhotos.length)}
-                            className="absolute left-4 top-1/2 -translate-y-1/2 p-2.5 rounded-full bg-black/50 text-white hover:bg-black/70 transition-all opacity-0 group-hover:opacity-100 backdrop-blur-sm">
-                            <ChevronLeft size={20} />
-                          </button>
-                          <button onClick={() => setPhotoIndex((photoIndex + 1) % allPhotos.length)}
-                            className="absolute right-4 top-1/2 -translate-y-1/2 p-2.5 rounded-full bg-black/50 text-white hover:bg-black/70 transition-all opacity-0 group-hover:opacity-100 backdrop-blur-sm">
-                            <ChevronRight size={20} />
-                          </button>
-                          <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                            {allPhotos.map((_, idx) => (
-                              <button key={idx} onClick={() => setPhotoIndex(idx)}
-                                className={`rounded-full transition-all ${idx === photoIndex ? 'w-6 h-2 bg-white' : 'w-2 h-2 bg-white/50 hover:bg-white/70'}`} />
-                            ))}
-                          </div>
-                          <div className="absolute top-4 left-4 px-3 py-1.5 rounded-lg bg-black/50 text-white text-xs font-medium backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-opacity">
-                            {photoIndex + 1} / {allPhotos.length}
-                          </div>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                {/* Badges row */}
-                <div className="flex flex-wrap gap-2">
-                  <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold ${cat.bg} ${cat.color}`}>
-                    <CatIcon size={13} /> {detailActivity.category}
-                  </span>
-                  <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold ${detailActivity.is_active ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-600'}`}>
-                    <span className={`w-1.5 h-1.5 rounded-full ${detailActivity.is_active ? 'bg-emerald-500' : 'bg-gray-400'}`} />
-                    {detailActivity.is_active ? 'Actif' : 'Inactif'}
-                  </span>
-                </div>
-
-                {/* Key info grid */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                  <div className="bg-background/80 rounded-xl p-3 border border-border/30 text-center">
-                    <Clock size={16} className="text-text-secondary/60 mx-auto mb-1" />
-                    <p className="text-lg font-bold text-text">{detailActivity.duration_hours || '—'}h</p>
-                    <p className="text-[10px] text-text-secondary">Durée</p>
-                  </div>
-                  <div className="bg-background/80 rounded-xl p-3 border border-border/30 text-center">
-                    <Users size={16} className="text-text-secondary/60 mx-auto mb-1" />
-                    <p className="text-lg font-bold text-text">{detailActivity.min_capacity}-{detailActivity.max_capacity}</p>
-                    <p className="text-[10px] text-text-secondary">Capacité</p>
-                  </div>
-                  <div className="bg-background/80 rounded-xl p-3 border border-border/30 text-center">
-                    <DollarSign size={16} className="text-accent mx-auto mb-1" />
-                    <p className="text-lg font-bold text-accent">{formatPrice(detailActivity.price)}</p>
-                    <p className="text-[10px] text-text-secondary">Prix public</p>
-                  </div>
-                  <div className="bg-background/80 rounded-xl p-3 border border-border/30 text-center">
-                    <TrendingUp size={16} className="text-emerald-600 mx-auto mb-1" />
-                    <p className="text-lg font-bold text-emerald-600">{detailActivity.commission_rate}%</p>
-                    <p className="text-[10px] text-text-secondary">Commission</p>
-                  </div>
-                </div>
-
-                {/* Description */}
-                {detailActivity.description && (
-                  <div className="bg-background/50 rounded-xl p-4 border border-border/30">
-                    <h4 className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-2">Description</h4>
-                    <p className="text-sm text-text leading-relaxed whitespace-pre-line">{detailActivity.description}</p>
-                  </div>
-                )}
-
-                {/* Partner */}
-                {detailActivity.partner_name && (
-                  <div className="flex items-center gap-3 p-3 bg-background/50 rounded-xl border border-border/30">
-                    <div className="w-10 h-10 rounded-full bg-accent/10 text-accent flex items-center justify-center text-sm font-bold">
-                      {detailActivity.partner_name[0]}
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-text">{detailActivity.partner_name}</p>
-                      <p className="text-[11px] text-text-secondary">Partenaire • Commission {detailActivity.commission_rate}%</p>
-                    </div>
-                  </div>
-                )}
-
-                {/* Pricing Tiers */}
-                {detailActivity.pricing_tiers && detailActivity.pricing_tiers.length > 0 && (
-                  <div className="border border-border/40 rounded-xl overflow-hidden">
-                    <div className="px-4 py-3 bg-background/50 flex items-center gap-2">
-                      <DollarSign size={14} className="text-accent" />
-                      <h4 className="text-sm font-semibold text-text">Grille tarifaire</h4>
-                      <span className="px-1.5 py-0.5 text-[10px] font-medium bg-accent/10 text-accent rounded">{detailActivity.pricing_tiers.length}</span>
-                    </div>
-                    <table className="w-full text-sm">
-                      <thead>
-                        <tr className="border-t border-border/30 text-left text-[11px] text-text-secondary uppercase tracking-wider">
-                          <th className="px-4 py-2 font-medium">Personnes</th>
-                          <th className="px-4 py-2 font-medium text-right">Prix / pers.</th>
-                          <th className="px-4 py-2 font-medium text-right">Total min</th>
-                          <th className="px-4 py-2 font-medium text-right">Net partenaire</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {detailActivity.pricing_tiers.map((t: any) => {
-                          const rate = t.commission_rate != null ? t.commission_rate : detailActivity.commission_rate
-                          const totalMin = Number(t.price_per_person) * t.min_persons
-                          const net = Number(t.price_per_person) * (1 - rate / 100)
-                          return (
-                            <tr key={t.id} className="border-t border-border/20">
-                              <td className="px-4 py-2.5 font-medium text-text">
-                                {t.min_persons === t.max_persons ? `${t.min_persons} pers.` : `${t.min_persons}-${t.max_persons} pers.`}
-                              </td>
-                              <td className="px-4 py-2.5 text-right">{formatMAD(Number(t.price_per_person))}</td>
-                              <td className="px-4 py-2.5 text-right font-medium">{formatMAD(totalMin)}</td>
-                              <td className="px-4 py-2.5 text-right text-emerald-600 font-medium">{formatMAD(net)}/pers.</td>
-                            </tr>
-                          )
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-
-                {/* Included / Not Included */}
-                {(detailActivity.included_items?.length > 0 || detailActivity.not_included_items?.length > 0) && (
-                  <div className="grid grid-cols-2 gap-3">
-                    {detailActivity.included_items?.length > 0 && (
-                      <div className="bg-emerald-50/50 rounded-xl p-4 border border-emerald-200/50">
-                        <h4 className="text-xs font-semibold text-emerald-700 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                          <Check size={12} /> Inclus
-                        </h4>
-                        <ul className="space-y-1.5">
-                          {detailActivity.included_items.map((item: string, i: number) => (
-                            <li key={i} className="flex items-center gap-2 text-sm text-emerald-800">
-                              <span className="w-1 h-1 rounded-full bg-emerald-500 flex-shrink-0" />
-                              {item}
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-                    {detailActivity.not_included_items?.length > 0 && (
-                      <div className="bg-red-50/50 rounded-xl p-4 border border-red-200/50">
-                        <h4 className="text-xs font-semibold text-red-700 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                          <XCircle size={12} /> Non inclus
-                        </h4>
-                        <ul className="space-y-1.5">
-                          {detailActivity.not_included_items.map((item: string, i: number) => (
-                            <li key={i} className="flex items-center gap-2 text-sm text-red-800">
-                              <span className="w-1 h-1 rounded-full bg-red-500 flex-shrink-0" />
-                              {item}
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* Contact */}
-                {(detailActivity.whatsapp || detailActivity.contact_email) && (
-                  <div className="bg-background/50 rounded-xl p-4 border border-border/30">
-                    <h4 className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-2">Contact</h4>
-                    <div className="flex flex-wrap gap-3">
-                      {detailActivity.whatsapp && (
-                        <span className="inline-flex items-center gap-1.5 text-sm text-text">
-                          <MessageCircle size={14} className="text-emerald-600" /> {detailActivity.whatsapp}
-                        </span>
-                      )}
-                      {detailActivity.contact_email && (
-                        <span className="inline-flex items-center gap-1.5 text-sm text-text">
-                          <Mail size={14} className="text-blue-600" /> {detailActivity.contact_email}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                )}
+              <div>
+                <h3 className={cn('font-bold', isDark ? 'text-white' : 'text-slate-900')}>Confirmer la suppression</h3>
+                <p className={cn('text-sm mt-1', isDark ? 'text-slate-400' : 'text-slate-500')}>Cette action est irréversible. Voulez-vous vraiment continuer ?</p>
               </div>
+            </div>
+            <div className="flex items-center justify-end gap-2 mt-6">
+              <button onClick={() => setDeleteTarget(null)} className={stageBtns.ghost}>Annuler</button>
+              <button onClick={handleDelete} className="inline-flex h-9 items-center gap-1.5 rounded-xl px-4 text-sm font-semibold text-white bg-gradient-to-b from-rose-500 to-red-600 border border-white/20 shadow-[inset_0_1px_0_rgba(255,255,255,0.3),0_8px_16px_rgba(225,29,72,0.4)] hover:brightness-110 transition-all">Supprimer</button>
+            </div>
+          </motion.div>
+        </div>,
+        document.body,
+      )}
 
-              {/* Footer actions */}
-              <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-border/30 -mx-6 -mb-4 mt-0">
-                <Button variant="outline" onClick={() => { setDetailActivity(null); openEdit('activity', detailActivity) }} className="gap-2">
-                  <Edit3 size={14} /> Modifier
-                </Button>
-              </div>
-            </>
-          )
-        })()}
-      </Dialog>
-
-      {/* Partner Detail Modal */}
-      <Dialog isOpen={!!detailPartner} onClose={() => setDetailPartner(null)} size="2xl">
-        {detailPartner && (() => {
-          const isActive = (detailPartner as any).is_active !== false
-          const contractInfo = CONTRACT_STATUSES[detailPartner.contract_status] || { label: detailPartner.contract_status, variant: 'default' as const }
-          const commissionColor = detailPartner.commission_rate >= 20 ? 'text-emerald-600' : detailPartner.commission_rate >= 10 ? 'text-accent' : 'text-amber-600'
-          const partnerActivities = activities.filter(a => a.partner_id === detailPartner.id)
-          const partnerCommission = commissions.find(c => c.partner_id === detailPartner.id)
-          const partnerReservations = reservations.filter(r => partnerActivities.some(a => a.id === r.activity_id))
-
-          return (
-            <>
-              {/* Header */}
-              <div className="flex items-center justify-between px-6 py-4 border-b border-border/30 -mx-6 -mt-4 mb-0">
-                <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-2xl bg-accent/10 flex items-center justify-center text-lg font-bold text-accent">
-                    {detailPartner.name.substring(0, 2).toUpperCase()}
-                  </div>
-                  <div>
-                    <h2 className="text-lg font-bold text-text">{detailPartner.name}</h2>
-                    {detailPartner.contact_name && <p className="text-xs text-text-secondary">{detailPartner.contact_name}</p>}
-                  </div>
-                </div>
-                <button onClick={() => setDetailPartner(null)} className="p-1.5 rounded-lg hover:bg-background transition-colors text-text-secondary hover:text-text">
-                  <X size={18} />
-                </button>
-              </div>
-
-              <div className="max-h-[70vh] overflow-y-auto -mx-6 px-6 py-5 space-y-5">
-                {/* Badges row */}
-                <div className="flex flex-wrap gap-2">
-                  <Badge variant={contractInfo.variant} size="sm">
-                    Contrat {contractInfo.label}
-                  </Badge>
-                  <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold ${isActive ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-600'}`}>
-                    <span className={`w-1.5 h-1.5 rounded-full ${isActive ? 'bg-emerald-500' : 'bg-gray-400'}`} />
-                    {isActive ? 'Actif' : 'Inactif'}
-                  </span>
-                </div>
-
-                {/* Key info grid */}
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                  <div className="bg-background/80 rounded-xl p-3 border border-border/30 text-center">
-                    <Briefcase size={16} className="text-accent mx-auto mb-1" />
-                    <p className="text-lg font-bold text-text">{detailPartner.activity_count}</p>
-                    <p className="text-[10px] text-text-secondary">Activités</p>
-                  </div>
-                  <div className="bg-background/80 rounded-xl p-3 border border-border/30 text-center">
-                    <TrendingUp size={16} className={`${commissionColor} mx-auto mb-1`} />
-                    <p className={`text-lg font-bold ${commissionColor}`}>{detailPartner.commission_rate}%</p>
-                    <p className="text-[10px] text-text-secondary">Commission</p>
-                  </div>
-                  <div className="bg-background/80 rounded-xl p-3 border border-border/30 text-center">
-                    <Calendar size={16} className="text-violet-600 mx-auto mb-1" />
-                    <p className="text-lg font-bold text-violet-600">{partnerCommission?.reservation_count || 0}</p>
-                    <p className="text-[10px] text-text-secondary">Réservations</p>
-                  </div>
-                  <div className="bg-background/80 rounded-xl p-3 border border-border/30 text-center">
-                    <DollarSign size={16} className="text-emerald-600 mx-auto mb-1" />
-                    <p className="text-lg font-bold text-emerald-600">{formatMAD(partnerCommission?.total_commission || 0)}</p>
-                    <p className="text-[10px] text-text-secondary">Commission totale</p>
-                  </div>
-                </div>
-
-                {/* Contact */}
-                <div className="bg-background/50 rounded-xl p-4 border border-border/30">
-                  <h4 className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-3">Contact</h4>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {detailPartner.email && (
-                      <div className="flex items-center gap-2.5 text-sm text-text">
-                        <div className="p-1.5 rounded-lg bg-blue-50">
-                          <Mail size={14} className="text-blue-600" />
-                        </div>
-                        {detailPartner.email}
+      {/* ── Activity Detail — portal full viewport with fluid scroll ─────── */}
+      {typeof document !== 'undefined' && detailActivity && createPortal(
+        <motion.div className="fixed inset-0 z-[100] flex items-center justify-center p-4" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setDetailActivity(null)} />
+          <motion.div
+            initial={{ opacity: 0, scale: 0.96, y: 12 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.96, y: 12 }}
+            transition={{ type: 'spring', stiffness: 320, damping: 30 }}
+            className="relative w-full max-w-2xl max-h-[90vh] rounded-2xl border flex flex-col overflow-hidden"
+            style={{
+              background: isDark ? 'linear-gradient(180deg, rgba(17,24,50,0.98), rgba(9,13,30,0.99))' : 'linear-gradient(180deg, rgba(255,255,255,0.98), rgba(248,250,252,0.99))',
+              borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(15,23,42,0.08)',
+              boxShadow: isDark ? '0 24px 60px -18px rgba(0,0,0,0.85), inset 0 1px 0 rgba(255,255,255,0.06)' : '0 24px 60px -20px rgba(13,148,136,0.35), inset 0 1px 0 rgba(255,255,255,1)',
+            }}
+          >
+            {(() => {
+              const cat = CATEGORY_CONFIG[detailActivity.category] || CATEGORY_CONFIG.Autre
+              const hue = CATEGORY_HUES[detailActivity.category] || CATEGORY_HUES.Autre
+              const CatIcon = cat.icon
+              const allPhotos: string[] = []
+              if (detailActivity.photo_url) allPhotos.push(detailActivity.photo_url)
+              if (detailActivity.photos?.length) allPhotos.push(...detailActivity.photos)
+              const hasMultiplePhotos = allPhotos.length > 1
+              return (
+                <>
+                  <div className="absolute top-0 inset-x-0 h-[3px]" style={{ background: `linear-gradient(90deg, ${hue.a}, ${hue.b})` }} />
+                  <div className="flex items-center justify-between px-6 py-4 border-b shrink-0" style={{ borderColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(15,23,42,0.06)', background: `radial-gradient(90% 140% at 0% 0%, ${hue.glow}, transparent 65%)` }}>
+                    <div className="flex items-center gap-3 min-w-0">
+                      <OrbIcon icon={CatIcon} hue={hue} size={40} radius={12} />
+                      <div className="min-w-0">
+                        <h2 className={cn('text-base font-bold truncate', isDark ? 'text-white' : 'text-slate-900')}>{detailActivity.name}</h2>
+                        {detailActivity.short_description && <p className={cn('text-xs truncate', isDark ? 'text-slate-400' : 'text-slate-500')}>{detailActivity.short_description}</p>}
                       </div>
-                    )}
-                    {detailPartner.phone && (
-                      <div className="flex items-center gap-2.5 text-sm text-text">
-                        <div className="p-1.5 rounded-lg bg-emerald-50">
-                          <MessageCircle size={14} className="text-emerald-600" />
-                        </div>
-                        {detailPartner.phone}
-                      </div>
-                    )}
-                    {detailPartner.address && (
-                      <div className="flex items-center gap-2.5 text-sm text-text sm:col-span-2">
-                        <div className="p-1.5 rounded-lg bg-amber-50">
-                          <MapPin size={14} className="text-amber-600" />
-                        </div>
-                        {detailPartner.address}
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Activities list */}
-                {partnerActivities.length > 0 && (
-                  <div className="border border-border/40 rounded-xl overflow-hidden">
-                    <div className="px-4 py-3 bg-background/50 flex items-center gap-2">
-                      <Compass size={14} className="text-accent" />
-                      <h4 className="text-sm font-semibold text-text">Activités associées</h4>
-                      <span className="px-1.5 py-0.5 text-[10px] font-medium bg-accent/10 text-accent rounded">{partnerActivities.length}</span>
                     </div>
-                    <div className="divide-y divide-border/20">
-                      {partnerActivities.map(a => {
-                        const cat = CATEGORY_CONFIG[a.category] || CATEGORY_CONFIG.Autre
-                        const CatIcon = cat.icon
-                        return (
-                          <div key={a.id} className="px-4 py-3 flex items-center justify-between gap-3 hover:bg-background/30 transition-colors">
-                            <div className="flex items-center gap-3 min-w-0">
-                              <div className={`p-2 rounded-lg ${cat.bg} flex-shrink-0`}>
-                                <CatIcon size={14} className={cat.color} />
+                    <button onClick={() => setDetailActivity(null)} className={cn('w-8 h-8 rounded-xl flex items-center justify-center border shrink-0 transition-all', isDark ? 'border-white/10 bg-white/5 text-slate-400 hover:text-white hover:bg-white/10' : 'border-slate-200 bg-white text-slate-500 hover:text-slate-900')}>
+                      <X size={16} />
+                    </button>
+                  </div>
+
+                  <div
+                    className="flex-1 overflow-y-auto scrollbar-thin px-6 py-5 space-y-5"
+                    style={{
+                      overscrollBehavior: 'contain',
+                      WebkitOverflowScrolling: 'touch' as any,
+                      transform: 'translateZ(0)',
+                      willChange: 'scroll-position',
+                      scrollBehavior: 'smooth' as any,
+                    }}
+                  >
+                    {allPhotos.length > 0 && (
+                      <div className="rounded-2xl overflow-hidden border" style={{ borderColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(15,23,42,0.06)' }}>
+                        <div className="relative aspect-[16/9] overflow-hidden bg-gray-900 group">
+                          <img src={`${API_ORIGIN}${allPhotos[photoIndex]}`} alt={detailActivity.name} className="w-full h-full object-cover" />
+                          <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
+                          {hasMultiplePhotos && (
+                            <>
+                              <button onClick={() => setPhotoIndex((photoIndex - 1 + allPhotos.length) % allPhotos.length)} className="absolute left-3 top-1/2 -translate-y-1/2 p-2.5 rounded-full bg-black/50 text-white hover:bg-black/70 transition-all opacity-0 group-hover:opacity-100 backdrop-blur-sm">
+                                <ChevronLeft size={16} />
+                              </button>
+                              <button onClick={() => setPhotoIndex((photoIndex + 1) % allPhotos.length)} className="absolute right-3 top-1/2 -translate-y-1/2 p-2.5 rounded-full bg-black/50 text-white hover:bg-black/70 transition-all opacity-0 group-hover:opacity-100 backdrop-blur-sm">
+                                <ChevronRight size={16} />
+                              </button>
+                              <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                                {allPhotos.map((_, idx) => (
+                                  <button key={idx} onClick={() => setPhotoIndex(idx)} className={cn('rounded-full transition-all', idx === photoIndex ? 'w-5 h-1.5 bg-white' : 'w-1.5 h-1.5 bg-white/60')} />
+                                ))}
                               </div>
-                              <div className="min-w-0">
-                                <p className="text-sm font-medium text-text truncate">{a.name}</p>
-                                <p className="text-[11px] text-text-secondary">{a.category} • {a.duration_hours ? `${a.duration_hours}h` : '—'}</p>
+                              <div className="absolute top-3 left-3 px-2.5 py-1 rounded-lg bg-black/55 text-white text-[11px] font-bold backdrop-blur-md border border-white/15 opacity-0 group-hover:opacity-100 transition-opacity">
+                                {photoIndex + 1} / {allPhotos.length}
                               </div>
-                            </div>
-                            <div className="text-right flex-shrink-0">
-                              <p className="text-sm font-bold text-accent">{formatPrice(a.price)}</p>
-                              <p className="text-[10px] text-text-secondary">{a.commission_rate}% comm.</p>
-                            </div>
-                          </div>
-                        )
-                      })}
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="flex flex-wrap gap-2">
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-white border border-white/20 backdrop-blur-md" style={{ background: `linear-gradient(135deg, ${hue.a}, ${hue.b})`, boxShadow: `0 4px 14px ${hue.glow}` }}>
+                        <CatIcon size={12} /> {detailActivity.category}
+                      </span>
+                      <StageBadge variant={detailActivity.is_active ? 'ok' : 'neutral'}>{detailActivity.is_active ? 'Actif' : 'Inactif'}</StageBadge>
                     </div>
-                  </div>
-                )}
 
-                {/* Notes */}
-                {detailPartner.notes && (
-                  <div className="bg-background/50 rounded-xl p-4 border border-border/30">
-                    <h4 className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-2">Notes</h4>
-                    <p className="text-sm text-text leading-relaxed whitespace-pre-line">{detailPartner.notes}</p>
-                  </div>
-                )}
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                      {[
+                        { icon: Clock, label: 'Durée', value: detailActivity.duration_hours ? `${detailActivity.duration_hours}h` : '—', hue: STAGE_HUES.sky },
+                        { icon: Users, label: 'Capacité', value: `${detailActivity.min_capacity}-${detailActivity.max_capacity}`, hue: STAGE_HUES.violet },
+                        { icon: DollarSign, label: 'Prix public', value: formatPrice(detailActivity.price), hue: STAGE_HUES.amber, colored: true },
+                        { icon: TrendingUp, label: 'Commission', value: `${detailActivity.commission_rate}%`, hue: STAGE_HUES.emerald, colored: true },
+                      ].map(k => (
+                        <div key={k.label} className={cn('rounded-xl p-3 border text-center', isDark ? 'bg-white/[0.04] border-white/5' : 'bg-white border-slate-100')}>
+                          <OrbIcon icon={k.icon} hue={k.hue} size={28} radius={8} className="mx-auto mb-1.5" />
+                          <p className={cn('text-sm font-extrabold', k.colored ? '' : isDark ? 'text-white' : 'text-slate-900')} style={k.colored ? { color: k.hue.a } : undefined}>{k.value}</p>
+                          <p className={cn('text-[10px] font-bold uppercase tracking-wider', isDark ? 'text-slate-500' : 'text-slate-400')}>{k.label}</p>
+                        </div>
+                      ))}
+                    </div>
 
-                {/* Revenue summary */}
-                {partnerCommission && partnerCommission.total_revenue > 0 && (
-                  <div className="bg-gradient-to-br from-emerald-50 to-teal-50 rounded-xl p-4 border border-emerald-200/50">
-                    <h4 className="text-xs font-semibold text-emerald-700 uppercase tracking-wider mb-3 flex items-center gap-1.5">
-                      <BarChart size={12} /> Résumé financier
-                    </h4>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <p className="text-[11px] text-emerald-600/70">Chiffre d'affaires</p>
-                        <p className="text-lg font-bold text-emerald-700">{formatMAD(partnerCommission.total_revenue)}</p>
+                    {detailActivity.description && (
+                      <div className={cn('rounded-xl p-4 border', isDark ? 'bg-white/[0.03] border-white/5' : 'bg-slate-50 border-slate-100')}>
+                        <h4 className={cn('text-[11px] font-bold uppercase tracking-wider mb-2', isDark ? 'text-slate-400' : 'text-slate-500')}>Description</h4>
+                        <p className={cn('text-sm leading-relaxed whitespace-pre-line', isDark ? 'text-slate-300' : 'text-slate-700')}>{detailActivity.description}</p>
+                      </div>
+                    )}
+
+                    {detailActivity.partner_name && (
+                      <div className={cn('flex items-center gap-3 p-3 rounded-xl border', isDark ? 'bg-white/[0.03] border-white/5' : 'bg-white border-slate-100')}>
+                        <div className="w-9 h-9 rounded-xl flex items-center justify-center text-sm font-extrabold border" style={{ background: `${hue.a}15`, borderColor: `${hue.a}25`, color: hue.a }}>
+                          {detailActivity.partner_name[0]}
+                        </div>
+                        <div>
+                          <p className={cn('text-sm font-semibold', isDark ? 'text-white' : 'text-slate-900')}>{detailActivity.partner_name}</p>
+                          <p className={cn('text-[11px]', isDark ? 'text-slate-500' : 'text-slate-500')}>Partenaire • Commission {detailActivity.commission_rate}%</p>
+                        </div>
+                      </div>
+                    )}
+
+                    {detailActivity.pricing_tiers && detailActivity.pricing_tiers.length > 0 && (
+                      <div className={cn('rounded-xl overflow-hidden border', isDark ? 'border-white/5' : 'border-slate-200')}>
+                        <div className={cn('px-4 py-3 flex items-center gap-2', isDark ? 'bg-white/[0.03]' : 'bg-slate-50')}>
+                          <OrbIcon icon={DollarSign} hue={STAGE_HUES.violet} size={24} radius={7} />
+                          <h4 className={cn('text-sm font-bold', isDark ? 'text-white' : 'text-slate-900')}>Grille tarifaire</h4>
+                          <StageBadge variant="violet">{detailActivity.pricing_tiers.length}</StageBadge>
+                        </div>
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-sm">
+                            <thead>
+                              <tr className={cn('border-t text-left text-[11px] uppercase tracking-wider', isDark ? 'border-white/5 text-slate-500 bg-white/[0.02]' : 'border-slate-100 text-slate-500 bg-white')}>
+                                <th className="px-4 py-2">Personnes</th>
+                                <th className="px-4 py-2 text-right">Prix / pers.</th>
+                                <th className="px-4 py-2 text-right">Total min</th>
+                                <th className="px-4 py-2 text-right">Net partenaire</th>
+                              </tr>
+                            </thead>
+                            <tbody className={cn('divide-y', isDark ? 'divide-white/5' : 'divide-slate-100')}>
+                              {detailActivity.pricing_tiers.map((t: any) => {
+                                const rate = t.commission_rate != null ? t.commission_rate : detailActivity.commission_rate
+                                const totalMin = Number(t.price_per_person) * t.min_persons
+                                const net = Number(t.price_per_person) * (1 - rate / 100)
+                                return (
+                                  <tr key={t.id} className={cn(isDark ? 'hover:bg-white/[0.03]' : 'hover:bg-slate-50')}>
+                                    <td className={cn('px-4 py-2.5 font-semibold', isDark ? 'text-white' : 'text-slate-900')}>
+                                      {t.min_persons === t.max_persons ? `${t.min_persons} pers.` : `${t.min_persons}-${t.max_persons} pers.`}
+                                    </td>
+                                    <td className="px-4 py-2.5 text-right">{formatMAD(Number(t.price_per_person))}</td>
+                                    <td className="px-4 py-2.5 text-right font-medium">{formatMAD(totalMin)}</td>
+                                    <td className="px-4 py-2.5 text-right font-bold text-emerald-600">{formatMAD(net)}/pers.</td>
+                                  </tr>
+                                )
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    )}
+
+                    {(detailActivity.included_items?.length > 0 || detailActivity.not_included_items?.length > 0) && (
+                      <div className="grid grid-cols-2 gap-3">
+                        {detailActivity.included_items?.length > 0 && (
+                          <div className={cn('rounded-xl p-4 border', isDark ? 'bg-emerald-500/10 border-emerald-500/20' : 'bg-emerald-50 border-emerald-200')}>
+                            <h4 className="text-xs font-bold text-emerald-600 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                              <Check size={12} /> Inclus
+                            </h4>
+                            <ul className="space-y-1.5">
+                              {detailActivity.included_items.map((item: string, i: number) => (
+                                <li key={i} className={cn('flex items-center gap-2 text-sm', isDark ? 'text-emerald-300' : 'text-emerald-800')}>
+                                  <span className="w-1 h-1 rounded-full bg-emerald-500 shrink-0" />
+                                  {item}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                        {detailActivity.not_included_items?.length > 0 && (
+                          <div className={cn('rounded-xl p-4 border', isDark ? 'bg-rose-500/10 border-rose-500/20' : 'bg-rose-50 border-rose-200')}>
+                            <h4 className="text-xs font-bold text-rose-600 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                              <XCircle size={12} /> Non inclus
+                            </h4>
+                            <ul className="space-y-1.5">
+                              {detailActivity.not_included_items.map((item: string, i: number) => (
+                                <li key={i} className={cn('flex items-center gap-2 text-sm', isDark ? 'text-rose-300' : 'text-rose-800')}>
+                                  <span className="w-1 h-1 rounded-full bg-rose-500 shrink-0" />
+                                  {item}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {(detailActivity.whatsapp || detailActivity.contact_email) && (
+                      <div className={cn('rounded-xl p-4 border', isDark ? 'bg-white/[0.03] border-white/5' : 'bg-white border-slate-100')}>
+                        <h4 className={cn('text-[11px] font-bold uppercase tracking-wider mb-2', isDark ? 'text-slate-400' : 'text-slate-500')}>Contact</h4>
+                        <div className="flex flex-wrap gap-3">
+                          {detailActivity.whatsapp && (
+                            <span className={cn('inline-flex items-center gap-1.5 text-sm', isDark ? 'text-slate-300' : 'text-slate-700')}>
+                              <MessageCircle size={13} className="text-emerald-500" /> {detailActivity.whatsapp}
+                            </span>
+                          )}
+                          {detailActivity.contact_email && (
+                            <span className={cn('inline-flex items-center gap-1.5 text-sm', isDark ? 'text-slate-300' : 'text-slate-700')}>
+                              <Mail size={13} className="text-sky-500" /> {detailActivity.contact_email}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className={cn('flex items-center justify-end gap-2 px-6 py-4 border-t shrink-0', isDark ? 'border-white/5 bg-white/[0.02]' : 'border-slate-100 bg-slate-50/50')}>
+                    <button onClick={() => { setDetailActivity(null); openEdit('activity', detailActivity) }} className={stageBtns.primary}>
+                      <Edit3 size={13} /> Modifier
+                    </button>
+                  </div>
+                </>
+              )
+            })()}
+          </motion.div>
+        </motion.div>,
+        document.body,
+      )}
+
+      {/* ── Partner Detail — portal ───────────────────────────────────── */}
+      {typeof document !== 'undefined' && detailPartner && createPortal(
+        <motion.div className="fixed inset-0 z-[100] flex items-center justify-center p-4" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setDetailPartner(null)} />
+          <motion.div
+            initial={{ opacity: 0, scale: 0.96, y: 12 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.96, y: 12 }}
+            transition={{ type: 'spring', stiffness: 320, damping: 30 }}
+            className="relative w-full max-w-2xl max-h-[90vh] rounded-2xl border flex flex-col overflow-hidden"
+            style={{
+              background: isDark ? 'linear-gradient(180deg, rgba(17,24,50,0.98), rgba(9,13,30,0.99))' : 'linear-gradient(180deg, rgba(255,255,255,0.98), rgba(248,250,252,0.99))',
+              borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(15,23,42,0.08)',
+              boxShadow: isDark ? '0 24px 60px -18px rgba(0,0,0,0.85), inset 0 1px 0 rgba(255,255,255,0.06)' : '0 24px 60px -20px rgba(13,148,136,0.35), inset 0 1px 0 rgba(255,255,255,1)',
+            }}
+          >
+            {(() => {
+              const isActive = (detailPartner as any).is_active !== false
+              const hue: StageHue = detailPartner.commission_rate >= 15 ? STAGE_HUES.emerald : detailPartner.commission_rate >= 10 ? STAGE_HUES.violet : STAGE_HUES.amber
+              const contractInfo = CONTRACT_STATUSES[detailPartner.contract_status] || { label: detailPartner.contract_status, variant: 'default' as const }
+              const partnerActivities = activities.filter(a => a.partner_id === detailPartner.id)
+              const partnerCommission = commissions.find(c => c.partner_id === detailPartner.id)
+              return (
+                <>
+                  <div className="absolute top-0 inset-x-0 h-[3px]" style={{ background: `linear-gradient(90deg, ${hue.a}, ${hue.b})` }} />
+                  <div className="flex items-center justify-between px-6 py-4 border-b shrink-0" style={{ borderColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(15,23,42,0.06)', background: `radial-gradient(90% 140% at 0% 0%, ${hue.glow}, transparent 65%)` }}>
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl flex items-center justify-center text-sm font-extrabold border" style={{ background: `${hue.a}15`, borderColor: `${hue.a}25`, color: hue.a }}>
+                        {detailPartner.name.substring(0, 2).toUpperCase()}
                       </div>
                       <div>
-                        <p className="text-[11px] text-emerald-600/70">Commission perçue</p>
-                        <p className="text-lg font-bold text-emerald-700">{formatMAD(partnerCommission.total_commission)}</p>
+                        <h2 className={cn('text-base font-bold', isDark ? 'text-white' : 'text-slate-900')}>{detailPartner.name}</h2>
+                        {detailPartner.contact_name && <p className={cn('text-xs', isDark ? 'text-slate-400' : 'text-slate-500')}>{detailPartner.contact_name}</p>}
                       </div>
                     </div>
+                    <button onClick={() => setDetailPartner(null)} className={cn('w-8 h-8 rounded-xl flex items-center justify-center border transition-all', isDark ? 'border-white/10 bg-white/5 text-slate-400 hover:text-white hover:bg-white/10' : 'border-slate-200 bg-white text-slate-500 hover:text-slate-900')}>
+                      <X size={16} />
+                    </button>
                   </div>
-                )}
-              </div>
 
-              {/* Footer actions */}
-              <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-border/30 -mx-6 -mb-4 mt-0">
-                <Button variant="outline" onClick={() => { setDetailPartner(null); openEdit('partner', detailPartner) }} className="gap-2">
-                  <Edit3 size={14} /> Modifier
-                </Button>
-              </div>
-            </>
-          )
-        })()}
-      </Dialog>
-    </div>
+                  <div
+                    className="flex-1 overflow-y-auto scrollbar-thin px-6 py-5 space-y-5"
+                    style={{
+                      overscrollBehavior: 'contain',
+                      WebkitOverflowScrolling: 'touch' as any,
+                      transform: 'translateZ(0)',
+                      willChange: 'scroll-position',
+                      scrollBehavior: 'smooth' as any,
+                    }}
+                  >
+                    <div className="flex flex-wrap gap-2">
+                      <StageBadge variant={contractInfo.variant as any}>Contrat {contractInfo.label}</StageBadge>
+                      <StageBadge variant={isActive ? 'ok' : 'neutral'}>{isActive ? 'Actif' : 'Inactif'}</StageBadge>
+                    </div>
+
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                      {[
+                        { icon: Briefcase, label: 'Activités', value: detailPartner.activity_count, hue: STAGE_HUES.violet },
+                        { icon: TrendingUp, label: 'Commission', value: `${detailPartner.commission_rate}%`, hue, colored: true },
+                        { icon: Calendar, label: 'Réservations', value: partnerCommission?.reservation_count || 0, hue: STAGE_HUES.sky },
+                        { icon: DollarSign, label: 'Commission totale', value: formatMAD(partnerCommission?.total_commission || 0), hue: STAGE_HUES.emerald },
+                      ].map(k => (
+                        <div key={k.label} className={cn('rounded-xl p-3 border text-center', isDark ? 'bg-white/[0.04] border-white/5' : 'bg-white border-slate-100')}>
+                          <OrbIcon icon={k.icon} hue={k.hue} size={26} radius={8} className="mx-auto mb-1.5" />
+                          <p className={cn('text-sm font-extrabold', isDark ? 'text-white' : 'text-slate-900')} style={k.colored ? { color: k.hue.a } : undefined}>{k.value}</p>
+                          <p className={cn('text-[10px] font-bold uppercase tracking-wider', isDark ? 'text-slate-500' : 'text-slate-400')}>{k.label}</p>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className={cn('rounded-xl p-4 border', isDark ? 'bg-white/[0.03] border-white/5' : 'bg-white border-slate-100')}>
+                      <h4 className={cn('text-[11px] font-bold uppercase tracking-wider mb-3', isDark ? 'text-slate-400' : 'text-slate-500')}>Contact</h4>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {detailPartner.email && (
+                          <div className={cn('flex items-center gap-2.5 text-sm', isDark ? 'text-slate-300' : 'text-slate-700')}>
+                            <div className="p-1.5 rounded-lg" style={{ background: `${STAGE_HUES.sky.a}15` }}><Mail size={13} style={{ color: STAGE_HUES.sky.a }} /></div>
+                            {detailPartner.email}
+                          </div>
+                        )}
+                        {detailPartner.phone && (
+                          <div className={cn('flex items-center gap-2.5 text-sm', isDark ? 'text-slate-300' : 'text-slate-700')}>
+                            <div className="p-1.5 rounded-lg" style={{ background: `${STAGE_HUES.emerald.a}15` }}><MessageCircle size={13} style={{ color: STAGE_HUES.emerald.a }} /></div>
+                            {detailPartner.phone}
+                          </div>
+                        )}
+                        {detailPartner.address && (
+                          <div className={cn('flex items-center gap-2.5 text-sm sm:col-span-2', isDark ? 'text-slate-300' : 'text-slate-700')}>
+                            <div className="p-1.5 rounded-lg" style={{ background: `${STAGE_HUES.amber.a}15` }}><MapPin size={13} style={{ color: STAGE_HUES.amber.a }} /></div>
+                            {detailPartner.address}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {partnerActivities.length > 0 && (
+                      <div className={cn('rounded-xl overflow-hidden border', isDark ? 'border-white/5' : 'border-slate-200')}>
+                        <div className={cn('px-4 py-3 flex items-center gap-2', isDark ? 'bg-white/[0.03]' : 'bg-slate-50')}>
+                          <OrbIcon icon={Compass} hue={STAGE_HUES.violet} size={22} radius={7} />
+                          <h4 className={cn('text-sm font-bold', isDark ? 'text-white' : 'text-slate-900')}>Activités associées</h4>
+                          <StageBadge variant="violet">{partnerActivities.length}</StageBadge>
+                        </div>
+                        <div className={cn('divide-y', isDark ? 'divide-white/5' : 'divide-slate-100')}>
+                          {partnerActivities.map(a => {
+                            const catHue = CATEGORY_HUES[a.category] || CATEGORY_HUES.Autre
+                            const CatIcon = (CATEGORY_CONFIG[a.category] || CATEGORY_CONFIG.Autre).icon
+                            return (
+                              <div key={a.id} className={cn('px-4 py-3 flex items-center justify-between gap-3', isDark ? 'hover:bg-white/[0.03]' : 'hover:bg-slate-50')}>
+                                <div className="flex items-center gap-3 min-w-0">
+                                  <div className="p-2 rounded-lg border shrink-0" style={{ background: `${catHue.a}12`, borderColor: `${catHue.a}18`, color: catHue.a }}>
+                                    <CatIcon size={13} />
+                                  </div>
+                                  <div className="min-w-0">
+                                    <p className={cn('text-sm font-semibold truncate', isDark ? 'text-white' : 'text-slate-900')}>{a.name}</p>
+                                    <p className={cn('text-[11px]', isDark ? 'text-slate-500' : 'text-slate-500')}>{a.category} • {a.duration_hours ? `${a.duration_hours}h` : '—'}</p>
+                                  </div>
+                                </div>
+                                <div className="text-right shrink-0">
+                                  <p className="text-sm font-extrabold" style={{ color: catHue.a }}>{formatPrice(a.price)}</p>
+                                  <p className={cn('text-[10px]', isDark ? 'text-slate-500' : 'text-slate-400')}>{a.commission_rate}% comm.</p>
+                                </div>
+                              </div>
+                            )
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    {detailPartner.notes && (
+                      <div className={cn('rounded-xl p-4 border', isDark ? 'bg-white/[0.03] border-white/5' : 'bg-slate-50 border-slate-100')}>
+                        <h4 className={cn('text-[11px] font-bold uppercase tracking-wider mb-2', isDark ? 'text-slate-400' : 'text-slate-500')}>Notes</h4>
+                        <p className={cn('text-sm leading-relaxed whitespace-pre-line', isDark ? 'text-slate-300' : 'text-slate-700')}>{detailPartner.notes}</p>
+                      </div>
+                    )}
+
+                    {partnerCommission && partnerCommission.total_revenue > 0 && (
+                      <div className="rounded-xl p-4 border" style={{ background: isDark ? 'rgba(16,185,129,0.08)' : 'linear-gradient(135deg, #ECFDF5, #F0FDF4)', borderColor: isDark ? 'rgba(16,185,129,0.2)' : 'rgba(16,185,129,0.2)' }}>
+                        <h4 className="text-xs font-bold text-emerald-600 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                          <BarChart size={12} /> Résumé financier
+                        </h4>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <p className={cn('text-[11px]', isDark ? 'text-emerald-400/70' : 'text-emerald-600/70')}>Chiffre d'affaires</p>
+                            <p className="text-lg font-extrabold text-emerald-600">{formatMAD(partnerCommission.total_revenue)}</p>
+                          </div>
+                          <div>
+                            <p className={cn('text-[11px]', isDark ? 'text-emerald-400/70' : 'text-emerald-600/70')}>Commission perçue</p>
+                            <p className="text-lg font-extrabold text-emerald-600">{formatMAD(partnerCommission.total_commission)}</p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className={cn('flex items-center justify-end gap-2 px-6 py-4 border-t shrink-0', isDark ? 'border-white/5 bg-white/[0.02]' : 'border-slate-100 bg-slate-50/50')}>
+                    <button onClick={() => { setDetailPartner(null); openEdit('partner', detailPartner) }} className={stageBtns.primary}>
+                      <Edit3 size={13} /> Modifier
+                    </button>
+                  </div>
+                </>
+              )
+            })()}
+          </motion.div>
+        </motion.div>,
+        document.body,
+      )}
+    </Stage>
   )
 }

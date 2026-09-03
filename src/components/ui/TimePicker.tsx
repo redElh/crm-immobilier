@@ -1,8 +1,9 @@
 import React, { useRef, useState, useEffect, useCallback } from 'react'
-import { createPortal } from 'react-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Clock } from 'react-feather'
 import { cn } from '../../lib/utils'
+import { portalWithTheme } from './dropdownTheme'
+import { useStageChrome } from '../modules/calendar/useStageChrome'
 
 interface TimePickerProps {
   label?: string
@@ -28,6 +29,7 @@ function parseTime(val: string) {
 
 export const TimePicker = React.forwardRef<HTMLInputElement, TimePickerProps>(
   ({ label, value, onChange, onBlur, error, className, placeholder, required, disabled, name }, ref) => {
+    const { staged, dark } = useStageChrome()
     const [isOpen, setIsOpen] = useState(false)
     const [selectedTime, setSelectedTime] = useState(value || '')
     const containerRef = useRef<HTMLDivElement>(null)
@@ -124,10 +126,15 @@ export const TimePicker = React.forwardRef<HTMLInputElement, TimePickerProps>(
 
     const displayValue = currentValue || placeholder || 'Sélectionner une heure'
 
+    const stagedClass = staged
+      ? dark
+        ? 'w-full h-9 flex items-center gap-2 px-3 text-sm rounded-xl border border-white/10 bg-gradient-to-b from-white/[0.08] to-white/[0.02] [background-color:transparent] text-slate-100 outline-none transition-all duration-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.14),inset_0_-8px_16px_-12px_rgba(0,0,0,0.7),0_6px_18px_-8px_rgba(3,5,14,0.9)] hover:border-white/15 focus:border-violet-400/70'
+        : 'w-full h-9 flex items-center gap-2 px-3 text-sm rounded-xl border border-teal-900/15 bg-gradient-to-b from-white to-teal-50/70 [background-color:transparent] text-teal-950 outline-none transition-all duration-200 shadow-[inset_0_1px_0_rgba(255,255,255,1),inset_0_-6px_14px_-10px_rgba(13,148,136,0.35),0_6px_18px_-10px_rgba(13,148,136,0.45)] hover:border-teal-900/20 focus:border-teal-500/70'
+      : null
     return (
       <div ref={containerRef}>
         {label && (
-          <label className="block text-sm font-medium text-text mb-1.5">
+          <label className={cn('block mb-1.5', staged ? (dark ? 'text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400/85' : 'text-[11px] font-bold uppercase tracking-[0.14em] text-teal-900/55') : 'text-sm font-medium text-text mb-1.5')}>
             {label}
             {required && <span className="text-error ml-0.5">*</span>}
           </label>
@@ -140,23 +147,27 @@ export const TimePicker = React.forwardRef<HTMLInputElement, TimePickerProps>(
             onClick={handleToggle}
             onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') handleToggle() }}
             className={cn(
-              'w-full h-9 flex items-center gap-2 px-3 text-sm rounded-lg border bg-card text-text cursor-pointer',
-              'focus:outline-none focus:ring-2 focus:ring-accent/15 focus:border-accent',
-              'hover:border-text-secondary/30',
-              'transition-all duration-200 ease-out',
-              error ? 'border-error ring-2 ring-error/15' : 'border-border',
-              disabled && 'opacity-50 cursor-not-allowed',
-              className
+              stagedClass ? stagedClass : cn(
+                'w-full h-9 flex items-center gap-2 px-3 text-sm rounded-lg cursor-pointer',
+                'transition-all duration-200 ease-out',
+                'border bg-card text-text',
+                'focus:outline-none focus:ring-2 focus:ring-accent/15 focus:border-accent',
+                'hover:border-text-secondary/30'
+              ),
+              className,
+              error && (staged ? '!border-rose-400/60' : 'border-error ring-2 ring-error/15'),
+              disabled && 'opacity-50 cursor-not-allowed pointer-events-none',
             )}
           >
-            <Clock size={15} className="text-text-secondary shrink-0" />
-            <span className={cn('flex-1 truncate', !currentValue && 'text-text-secondary/60')}>
+            <Clock size={15} className={cn('shrink-0', staged && dark ? 'text-slate-500' : 'text-text-secondary')} />
+            <span className={cn('flex-1 truncate', !currentValue && (staged && dark ? 'text-slate-500' : 'text-text-secondary/60'))}>
               {displayValue}
             </span>
           </div>
         </div>
 
-        {createPortal(
+        {portalWithTheme(
+          buttonRef.current,
           <AnimatePresence>
             {isOpen && (
               <motion.div
@@ -235,7 +246,6 @@ export const TimePicker = React.forwardRef<HTMLInputElement, TimePickerProps>(
               </motion.div>
             )}
           </AnimatePresence>,
-          document.body
         )}
 
         <input

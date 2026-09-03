@@ -1,12 +1,15 @@
 import { useState, useRef, useEffect } from 'react'
-import { Input } from '../../../components/ui/Input'
+import { createPortal } from 'react-dom'
 import { Select } from '../../../components/ui/Select'
 import { Button } from '../../../components/ui/Button'
-import { Dialog } from '../../../components/ui/Dialog'
 import { API_ORIGIN } from '../../../utils/config'
 import { getAuthToken } from '../../../utils/auth'
 import { Compass, DollarSign, Package, Image, Clock, ChevronDown, Plus, Edit3, Trash2, X, ChevronLeft, ChevronRight, Upload } from 'react-feather'
 import { motion, AnimatePresence } from 'framer-motion'
+import { useStageChrome } from '../../../components/modules/calendar/useStageChrome'
+import { useStageFormClasses } from '../../../components/modules/calendar/StageModal'
+import { cn } from '../../../lib/utils'
+import { OrbIcon, STAGE_HUES } from '../../../components/dashboard/Stage'
 
 const CATEGORIES = [
   { value: 'Nautique', label: 'Nautique' },
@@ -49,18 +52,17 @@ interface ActivityFormProps {
   onSaved?: () => void
 }
 
-function Section({ title, icon: Icon, children, defaultOpen = true }: { title: string; icon: any; children: React.ReactNode; defaultOpen?: boolean }) {
+function Section({ title, icon: Icon, hue = STAGE_HUES.violet, children, defaultOpen = true }: { title: string; icon: any; hue?: any; children: React.ReactNode; defaultOpen?: boolean }) {
   const [open, setOpen] = useState(defaultOpen)
+  const { staged, dark } = useStageChrome()
   return (
-    <div className="border border-border/40 rounded-xl overflow-hidden">
+    <div className={cn('overflow-hidden rounded-2xl border', staged ? (dark ? 'border-white/5 bg-white/[0.03]' : 'border-slate-200 bg-white shadow-sm') : 'border-border/40 bg-card')}>
       <button type="button" onClick={() => setOpen(!open)}
-        className="w-full flex items-center gap-3 px-5 py-3.5 bg-background/50 hover:bg-background transition-colors text-left">
-        <div className="p-1.5 rounded-lg bg-accent/10">
-          <Icon size={14} className="text-accent" />
-        </div>
-        <span className="text-sm font-semibold text-text flex-1">{title}</span>
+        className={cn('w-full flex items-center gap-3 px-5 py-3.5 transition-colors text-left', staged ? (dark ? 'bg-white/[0.02] hover:bg-white/[0.05]' : 'bg-slate-50/70 hover:bg-white') : 'bg-background/50 hover:bg-background')}>
+        <OrbIcon icon={Icon} hue={hue} size={26} radius={8} />
+        <span className={cn('text-sm font-bold flex-1', staged ? (dark ? 'text-white' : 'text-slate-900') : 'text-text')}>{title}</span>
         <motion.div animate={{ rotate: open ? 180 : 0 }} transition={{ duration: 0.2 }}>
-          <ChevronDown size={14} className="text-text-secondary" />
+          <ChevronDown size={14} className={dark ? 'text-slate-400' : 'text-slate-500'} />
         </motion.div>
       </button>
       <AnimatePresence initial={false}>
@@ -72,7 +74,7 @@ function Section({ title, icon: Icon, children, defaultOpen = true }: { title: s
             transition={{ duration: 0.25, ease: [0.4, 0, 0.2, 1] }}
             className="overflow-hidden"
           >
-            <div className="px-5 py-4 space-y-4 border-t border-border/30">
+            <div className={cn('px-5 py-4 space-y-4 border-t', staged ? (dark ? 'border-white/5' : 'border-slate-100') : 'border-border/30')}>
               {children}
             </div>
           </motion.div>
@@ -103,6 +105,10 @@ export default function ActivityForm({ form, setForm, partners, editing, activit
   const [photoViewIndex, setPhotoViewIndex] = useState(0)
   const [uploading, setUploading] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const { input: stageInput, label: stageLabel, staged, dark } = useStageFormClasses()
+  const ctrl = (extra?: string) => (staged ? stageInput(extra) : undefined)
+  const isDark = dark
 
   useEffect(() => { setIncluded(form.included_items || []) }, [form.included_items])
   useEffect(() => { setNotIncluded(form.not_included_items || []) }, [form.not_included_items])
@@ -252,101 +258,129 @@ export default function ActivityForm({ form, setForm, partners, editing, activit
 
   return (
     <div className="space-y-4">
-      <Section title="Informations générales" icon={Compass} defaultOpen={true}>
-        <Input
-          label="Nom de l'activité"
-          required
-          value={form.name || ''}
-          onChange={e => setForm({ ...form, name: e.target.value })}
-          placeholder="Ex : Excursion en mer"
-        />
-        <div className="grid grid-cols-2 gap-4">
-          <Select
-            label="Catégorie"
-            options={CATEGORIES}
-            value={form.category || 'Nautique'}
-            onChange={v => setForm({ ...form, category: v })}
-          />
-          <Select
-            label="Partenaire"
-            options={partners.map(p => ({ value: String(p.id), label: p.name }))}
-            value={form.partner_id || ''}
-            onChange={v => setForm({ ...form, partner_id: v })}
-            placeholder="Sélectionner..."
+      <Section title="Informations générales" icon={Compass} hue={STAGE_HUES.violet} defaultOpen={true}>
+        <div>
+          <label className={stageLabel}>Nom de l'activité <span className="text-rose-500">*</span></label>
+          <input
+            value={form.name || ''}
+            onChange={e => setForm({ ...form, name: e.target.value })}
+            placeholder="Ex : Excursion en mer"
+            className={stageInput('h-10')}
           />
         </div>
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <label className={stageLabel}>Catégorie</label>
+            <Select
+              options={CATEGORIES}
+              value={form.category || 'Nautique'}
+              onChange={v => setForm({ ...form, category: v })}
+              className={ctrl('h-10')}
+            />
+          </div>
+          <div>
+            <label className={stageLabel}>Partenaire</label>
+            <Select
+              options={partners.map(p => ({ value: String(p.id), label: p.name }))}
+              value={form.partner_id || ''}
+              onChange={v => setForm({ ...form, partner_id: v })}
+              placeholder="Sélectionner..."
+              className={ctrl('h-10')}
+            />
+          </div>
+        </div>
         <div>
-          <label className="text-sm font-medium text-text mb-2 block">Statut</label>
-          <div className="flex items-center gap-2 p-1 bg-background rounded-xl border border-border/40 w-fit">
+          <label className={stageLabel}>Statut</label>
+          <div className={cn('flex items-center gap-2 p-1 rounded-xl border w-fit', staged ? (isDark ? 'border-white/10 bg-white/[0.04]' : 'border-teal-900/10 bg-white/70') : 'bg-background rounded-xl border border-border/40')}>
             <button type="button" onClick={() => setForm({ ...form, is_active: true })}
-              className={`relative px-4 py-2 text-sm font-medium rounded-lg transition-all duration-200 ${form.is_active !== false ? 'bg-accent text-white shadow-sm' : 'text-text-secondary hover:text-text'}`}>
+              className={cn('relative px-4 py-2 text-sm font-semibold rounded-lg transition-all duration-200', form.is_active !== false ? 'text-white shadow-sm' : staged ? (isDark ? 'text-slate-400 hover:text-white' : 'text-teal-900/60 hover:text-teal-900') : 'text-text-secondary hover:text-text')}
+              style={form.is_active !== false ? { backgroundImage: isDark ? 'linear-gradient(135deg, #8B7CFF, #6C5ECF)' : 'linear-gradient(135deg, #2DD4BF, #0D9488)', boxShadow: '0 4px 12px rgba(124,92,255,0.3)' } : undefined}>
               <span className="flex items-center gap-2">
-                <span className={`w-1.5 h-1.5 rounded-full ${form.is_active !== false ? 'bg-white' : 'bg-emerald-500'}`} />
+                <span className={cn('w-1.5 h-1.5 rounded-full', form.is_active !== false ? 'bg-white' : 'bg-emerald-500')} />
                 Actif
               </span>
             </button>
             <button type="button" onClick={() => setForm({ ...form, is_active: false })}
-              className={`relative px-4 py-2 text-sm font-medium rounded-lg transition-all duration-200 ${form.is_active === false ? 'bg-accent text-white shadow-sm' : 'text-text-secondary hover:text-text'}`}>
+              className={cn('relative px-4 py-2 text-sm font-semibold rounded-lg transition-all duration-200', form.is_active === false ? 'text-white shadow-sm' : staged ? (isDark ? 'text-slate-400 hover:text-white' : 'text-teal-900/60 hover:text-teal-900') : 'text-text-secondary hover:text-text')}
+              style={form.is_active === false ? { backgroundImage: isDark ? 'linear-gradient(135deg, #8B7CFF, #6C5ECF)' : 'linear-gradient(135deg, #2DD4BF, #0D9488)' } : undefined}>
               <span className="flex items-center gap-2">
-                <span className={`w-1.5 h-1.5 rounded-full ${form.is_active === false ? 'bg-white' : 'bg-text-secondary/40'}`} />
+                <span className={cn('w-1.5 h-1.5 rounded-full', form.is_active === false ? 'bg-white' : 'bg-slate-400')} />
                 Inactif
               </span>
             </button>
           </div>
         </div>
         <div>
-          <label className="text-sm font-medium text-text mb-1.5 block">Description courte</label>
+          <label className={stageLabel}>Description courte</label>
           <input value={form.short_description || ''} onChange={e => setForm({ ...form, short_description: e.target.value })}
             placeholder="Résumé en une ligne..."
-            className="w-full h-9 px-3 text-sm rounded-lg border border-border bg-card text-text placeholder:text-text-secondary/40 focus:outline-none focus:ring-2 focus:ring-accent/15 focus:border-accent transition-all" />
+            className={stageInput('h-10')} />
         </div>
         <div>
-          <label className="text-sm font-medium text-text mb-1.5 block">Description longue</label>
+          <label className={stageLabel}>Description longue</label>
           <textarea value={form.description || ''} onChange={e => setForm({ ...form, description: e.target.value })} rows={4}
             placeholder="Décrivez l'activité en détail..."
-            className="w-full px-3 py-2 text-sm rounded-lg border border-border bg-card text-text placeholder:text-text-secondary/40 focus:outline-none focus:ring-2 focus:ring-accent/15 focus:border-accent transition-all resize-none" />
+            className={stageInput('resize-none py-2 min-h-[90px]')} />
         </div>
       </Section>
 
-      <Section title="Caractéristiques" icon={Clock} defaultOpen={true}>
+      <Section title="Caractéristiques" icon={Clock} hue={STAGE_HUES.sky} defaultOpen={true}>
         <div className="grid grid-cols-3 gap-4">
-          <Input label="Durée (heures)" required type="number" value={form.duration_hours || ''} onChange={e => setForm({ ...form, duration_hours: e.target.value })} placeholder="4" />
-          <Input label="Capacité min" type="number" value={form.min_capacity || '1'} onChange={e => setForm({ ...form, min_capacity: e.target.value })} />
-          <Input label="Capacité max" type="number" value={form.max_capacity || '12'} onChange={e => setForm({ ...form, max_capacity: e.target.value })} />
+          <div>
+            <label className={stageLabel}>Durée (heures) <span className="text-rose-500">*</span></label>
+            <input type="number" value={form.duration_hours || ''} onChange={e => setForm({ ...form, duration_hours: e.target.value })} placeholder="4" className={stageInput('h-10')} />
+          </div>
+          <div>
+            <label className={stageLabel}>Capacité min</label>
+            <input type="number" value={form.min_capacity || '1'} onChange={e => setForm({ ...form, min_capacity: e.target.value })} className={stageInput('h-10')} />
+          </div>
+          <div>
+            <label className={stageLabel}>Capacité max</label>
+            <input type="number" value={form.max_capacity || '12'} onChange={e => setForm({ ...form, max_capacity: e.target.value })} className={stageInput('h-10')} />
+          </div>
         </div>
-        <Select label="Disponibilité" options={[
-          { value: 'sur_demande', label: 'Sur demande (7/7)' },
-          { value: 'hebdomadaire', label: 'Hebdomadaire' },
-          { value: 'weekends', label: 'Weekends uniquement' },
-          { value: 'saisonnier', label: 'Saisonnier' },
-        ]} value={form.availability || 'sur_demande'} onChange={v => setForm({ ...form, availability: v })} />
+        <div>
+          <label className={stageLabel}>Disponibilité</label>
+          <Select options={[
+            { value: 'sur_demande', label: 'Sur demande (7/7)' },
+            { value: 'hebdomadaire', label: 'Hebdomadaire' },
+            { value: 'weekends', label: 'Weekends uniquement' },
+            { value: 'saisonnier', label: 'Saisonnier' },
+          ]} value={form.availability || 'sur_demande'} onChange={v => setForm({ ...form, availability: v })} className={ctrl('h-10')} />
+        </div>
       </Section>
 
-      <Section title="Tarifs et commission" icon={DollarSign} defaultOpen={true}>
+      <Section title="Tarifs et commission" icon={DollarSign} hue={STAGE_HUES.amber} defaultOpen={true}>
         <div className="grid grid-cols-2 gap-4">
-          <Input label="Prix public de référence (MAD)" required type="number" value={form.price || ''} onChange={e => setForm({ ...form, price: e.target.value })} placeholder="450" />
-          <Input label="Commission (%)" type="number" value={form.commission_rate || '10'} onChange={e => setForm({ ...form, commission_rate: e.target.value })} />
+          <div>
+            <label className={stageLabel}>Prix public de référence (MAD) <span className="text-rose-500">*</span></label>
+            <input type="number" value={form.price || ''} onChange={e => setForm({ ...form, price: e.target.value })} placeholder="450" className={stageInput('h-10')} />
+          </div>
+          <div>
+            <label className={stageLabel}>Commission (%)</label>
+            <input type="number" value={form.commission_rate || '10'} onChange={e => setForm({ ...form, commission_rate: e.target.value })} className={stageInput('h-10')} />
+          </div>
         </div>
         {form.price && form.commission_rate && (
           <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} className="grid grid-cols-2 gap-3">
-            <div className="bg-accent/5 rounded-lg p-3 border border-accent/10">
-              <p className="text-[11px] text-text-secondary uppercase tracking-wider mb-1">Commission</p>
-              <p className="text-sm font-bold text-accent">{formatMAD(commission)}</p>
+            <div className={cn('rounded-xl p-3 border', staged ? (isDark ? 'bg-violet-500/10 border-violet-500/20' : 'bg-violet-50 border-violet-200') : 'bg-accent/5 border-accent/10')}>
+              <p className={cn('text-[11px] uppercase tracking-wider mb-1 font-bold', isDark ? 'text-violet-300' : 'text-violet-600')}>Commission</p>
+              <p className="text-sm font-extrabold" style={{ color: STAGE_HUES.violet.a }}>{formatMAD(commission)}</p>
             </div>
-            <div className="bg-emerald-50 rounded-lg p-3 border border-emerald-200/50">
-              <p className="text-[11px] text-text-secondary uppercase tracking-wider mb-1">Prix net partenaire</p>
-              <p className="text-sm font-bold text-emerald-600">{formatMAD(netPrice)}</p>
+            <div className={cn('rounded-xl p-3 border', staged ? (isDark ? 'bg-emerald-500/10 border-emerald-500/20' : 'bg-emerald-50 border-emerald-200') : 'bg-emerald-50 border-emerald-200/50')}>
+              <p className={cn('text-[11px] uppercase tracking-wider mb-1 font-bold', isDark ? 'text-emerald-300' : 'text-emerald-600')}>Prix net partenaire</p>
+              <p className="text-sm font-extrabold text-emerald-600">{formatMAD(netPrice)}</p>
             </div>
           </motion.div>
         )}
 
         {/* Grille tarifaire */}
-        <div className="border border-border/40 rounded-xl overflow-hidden mt-2">
-          <div className="px-4 py-3 bg-background/50 flex items-center justify-between">
+        <div className={cn('rounded-xl overflow-hidden border', staged ? (isDark ? 'border-white/5' : 'border-slate-200') : 'border-border/40')}>
+          <div className={cn('px-4 py-3 flex items-center justify-between', staged ? (isDark ? 'bg-white/[0.03]' : 'bg-slate-50') : 'bg-background/50')}>
             <div className="flex items-center gap-2">
-              <p className="text-sm font-semibold text-text">Grille tarifaire</p>
+              <p className={cn('text-sm font-bold', staged ? (isDark ? 'text-white' : 'text-slate-900') : 'text-text')}>Grille tarifaire</p>
               {tiers.length > 0 && (
-                <span className="px-1.5 py-0.5 text-[10px] font-medium bg-accent/10 text-accent rounded">{tiers.length}</span>
+                <span className="px-1.5 py-0.5 text-[10px] font-bold bg-violet-500/15 text-violet-600 rounded-full border border-violet-500/20">{tiers.length}</span>
               )}
             </div>
             <Button type="button" variant="ghost" size="sm" className="gap-1.5" onClick={openAddTier}>
@@ -357,34 +391,34 @@ export default function ActivityForm({ form, setForm, partners, editing, activit
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="border-t border-border/30 text-left text-[11px] text-text-secondary uppercase tracking-wider">
-                    <th className="px-4 py-2.5 font-medium">Nombre de pers.</th>
-                    <th className="px-4 py-2.5 font-medium text-right">Prix / pers.</th>
-                    <th className="px-4 py-2.5 font-medium text-right">Commission</th>
-                    <th className="px-4 py-2.5 font-medium text-right">Net partenaire</th>
-                    <th className="px-4 py-2.5 font-medium w-20"></th>
+                  <tr className={cn('border-t text-left text-[11px] uppercase tracking-wider font-bold', staged ? (isDark ? 'border-white/5 text-slate-500 bg-white/[0.02]' : 'border-slate-100 text-slate-500 bg-white') : 'border-border/30 text-text-secondary')}>
+                    <th className="px-4 py-2.5">Nombre de pers.</th>
+                    <th className="px-4 py-2.5 text-right">Prix / pers.</th>
+                    <th className="px-4 py-2.5 text-right">Commission</th>
+                    <th className="px-4 py-2.5 text-right">Net partenaire</th>
+                    <th className="px-4 py-2.5 w-20"></th>
                   </tr>
                 </thead>
-                <tbody>
+                <tbody className={cn('divide-y', staged ? (isDark ? 'divide-white/5' : 'divide-slate-100') : 'divide-border/20')}>
                   {tiers.map((t, i) => {
                     const rate = t.commission_rate != null ? t.commission_rate : Number(form.commission_rate || 0)
                     const comm = tierCommission(t.price_per_person, t.commission_rate)
                     const net = tierNet(t.price_per_person, t.commission_rate)
                     return (
                       <motion.tr key={t.id || i} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: i * 0.03 }}
-                        className="border-t border-border/20 hover:bg-background/50 transition-colors">
-                        <td className="px-4 py-2.5 font-medium text-text">
+                        className={cn(staged ? (isDark ? 'hover:bg-white/[0.03]' : 'hover:bg-slate-50') : 'hover:bg-background/50')}>
+                        <td className={cn('px-4 py-2.5 font-semibold', staged ? (isDark ? 'text-white' : 'text-slate-900') : 'text-text')}>
                           {t.min_persons === t.max_persons ? `${t.min_persons} pers.` : `${t.min_persons}-${t.max_persons} pers.`}
                         </td>
                         <td className="px-4 py-2.5 text-right font-medium">{formatMAD(Number(t.price_per_person))}</td>
-                        <td className="px-4 py-2.5 text-right text-text-secondary">{rate}% · {formatMAD(comm)}</td>
-                        <td className="px-4 py-2.5 text-right font-medium text-emerald-600">{formatMAD(net)}</td>
+                        <td className={cn('px-4 py-2.5 text-right', isDark ? 'text-slate-400' : 'text-slate-500')}>{rate}% · {formatMAD(comm)}</td>
+                        <td className="px-4 py-2.5 text-right font-bold text-emerald-600">{formatMAD(net)}</td>
                         <td className="px-4 py-2.5">
                           <div className="flex items-center justify-end gap-1">
-                            <button type="button" onClick={() => openEditTier(t)} className="p-1 rounded hover:bg-background transition-colors text-text-secondary hover:text-text">
+                            <button type="button" onClick={() => openEditTier(t)} className={cn('p-1 rounded-lg transition-colors', isDark ? 'text-slate-400 hover:text-white hover:bg-white/10' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100')}>
                               <Edit3 size={13} />
                             </button>
-                            <button type="button" onClick={() => deleteTier(t)} className="p-1 rounded hover:bg-error/5 transition-colors text-text-secondary hover:text-error">
+                            <button type="button" onClick={() => deleteTier(t)} className="p-1 rounded-lg hover:bg-rose-500/10 text-slate-400 hover:text-rose-500 transition-colors">
                               <Trash2 size={13} />
                             </button>
                           </div>
@@ -396,22 +430,22 @@ export default function ActivityForm({ form, setForm, partners, editing, activit
               </table>
             </div>
           ) : (
-            <div className="px-4 py-6 text-center text-xs text-text-secondary/50 border-t border-border/20">
+            <div className={cn('px-4 py-6 text-center text-xs border-t', staged ? (isDark ? 'text-slate-500 border-white/5' : 'text-slate-400 border-slate-100') : 'text-text-secondary/50 border-border/20')}>
               Aucun palier tarifaire. Ajoutez des grilles de prix selon le nombre de personnes.
             </div>
           )}
         </div>
       </Section>
 
-      <Section title="Inclus / Non inclus" icon={Package} defaultOpen={false}>
+      <Section title="Inclus / Non inclus" icon={Package} hue={STAGE_HUES.emerald} defaultOpen={false}>
         <div className="space-y-3">
           <div>
-            <label className="text-sm font-medium text-text mb-2 block">Inclus</label>
+            <label className={stageLabel}>Inclus</label>
             <div className="flex flex-wrap gap-2 mb-2">
               {included.map((item, idx) => (
-                <span key={idx} className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full">
+                <span key={idx} className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold bg-emerald-500/15 text-emerald-700 border border-emerald-500/20 rounded-full">
                   {item}
-                  <button type="button" onClick={() => removeIncluded(idx)} className="hover:text-emerald-900 transition-colors">&times;</button>
+                  <button type="button" onClick={() => removeIncluded(idx)} className="hover:text-emerald-900 transition-colors"><X size={11} /></button>
                 </span>
               ))}
             </div>
@@ -419,17 +453,17 @@ export default function ActivityForm({ form, setForm, partners, editing, activit
               <input value={newIncluded} onChange={e => setNewIncluded(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), addIncluded())}
                 placeholder="Ajouter un élément..."
-                className="flex-1 h-8 px-3 text-sm rounded-lg border border-border bg-card text-text placeholder:text-text-secondary/40 focus:outline-none focus:ring-2 focus:ring-accent/15 focus:border-accent transition-all" />
-              <Button type="button" variant="secondary" size="sm" onClick={addIncluded}>+</Button>
+                className={cn(stageInput('h-9 flex-1'))} />
+              <button type="button" onClick={addIncluded} className={cn('px-3 rounded-xl border text-sm font-bold transition-colors', staged ? (isDark ? 'border-white/10 bg-white/5 text-white hover:bg-white/10' : 'border-violet-200 bg-violet-500 text-white hover:bg-violet-600') : 'bg-accent text-white')}>+</button>
             </div>
           </div>
           <div>
-            <label className="text-sm font-medium text-text mb-2 block">Non inclus</label>
+            <label className={stageLabel}>Non inclus</label>
             <div className="flex flex-wrap gap-2 mb-2">
               {notIncluded.map((item, idx) => (
-                <span key={idx} className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium bg-red-50 text-red-700 border border-red-200 rounded-full">
+                <span key={idx} className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold bg-rose-500/10 text-rose-700 border border-rose-500/20 rounded-full">
                   {item}
-                  <button type="button" onClick={() => removeNotIncluded(idx)} className="hover:text-red-900 transition-colors">&times;</button>
+                  <button type="button" onClick={() => removeNotIncluded(idx)} className="hover:text-red-900 transition-colors"><X size={11} /></button>
                 </span>
               ))}
             </div>
@@ -437,24 +471,30 @@ export default function ActivityForm({ form, setForm, partners, editing, activit
               <input value={newNotIncluded} onChange={e => setNewNotIncluded(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), addNotIncluded())}
                 placeholder="Ajouter un élément..."
-                className="flex-1 h-8 px-3 text-sm rounded-lg border border-border bg-card text-text placeholder:text-text-secondary/40 focus:outline-none focus:ring-2 focus:ring-accent/15 focus:border-accent transition-all" />
-              <Button type="button" variant="secondary" size="sm" onClick={addNotIncluded}>+</Button>
+                className={cn(stageInput('h-9 flex-1'))} />
+              <button type="button" onClick={addNotIncluded} className={cn('px-3 rounded-xl border text-sm font-bold transition-colors', staged ? (isDark ? 'border-white/10 bg-white/5 text-white hover:bg-white/10' : 'border-rose-200 bg-rose-500 text-white') : 'bg-accent text-white')}>+</button>
             </div>
           </div>
         </div>
       </Section>
 
-      <Section title="Contact et médias" icon={Image} defaultOpen={false}>
+      <Section title="Contact et médias" icon={Image} hue={STAGE_HUES.sky} defaultOpen={false}>
         <div className="grid grid-cols-2 gap-4">
-          <Input label="WhatsApp" value={form.whatsapp || ''} onChange={e => setForm({ ...form, whatsapp: e.target.value })} placeholder="+212 6 00 00 00 00" />
-          <Input label="Email" type="email" value={form.contact_email || ''} onChange={e => setForm({ ...form, contact_email: e.target.value })} placeholder="contact@..." />
+          <div>
+            <label className={stageLabel}>WhatsApp</label>
+            <input value={form.whatsapp || ''} onChange={e => setForm({ ...form, whatsapp: e.target.value })} placeholder="+212 6 00 00 00 00" className={stageInput('h-10')} />
+          </div>
+          <div>
+            <label className={stageLabel}>Email</label>
+            <input type="email" value={form.contact_email || ''} onChange={e => setForm({ ...form, contact_email: e.target.value })} placeholder="contact@..." className={stageInput('h-10')} />
+          </div>
         </div>
 
         {/* Photo gallery */}
         <div>
-          <label className="text-sm font-medium text-text mb-2 block">Photos ({allPhotos.length})</label>
+          <label className={stageLabel}>Photos ({allPhotos.length})</label>
           {allPhotos.length > 0 && (
-            <div className="rounded-xl overflow-hidden border border-border/30 mb-3">
+            <div className={cn('rounded-xl overflow-hidden border mb-3', staged ? (isDark ? 'border-white/5' : 'border-slate-200') : 'border-border/30')}>
               <div className="relative aspect-[16/9] overflow-hidden bg-gray-900 group">
                 <img src={`${API_ORIGIN}${allPhotos[photoViewIndex]}`} alt="Photo"
                   className="w-full h-full object-cover" />
@@ -478,18 +518,18 @@ export default function ActivityForm({ form, setForm, partners, editing, activit
                   </>
                 )}
                 <button type="button" onClick={() => removePhoto(photoViewIndex)}
-                  className="absolute top-3 right-3 p-2 rounded-full bg-red-500/80 text-white hover:bg-red-60 transition-all opacity-0 group-hover:opacity-100 backdrop-blur-sm">
+                  className="absolute top-3 right-3 p-2 rounded-full bg-rose-500/80 text-white hover:bg-rose-600 transition-all opacity-0 group-hover:opacity-100 backdrop-blur-sm">
                   <Trash2 size={14} />
                 </button>
-                <div className="absolute top-3 left-3 px-2 py-1 rounded-md bg-black/50 text-white text-xs font-medium backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-opacity">
+                <div className="absolute top-3 left-3 px-2 py-1 rounded-md bg-black/50 text-white text-xs font-bold backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-opacity">
                   {photoViewIndex + 1} / {allPhotos.length}
                 </div>
               </div>
               {allPhotos.length > 1 && (
-                <div className="flex gap-2 p-3 bg-background/80 justify-center overflow-x-auto">
+                <div className={cn('flex gap-2 p-3 justify-center overflow-x-auto', staged ? (isDark ? 'bg-white/[0.03]' : 'bg-slate-50') : 'bg-background/80')}>
                   {allPhotos.map((p, idx) => (
                     <button key={idx} type="button" onClick={() => setPhotoViewIndex(idx)}
-                      className={`relative w-14 h-14 rounded-lg overflow-hidden border-2 transition-all flex-shrink-0 hover:scale-105 ${idx === photoViewIndex ? 'border-accent shadow-md shadow-accent/20' : 'border-transparent opacity-60 hover:opacity-100'}`}>
+                      className={`relative w-14 h-14 rounded-lg overflow-hidden border-2 transition-all flex-shrink-0 hover:scale-105 ${idx === photoViewIndex ? 'border-violet-500 shadow-md shadow-violet-500/20' : 'border-transparent opacity-60 hover:opacity-100'}`}>
                       <img src={`${API_ORIGIN}${p}`} alt="" className="w-full h-full object-cover" />
                     </button>
                   ))}
@@ -502,54 +542,109 @@ export default function ActivityForm({ form, setForm, partners, editing, activit
             className="hidden" onChange={e => handlePhotoUpload(e.target.files)} />
           <button type="button" onClick={() => fileInputRef.current?.click()}
             disabled={uploading}
-            className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl border-2 border-dashed border-border/60 bg-background/50 hover:border-accent/40 hover:bg-accent/5 transition-all text-sm text-text-secondary disabled:opacity-50">
+            className={cn('w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl border-2 border-dashed transition-all text-sm font-semibold', staged ? (isDark ? 'border-white/10 bg-white/[0.03] text-slate-300 hover:border-violet-500/40 hover:bg-violet-500/10 hover:text-white' : 'border-violet-200 bg-violet-50 text-violet-700 hover:border-violet-400 hover:bg-violet-100') : 'border-border/60 bg-background/50 hover:border-accent/40 hover:bg-accent/5 text-text-secondary')}>
             {uploading ? (
-              <div className="w-4 h-4 border-2 border-accent/30 border-t-accent rounded-full animate-spin" />
+              <div className="w-4 h-4 border-2 border-violet-500/30 border-t-violet-500 rounded-full animate-spin" />
             ) : (
               <Upload size={16} />
             )}
             {uploading ? 'Téléchargement...' : 'Ajouter des photos'}
           </button>
-          <p className="text-[10px] text-text-secondary/50 mt-1.5">JPG, PNG, WebP • Max 10 Mo par photo</p>
+          <p className={cn('text-[10px] mt-1.5', isDark ? 'text-slate-500' : 'text-slate-400')}>JPG, PNG, WebP • Max 10 Mo par photo</p>
         </div>
       </Section>
 
-      {/* Tier sub-modal */}
-      <Dialog isOpen={showTierModal} onClose={() => setShowTierModal(false)} size="md">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-border/30 -mx-6 -mt-4 mb-0">
-          <h2 className="text-lg font-bold text-text">
-            {editingTier ? 'Modifier le palier' : 'Ajouter un palier'}
-          </h2>
-          <button onClick={() => setShowTierModal(false)} className="p-1.5 rounded-lg hover:bg-background transition-colors text-text-secondary hover:text-text">
-            <X size={18} />
-          </button>
-        </div>
-        <div className="py-5 space-y-4 -mx-6 px-6">
-          <div className="grid grid-cols-2 gap-4">
-            <Input label="De (personnes)" required type="number" value={tierForm.min_persons || ''} onChange={e => setTierForm({ ...tierForm, min_persons: Number(e.target.value) })} placeholder="1" />
-            <Input label="À (personnes)" required type="number" value={tierForm.max_persons || ''} onChange={e => setTierForm({ ...tierForm, max_persons: Number(e.target.value) })} placeholder="2" />
-          </div>
-          <Input label="Prix par personne (MAD)" required type="number" value={tierForm.price_per_person || ''} onChange={e => setTierForm({ ...tierForm, price_per_person: Number(e.target.value) })} placeholder="550" />
-          <Input label="Commission (%)" type="number" value={tierForm.commission_rate ?? form.commission_rate ?? 10} onChange={e => setTierForm({ ...tierForm, commission_rate: Number(e.target.value) })} />
-          {tierForm.price_per_person != null && tierForm.price_per_person > 0 && (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="bg-background rounded-lg p-3 border border-border/40 space-y-1">
-              <p className="text-xs text-text-secondary uppercase tracking-wider mb-2">Résumé</p>
-              <div className="flex justify-between text-sm">
-                <span className="text-text-secondary">Commission :</span>
-                <span className="font-medium text-accent">{formatMAD(tierCommission(tierForm.price_per_person, tierForm.commission_rate))}</span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-text-secondary">Net partenaire :</span>
-                <span className="font-medium text-emerald-600">{formatMAD(tierNet(tierForm.price_per_person, tierForm.commission_rate))}</span>
-              </div>
+      {/* Tier sub-modal — portal z-[110] above outer z-[100] */}
+      {typeof document !== 'undefined' && createPortal(
+        <AnimatePresence>
+          {showTierModal && (
+            <motion.div
+              className="fixed inset-0 z-[110] flex items-center justify-center p-4"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+            >
+              <motion.div
+                className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+                onClick={() => setShowTierModal(false)}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+              />
+              <motion.div
+                initial={{ opacity: 0, scale: 0.96, y: 12 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.96, y: 12 }}
+                transition={{ type: 'spring', stiffness: 320, damping: 30 }}
+                className="relative w-full max-w-md rounded-2xl border flex flex-col overflow-hidden max-h-[90vh]"
+                style={{
+                  background: isDark ? 'linear-gradient(180deg, rgba(17,24,50,0.98), rgba(9,13,30,0.99))' : 'linear-gradient(180deg, rgba(255,255,255,0.98), rgba(248,250,252,0.99))',
+                  borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(15,23,42,0.08)',
+                  boxShadow: isDark ? '0 24px 60px -18px rgba(0,0,0,0.85), inset 0 1px 0 rgba(255,255,255,0.06)' : '0 24px 60px -20px rgba(13,148,136,0.35), inset 0 1px 0 rgba(255,255,255,1)',
+                }}
+              >
+                <div className="absolute top-0 inset-x-0 h-[3px]" style={{ background: `linear-gradient(90deg, ${STAGE_HUES.violet.a}, ${STAGE_HUES.violet.b})` }} />
+                <div className="flex items-center justify-between px-6 py-4 border-b shrink-0" style={{ borderColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(15,23,42,0.06)', background: `radial-gradient(90% 140% at 0% 0%, ${isDark ? 'rgba(139,124,255,0.08)' : 'rgba(20,184,166,0.06)'}, transparent 65%)` }}>
+                  <h2 className={cn('text-base font-bold', isDark ? 'text-white' : 'text-slate-900')}>
+                    {editingTier ? 'Modifier le palier' : 'Ajouter un palier'}
+                  </h2>
+                  <button onClick={() => setShowTierModal(false)} className={cn('w-8 h-8 rounded-xl flex items-center justify-center border transition-all', isDark ? 'border-white/10 bg-white/5 text-slate-400 hover:text-white hover:bg-white/10' : 'border-slate-200 bg-white text-slate-500 hover:text-slate-900')}>
+                    <X size={16} />
+                  </button>
+                </div>
+                <div
+                  className="flex-1 overflow-y-auto scrollbar-thin px-6 py-5 space-y-4"
+                  style={{
+                    overscrollBehavior: 'contain',
+                    WebkitOverflowScrolling: 'touch' as any,
+                    transform: 'translateZ(0)',
+                    willChange: 'scroll-position',
+                  }}
+                >
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className={stageLabel}>De (personnes) <span className="text-rose-500">*</span></label>
+                      <input type="number" value={tierForm.min_persons || ''} onChange={e => setTierForm({ ...tierForm, min_persons: Number(e.target.value) })} placeholder="1" className={stageInput('h-10')} />
+                    </div>
+                    <div>
+                      <label className={stageLabel}>À (personnes) <span className="text-rose-500">*</span></label>
+                      <input type="number" value={tierForm.max_persons || ''} onChange={e => setTierForm({ ...tierForm, max_persons: Number(e.target.value) })} placeholder="2" className={stageInput('h-10')} />
+                    </div>
+                  </div>
+                  <div>
+                    <label className={stageLabel}>Prix par personne (MAD) <span className="text-rose-500">*</span></label>
+                    <input type="number" value={tierForm.price_per_person || ''} onChange={e => setTierForm({ ...tierForm, price_per_person: Number(e.target.value) })} placeholder="550" className={stageInput('h-10')} />
+                  </div>
+                  <div>
+                    <label className={stageLabel}>Commission (%)</label>
+                    <input type="number" value={tierForm.commission_rate ?? form.commission_rate ?? 10} onChange={e => setTierForm({ ...tierForm, commission_rate: Number(e.target.value) })} className={stageInput('h-10')} />
+                  </div>
+                  {tierForm.price_per_person != null && tierForm.price_per_person > 0 && (
+                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className={cn('rounded-xl p-3 border space-y-1', isDark ? 'bg-white/[0.03] border-white/5' : 'bg-slate-50 border-slate-100')}>
+                      <p className={cn('text-[11px] font-bold uppercase tracking-wider mb-2', isDark ? 'text-slate-400' : 'text-slate-500')}>Résumé</p>
+                      <div className="flex justify-between text-sm">
+                        <span className={isDark ? 'text-slate-400' : 'text-slate-500'}>Commission :</span>
+                        <span className="font-bold" style={{ color: STAGE_HUES.violet.a }}>{formatMAD(tierCommission(tierForm.price_per_person, tierForm.commission_rate))}</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span className={isDark ? 'text-slate-400' : 'text-slate-500'}>Net partenaire :</span>
+                        <span className="font-bold text-emerald-600">{formatMAD(tierNet(tierForm.price_per_person, tierForm.commission_rate))}</span>
+                      </div>
+                    </motion.div>
+                  )}
+                </div>
+                <div className={cn('flex items-center justify-end gap-3 px-6 py-4 border-t shrink-0', isDark ? 'border-white/5 bg-white/[0.02]' : 'border-slate-100 bg-slate-50/50')}>
+                  <button onClick={() => setShowTierModal(false)} className={cn('h-9 px-4 rounded-xl border text-sm font-semibold transition-colors', isDark ? 'border-white/10 bg-white/5 text-slate-300 hover:bg-white/10 hover:text-white' : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50')}>Annuler</button>
+                  <button onClick={saveTier} disabled={!!savingTier} className="h-9 px-4 rounded-xl text-sm font-bold text-white transition-all disabled:opacity-50" style={{ backgroundImage: isDark ? 'linear-gradient(135deg, #8B7CFF, #6C5ECF)' : 'linear-gradient(135deg, #2DD4BF, #0D9488)', boxShadow: '0 4px 14px rgba(124,92,255,0.3)' }}>
+                    {savingTier ? '...' : editingTier ? 'Enregistrer' : 'Ajouter'}
+                  </button>
+                </div>
+              </motion.div>
             </motion.div>
           )}
-        </div>
-        <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-border/30 -mx-6 -mb-4 mt-0">
-          <Button variant="outline" onClick={() => setShowTierModal(false)}>Annuler</Button>
-          <Button onClick={saveTier} loading={savingTier}>{editingTier ? 'Enregistrer' : 'Ajouter'}</Button>
-        </div>
-      </Dialog>
+        </AnimatePresence>,
+        document.body,
+      )}
     </div>
   )
 }

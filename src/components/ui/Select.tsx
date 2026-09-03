@@ -2,6 +2,8 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ChevronDown } from 'react-feather'
 import { cn } from '../../lib/utils'
+import { portalWithTheme } from './dropdownTheme'
+import { useStageChrome } from '../modules/calendar/useStageChrome'
 
 interface SelectOption {
   value: string
@@ -37,6 +39,7 @@ export const Select = ({
   defaultValue,
   ...props
 }: SelectProps & { [key: string]: any }) => {
+  const { staged, dark } = useStageChrome()
   const [isOpen, setIsOpen] = useState(false)
   const [selectedValue, setSelectedValue] = useState(defaultValue || controlledValue || '')
   const buttonRef = useRef<HTMLButtonElement>(null)
@@ -104,10 +107,15 @@ export const Select = ({
     }
   }, [isOpen, computePosition])
 
+  const stagedButtonClass = staged
+    ? dark
+      ? 'w-full h-9 flex items-center justify-between px-3 text-sm rounded-xl border border-white/10 bg-gradient-to-b from-white/[0.08] to-white/[0.02] [background-color:transparent] text-slate-100 outline-none transition-all duration-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.14),inset_0_-8px_16px_-12px_rgba(0,0,0,0.7),0_6px_18px_-8px_rgba(3,5,14,0.9)] hover:border-white/15 focus:border-violet-400/70'
+      : 'w-full h-9 flex items-center justify-between px-3 text-sm rounded-xl border border-teal-900/15 bg-gradient-to-b from-white to-teal-50/70 [background-color:transparent] text-teal-950 outline-none transition-all duration-200 shadow-[inset_0_1px_0_rgba(255,255,255,1),inset_0_-6px_14px_-10px_rgba(13,148,136,0.35),0_6px_18px_-10px_rgba(13,148,136,0.45)] hover:border-teal-900/20 focus:border-teal-500/70'
+    : null
   return (
     <div ref={containerRef}>
       {label && (
-        <label className="block text-sm font-medium text-text mb-1.5">
+        <label className={cn('block mb-1.5', staged ? (dark ? 'text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400/85' : 'text-[11px] font-bold uppercase tracking-[0.14em] text-teal-900/55') : 'text-sm font-medium text-text')}>
           {label}
           {required && <span className="text-error ml-0.5">*</span>}
         </label>
@@ -119,41 +127,49 @@ export const Select = ({
           disabled={disabled}
           onClick={handleToggle}
           className={cn(
-            'w-full h-9 flex items-center justify-between px-3 text-sm rounded-lg border bg-card text-text cursor-pointer',
-            'focus:outline-none focus:ring-2 focus:ring-accent/15 focus:border-accent',
-            'hover:border-text-secondary/30',
-            'transition-all duration-200 ease-out',
-            error ? 'border-error' : 'border-border',
+            stagedButtonClass
+              ? stagedButtonClass
+              : cn(
+                  'w-full h-9 flex items-center justify-between px-3 text-sm rounded-lg cursor-pointer',
+                  'transition-all duration-200 ease-out',
+                  'bg-card text-text border border-border',
+                  'focus:outline-none focus:ring-2 focus:ring-accent/15 focus:border-accent',
+                  'hover:border-text-secondary/30'
+                ),
+            className && !stagedButtonClass ? className : '',
+            stagedButtonClass && className ? className : '',
+            error && (staged ? '!border-rose-400/60' : 'border-error'),
             disabled && 'opacity-50 cursor-not-allowed',
-            className
           )}
           {...props}
         >
-          <span className={cn('truncate flex items-center gap-2', !selectedOption && 'text-text-secondary/60')}>
-            {selectedOption?.icon && <selectedOption.icon size={14} className="text-text-secondary shrink-0" />}
+          <span className={cn('truncate flex items-center gap-2', !selectedOption && (staged && dark ? 'text-slate-500' : 'text-text-secondary/60'))}>
+            {selectedOption?.icon && <selectedOption.icon size={14} className={cn('shrink-0', staged && dark ? 'text-slate-500' : 'text-text-secondary')} />}
             {selectedOption ? selectedOption.label : placeholder || 'Sélectionner...'}
           </span>
           <motion.div
             animate={{ rotate: isOpen ? 180 : 0 }}
             transition={{ duration: 0.2, ease: 'easeOut' }}
           >
-            <ChevronDown size={14} className="text-text-secondary shrink-0" />
+            <ChevronDown size={14} className={cn('shrink-0', staged && dark ? 'text-slate-500' : 'text-text-secondary')} />
           </motion.div>
         </button>
       </div>
 
-      <AnimatePresence>
-        {isOpen && (
-          <motion.div
-            ref={dropdownRef}
-            key="select-dropdown"
-            initial={{ opacity: 0, y: -8, scale: 0.96 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -8, scale: 0.96 }}
-            transition={{ duration: 0.15, ease: 'easeOut' }}
-            style={dropdownStyle}
-            className="bg-card rounded-lg border border-border/50 shadow-dropdown py-1 max-h-48 overflow-y-auto"
-          >
+      {portalWithTheme(
+        buttonRef.current,
+        <AnimatePresence>
+          {isOpen && (
+            <motion.div
+              ref={dropdownRef}
+              key="select-dropdown"
+              initial={{ opacity: 0, y: -8, scale: 0.96 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -8, scale: 0.96 }}
+              transition={{ duration: 0.15, ease: 'easeOut' }}
+              style={dropdownStyle}
+              className="bg-card rounded-lg border border-border/50 shadow-dropdown py-1 max-h-48 overflow-y-auto"
+            >
             {options.map((option, idx) => (
               <motion.button
                 key={option.value}
@@ -187,9 +203,10 @@ export const Select = ({
                 Aucune option disponible
               </div>
             )}
-          </motion.div>
-        )}
-      </AnimatePresence>
+            </motion.div>
+          )}
+        </AnimatePresence>,
+      )}
 
       {error && (
         <motion.p

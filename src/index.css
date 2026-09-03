@@ -1084,3 +1084,123 @@
 .auth-shell input::placeholder {
   color: hsl(var(--premium) / 0.5);
 }
+
+/* =====================================================================
+   STAGE — Mission Control shell (glass, aurora, orbs) — embedded for
+   auth futuristic page and dashboard consistency. Extracted from build.
+   ===================================================================== */
+.stage-dark{
+  background: radial-gradient(1200px 600px at 85% -10%, rgba(124,92,255,0.16), transparent 60%), radial-gradient(900px 500px at -10% 110%, rgba(34,211,238,0.10), transparent 60%), linear-gradient(160deg, #0B1022, #070A18 55%, #0A0F24);
+  color:#E7EAF6;
+  isolation:isolate;
+  position:relative;
+  overflow:hidden;
+}
+.stage-dark:before{
+  content:""; position:absolute; inset:0; pointer-events:none; z-index:0;
+  background-image: linear-gradient(rgba(148,163,184,0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(148,163,184,0.05) 1px, transparent 1px);
+  background-size:44px 44px;
+  -webkit-mask-image: radial-gradient(ellipse 90% 80% at 50% 0%, black 30%, transparent 75%);
+  mask-image: radial-gradient(ellipse 90% 80% at 50% 0%, black 30%, transparent 75%);
+}
+.stage-dark:after{
+  content:""; position:absolute; inset:0; pointer-events:none; z-index:0;
+  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='a'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23a)' opacity='.5'/%3E%3C/svg%3E");
+  mix-blend-mode:overlay; opacity:0.05;
+}
+.stage-light{
+  background: radial-gradient(1100px 560px at 85% -10%, rgba(124,92,255,0.08), transparent 60%), radial-gradient(900px 500px at -10% 110%, rgba(13,148,136,0.09), transparent 60%), linear-gradient(160deg, #DFF6F0, #E8FDF8 55%, #DFF6F0);
+  color:#0F172A;
+  isolation:isolate;
+  position:relative;
+  overflow:hidden;
+}
+.stage-light:before{
+  content:""; position:absolute; inset:0; pointer-events:none; z-index:0;
+  background-image: linear-gradient(rgba(148,163,184,0.06) 1px, transparent 1px), linear-gradient(90deg, rgba(148,163,184,0.06) 1px, transparent 1px);
+  background-size:44px 44px;
+  -webkit-mask-image: radial-gradient(ellipse 90% 80% at 50% 0%, black 30%, transparent 75%);
+  mask-image: radial-gradient(ellipse 90% 80% at 50% 0%, black 30%, transparent 75%);
+}
+.stage-glass{
+  backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px);
+  background: linear-gradient(180deg, rgba(255,255,255,0.07), rgba(255,255,255,0.03));
+  border: 1px solid rgba(255,255,255,0.09);
+  border-radius: 24px;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.08), 0 24px 60px -28px rgba(2,4,18,0.9);
+  position:relative;
+}
+.stage-glass:before{
+  content:""; position:absolute; left:12%; right:12%; top:0; height:1px; z-index:1; pointer-events:none;
+  background: linear-gradient(90deg, transparent, rgba(139,124,255,0.45), rgba(94,234,212,0.25), transparent);
+}
+.stage-light .stage-glass{
+  background: linear-gradient(180deg, rgba(255,255,255,0.82), rgba(255,255,255,0.58));
+  border: 1px solid rgba(255,255,255,0.95);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.9), 0 24px 60px -30px rgba(13,148,136,0.4);
+}
+.stage-light .stage-glass:before{
+  background: linear-gradient(90deg, transparent, rgba(45,212,191,0.55), rgba(124,92,255,0.25), transparent);
+}
+.aurora-blob{ position:absolute; border-radius:9999px; filter:blur(90px); pointer-events:none; will-change:transform }
+.aurora-violet{ background: radial-gradient(circle at center, rgba(124,92,255,0.32), transparent 65%); width:640px; height:480px; right:-80px; top:-220px; animation: aurora-drift-a 26s ease-in-out infinite alternate }
+.aurora-cyan{ background: radial-gradient(circle at center, rgba(34,211,238,0.18), transparent 65%); width:520px; height:420px; left:-120px; bottom:-200px; animation: aurora-drift-b 32s ease-in-out infinite alternate }
+.aurora-magenta{ background: radial-gradient(circle at center, rgba(244,114,182,0.13), transparent 60%); width:420px; height:360px; left:38%; top:30%; animation: aurora-drift-c 38s ease-in-out infinite alternate }
+@keyframes aurora-drift-a { 0%{transform:translate3d(0,0,0) scale(1)} 50%{transform:translate3d(18px,-14px,0) scale(1.05)} 100%{transform:translate3d(-10px,10px,0) scale(0.98)} }
+@keyframes aurora-drift-b { 0%{transform:translate3d(0,0,0) scale(1.1)} 50%{transform:translate3d(-20px,12px,0) scale(0.95)} 100%{transform:translate3d(12px,-16px,0) scale(1.02)} }
+@keyframes aurora-drift-c { 0%{opacity:0.7; transform:translate3d(-40px,-30px,0) scale(0.9)} 50%{opacity:1; transform:translate3d(20px,18px,0) scale(1.08)} 100%{opacity:0.7; transform:translate3d(-10px,10px,0) scale(1)} }
+.orb-icon{
+  display:flex; align-items:center; justify-content:center; color:white;
+  background: linear-gradient(145deg, var(--orb-a), var(--orb-b));
+  box-shadow: inset 0 1px 1px rgba(255,255,255,0.55), inset 0 -5px 10px rgba(0,0,0,0.3), 0 10px 22px -6px var(--orb-glow);
+}
+.tilt-card{ transform-style: preserve-3d; }
+.tilt-glare{
+  position:absolute; inset:0; border-radius:inherit; pointer-events:none; opacity:0; transition: opacity 0.3s;
+  background: radial-gradient(600px 400px at var(--glare-x,50%) var(--glare-y,50%), rgba(255,255,255,0.10), transparent 55%);
+}
+.tilt-card:hover .tilt-glare{ opacity:1; }
+.stage-content{ position:relative; z-index:1 }
+
+/* =====================================================================
+   AUTH — Futuristic overrides
+   ===================================================================== */
+.auth-form-stage button{
+  background-image: linear-gradient(145deg, #8B7CFF 0%, #6C5ECF 55%, #5646C9 100%) !important;
+  border-color: rgba(255,255,255,0.18) !important;
+  color: white !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.45), 0 10px 24px -6px rgba(124,92,255,0.55) !important;
+}
+.auth-agent .auth-form-stage button{
+  background-image: linear-gradient(145deg, #14B8A6 0%, #0D9488 55%, #0F766E 100%) !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.45), 0 10px 24px -6px rgba(20,184,166,0.45) !important;
+}
+.auth-agent .auth-form-stage button:hover{
+  background-image: linear-gradient(145deg, #2DD4BF 0%, #14B8A6 55%, #0D9488 100%) !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.55), 0 14px 30px -6px rgba(20,184,166,0.55) !important;
+}
+.auth-form-stage button:hover{
+  background-image: linear-gradient(145deg, #9A8DFF 0%, #7769DB 55%, #6050D4 100%) !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.55), 0 14px 30px -6px rgba(124,92,255,0.7) !important;
+}
+.auth-form-stage .btn-primary, .auth-form-stage [class*="golden-border-animated"]{
+  background-image: linear-gradient(145deg, #8B7CFF 0%, #6C5ECF 55%, #5646C9 100%) !important;
+  border: 1px solid rgba(255,255,255,0.18) !important;
+  color: white !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.45), 0 10px 24px -6px rgba(124,92,255,0.55) !important;
+}
+.auth-agent .auth-form-stage .btn-primary, .auth-agent .auth-form-stage [class*="golden-border-animated"]{
+  background-image: linear-gradient(145deg, #14B8A6 0%, #0D9488 55%, #0F766E 100%) !important;
+}
+.auth-form-stage .btn-primary:hover{
+  background-image: linear-gradient(145deg, #9A8DFF 0%, #7769DB 55%, #6050D4 100%) !important;
+}
+.auth-agent .auth-form-stage .btn-primary:hover{
+  background-image: linear-gradient(145deg, #2DD4BF 0%, #14B8A6 55%, #0D9488 100%) !important;
+}
+@keyframes shimmer{ 0%{transform:translateX(-100%)} 100%{transform:translateX(200%)} }
+.auth-form-stage input[class*="rose"], .auth-form-stage input[class*="error"]{
+  border-color: rgba(251,113,133,0.6) !important;
+  box-shadow: 0 0 0 3px rgba(251,113,133,0.18), 0 0 18px rgba(251,113,133,0.12) !important;
+}
+

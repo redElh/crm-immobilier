@@ -3,8 +3,9 @@ import { motion } from 'framer-motion'
 import {
   CalendarEvent, getEventTypeConfig, AGENTS, Agent, getEventUserColor, withAlpha,
   formatEventRange, formatFrenchDate, formatFrenchDayName, getEventDayOverlap, getEventDayHours,
-  getWeekDays, getWeekStart, eventMatchesSelectedAgents,
+  getWeekDays, getWeekStart, eventMatchesSelectedAgents, isToday, readableChipText,
 } from '../../../types/calendar'
+import { useStageChrome } from './useStageChrome'
 
 interface TimelineViewProps {
   currentDate: Date
@@ -61,6 +62,7 @@ function layoutTimelineEvents(events: CalendarEvent[]): TimelineEventLayout[] {
 export default function TimelineView({
   currentDate, events, selectedAgents, selectedEventTypes, agents, onEventClick,
 }: TimelineViewProps) {
+  const { staged, dark } = useStageChrome()
   const weekDays = useMemo(() => getWeekDays(currentDate), [currentDate])
   const weekEvents = useMemo(() => {
     const start = getWeekStart(currentDate)
@@ -102,7 +104,7 @@ export default function TimelineView({
 
   if (weekEvents.length === 0) {
     return (
-      <div className="flex items-center justify-center h-64 text-text-secondary text-sm">
+      <div className={`flex flex-col items-center justify-center rounded-2xl py-14 text-sm ${staged ? 'stage-glass' : 'border border-border/50 bg-card'} text-text-secondary`}>
         Aucun événement cette semaine
       </div>
     )
@@ -112,16 +114,48 @@ export default function TimelineView({
     <div className="space-y-4">
       {groupLayouts.map((group, gi) => {
         const { layouts } = group
+        const dayIsToday = isToday(group.date)
         return (
           <motion.div
             key={gi}
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: gi * 0.05 }}
-            className="bg-card rounded-xl border border-border shadow-card overflow-hidden"
+            className={`relative overflow-hidden rounded-2xl shadow-card ${
+              staged
+                ? 'stage-glass'
+                : 'border border-border/50 bg-card'
+            }`}
           >
-            <div className="px-4 py-2.5 bg-background border-b border-border">
-              <h3 className="text-sm font-semibold text-text">{group.label}</h3>
+            {/* Day header with gradient beam */}
+            <div className={`flex items-center gap-2.5 border-b px-4 py-2.5 backdrop-blur-xl ${
+              staged
+                ? dark
+                  ? 'border-white/[0.08] bg-white/[0.03]'
+                  : 'border-teal-900/[0.10] bg-white/40'
+                : 'border-border/40 bg-background/50'
+            }`}>
+              <span
+                className="h-5 w-[3px] rounded-full"
+                style={{
+                  background: dayIsToday
+                    ? dark || !staged
+                      ? 'linear-gradient(180deg, #8B7CFF, #5646C9)'
+                      : 'linear-gradient(180deg, #2DD4BF, #0D9488)'
+                    : 'linear-gradient(180deg, rgba(148,163,184,0.7), rgba(100,116,139,0.4))',
+                  boxShadow: dayIsToday
+                    ? dark || !staged
+                      ? '0 0 10px rgba(124,92,255,0.7)'
+                      : '0 0 10px rgba(13,148,136,0.55)'
+                    : undefined,
+                }}
+              />
+              <h3 className={`text-sm font-bold capitalize tracking-tight ${dayIsToday ? 'text-accent' : staged ? (dark ? 'text-slate-100' : 'text-teal-950') : 'text-text'}`}>
+                {group.label}
+              </h3>
+              <span className="rounded-full bg-accent/10 px-2 py-px text-[9px] font-bold uppercase tracking-wider text-accent">
+                {group.events.length} évt{group.events.length > 1 ? 's' : ''}
+              </span>
             </div>
             <div className="p-4">
               {/* Hour labels header */}
@@ -170,14 +204,15 @@ export default function TimelineView({
                         key={event.id}
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
-                        className="absolute h-[20px] rounded-md border overflow-hidden cursor-pointer z-10 hover:opacity-85 hover:shadow-md transition-all"
+                        className="cal-event-glow absolute h-[20px] rounded-md border overflow-hidden cursor-pointer z-10 backdrop-blur-sm transition-[filter] hover:brightness-110"
                         style={{
                           left: `${left}%`,
                           width: `${width}%`,
                           top: `${col * 24}px`,
-                          backgroundColor: withAlpha(color, '22'),
-                          borderColor: withAlpha(color, '40'),
+                          background: `linear-gradient(135deg, ${withAlpha(color, '3D')} 0%, ${withAlpha(color, '12')} 100%)`,
+                          borderColor: withAlpha(color, '4D'),
                           borderLeft: `2px solid ${color}`,
+                          ['--evc' as never]: withAlpha(color, '44'),
                         }}
                         onClick={() => onEventClick(event)}
                       >
@@ -186,10 +221,10 @@ export default function TimelineView({
                             <span className="text-[9px] text-text-secondary/60 mr-0.5">◀</span>
                           )}
                           <span className="flex-shrink-0 inline-flex"><cfg.icon size={10} /></span>
-                          <span className={`text-[10px] font-semibold ${cfg.textColor} whitespace-nowrap flex-shrink-0`}>
+                          <span className="text-[10px] font-semibold whitespace-nowrap flex-shrink-0" style={{ color: readableChipText(color, dark) }}>
                             {formatEventRange(event)}
                           </span>
-                          <p className={`text-[10px] font-medium truncate min-w-0 ${cfg.textColor}`}>
+                          <p className="text-[10px] font-medium truncate min-w-0" style={{ color: readableChipText(color, dark) }}>
                             {event.title}
                           </p>
                           {agentColors.length > 0 && (
