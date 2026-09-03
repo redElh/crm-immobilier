@@ -5,6 +5,7 @@ import {
   publicGetReservationsBatch,
   publicGetCalendar,
   publicGetVacancesProperties,
+  publicStream,
 } from '../controllers/toolbox.public.controller.js'
 
 const router = express.Router()
@@ -70,6 +71,7 @@ router.use(optionalApiKey)
 router.get('/vacances/properties', publicGetVacancesProperties)
 router.get('/vacances/reservations', publicGetReservationsBatch) // ?ids=1,2  must be before :id
 router.get('/vacances/calendar', publicGetCalendar) // full calendar
+router.get('/vacances/stream', publicStream) // SSE instant updates
 router.get('/vacances/reservations/:apimoPropertyId', publicGetReservations)
 
 // Health for public namespace

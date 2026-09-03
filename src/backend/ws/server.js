@@ -40,7 +40,7 @@ function send(ws, payload) {
   }
 }
 
-function broadcastToAll(payload) {
+export function broadcastToAll(payload) {
   for (const set of clients.values()) {
     for (const ws of set) send(ws, payload);
   }

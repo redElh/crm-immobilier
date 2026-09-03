@@ -156,12 +156,50 @@ async rewrites() {
 ```
 Then `fetch('/api/public/vacances/reservations/86686477')` works same-origin.
 
+#### Example webhook handler on `www.squaremeter.ma` (Next.js App Router)
+Create `app/api/revalidate-vacances/route.js`:
+```js
+import { revalidateTag, revalidatePath } from 'next/cache';
+export async function POST(req) {
+  const secret = req.headers.get('x-webhook-secret');
+  if (secret !== process.env.CRM_WEBHOOK_SECRET) return new Response('unauthorized', { status: 401 });
+  const { propertyId } = await req.json();
+  // If you use fetch(..., { next:{ tags:['vacances'] } })
+  revalidateTag('vacances');
+  revalidateTag(`vacances:${propertyId}`);
+  // Or if you use ISR per page
+  // revalidatePath(`/properties/${propertyId}`);
+  return Response.json({ revalidated: true, propertyId });
+}
+```
+Set `CRM_WEBHOOK_SECRET` in `www` env and `SQUAREMETER_WEBHOOK_SECRET` in CRM Railway to same value, and `SQUAREMETER_WEBHOOK_URL=https://www.squaremeter.ma/api/revalidate-vacances`.
+
+### Instant updates — no waiting after CRM save
+Saving in **Toolbox → Vacances → Gérer calendrier → Enregistrer** (`PUT /api/toolbox/vacances/:id/reservations`) now **instantly** propagates:
+1. **DB write is immediate** — next `GET /api/public/vacances/reservations/:id` reads fresh rows.
+2. **CDN cache is short** — `Cache-Control: public, max-age=5, stale-while-revalidate=10` (was 60). Worst delay 5s; Cloudflare also respects `CDN-Cache-Control: max-age=5`.
+3. **Webhook (optional, for 0s)** — if `SQUAREMETER_WEBHOOK_URL=https://www.squaremeter.ma/api/revalidate-vacances` is set in Railway, CRM `POST`s `{ propertyId, reservedDates }` with `X-Webhook-Secret` **at the moment of save** (`services/vacancesNotify.service.js`). Your `www` should expose that endpoint to `revalidateTag('vacances')` / `revalidatePath` or purge. Without webhook, you still get 5s freshness.
+4. **SSE live stream (optional, for 0s without polling)** — `GET https://api.squaremeter.ma/api/public/vacances/stream` is a `text/event-stream` that pushes `data: {"type":"vacances.calendar.updated","propertyId":"...","reservedDates":[...]}` instantly. In `www`:
+```js
+const es = new EventSource('https://api.squaremeter.ma/api/public/vacances/stream');
+es.onmessage = e => {
+  const { propertyId, reservedDates } = JSON.parse(e.data);
+  if (propertyId === currentId) setBlocked(new Set(reservedDates));
+};
+```
+For ISR, also fetch with `cache:'no-store'` or `next:{revalidate:0}` if you want to bypass Next fetch cache:
+```js
+fetch(`${CRM_API}/vacances/reservations/${id}`, { cache:'no-store' })
+fetch(`${CRM_API}/vacances/reservations/${id}`, { next:{ revalidate:0 } })
+```
+
 ### Rate limit
 `120 req / 15 min` per IP. Exceeding returns `429` with `Retry-After`.
 
 ### Caching
-- `reservedDates` / `calendar`: `Cache-Control: public, max-age=60`
+- `reservedDates` / `calendar` / `?ids=`: `Cache-Control: public, max-age=5, stale-while-revalidate=10, must-revalidate` + `CDN-Cache-Control: max-age=5` (was 60) — instant within 5s, webhook makes it 0s.
 - `properties`: `public, max-age=300` (5 min), server-side memo.
+- `stream`: `no-cache, no-transform` SSE.
 
 ---
 
@@ -189,6 +227,14 @@ APIMO_AGENCY_ID=25311
 # Optional — if set, public API requires X-API-Key
 PUBLIC_VACANCES_API_KEY=your-random-secret
 CORS_ORIGIN=https://squaremeter.ma,https://www.squaremeter.ma,http://localhost:3000
+
+# Optional — instant webhook to www.squaremeter.ma (0s, recommended if you use ISR)
+SQUAREMETER_WEBHOOK_URL=https://www.squaremeter.ma/api/revalidate-vacances
+SQUAREMETER_WEBHOOK_SECRET=shared-random-secret
+# aliases: SQUAREMETER_REVALIDATE_URL / SQUAREMETER_REVALIDATE_SECRET
+# Optional — Cloudflare purge on save (CF Zone ID + Token)
+# CF_ZONE_ID=...
+# CF_API_TOKEN=...
 ```
 
 ## Security notes

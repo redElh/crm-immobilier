@@ -39,11 +39,14 @@ export async function publicGetReservations(req, res) {
       [String(apimoPropertyId)]
     )
     const dates = result.rows.map(r => new Date(r.reserved_date).toISOString().slice(0, 10))
+    // Instant: short CDN cache + must-revalidate. Real instant comes from webhook/CF purge on save.
     res.set({
-      'Cache-Control': 'public, max-age=60',
-      'Access-Control-Allow-Origin': req.headers.origin || '*',
+      'Cache-Control': 'public, max-age=5, stale-while-revalidate=10, must-revalidate',
+      'CDN-Cache-Control': 'public, max-age=5',
+      'Cloudflare-CDN-Cache-Control': 'public, max-age=5',
+      'Vary': 'Origin',
     })
-    return res.json({ propertyId: String(apimoPropertyId), reservedDates: dates, count: dates.length })
+    return res.json({ propertyId: String(apimoPropertyId), reservedDates: dates, count: dates.length, updatedAt: new Date().toISOString() })
   } catch (e) {
     if (String(e.code) === '42P01') {
       await ensureVacancesTable()
@@ -81,8 +84,8 @@ export async function publicGetReservationsBatch(req, res) {
       if (map[pid]) map[pid].push(d)
       else map[pid] = [d]
     }
-    res.set({ 'Cache-Control': 'public, max-age=60' })
-    return res.json({ reservations: map })
+    res.set({ 'Cache-Control': 'public, max-age=5, stale-while-revalidate=10, must-revalidate', 'CDN-Cache-Control': 'public, max-age=5', 'Vary': 'Origin' })
+    return res.json({ reservations: map, updatedAt: new Date().toISOString() })
   } catch (e) {
     console.error('publicGetReservationsBatch error', e)
     return res.status(500).json({ error: 'Internal server error' })
@@ -104,16 +107,50 @@ export async function publicGetCalendar(req, res) {
       calendar[pid].push(d)
     }
     const totalDates = Object.values(calendar).reduce((s, arr) => s + arr.length, 0)
-    res.set({ 'Cache-Control': 'public, max-age=60' })
+    res.set({ 'Cache-Control': 'public, max-age=5, stale-while-revalidate=10, must-revalidate', 'CDN-Cache-Control': 'public, max-age=5', 'Vary': 'Origin' })
     return res.json({
       calendar,
       totalProperties: Object.keys(calendar).length,
       totalDates,
+      updatedAt: new Date().toISOString(),
     })
   } catch (e) {
     console.error('publicGetCalendar error', e)
     return res.status(500).json({ error: 'Internal server error' })
   }
+}
+
+// --- Public: SSE stream for instant updates (optional, for www.squaremeter.ma) ---
+export async function publicStream(req, res) {
+  // Allow CORS preflight already handled; now set SSE headers
+  res.set({
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache, no-transform',
+    'Connection': 'keep-alive',
+    'X-Accel-Buffering': 'no',
+    'Access-Control-Allow-Origin': req.headers.origin || '*',
+  })
+  res.flushHeaders?.()
+  const send = (data) => {
+    try { res.write(`data: ${JSON.stringify(data)}\n\n`) } catch (_) {}
+  }
+  // Initial hello
+  send({ type: 'hello', at: new Date().toISOString() })
+  // Subscribe to in-process broadcasts
+  let unsubscribe = null
+  try {
+    const { onVacancesUpdate } = await import('../services/vacancesBroadcast.service.js')
+    unsubscribe = onVacancesUpdate((payload) => send(payload))
+  } catch (_) {}
+  // Heartbeat every 25s to keep Cloudflare/Vercel connection alive
+  const hb = setInterval(() => {
+    try { res.write(`: hb ${Date.now()}\n\n`) } catch (_) {}
+  }, 25000)
+  req.on('close', () => {
+    clearInterval(hb)
+    if (typeof unsubscribe === 'function') unsubscribe()
+    try { res.end() } catch (_) {}
+  })
 }
 
 // --- Public: vacances properties list (category 3) — proxied, cached 5min ---

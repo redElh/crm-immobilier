@@ -1,4 +1,5 @@
 import pool from '../config/db.js'
+import { notifyVacancesUpdate } from '../services/vacancesNotify.service.js'
 
 const APIMO_BASE = 'https://api.apimo.pro'
 
@@ -182,10 +183,13 @@ export async function putVacancesReservations(req, res) {
       'SELECT reserved_date FROM vacances_reservations WHERE apimo_property_id = $1 ORDER BY reserved_date ASC',
       [String(apimoPropertyId)]
     )
+    const finalDates = result.rows.map(r => new Date(r.reserved_date).toISOString().slice(0, 10))
     res.json({
       propertyId: String(apimoPropertyId),
-      dates: result.rows.map(r => new Date(r.reserved_date).toISOString().slice(0, 10)),
+      dates: finalDates,
     })
+    // Fire-and-forget: instantly inform www/api.squaremeter.ma (webhook + CF purge + WS)
+    notifyVacancesUpdate(String(apimoPropertyId), finalDates).catch(() => {})
   } catch (e) {
     console.error('putVacancesReservations error', e)
     res.status(500).json({ error: 'Internal server error' })
@@ -203,16 +207,22 @@ export async function toggleVacancesDate(req, res) {
       'SELECT id FROM vacances_reservations WHERE apimo_property_id = $1 AND reserved_date = $2::date',
       [String(apimoPropertyId), date]
     )
+    let reserved
     if (existing.rows.length > 0) {
       await pool.query('DELETE FROM vacances_reservations WHERE apimo_property_id = $1 AND reserved_date = $2::date', [String(apimoPropertyId), date])
-      return res.json({ date, reserved: false })
+      reserved = false
     } else {
       await pool.query(
         'INSERT INTO vacances_reservations (apimo_property_id, reserved_date, created_by) VALUES ($1, $2::date, $3) ON CONFLICT DO NOTHING',
         [String(apimoPropertyId), date, userId]
       )
-      return res.json({ date, reserved: true })
+      reserved = true
     }
+    const r = await pool.query('SELECT reserved_date FROM vacances_reservations WHERE apimo_property_id = $1 ORDER BY reserved_date ASC', [String(apimoPropertyId)])
+    const finalDates = r.rows.map(x => new Date(x.reserved_date).toISOString().slice(0, 10))
+    res.json({ date, reserved })
+    notifyVacancesUpdate(String(apimoPropertyId), finalDates).catch(() => {})
+    return
   } catch (e) {
     console.error('toggleVacancesDate error', e)
     res.status(500).json({ error: 'Internal server error' })
