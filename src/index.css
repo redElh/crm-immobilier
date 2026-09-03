@@ -1122,6 +1122,24 @@
   -webkit-mask-image: radial-gradient(ellipse 90% 80% at 50% 0%, black 30%, transparent 75%);
   mask-image: radial-gradient(ellipse 90% 80% at 50% 0%, black 30%, transparent 75%);
 }
+/* Admin / Gérant override — warm amber stage instead of teal */
+.admin-theme .stage-light{
+  background: radial-gradient(1100px 560px at 85% -10%, rgba(251,146,60,0.14), transparent 60%), radial-gradient(900px 500px at -10% 110%, rgba(124,92,255,0.07), transparent 60%), linear-gradient(160deg, #FFF7ED, #FFEDD5 55%, #FFF7ED);
+  color:#7C2D12;
+}
+.admin-theme .stage-light:before{
+  background-image: linear-gradient(rgba(124,45,18,0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(124,45,18,0.05) 1px, transparent 1px);
+}
+.admin-theme .stage-light .stage-glass{
+  background: linear-gradient(180deg, rgba(255,255,255,0.92), rgba(255,255,255,0.72));
+  border: 1px solid rgba(255,255,255,0.98);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.98), 0 24px 60px -30px rgba(251,146,60,0.35);
+}
+.admin-theme .stage-light .stage-glass:before{
+  background: linear-gradient(90deg, transparent, rgba(251,146,60,0.55), rgba(124,92,255,0.20), transparent);
+}
+.admin-theme .aurora-violet{ background: radial-gradient(circle at center, rgba(251,146,60,0.22), transparent 65%); }
+.admin-theme .aurora-cyan{ background: radial-gradient(circle at center, rgba(124,92,255,0.10), transparent 65%); }
 .stage-glass{
   backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px);
   background: linear-gradient(180deg, rgba(255,255,255,0.07), rgba(255,255,255,0.03));

@@ -2,6 +2,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import { Tool, Calendar, ArrowRight, Zap, Star, Lock, Compass } from 'react-feather'
 import { Stage, StageButton, OrbIcon, TiltCard, STAGE_HUES, useStageTheme } from '../../components/dashboard/Stage'
+import type { StageTheme } from '../../components/dashboard/Stage'
 import { useStageChrome } from '../../components/modules/calendar/useStageChrome'
 
 export default function ToolboxPage() {
@@ -10,15 +11,19 @@ export default function ToolboxPage() {
   const baseId = agentId || adminId
   const isAdminRoute = !!adminId
   const vacancesTo = isAdminRoute ? `/admin/${adminId}/toolbox/vacances` : `/${baseId}/toolbox/vacances`
-  const { staged, dark } = useStageChrome()
-  const theme = useStageTheme()
+  const rawTheme = useStageTheme()
+  const theme: StageTheme = isAdminRoute ? 'light' : rawTheme
+  const rawChrome = useStageChrome()
+  const staged = isAdminRoute ? true : rawChrome.staged
   const isDark = theme === 'dark'
 
-  const heroText = staged
-    ? isDark
+  const heroText = (() => {
+    if (!staged) return { eyebrow: 'text-[10px] font-bold uppercase tracking-[0.24em] text-text-secondary', title: 'text-text', sub: 'text-sm text-text-secondary' }
+    if (isAdminRoute) return { eyebrow: 'text-[10px] font-bold uppercase tracking-[0.24em] text-[#893101]/60', title: 'bg-gradient-to-r from-[#893101] via-[#B45309] to-[#D97706] bg-clip-text text-transparent', sub: 'text-sm text-[#893101]/60' }
+    return isDark
       ? { eyebrow: 'text-[10px] font-bold uppercase tracking-[0.24em] text-slate-400/80', title: 'bg-gradient-to-r from-white via-indigo-100 to-indigo-300 bg-clip-text text-transparent', sub: 'text-sm text-slate-400' }
       : { eyebrow: 'text-[10px] font-bold uppercase tracking-[0.24em] text-teal-900/50', title: 'bg-gradient-to-r from-teal-900 via-teal-700 to-emerald-600 bg-clip-text text-transparent', sub: 'text-sm text-teal-900/55' }
-    : { eyebrow: 'text-[10px] font-bold uppercase tracking-[0.24em] text-text-secondary', title: 'text-text', sub: 'text-sm text-text-secondary' }
+  })()
 
   const tools = [
     {

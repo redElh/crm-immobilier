@@ -16,6 +16,7 @@ import {
 } from 'react-feather'
 import { AnimatePresence, motion } from 'framer-motion'
 import SidebarToggle from '../../components/layout/SidebarToggle'
+import { StageThemeProvider } from '../../components/dashboard/Stage'
 
 export function AdminLayout({ children }: { children: React.ReactNode }) {
   const location = useLocation()
@@ -397,9 +398,11 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
           </div>
         </header>
 
-        <main className={cn('flex-1 overflow-y-auto p-6 scrollbar-thin', isMessagesRoute && appearance.theme === 'dark' && 'dark bg-background')}>
-          {children}
-        </main>
+        <StageThemeProvider value="light">
+          <main className={cn('flex-1 overflow-y-auto p-6 scrollbar-thin', isMessagesRoute && appearance.theme === 'dark' && 'dark bg-background')}>
+            {children}
+          </main>
+        </StageThemeProvider>
       </div>
     </div>
   )

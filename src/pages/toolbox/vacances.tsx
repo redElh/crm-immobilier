@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Search, Calendar, MapPin, Home, X, ChevronLeft, ArrowUpRight, Hash, Zap, Grid, List, Filter } from 'react-feather'
 import { Stage, StageButton, OrbIcon, TiltCard, STAGE_HUES, useStageTheme } from '../../components/dashboard/Stage'
+import type { StageTheme } from '../../components/dashboard/Stage'
 import { useStageChrome } from '../../components/modules/calendar/useStageChrome'
 import { useStageFormClasses } from '../../components/modules/calendar/StageModal'
 import { cn } from '../../lib/utils'
@@ -33,8 +34,10 @@ export default function VacancesManagementPage() {
   const isAdminRoute = !!adminId
   const toolboxPath = isAdminRoute ? `/admin/${adminId}/toolbox` : `/${baseId}/toolbox`
   const navigate = useNavigate()
-  const { staged, dark } = useStageChrome()
-  const theme = useStageTheme()
+  const rawTheme = useStageTheme()
+  const theme: StageTheme = isAdminRoute ? 'light' : rawTheme
+  const rawChrome = useStageChrome()
+  const staged = isAdminRoute ? true : rawChrome.staged
   const isDark = theme === 'dark'
   const { toast } = useToast()
   const { input: stageInput, label: stageLabel } = useStageFormClasses()
@@ -83,11 +86,13 @@ export default function VacancesManagementPage() {
     })
   }, [propsList, search])
 
-  const heroText = staged
-    ? isDark
+  const heroText = (() => {
+    if (!staged) return { eyebrow: 'text-[10px] font-bold uppercase tracking-[0.24em] text-text-secondary', title: 'text-text', sub: 'text-sm text-text-secondary' }
+    if (isAdminRoute) return { eyebrow: 'text-[10px] font-bold uppercase tracking-[0.24em] text-[#893101]/60', title: 'bg-gradient-to-r from-[#893101] via-[#B45309] to-[#D97706] bg-clip-text text-transparent', sub: 'text-sm text-[#893101]/60' }
+    return isDark
       ? { eyebrow: 'text-[10px] font-bold uppercase tracking-[0.24em] text-slate-400/80', title: 'bg-gradient-to-r from-white via-amber-100 to-amber-300 bg-clip-text text-transparent', sub: 'text-sm text-slate-400' }
       : { eyebrow: 'text-[10px] font-bold uppercase tracking-[0.24em] text-teal-900/50', title: 'bg-gradient-to-r from-teal-900 via-amber-700 to-amber-600 bg-clip-text text-transparent', sub: 'text-sm text-teal-900/55' }
-    : { eyebrow: 'text-[10px] font-bold uppercase tracking-[0.24em] text-text-secondary', title: 'text-text', sub: 'text-sm text-text-secondary' }
+  })()
 
   const handleContextMenu = (e: React.MouseEvent, p: ApimoVacanceProperty) => {
     e.preventDefault()
