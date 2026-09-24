@@ -2,14 +2,13 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { Controller } from 'react-hook-form';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Printer } from 'react-feather';
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '../../../../components/ui/Accordion';
 import { Input } from '../../../../components/ui/Input';
 import { Button } from '../../../../components/ui/Button';
 import { Badge } from '../../../../components/ui/Badge';
-import { MotionCard } from '../../../../components/ui/Card';
 import { Search, FileText, Send, Download, RefreshCw, Eye, Check, Clock, User, Building, Mail, Phone, MapPin, Briefcase, FileSignature, ChevronRight, Users, Home, List, Globe, Sofa, Armchair, Coffee, Tv, Lamp, Bath, Bed, Microwave, Warehouse } from 'lucide-react';
 import { fetchClients } from '../../../../services/clientService';
 import { fetchContacts } from '../../../../services/contactService';
+import { SectionCard, Field } from './stage';
 
 const dynamicIcons = ['refrigerator', 'stove', 'coffee-maker', 'mirror', 'chair', 'dresser'];
 
@@ -458,472 +457,448 @@ export function InventoryTab({ control, register, watch, setValue: setFormValue,
   };
 
   return (
-    <MotionCard
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.25, ease: "easeOut" }}
-      className="p-0 overflow-hidden"
-    >
-      <div className="px-6 py-5 border-b border-border/40">
-        <div className="flex items-center gap-3">
-          <div className={`p-2 rounded-lg ${isGerant ? 'bg-[#905D5D]/10 text-[#905D5D]' : 'bg-accent/10 text-accent'}`}>
-            <List className="w-5 h-5" />
-          </div>
-          <div>
-            <h2 className="font-semibold text-text">Checklist Inventaire</h2>
-            <p className="text-xs text-text-secondary">Équipements et mobilier du bien</p>
+    <div className="space-y-5">
+      <div className="rounded-3xl overflow-hidden">
+        <div className="px-6 py-5 border-b border-border/40">
+          <div className="flex items-center gap-3">
+            <div className={`p-2 rounded-lg ${isGerant ? 'bg-[#905D5D]/10 text-[#905D5D]' : 'bg-accent/10 text-accent'}`}>
+              <List className="w-5 h-5" />
+            </div>
+            <div>
+              <h2 className="font-semibold text-text">Checklist Inventaire</h2>
+              <p className="text-xs text-text-secondary">Équipements et mobilier du bien</p>
+            </div>
           </div>
         </div>
+
+        {hasNoCounts && (
+          <div className="px-6 py-8 text-center">
+            <Home className="w-10 h-10 mx-auto text-text-secondary/20 mb-3" />
+            <p className="text-sm font-medium text-text-secondary">Aucune pièce renseignée</p>
+            <p className="text-xs text-text-secondary/60 mt-1">
+              Renseignez d'abord le nombre de pièces dans l'onglet <span className={`font-medium ${isGerant ? 'text-[#905D5D]' : 'text-accent'}`}>Intérieur</span>
+            </p>
+          </div>
+        )}
       </div>
 
-      {hasNoCounts && (
-        <div className="px-6 py-8 text-center">
-          <Home className="w-10 h-10 mx-auto text-text-secondary/20 mb-3" />
-          <p className="text-sm font-medium text-text-secondary">Aucune pièce renseignée</p>
-          <p className="text-xs text-text-secondary/60 mt-1">
-            Renseignez d'abord le nombre de pièces dans l'onglet <span className={`font-medium ${isGerant ? 'text-[#905D5D]' : 'text-accent'}`}>Intérieur</span>
-          </p>
-        </div>
-      )}
+      {rooms.map((room) => (
+        <SectionCard
+          key={room.name}
+          value={room.name}
+          title={room.label}
+          subtitle={`${room.items.length} éléments`}
+          icon={Sofa}
+          defaultOpen={false}
+        >
+          <div className="overflow-x-auto">
+            <table className="w-full border-collapse text-sm">
+              <thead>
+                <tr className="bg-background/50 border-y border-border/40">
+                  <th className="pl-6 py-3 text-left text-xs font-semibold text-text-secondary uppercase tracking-wider">Élément</th>
+                  <th className="px-3 py-3 text-center text-xs font-semibold text-text-secondary uppercase tracking-wider">Quantité</th>
+                  <th className="px-3 py-3 text-center text-xs font-semibold text-text-secondary uppercase tracking-wider">Condition</th>
+                  <th className="pr-6 py-3 text-left text-xs font-semibold text-text-secondary uppercase tracking-wider">Notes</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border/30">
+                {room.items.map((item) => {
+                  const itemId = item.name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[ &]/g, '_');
+                  return (
+                    <tr key={itemId} className="hover:bg-background/30 transition-colors">
+                      <td className="pl-6 py-3 font-medium text-text flex items-center gap-2.5">
+                        <span className="text-text-secondary">{renderIcon(item.icon)}</span>
+                        {item.name}
+                      </td>
+                      <td className="px-3 py-3 text-center align-middle">
+                        <Input type="number" min="0" {...register(`inventory.${room.name}.${itemId}.quantity`)} className="w-20 mx-auto text-center" />
+                      </td>
+                      <td className="px-3 py-3 text-center align-middle">
+                        <div className="inline-flex gap-1.5">
+                          {(['good', 'average', 'bad', 'absent'] as const).map((condition) => {
+                            const labels = { good: 'Bon', average: 'Moyen', bad: 'Mauvais', absent: 'Absent' };
+                            const colors = {
+                              good: 'data-[active=true]:bg-success/15 data-[active=true]:text-success data-[active=true]:border-success/30',
+                              average: 'data-[active=true]:bg-premium/15 data-[active=true]:text-premium data-[active=true]:border-premium/30',
+                              bad: 'data-[active=true]:bg-error/15 data-[active=true]:text-error data-[active=true]:border-error/30',
+                              absent: 'data-[active=true]:bg-text-secondary/10 data-[active=true]:text-text-secondary data-[active=true]:border-text-secondary/30',
+                            };
+                            const icons = { good: '✓', average: '!', bad: '✕', absent: '—' };
+                            return (
+                              <Controller
+                                key={condition}
+                                name={`inventory.${room.name}.${itemId}.condition`}
+                                control={control}
+                                render={({ field }) => (
+                                  <button
+                                    type="button"
+                                    onClick={() => field.onChange(field.value === condition ? '' : condition)}
+                                    data-active={field.value === condition}
+                                    className={`w-7 h-7 rounded-md text-xs font-medium border transition-all duration-150
+                                      hover:scale-110 active:scale-95
+                                      border-border/50 text-text-secondary hover:border-text-secondary/50
+                                      ${colors[condition]}`}
+                                    title={labels[condition]}
+                                  >
+                                    {icons[condition]}
+                                  </button>
+                                )}
+                              />
+                            );
+                          })}
+                        </div>
+                      </td>
+                      <td className="pr-6 py-3">
+                        <Input {...register(`inventory.${room.name}.${itemId}.comments`)} placeholder="Notes..." />
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </SectionCard>
+      ))}
 
-      <Accordion type="multiple" defaultValue={[...rooms.map(room => room.name), 'signatures']} className="space-y-0">
-        {rooms.map((room) => (
-          <AccordionItem key={room.name} value={room.name} className="border-0 border-t border-border/40">
-            <AccordionTrigger className="px-6 py-4 hover:bg-background/50 transition-colors duration-200">
-              <div className="flex items-center gap-3">
-                <div className={`p-1.5 rounded-lg ${isGerant ? 'bg-[#905D5D]/10 text-[#905D5D]' : 'bg-accent/10 text-accent'}`}>
-                  {getRoomIcon(room.name)}
+      <SectionCard value="signatures" title="Signatures de l'inventaire" icon={FileSignature} subtitle="Gestion et suivi des signatures" badge={<Badge variant="secondary" size="sm">Nouveau</Badge>}>
+        <div className="space-y-5">
+          <Field>
+            <motion.div variants={itemAnim} className="rounded-xl border border-border/40 bg-gradient-to-br from-card to-background/50 overflow-hidden">
+              <div className="flex items-center gap-3 px-5 py-4 border-b border-border/30">
+                <div className={`p-2 rounded-lg ${isGerant ? 'bg-[#905D5D]/10 text-[#905D5D]' : 'bg-accent/10 text-accent'}`}>
+                  <FileText className="w-4 h-4" />
                 </div>
-                <span className="font-medium text-text">{room.label}</span>
-                <span className="text-xs text-text-secondary bg-background/80 px-2 py-0.5 rounded-full">{room.items.length} éléments</span>
+                <div>
+                  <h4 className="font-semibold text-sm text-text">Aperçu de l'inventaire</h4>
+                  <p className="text-xs text-text-secondary">L'inventaire sera envoyé aux parties pour signature électronique</p>
+                </div>
               </div>
-            </AccordionTrigger>
-            <AccordionContent className="px-0 pb-0">
-              <motion.div variants={container} initial="hidden" animate="show">
-                <div className="overflow-x-auto">
-                  <table className="w-full border-collapse text-sm">
-                    <thead>
-                      <tr className="bg-background/50 border-y border-border/40">
-                        <th className="pl-6 py-3 text-left text-xs font-semibold text-text-secondary uppercase tracking-wider">Élément</th>
-                        <th className="px-3 py-3 text-center text-xs font-semibold text-text-secondary uppercase tracking-wider">Quantité</th>
-                        <th className="px-3 py-3 text-center text-xs font-semibold text-text-secondary uppercase tracking-wider">Condition</th>
-                        <th className="pr-6 py-3 text-left text-xs font-semibold text-text-secondary uppercase tracking-wider">Notes</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-border/30">
-                      {room.items.map((item) => {
-                        const itemId = item.name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[ &]/g, '_');
-                        return (
-                          <tr key={itemId} className="hover:bg-background/30 transition-colors">
-                            <td className="pl-6 py-3 font-medium text-text flex items-center gap-2.5">
-                              <span className="text-text-secondary">{renderIcon(item.icon)}</span>
-                              {item.name}
-                            </td>
-                            <td className="px-3 py-3 text-center align-middle">
-                              <Input type="number" min="0" {...register(`inventory.${room.name}.${itemId}.quantity`)} className="w-20 mx-auto text-center" />
-                            </td>
-                            <td className="px-3 py-3 text-center align-middle">
-                              <div className="inline-flex gap-1.5">
-                                {(['good', 'average', 'bad', 'absent'] as const).map((condition) => {
-                                  const labels = { good: 'Bon', average: 'Moyen', bad: 'Mauvais', absent: 'Absent' };
-                                  const colors = {
-                                    good: 'data-[active=true]:bg-success/15 data-[active=true]:text-success data-[active=true]:border-success/30',
-                                    average: 'data-[active=true]:bg-premium/15 data-[active=true]:text-premium data-[active=true]:border-premium/30',
-                                    bad: 'data-[active=true]:bg-error/15 data-[active=true]:text-error data-[active=true]:border-error/30',
-                                    absent: 'data-[active=true]:bg-text-secondary/10 data-[active=true]:text-text-secondary data-[active=true]:border-text-secondary/30',
-                                  };
-                                  const icons = { good: '✓', average: '!', bad: '✕', absent: '—' };
-                                  return (
-                                    <Controller
-                                      key={condition}
-                                      name={`inventory.${room.name}.${itemId}.condition`}
-                                      control={control}
-                                      render={({ field }) => (
-                                        <button
-                                          type="button"
-                                          onClick={() => field.onChange(field.value === condition ? '' : condition)}
-                                          data-active={field.value === condition}
-                                          className={`w-7 h-7 rounded-md text-xs font-medium border transition-all duration-150
-                                            hover:scale-110 active:scale-95
-                                            border-border/50 text-text-secondary hover:border-text-secondary/50
-                                            ${colors[condition]}`}
-                                          title={labels[condition]}
-                                        >
-                                          {icons[condition]}
-                                        </button>
-                                      )}
-                                    />
-                                  );
-                                })}
-                              </div>
-                            </td>
-                            <td className="pr-6 py-3">
-                              <Input {...register(`inventory.${room.name}.${itemId}.comments`)} placeholder="Notes..." />
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
+              <div className="p-5">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+                  <div className="flex-1 space-y-2">
+                    <div className="flex items-center gap-4 text-sm">
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-background/80 text-text-secondary">
+                        <Home className="w-3.5 h-3.5" />
+                        <span className="font-medium">{totalRooms} pièces</span>
+                      </span>
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-background/80 text-text-secondary">
+                        <List className="w-3.5 h-3.5" />
+                        <span className="font-medium">{totalRooms} catégories</span>
+                      </span>
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-background/80 text-text-secondary">
+                        <BoxIcon className="w-3.5 h-3.5" />
+                        <span className="font-medium">{totalItems} éléments</span>
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2.5">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="default"
+                      icon={<FileText className="w-3.5 h-3.5" />}
+                      onClick={() => setFormValue?.('inventorySignature.documentGenerated', true)}
+                    >
+                      Générer l'inventaire
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      icon={<Eye className="w-3.5 h-3.5" />}
+                      disabled={!documentGenerated}
+                      onClick={() => setShowDocumentPreview(true)}
+                    >
+                      Voir le document
+                    </Button>
+                  </div>
                 </div>
-              </motion.div>
-            </AccordionContent>
-          </AccordionItem>
-        ))}
+                {documentGenerated && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    className="mt-3 pt-3 border-t border-border/30"
+                  >
+                    <div className="flex items-center gap-2 text-xs text-emerald-600">
+                      <Check className="w-3.5 h-3.5" />
+                      Inventaire généré avec succès
+                    </div>
+                  </motion.div>
+                )}
+              </div>
+            </motion.div>
+          </Field>
 
-        <AccordionItem value="signatures" className="border-0 border-t border-border/40">
-          <AccordionTrigger className="px-6 py-4 hover:bg-background/50 transition-colors duration-200">
-            <div className="flex items-center gap-3">
-              <div className={`p-1.5 rounded-lg ${isGerant ? 'bg-[#905D5D]/10 text-[#905D5D]' : 'bg-accent/10 text-accent'}`}>
-                {<FileSignature className="w-5 h-5" />}
-              </div>
-              <span className="font-medium text-text">Signatures de l'inventaire</span>
-              <Badge variant="secondary" size="sm" className="ml-1">Nouveau</Badge>
-            </div>
-          </AccordionTrigger>
-          <AccordionContent className="pb-0">
-            <motion.div
-              variants={container}
-              initial="hidden"
-              animate="show"
-              className="space-y-5 px-6 pb-6"
-            >
-              {/* Document Preview */}
-              <motion.div variants={itemAnim} className="rounded-xl border border-border/40 bg-gradient-to-br from-card to-background/50 overflow-hidden">
-                <div className="flex items-center gap-3 px-5 py-4 border-b border-border/30">
+          <Field>
+            <motion.div variants={itemAnim} className="rounded-xl border border-border/40 bg-card overflow-hidden">
+              <div className="flex items-center justify-between px-5 py-4 border-b border-border/30">
+                <div className="flex items-center gap-3">
                   <div className={`p-2 rounded-lg ${isGerant ? 'bg-[#905D5D]/10 text-[#905D5D]' : 'bg-accent/10 text-accent'}`}>
-                    <FileText className="w-4 h-4" />
+                    <User className="w-4 h-4" />
                   </div>
                   <div>
-                    <h4 className="font-semibold text-sm text-text">Aperçu de l'inventaire</h4>
-                    <p className="text-xs text-text-secondary">L'inventaire sera envoyé aux parties pour signature électronique</p>
+                    <h4 className="font-semibold text-sm text-text">Propriétaire</h4>
                   </div>
                 </div>
-                <div className="p-5">
-                  <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
-                    <div className="flex-1 space-y-2">
-                      <div className="flex items-center gap-4 text-sm">
-                        <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-background/80 text-text-secondary">
-                          <Home className="w-3.5 h-3.5" />
-                          <span className="font-medium">{totalRooms} pièces</span>
-                        </span>
-                        <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-background/80 text-text-secondary">
-                          <List className="w-3.5 h-3.5" />
-                          <span className="font-medium">{totalRooms} catégories</span>
-                        </span>
-                        <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-background/80 text-text-secondary">
-                          <BoxIcon className="w-3.5 h-3.5" />
-                          <span className="font-medium">{totalItems} éléments</span>
+                {getStatusBadge(ownerStatus)}
+              </div>
+              <div className="p-5">
+                <motion.div
+                  variants={container}
+                  initial="hidden"
+                  animate="show"
+                  className="space-y-3"
+                >
+                  {ownerType === 'particulier' ? (
+                    <>
+                      <motion.div variants={itemAnim} className="flex items-center gap-3 p-3 rounded-lg bg-background/60">
+                        <User className="w-4 h-4 text-text-secondary shrink-0" />
+                        <div>
+                          <p className="text-xs text-text-secondary">Nom complet</p>
+                          <p className="text-sm font-medium text-text">{ownerName}</p>
+                        </div>
+                      </motion.div>
+                      <motion.div variants={itemAnim} className="flex items-center gap-3 p-3 rounded-lg bg-background/60">
+                        <MapPin className="w-4 h-4 text-text-secondary shrink-0" />
+                        <div>
+                          <p className="text-xs text-text-secondary">Adresse</p>
+                          <p className="text-sm font-medium text-text">{ownerAddress || 'Non renseignée'}</p>
+                        </div>
+                      </motion.div>
+                      <motion.div variants={itemAnim} className="flex items-center gap-3 p-3 rounded-lg bg-background/60">
+                        <Phone className="w-4 h-4 text-text-secondary shrink-0" />
+                        <div>
+                          <p className="text-xs text-text-secondary">Téléphone</p>
+                          <p className="text-sm font-medium text-text">{ownerPhone || 'Non renseigné'}</p>
+                        </div>
+                      </motion.div>
+                      <motion.div variants={itemAnim} className="flex items-center gap-3 p-3 rounded-lg bg-background/60">
+                        <Briefcase className="w-4 h-4 text-text-secondary shrink-0" />
+                        <div>
+                          <p className="text-xs text-text-secondary">Profession</p>
+                          <p className="text-sm font-medium text-text">{ownerProfession || 'Non renseignée'}</p>
+                        </div>
+                      </motion.div>
+                      <motion.div variants={itemAnim} className="flex items-center gap-3 p-3 rounded-lg bg-background/60">
+                        <Mail className="w-4 h-4 text-text-secondary shrink-0" />
+                        <div>
+                          <p className="text-xs text-text-secondary">Email</p>
+                          <p className="text-sm font-medium text-text">{ownerEmail || 'Non renseigné'}</p>
+                        </div>
+                      </motion.div>
+                    </>
+                  ) : (
+                    <>
+                      <motion.div variants={itemAnim} className="flex items-center gap-3 p-3 rounded-lg bg-background/60">
+                        <Building className="w-4 h-4 text-text-secondary shrink-0" />
+                        <div>
+                          <p className="text-xs text-text-secondary">Dénomination sociale</p>
+                          <p className="text-sm font-medium text-text">{companyName || 'Non renseignée'}</p>
+                        </div>
+                      </motion.div>
+                      <motion.div variants={itemAnim} className="flex items-center gap-3 p-3 rounded-lg bg-background/60">
+                        <Briefcase className="w-4 h-4 text-text-secondary shrink-0" />
+                        <div>
+                          <p className="text-xs text-text-secondary">Forme sociale</p>
+                          <p className="text-sm font-medium text-text">{companyLegalForm || 'Non renseignée'}</p>
+                        </div>
+                      </motion.div>
+                      <motion.div variants={itemAnim} className="flex items-center gap-3 p-3 rounded-lg bg-background/60">
+                        <Globe className="w-4 h-4 text-text-secondary shrink-0" />
+                        <div>
+                          <p className="text-xs text-text-secondary">N° SIREN</p>
+                          <p className="text-sm font-medium text-text">{companySiren || 'Non renseigné'}</p>
+                        </div>
+                      </motion.div>
+                      <motion.div variants={itemAnim} className="flex items-center gap-3 p-3 rounded-lg bg-background/60">
+                        <MapPin className="w-4 h-4 text-text-secondary shrink-0" />
+                        <div>
+                          <p className="text-xs text-text-secondary">Adresse</p>
+                          <p className="text-sm font-medium text-text">{companyAddress || 'Non renseignée'}</p>
+                        </div>
+                      </motion.div>
+                    </>
+                  )}
+                  <motion.div variants={itemAnim} className="pt-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      icon={<Send className="w-3.5 h-3.5" />}
+                      disabled={!documentGenerated}
+                      className="w-full sm:w-auto"
+                    >
+                      Envoyer le lien de signature
+                    </Button>
+                  </motion.div>
+                </motion.div>
+              </div>
+            </motion.div>
+          </Field>
+
+          <Field>
+            <motion.div variants={itemAnim} className="rounded-xl border border-border/40 bg-card overflow-hidden">
+              <div className="flex items-center justify-between px-5 py-4 border-b border-border/30">
+                <div className="flex items-center gap-3">
+                  <div className={`p-2 rounded-lg ${isGerant ? 'bg-[#905D5D]/10 text-[#905D5D]' : 'bg-accent/10 text-accent'}`}>
+                    <Users className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h4 className="font-semibold text-sm text-text">{personLabel} concerné</h4>
+                  </div>
+                </div>
+                {selectedLocataire && getStatusBadge(tenantStatus)}
+              </div>
+              <div className="p-5 space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-text mb-1.5">
+                    Rechercher un {personLabel.toLowerCase()}
+                  </label>
+                  <div className="flex gap-2">
+                    <div className="relative flex-1">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-secondary/50" />
+                      <input
+                        type="text"
+                        value={searchQuery}
+                        onChange={(e) => {
+                          setSearchQuery(e.target.value);
+                          setShowResults(true);
+                        }}
+                        onFocus={() => setShowResults(true)}
+                        placeholder="Nom, prénom ou email..."
+                        className={`w-full h-9 pl-9 pr-3 text-sm rounded-lg border border-border bg-card placeholder:text-text-secondary/40 focus:outline-none focus:ring-2 transition-all duration-200 ${isGerant ? 'focus:ring-[#905D5D]/15 focus:border-[#905D5D]' : 'focus:ring-accent/15 focus:border-accent'}`}
+                      />
+                    </div>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="default"
+                      icon={<Search className="w-3.5 h-3.5" />}
+                      onClick={() => setShowResults(true)}
+                    >
+                      Rechercher
+                    </Button>
+                  </div>
+                </div>
+
+                <AnimatePresence>
+                  {showResults && searchQuery.length > 0 && filteredClients.length > 0 && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -8, scale: 0.98 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: -8, scale: 0.98 }}
+                      transition={{ duration: 0.15, ease: 'easeOut' }}
+                      className="rounded-lg border border-border/40 bg-card shadow-dropdown overflow-hidden"
+                    >
+                      <div className="px-4 py-2 bg-background/50 border-b border-border/30">
+                        <span className="text-xs font-medium text-text-secondary">
+                          {filteredClients.length} résultat{filteredClients.length > 1 ? 's' : ''}
                         </span>
                       </div>
-                    </div>
-                    <div className="flex items-center gap-2.5">
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="default"
-                        icon={<FileText className="w-3.5 h-3.5" />}
-                        onClick={() => setFormValue?.('inventorySignature.documentGenerated', true)}
-                      >
-                        Générer l'inventaire
-                      </Button>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        icon={<Eye className="w-3.5 h-3.5" />}
-                        disabled={!documentGenerated}
-                        onClick={() => setShowDocumentPreview(true)}
-                      >
-                        Voir le document
-                      </Button>
-                    </div>
-                  </div>
-                  {documentGenerated && (
-                    <motion.div
-                      initial={{ opacity: 0, height: 0 }}
-                      animate={{ opacity: 1, height: 'auto' }}
-                      className="mt-3 pt-3 border-t border-border/30"
-                    >
-                      <div className="flex items-center gap-2 text-xs text-emerald-600">
-                        <Check className="w-3.5 h-3.5" />
-                        Inventaire généré avec succès
+                      <div className="max-h-48 overflow-y-auto divide-y divide-border/20">
+                        {filteredClients.map((client, idx) => (
+                          <motion.button
+                            key={client.id}
+                            initial={{ opacity: 0, x: -8 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            transition={{ duration: 0.1, delay: idx * 0.03 }}
+                            type="button"
+                            onClick={() => {
+                              setFormValue?.('inventorySignature.selectedLocataire', client);
+                              setSearchQuery(client.name);
+                              setShowResults(false);
+                            }}
+                            className={`w-full text-left px-4 py-3 transition-colors ${isGerant ? 'hover:bg-[#905D5D]/10' : 'hover:bg-accent-light/50'} ${
+                              selectedLocataire?.id === client.id ? isGerant ? 'bg-[#905D5D]/10' : 'bg-accent-light' : ''
+                            }`}
+                          >
+                            <div className="flex items-center gap-3">
+                              <div className={`w-2 h-2 rounded-full shrink-0 ${
+                                selectedLocataire?.id === client.id ? isGerant ? 'bg-[#905D5D]' : 'bg-accent' : 'bg-text-secondary/30'
+                              }`} />
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium text-text truncate">{client.name}</p>
+                                <div className="flex items-center gap-3 text-xs text-text-secondary mt-0.5">
+                                  <span className="flex items-center gap-1">
+                                    <Mail className="w-3 h-3" />
+                                    {client.email}
+                                  </span>
+                                  <span className="flex items-center gap-1">
+                                    <Phone className="w-3 h-3" />
+                                    {client.phone}
+                                  </span>
+                                </div>
+                              </div>
+                              <ChevronRight className="w-4 h-4 text-text-secondary/40 shrink-0" />
+                            </div>
+                          </motion.button>
+                        ))}
                       </div>
                     </motion.div>
                   )}
-                </div>
-              </motion.div>
+                </AnimatePresence>
 
-              {/* Propriétaire */}
-              <motion.div variants={itemAnim} className="rounded-xl border border-border/40 bg-card overflow-hidden">
-                <div className="flex items-center justify-between px-5 py-4 border-b border-border/30">
-                  <div className="flex items-center gap-3">
-                    <div className={`p-2 rounded-lg ${isGerant ? 'bg-[#905D5D]/10 text-[#905D5D]' : 'bg-accent/10 text-accent'}`}>
-                      <User className="w-4 h-4" />
-                    </div>
-                    <div>
-                      <h4 className="font-semibold text-sm text-text">Propriétaire</h4>
-                    </div>
-                  </div>
-                  {getStatusBadge(ownerStatus)}
-                </div>
-                <div className="p-5">
-                  <motion.div
-                    variants={container}
-                    initial="hidden"
-                    animate="show"
-                    className="space-y-3"
-                  >
-                    {ownerType === 'particulier' ? (
-                      <>
-                        <motion.div variants={itemAnim} className="flex items-center gap-3 p-3 rounded-lg bg-background/60">
+                <AnimatePresence>
+                  {showResults && searchQuery.length > 0 && filteredClients.length === 0 && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -8 }}
+                      className="py-6 text-center"
+                    >
+                      <Search className="w-8 h-8 mx-auto text-text-secondary/20 mb-2" />
+                      <p className="text-sm text-text-secondary">Aucun {personLabel.toLowerCase()} trouvé</p>
+                      <p className="text-xs text-text-secondary/60 mt-0.5">Essayez de modifier votre recherche</p>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                <AnimatePresence>
+                  {selectedLocataire && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      exit={{ opacity: 0, height: 0 }}
+                      transition={{ duration: 0.2, ease: 'easeOut' }}
+                    >
+                      <div className={`p-4 rounded-lg border space-y-3 ${isGerant ? 'bg-[#905D5D]/10 border-[#905D5D]/20' : 'bg-accent-light/50 border-accent/10'}`}>
+                        <div className={`flex items-center gap-2 text-xs font-medium mb-2 ${isGerant ? 'text-[#905D5D]' : 'text-accent'}`}>
+                          <Check className="w-3.5 h-3.5" />
+                          {personLabel} sélectionné
+                        </div>
+                        <div className="flex items-center gap-3">
                           <User className="w-4 h-4 text-text-secondary shrink-0" />
                           <div>
                             <p className="text-xs text-text-secondary">Nom complet</p>
-                            <p className="text-sm font-medium text-text">{ownerName}</p>
+                            <p className="text-sm font-medium text-text">{selectedLocataire.name}</p>
                           </div>
-                        </motion.div>
-                        <motion.div variants={itemAnim} className="flex items-center gap-3 p-3 rounded-lg bg-background/60">
+                        </div>
+                        <div className="flex items-center gap-3">
                           <MapPin className="w-4 h-4 text-text-secondary shrink-0" />
                           <div>
                             <p className="text-xs text-text-secondary">Adresse</p>
-                            <p className="text-sm font-medium text-text">{ownerAddress || 'Non renseignée'}</p>
+                            <p className="text-sm font-medium text-text">{selectedLocataire.address || 'Non renseignée'}</p>
                           </div>
-                        </motion.div>
-                        <motion.div variants={itemAnim} className="flex items-center gap-3 p-3 rounded-lg bg-background/60">
+                        </div>
+                        <div className="flex items-center gap-3">
                           <Phone className="w-4 h-4 text-text-secondary shrink-0" />
                           <div>
                             <p className="text-xs text-text-secondary">Téléphone</p>
-                            <p className="text-sm font-medium text-text">{ownerPhone || 'Non renseigné'}</p>
+                            <p className="text-sm font-medium text-text">{selectedLocataire.phone || 'Non renseigné'}</p>
                           </div>
-                        </motion.div>
-                        <motion.div variants={itemAnim} className="flex items-center gap-3 p-3 rounded-lg bg-background/60">
+                        </div>
+                        <div className="flex items-center gap-3">
                           <Briefcase className="w-4 h-4 text-text-secondary shrink-0" />
                           <div>
                             <p className="text-xs text-text-secondary">Profession</p>
-                            <p className="text-sm font-medium text-text">{ownerProfession || 'Non renseignée'}</p>
+                            <p className="text-sm font-medium text-text">{selectedLocataire.profession || 'Non renseignée'}</p>
                           </div>
-                        </motion.div>
-                        <motion.div variants={itemAnim} className="flex items-center gap-3 p-3 rounded-lg bg-background/60">
+                        </div>
+                        <div className="flex items-center gap-3">
                           <Mail className="w-4 h-4 text-text-secondary shrink-0" />
                           <div>
                             <p className="text-xs text-text-secondary">Email</p>
-                            <p className="text-sm font-medium text-text">{ownerEmail || 'Non renseigné'}</p>
-                          </div>
-                        </motion.div>
-                      </>
-                    ) : (
-                      <>
-                        <motion.div variants={itemAnim} className="flex items-center gap-3 p-3 rounded-lg bg-background/60">
-                          <Building className="w-4 h-4 text-text-secondary shrink-0" />
-                          <div>
-                            <p className="text-xs text-text-secondary">Dénomination sociale</p>
-                            <p className="text-sm font-medium text-text">{companyName || 'Non renseignée'}</p>
-                          </div>
-                        </motion.div>
-                        <motion.div variants={itemAnim} className="flex items-center gap-3 p-3 rounded-lg bg-background/60">
-                          <Briefcase className="w-4 h-4 text-text-secondary shrink-0" />
-                          <div>
-                            <p className="text-xs text-text-secondary">Forme sociale</p>
-                            <p className="text-sm font-medium text-text">{companyLegalForm || 'Non renseignée'}</p>
-                          </div>
-                        </motion.div>
-                        <motion.div variants={itemAnim} className="flex items-center gap-3 p-3 rounded-lg bg-background/60">
-                          <Globe className="w-4 h-4 text-text-secondary shrink-0" />
-                          <div>
-                            <p className="text-xs text-text-secondary">N° SIREN</p>
-                            <p className="text-sm font-medium text-text">{companySiren || 'Non renseigné'}</p>
-                          </div>
-                        </motion.div>
-                        <motion.div variants={itemAnim} className="flex items-center gap-3 p-3 rounded-lg bg-background/60">
-                          <MapPin className="w-4 h-4 text-text-secondary shrink-0" />
-                          <div>
-                            <p className="text-xs text-text-secondary">Adresse</p>
-                            <p className="text-sm font-medium text-text">{companyAddress || 'Non renseignée'}</p>
-                          </div>
-                        </motion.div>
-                      </>
-                    )}
-                    <motion.div variants={itemAnim} className="pt-2">
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        icon={<Send className="w-3.5 h-3.5" />}
-                        disabled={!documentGenerated}
-                        className="w-full sm:w-auto"
-                      >
-                        Envoyer le lien de signature
-                      </Button>
-                    </motion.div>
-                  </motion.div>
-                </div>
-              </motion.div>
-
-              {/* Locataire */}
-              <motion.div variants={itemAnim} className="rounded-xl border border-border/40 bg-card overflow-hidden">
-                <div className="flex items-center justify-between px-5 py-4 border-b border-border/30">
-                  <div className="flex items-center gap-3">
-                    <div className={`p-2 rounded-lg ${isGerant ? 'bg-[#905D5D]/10 text-[#905D5D]' : 'bg-accent/10 text-accent'}`}>
-                      <Users className="w-4 h-4" />
-                    </div>
-                    <div>
-                      <h4 className="font-semibold text-sm text-text">{personLabel} concerné</h4>
-                    </div>
-                  </div>
-                  {selectedLocataire && getStatusBadge(tenantStatus)}
-                </div>
-                <div className="p-5 space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-text mb-1.5">
-                      Rechercher un {personLabel.toLowerCase()}
-                    </label>
-                    <div className="flex gap-2">
-                      <div className="relative flex-1">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-secondary/50" />
-                        <input
-                          type="text"
-                          value={searchQuery}
-                          onChange={(e) => {
-                            setSearchQuery(e.target.value);
-                            setShowResults(true);
-                          }}
-                          onFocus={() => setShowResults(true)}
-                          placeholder="Nom, prénom ou email..."
-                          className={`w-full h-9 pl-9 pr-3 text-sm rounded-lg border border-border bg-card placeholder:text-text-secondary/40 focus:outline-none focus:ring-2 transition-all duration-200 ${isGerant ? 'focus:ring-[#905D5D]/15 focus:border-[#905D5D]' : 'focus:ring-accent/15 focus:border-accent'}`}
-                        />
-                      </div>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="default"
-                        icon={<Search className="w-3.5 h-3.5" />}
-                        onClick={() => setShowResults(true)}
-                      >
-                        Rechercher
-                      </Button>
-                    </div>
-                  </div>
-
-                  <AnimatePresence>
-                    {showResults && searchQuery.length > 0 && filteredClients.length > 0 && (
-                      <motion.div
-                        initial={{ opacity: 0, y: -8, scale: 0.98 }}
-                        animate={{ opacity: 1, y: 0, scale: 1 }}
-                        exit={{ opacity: 0, y: -8, scale: 0.98 }}
-                        transition={{ duration: 0.15, ease: 'easeOut' }}
-                        className="rounded-lg border border-border/40 bg-card shadow-dropdown overflow-hidden"
-                      >
-                        <div className="px-4 py-2 bg-background/50 border-b border-border/30">
-                          <span className="text-xs font-medium text-text-secondary">
-                            {filteredClients.length} résultat{filteredClients.length > 1 ? 's' : ''}
-                          </span>
-                        </div>
-                        <div className="max-h-48 overflow-y-auto divide-y divide-border/20">
-                          {filteredClients.map((client, idx) => (
-                            <motion.button
-                              key={client.id}
-                              initial={{ opacity: 0, x: -8 }}
-                              animate={{ opacity: 1, x: 0 }}
-                              transition={{ duration: 0.1, delay: idx * 0.03 }}
-                              type="button"
-                              onClick={() => {
-                                setFormValue?.('inventorySignature.selectedLocataire', client);
-                                setSearchQuery(client.name);
-                                setShowResults(false);
-                              }}
-                              className={`w-full text-left px-4 py-3 transition-colors ${isGerant ? 'hover:bg-[#905D5D]/10' : 'hover:bg-accent-light/50'} ${
-                                selectedLocataire?.id === client.id ? isGerant ? 'bg-[#905D5D]/10' : 'bg-accent-light' : ''
-                              }`}
-                            >
-                              <div className="flex items-center gap-3">
-                                <div className={`w-2 h-2 rounded-full shrink-0 ${
-                                  selectedLocataire?.id === client.id ? isGerant ? 'bg-[#905D5D]' : 'bg-accent' : 'bg-text-secondary/30'
-                                }`} />
-                                <div className="flex-1 min-w-0">
-                                  <p className="text-sm font-medium text-text truncate">{client.name}</p>
-                                  <div className="flex items-center gap-3 text-xs text-text-secondary mt-0.5">
-                                    <span className="flex items-center gap-1">
-                                      <Mail className="w-3 h-3" />
-                                      {client.email}
-                                    </span>
-                                    <span className="flex items-center gap-1">
-                                      <Phone className="w-3 h-3" />
-                                      {client.phone}
-                                    </span>
-                                  </div>
-                                </div>
-                                <ChevronRight className="w-4 h-4 text-text-secondary/40 shrink-0" />
-                              </div>
-                            </motion.button>
-                          ))}
-                        </div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-
-                  <AnimatePresence>
-                    {showResults && searchQuery.length > 0 && filteredClients.length === 0 && (
-                      <motion.div
-                        initial={{ opacity: 0, y: -8 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        exit={{ opacity: 0, y: -8 }}
-                        className="py-6 text-center"
-                      >
-                        <Search className="w-8 h-8 mx-auto text-text-secondary/20 mb-2" />
-                        <p className="text-sm text-text-secondary">Aucun {personLabel.toLowerCase()} trouvé</p>
-                        <p className="text-xs text-text-secondary/60 mt-0.5">Essayez de modifier votre recherche</p>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-
-                  <AnimatePresence>
-                    {selectedLocataire && (
-                      <motion.div
-                        initial={{ opacity: 0, height: 0 }}
-                        animate={{ opacity: 1, height: 'auto' }}
-                        exit={{ opacity: 0, height: 0 }}
-                        transition={{ duration: 0.2, ease: 'easeOut' }}
-                      >
-                        <div className={`p-4 rounded-lg border space-y-3 ${isGerant ? 'bg-[#905D5D]/10 border-[#905D5D]/20' : 'bg-accent-light/50 border-accent/10'}`}>
-                          <div className={`flex items-center gap-2 text-xs font-medium mb-2 ${isGerant ? 'text-[#905D5D]' : 'text-accent'}`}>
-                            <Check className="w-3.5 h-3.5" />
-                            {personLabel} sélectionné
-                          </div>
-                          <div className="flex items-center gap-3">
-                            <User className="w-4 h-4 text-text-secondary shrink-0" />
-                            <div>
-                              <p className="text-xs text-text-secondary">Nom complet</p>
-                              <p className="text-sm font-medium text-text">{selectedLocataire.name}</p>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-3">
-                            <MapPin className="w-4 h-4 text-text-secondary shrink-0" />
-                            <div>
-                              <p className="text-xs text-text-secondary">Adresse</p>
-                              <p className="text-sm font-medium text-text">{selectedLocataire.address || 'Non renseignée'}</p>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-3">
-                            <Phone className="w-4 h-4 text-text-secondary shrink-0" />
-                            <div>
-                              <p className="text-xs text-text-secondary">Téléphone</p>
-                              <p className="text-sm font-medium text-text">{selectedLocataire.phone || 'Non renseigné'}</p>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-3">
-                            <Briefcase className="w-4 h-4 text-text-secondary shrink-0" />
-                            <div>
-                              <p className="text-xs text-text-secondary">Profession</p>
-                              <p className="text-sm font-medium text-text">{selectedLocataire.profession || 'Non renseignée'}</p>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-3">
-                            <Mail className="w-4 h-4 text-text-secondary shrink-0" />
-                            <div>
-                              <p className="text-xs text-text-secondary">Email</p>
-                              <p className="text-sm font-medium text-text">{selectedLocataire.email || 'Non renseigné'}</p>
-                            </div>
+                            <p className="text-sm font-medium text-text">{selectedLocataire.email || 'Non renseigné'}</p>
                           </div>
                         </div>
                         <div className="mt-3">
@@ -938,148 +913,149 @@ export function InventoryTab({ control, register, watch, setValue: setFormValue,
                             Envoyer le lien de signature
                           </Button>
                         </div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-
-                  {!selectedLocataire && !searchQuery && (
-                    <div className="py-4 text-center">
-                      <Users className="w-8 h-8 mx-auto text-text-secondary/20 mb-2" />
-                      <p className="text-sm text-text-secondary">Aucun {personLabel.toLowerCase()} sélectionné</p>
-                      <p className="text-xs text-text-secondary/60 mt-0.5">Recherchez et sélectionnez un locataire</p>
-                    </div>
+                      </div>
+                    </motion.div>
                   )}
-                </div>
-              </motion.div>
+                </AnimatePresence>
 
-              {/* Global Status */}
-              <motion.div variants={itemAnim} className="rounded-xl border border-border/40 bg-gradient-to-br from-card to-background/50 overflow-hidden">
-                <div className="flex items-center gap-3 px-5 py-4 border-b border-border/30">
-                  <div className={`p-2 rounded-lg ${isGerant ? 'bg-[#905D5D]/10 text-[#905D5D]' : 'bg-accent/10 text-accent'}`}>
-                    <FileSignature className="w-4 h-4" />
+                {!selectedLocataire && !searchQuery && (
+                  <div className="py-4 text-center">
+                    <Users className="w-8 h-8 mx-auto text-text-secondary/20 mb-2" />
+                    <p className="text-sm text-text-secondary">Aucun {personLabel.toLowerCase()} sélectionné</p>
+                    <p className="text-xs text-text-secondary/60 mt-0.5">Recherchez et sélectionnez un locataire</p>
                   </div>
-                  <div>
-                    <h4 className="font-semibold text-sm text-text">Statut global</h4>
-                  </div>
-                </div>
-                <div className="p-5 space-y-5">
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    <div className="p-4 rounded-xl bg-background/80 border border-border/30 text-center space-y-2">
-                      <div className={`w-10 h-10 rounded-full mx-auto flex items-center justify-center ${
-                        documentGenerated ? 'bg-emerald-50 text-emerald-600' : (isGerant ? 'bg-[#E7D5D5] text-[#905D5D]' : 'bg-amber-50 text-amber-500')
-                      }`}>
-                        <FileText className="w-5 h-5" />
-                      </div>
-                      <div>
-                        <p className="text-xs text-text-secondary">Document</p>
-                        <p className="text-sm font-semibold text-text">Prêt</p>
-                      </div>
-                      <div className={`text-lg font-bold ${
-                        documentGenerated ? 'text-emerald-500' : (isGerant ? 'text-[#905D5D]' : 'text-amber-500')
-                      }`}>
-                        {documentGenerated ? '✅' : '⏳'}
-                      </div>
-                    </div>
-                    <div className="p-4 rounded-xl bg-background/80 border border-border/30 text-center space-y-2">
-                      <div className={`w-10 h-10 rounded-full mx-auto flex items-center justify-center ${
-                        ownerStatus === 'signed' ? 'bg-emerald-50 text-emerald-600' :
-                        ownerStatus === 'sent' ? 'bg-blue-50 text-blue-500' :
-                        (isGerant ? 'bg-[#E7D5D5] text-[#905D5D]' : 'bg-amber-50 text-amber-500')
-                      }`}>
-                        <User className="w-5 h-5" />
-                      </div>
-                      <div>
-                        <p className="text-xs text-text-secondary">Propriétaire</p>
-                        <p className="text-sm font-semibold text-text">
-                          {ownerStatus === 'signed' ? 'Signé' :
-                           ownerStatus === 'sent' ? 'Envoyé' :
-                           'En attente'}
-                        </p>
-                      </div>
-                      <div className={`text-lg font-bold ${
-                        ownerStatus === 'signed' ? 'text-emerald-500' :
-                        ownerStatus === 'sent' ? 'text-blue-500' :
-                        (isGerant ? 'text-[#905D5D]' : 'text-amber-500')
-                      }`}>
-                        {ownerStatus === 'signed' ? '✅' :
-                         ownerStatus === 'sent' ? '📧' :
-                         '⏳'}
-                      </div>
-                    </div>
-                    <div className="p-4 rounded-xl bg-background/80 border border-border/30 text-center space-y-2">
-                      <div className={`w-10 h-10 rounded-full mx-auto flex items-center justify-center ${
-                        tenantStatus === 'signed' ? 'bg-emerald-50 text-emerald-600' :
-                        tenantStatus === 'sent' ? 'bg-blue-50 text-blue-500' :
-                        (isGerant ? 'bg-[#E7D5D5] text-[#905D5D]' : 'bg-amber-50 text-amber-500')
-                      }`}>
-                        <Users className="w-5 h-5" />
-                      </div>
-                      <div>
-                        <p className="text-xs text-text-secondary">{personLabel}</p>
-                        <p className="text-sm font-semibold text-text">
-                          {tenantStatus === 'signed' ? 'Signé' :
-                           tenantStatus === 'sent' ? 'Envoyé' :
-                           'En attente'}
-                        </p>
-                      </div>
-                      <div className={`text-lg font-bold ${
-                        tenantStatus === 'signed' ? 'text-emerald-500' :
-                        tenantStatus === 'sent' ? 'text-blue-500' :
-                        (isGerant ? 'text-[#905D5D]' : 'text-amber-500')
-                      }`}>
-                        {tenantStatus === 'signed' ? '✅' :
-                         tenantStatus === 'sent' ? '📧' :
-                         '⏳'}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex flex-wrap items-center gap-2.5 pt-2 border-t border-border/30">
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="default"
-                      icon={<Send className="w-3.5 h-3.5" />}
-                      disabled={!documentGenerated}
-                    >
-                      Envoyer les liens de signature
-                    </Button>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      icon={<Eye className="w-3.5 h-3.5" />}
-                      disabled={!documentGenerated}
-                      onClick={() => setShowDocumentPreview(true)}
-                    >
-                      Voir le document
-                    </Button>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      icon={<RefreshCw className="w-3.5 h-3.5" />}
-                      disabled={!documentGenerated}
-                    >
-                      Régénérer les liens
-                    </Button>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      icon={<Download className="w-3.5 h-3.5" />}
-                      disabled={!documentGenerated}
-                      onClick={handleDownloadPdf}
-                    >
-                      Télécharger le PDF
-                    </Button>
-                  </div>
-                </div>
-              </motion.div>
+                )}
+              </div>
             </motion.div>
-          </AccordionContent>
-        </AccordionItem>
-      </Accordion>
+          </Field>
+
+          <Field>
+            <motion.div variants={itemAnim} className="rounded-xl border border-border/40 bg-gradient-to-br from-card to-background/50 overflow-hidden">
+              <div className="flex items-center gap-3 px-5 py-4 border-b border-border/30">
+                <div className={`p-2 rounded-lg ${isGerant ? 'bg-[#905D5D]/10 text-[#905D5D]' : 'bg-accent/10 text-accent'}`}>
+                  <FileSignature className="w-4 h-4" />
+                </div>
+                <div>
+                  <h4 className="font-semibold text-sm text-text">Statut global</h4>
+                </div>
+              </div>
+              <div className="p-5 space-y-5">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="p-4 rounded-xl bg-background/80 border border-border/30 text-center space-y-2">
+                    <div className={`w-10 h-10 rounded-full mx-auto flex items-center justify-center ${
+                      documentGenerated ? 'bg-emerald-50 text-emerald-600' : (isGerant ? 'bg-[#E7D5D5] text-[#905D5D]' : 'bg-amber-50 text-amber-500')
+                    }`}>
+                      <FileText className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <p className="text-xs text-text-secondary">Document</p>
+                      <p className="text-sm font-semibold text-text">Prêt</p>
+                    </div>
+                    <div className={`text-lg font-bold ${
+                      documentGenerated ? 'text-emerald-500' : (isGerant ? 'text-[#905D5D]' : 'text-amber-500')
+                    }`}>
+                      {documentGenerated ? '✅' : '⏳'}
+                    </div>
+                  </div>
+                  <div className="p-4 rounded-xl bg-background/80 border border-border/30 text-center space-y-2">
+                    <div className={`w-10 h-10 rounded-full mx-auto flex items-center justify-center ${
+                      ownerStatus === 'signed' ? 'bg-emerald-50 text-emerald-600' :
+                      ownerStatus === 'sent' ? 'bg-blue-50 text-blue-500' :
+                      (isGerant ? 'bg-[#E7D5D5] text-[#905D5D]' : 'bg-amber-50 text-amber-500')
+                    }`}>
+                      <User className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <p className="text-xs text-text-secondary">Propriétaire</p>
+                      <p className="text-sm font-semibold text-text">
+                        {ownerStatus === 'signed' ? 'Signé' :
+                         ownerStatus === 'sent' ? 'Envoyé' :
+                         'En attente'}
+                      </p>
+                    </div>
+                    <div className={`text-lg font-bold ${
+                      ownerStatus === 'signed' ? 'text-emerald-500' :
+                      ownerStatus === 'sent' ? 'text-blue-500' :
+                      (isGerant ? 'text-[#905D5D]' : 'text-amber-500')
+                    }`}>
+                      {ownerStatus === 'signed' ? '✅' :
+                       ownerStatus === 'sent' ? '📧' :
+                       '⏳'}
+                    </div>
+                  </div>
+                  <div className="p-4 rounded-xl bg-background/80 border border-border/30 text-center space-y-2">
+                    <div className={`w-10 h-10 rounded-full mx-auto flex items-center justify-center ${
+                      tenantStatus === 'signed' ? 'bg-emerald-50 text-emerald-600' :
+                      tenantStatus === 'sent' ? 'bg-blue-50 text-blue-500' :
+                      (isGerant ? 'bg-[#E7D5D5] text-[#905D5D]' : 'bg-amber-50 text-amber-500')
+                    }`}>
+                      <Users className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <p className="text-xs text-text-secondary">{personLabel}</p>
+                      <p className="text-sm font-semibold text-text">
+                        {tenantStatus === 'signed' ? 'Signé' :
+                         tenantStatus === 'sent' ? 'Envoyé' :
+                         'En attente'}
+                      </p>
+                    </div>
+                    <div className={`text-lg font-bold ${
+                      tenantStatus === 'signed' ? 'text-emerald-500' :
+                      tenantStatus === 'sent' ? 'text-blue-500' :
+                      (isGerant ? 'text-[#905D5D]' : 'text-amber-500')
+                    }`}>
+                      {tenantStatus === 'signed' ? '✅' :
+                       tenantStatus === 'sent' ? '📧' :
+                       '⏳'}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2.5 pt-2 border-t border-border/30">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="default"
+                    icon={<Send className="w-3.5 h-3.5" />}
+                    disabled={!documentGenerated}
+                  >
+                    Envoyer les liens de signature
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    icon={<Eye className="w-3.5 h-3.5" />}
+                    disabled={!documentGenerated}
+                    onClick={() => setShowDocumentPreview(true)}
+                  >
+                    Voir le document
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    icon={<RefreshCw className="w-3.5 h-3.5" />}
+                    disabled={!documentGenerated}
+                  >
+                    Régénérer les liens
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    icon={<Download className="w-3.5 h-3.5" />}
+                    disabled={!documentGenerated}
+                    onClick={handleDownloadPdf}
+                  >
+                    Télécharger le PDF
+                  </Button>
+                </div>
+              </div>
+            </motion.div>
+          </Field>
+        </div>
+      </SectionCard>
 
       <AnimatePresence>
         {showDocumentPreview && (
@@ -1313,7 +1289,7 @@ export function InventoryTab({ control, register, watch, setValue: setFormValue,
           </motion.div>
         )}
       </AnimatePresence>
-    </MotionCard>
+    </div>
   );
 }
 

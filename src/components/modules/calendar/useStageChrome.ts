@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useEffect, useState } from 'react'
 import { useStageTheme } from '../../dashboard/Stage'
 
 /**
@@ -9,9 +9,20 @@ import { useStageTheme } from '../../dashboard/Stage'
  */
 export function useStageChrome(): { staged: boolean; dark: boolean } {
   const theme = useStageTheme()
-  const staged = useMemo(() => {
+  const [staged, setStaged] = useState<boolean>(() => {
     if (typeof document === 'undefined') return false
-    return Boolean(document.querySelector('.stage-dark, .stage-light'))
-  }, [])
+    return Boolean(document.querySelector('.stage-dark, .stage-light, .agent-theme'))
+  })
+  useEffect(() => {
+    const check = () => setStaged(Boolean(document.querySelector('.stage-dark, .stage-light, .agent-theme')))
+    check()
+    // Re-check after mount and when theme changes (stage shell may be injected after)
+    const id = setTimeout(check, 0)
+    window.addEventListener('resize', check)
+    return () => {
+      clearTimeout(id)
+      window.removeEventListener('resize', check)
+    }
+  }, [theme])
   return { staged, dark: staged && theme === 'dark' }
 }

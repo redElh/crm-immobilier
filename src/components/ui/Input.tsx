@@ -13,6 +13,7 @@ interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
 export const Input = React.forwardRef<HTMLInputElement, InputProps>(
   ({ className, type = "text", label, error, icon, suffix, prefix, ...props }, ref) => {
     const { staged, dark } = useStageChrome()
+    const { style: propStyle, ...restProps } = props as any
     const stagedInputClass = staged
       ? dark
         ? 'w-full h-9 rounded-xl border border-white/10 bg-gradient-to-b from-white/[0.08] to-white/[0.02] [background-color:transparent] px-3 py-2 text-sm text-slate-100 outline-none transition-all duration-200 placeholder:text-slate-500 focus:border-violet-400/70 focus:from-violet-400/25 focus:to-indigo-500/[0.07] shadow-[inset_0_1px_0_rgba(255,255,255,0.14),inset_0_-8px_16px_-12px_rgba(0,0,0,0.7),0_6px_18px_-8px_rgba(3,5,14,0.9)] focus:shadow-[inset_0_1px_0_rgba(255,255,255,0.22),inset_0_-8px_16px_-12px_rgba(0,0,0,0.6),0_0_0_3px_rgba(124,92,255,0.28),0_10px_30px_-8px_rgba(124,92,255,0.55)] disabled:opacity-50 disabled:cursor-not-allowed'
@@ -40,11 +41,12 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
             )}
             <input
               type={type}
+              style={{ ...(propStyle || {}), ...(staged ? { colorScheme: dark ? ('dark' as const) : ('light' as const) } : {}) } as any}
               className={cn(
                 stagedInputClass
                   ? stagedInputClass
                   : cn(
-                      "w-full h-9 px-3 py-2 text-sm rounded-lg border bg-card",
+                      "w-full h-9 px-3 py-2 text-sm rounded-lg border bg-card text-text",
                       "placeholder:text-text-secondary/40",
                       "focus:outline-none focus:ring-2 focus:ring-accent/15 focus:border-accent",
                       "disabled:opacity-50 disabled:cursor-not-allowed",
@@ -59,7 +61,7 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
                 className
               )}
               ref={ref}
-              {...props}
+              {...(restProps as any)}
             />
             {suffix && (
               <div className={cn("absolute inset-y-0 right-0 pr-3 flex items-center", staged ? (dark ? "text-slate-400" : "text-teal-900/50") : "text-text-secondary")}>

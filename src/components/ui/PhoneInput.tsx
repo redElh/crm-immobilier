@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronDown } from 'react-feather';
 import { COUNTRIES, Country } from '../../data/countries';
 import { cn } from '../../lib/utils';
+import { useStageChrome } from '../modules/calendar/useStageChrome';
+import { portalWithTheme } from './dropdownTheme';
 
 interface PhoneInputProps {
   label?: string;
@@ -66,6 +68,13 @@ export const PhoneInput = ({
   error,
   required,
 }: PhoneInputProps) => {
+  const { staged, dark } = useStageChrome();
+  // Only use the stage glass styling when inside the agent stage shell.
+  // Outside the stage (admin / gerant) the neutral card tokens (bg-card / bg-background)
+  // already adapt to dark via CSS variables (html.dark + .admin-theme), so applying
+  // the violet glass gradient would render as a translucent white on the peach
+  // admin background and look "still white".
+  const isDark = staged && dark;
   const [selected, setSelected] = useState<Country>(() => parsePhone(value).country);
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState('');
@@ -101,15 +110,17 @@ export const PhoneInput = ({
   }, [isOpen]);
 
   const computePosition = useCallback(() => {
-    if (!buttonRef.current) return {};
-    const rect = buttonRef.current.getBoundingClientRect();
+    const anchor = containerRef.current;
+    if (!anchor) return {};
+    const rect = anchor.getBoundingClientRect();
     const spaceBelow = window.innerHeight - rect.bottom - 8;
     const dh = Math.min(filtered.length * 36 + 44, 256);
     const openUp = spaceBelow < dh && rect.top > dh;
+    const width = Math.min(320, Math.max(rect.width, 264));
     return {
       position: 'fixed' as const,
       left: rect.left + 'px',
-      width: '264px',
+      width: width + 'px',
       ...(openUp
         ? { bottom: window.innerHeight - rect.top + 4 + 'px' }
         : { top: rect.bottom + 4 + 'px' }),
@@ -173,25 +184,30 @@ export const PhoneInput = ({
   return (
     <div className="space-y-1.5 w-full">
       {label && (
-        <label className="text-sm font-medium text-text">
+        <label className={cn('block mb-1.5', isDark ? 'text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400/85' : staged ? 'text-[11px] font-bold uppercase tracking-[0.14em] text-teal-900/55' : 'text-sm font-medium text-text')}>
           {label}
           {required && <span className="text-error ml-0.5">*</span>}
         </label>
       )}
-      <div ref={containerRef} className="flex">
+      <div ref={containerRef} className={cn('flex rounded-xl', isDark && 'shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]', !isDark && staged && 'shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]')}>
         <button
           ref={buttonRef}
           type="button"
           onClick={handleToggle}
           className={cn(
-            'inline-flex items-center gap-1.5 px-2.5 h-9 text-sm rounded-l-lg border border-r-0 bg-background border-border whitespace-nowrap select-none',
-            'hover:bg-background/80 focus:outline-none',
-            error ? 'border-error' : 'border-border'
+            'inline-flex items-center gap-1.5 px-2.5 h-9 text-sm whitespace-nowrap select-none rounded-l-xl border border-r-0 outline-none transition-all duration-200',
+            isDark
+              ? 'border-white/15 bg-gradient-to-b from-white/[0.10] to-white/[0.05] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.12)] hover:border-violet-400/30 hover:from-white/[0.12] hover:to-white/[0.06] focus:border-violet-400/60'
+              : staged
+                ? 'border-teal-900/15 bg-gradient-to-b from-white to-teal-50/70 text-teal-900 shadow-[inset_0_1px_0_rgba(255,255,255,1)] hover:border-teal-900/20 focus:border-teal-500/50'
+                : 'bg-background text-text border-border hover:bg-background/80 focus:outline-none dark:bg-background dark:text-text dark:border-border',
+            error ? '!border-rose-400/60' : '',
+            staged ? '' : error ? 'border-error' : 'border-border'
           )}
         >
           <span className="text-base leading-none">{flagEmoji(selected.iso2)}</span>
-          <span className="text-text-secondary text-xs">+{selected.dial}</span>
-          <ChevronDown size={13} className={cn('text-text-secondary transition-transform', isOpen && 'rotate-180')} />
+          <span className={cn('text-xs font-medium', isDark ? 'text-slate-100' : staged ? 'text-teal-800' : 'text-text-secondary')}>+{selected.dial}</span>
+          <ChevronDown size={13} className={cn('transition-transform', isDark ? 'text-violet-300' : staged ? 'text-teal-700' : 'text-text-secondary', isOpen && 'rotate-180')} />
         </button>
         <input
           type="tel"
@@ -200,39 +216,55 @@ export const PhoneInput = ({
           onChange={handleInputChange}
           placeholder={hint}
           className={cn(
-            'w-full h-9 px-3 py-2 text-sm rounded-r-lg border bg-card',
-            'placeholder:text-text-secondary/40',
-            'focus:outline-none focus:ring-2 focus:ring-accent/15 focus:border-accent',
-            'disabled:opacity-50 disabled:cursor-not-allowed',
-            'transition-all duration-200 ease-out',
-            'hover:border-text-secondary/30',
-            error ? 'border-error focus:ring-error/15 focus:border-error' : 'border-border',
+            'w-full h-9 px-3 py-2 text-sm rounded-r-xl border outline-none transition-all duration-200 border-l-0',
+            isDark
+              ? 'border-white/15 bg-gradient-to-b from-white/[0.10] to-white/[0.04] [background-color:transparent] text-white placeholder:text-slate-400 shadow-[inset_0_1px_0_rgba(255,255,255,0.12)] focus:border-violet-400/60 focus:shadow-[0_0_0_3px_rgba(124,92,255,0.28)]'
+              : staged
+                ? 'border-teal-900/15 bg-gradient-to-b from-white to-teal-50/60 text-teal-950 placeholder:text-teal-900/40 shadow-[inset_0_1px_0_rgba(255,255,255,1)] focus:border-teal-500/50 focus:shadow-[0_0_0_3px_rgba(20,184,166,0.22)]'
+                : 'bg-card text-text placeholder:text-text-secondary/40 focus:ring-2 focus:ring-accent/15 focus:border-accent hover:border-text-secondary/30 border-border dark:bg-card dark:text-text dark:placeholder:text-text-secondary/40 dark:border-border dark:focus:ring-accent/20',
+            error ? (staged ? '!border-rose-400/60' : 'border-error') : '',
             className
           )}
         />
       </div>
       {error && (
-        <p className="text-xs text-error mt-1">{error}</p>
+        <p className={cn('text-xs mt-1', staged ? 'text-rose-300' : 'text-error')}>{error}</p>
       )}
 
-      {isOpen && (
-        <div
-          ref={dropdownRef}
-          style={dropdownStyle}
-          className="bg-card rounded-lg border border-border/50 shadow-dropdown overflow-hidden"
-        >
-          <div className="p-2 border-b border-border/30">
+      {portalWithTheme(
+        containerRef.current,
+        isOpen && (
+          <div
+            ref={dropdownRef}
+            style={dropdownStyle}
+            className={cn(
+              'rounded-2xl border overflow-hidden backdrop-blur-xl scrollbar-thin',
+              isDark
+                ? 'border-violet-500/20 bg-[#0F0A1E] shadow-[0_24px_60px_-20px_rgba(124,92,255,0.35),inset_0_1px_0_rgba(255,255,255,0.08)]'
+                : staged
+                  ? 'border-white/70 bg-white/92 shadow-[0_24px_60px_-28px_rgba(13,148,136,0.35),inset_0_1px_0_rgba(255,255,255,0.9)]'
+                  : 'bg-card border-border/50 shadow-dropdown dark:bg-card dark:border-border/50'
+            )}
+          >
+          <div className={cn('p-2 border-b', isDark ? 'border-white/10' : staged ? 'border-teal-900/10' : 'border-border/30')}>
             <input
               ref={searchInputRef}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Rechercher un pays..."
-              className="w-full h-8 px-3 text-sm rounded-md border border-border bg-background focus:outline-none focus:ring-2 focus:ring-accent/15 focus:border-accent"
+              className={cn(
+                'w-full h-8 px-3 text-sm rounded-xl border outline-none transition-all',
+                isDark
+                  ? 'border-white/10 bg-white/[0.06] text-slate-100 placeholder:text-slate-500 focus:border-violet-400/40'
+                  : staged
+                    ? 'border-teal-900/12 bg-white text-teal-900 placeholder:text-teal-900/35 focus:border-teal-500/30'
+                    : 'border-border bg-card text-text placeholder:text-text-secondary/50 focus:ring-2 focus:ring-accent/15 focus:border-accent dark:border-border dark:bg-card dark:text-text dark:placeholder:text-text-secondary/50'
+              )}
             />
           </div>
-          <div className="max-h-52 overflow-y-auto py-1">
+          <div className="max-h-52 overflow-y-auto py-1 scrollbar-thin">
             {filtered.length === 0 && (
-              <div className="px-4 py-4 text-center text-xs text-text-secondary/60">Aucun pays trouvé</div>
+              <div className={cn('px-4 py-4 text-center text-xs', isDark ? 'text-slate-500' : staged ? 'text-teal-900/45' : 'text-text-secondary/60')}>Aucun pays trouvé</div>
             )}
             {filtered.map((c) => (
               <button
@@ -240,19 +272,28 @@ export const PhoneInput = ({
                 type="button"
                 onClick={() => handleSelectCountry(c)}
                 className={cn(
-                  'w-full flex items-center gap-2.5 px-3 py-2 text-sm text-left transition-colors',
-                  selected.iso2 === c.iso2 && c.dial === selected.dial
-                    ? 'bg-accent-light text-accent font-medium'
-                    : 'text-text-secondary hover:text-text hover:bg-background'
+                  'w-full flex items-center gap-2.5 px-3 py-2 text-sm text-left transition-colors mx-1 rounded-xl',
+                  isDark
+                    ? selected.iso2 === c.iso2 && c.dial === selected.dial
+                      ? 'bg-gradient-to-r from-violet-500/25 to-indigo-600/25 text-white border border-violet-400/30 font-medium'
+                      : 'text-slate-200 border border-transparent hover:bg-white/[0.06] hover:text-white'
+                    : staged
+                      ? selected.iso2 === c.iso2 && c.dial === selected.dial
+                        ? 'bg-teal-500/14 text-teal-900 border border-teal-500/25 font-medium'
+                        : 'text-teal-900/70 border border-transparent hover:bg-teal-900/[0.04] hover:text-teal-900'
+                      : selected.iso2 === c.iso2 && c.dial === selected.dial
+                        ? 'bg-accent-light text-accent font-medium'
+                        : 'text-text-secondary hover:text-text hover:bg-background'
                 )}
               >
                 <span className="text-base leading-none">{flagEmoji(c.iso2)}</span>
                 <span className="flex-1 truncate">{c.name}</span>
-                <span className="text-xs text-text-secondary/70">+{c.dial}</span>
+                <span className={cn('text-xs', isDark ? 'text-slate-400' : staged ? 'text-teal-700/60' : 'text-text-secondary/70')}>+{c.dial}</span>
               </button>
             ))}
           </div>
-        </div>
+          </div>
+        )
       )}
     </div>
   );

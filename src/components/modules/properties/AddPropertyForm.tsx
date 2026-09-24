@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { useForm } from 'react-hook-form';
 import { useNavigate, useSearchParams, useParams } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '../../../components/ui/Button';
 import { Tabs, TabsList, TabsTrigger } from '../../../components/ui/Tabs/Tabs';
 import { Icon } from '../../../components/ui/Icon';
@@ -44,6 +45,14 @@ import {
   generateMandatSaisonnierPdf,
   mandatSaisonnierHasContent,
 } from '../../../services/mandatSaisonnierePdf'
+import { useStageChrome } from '../../../components/modules/calendar/useStageChrome'
+import { useStageTheme, STAGE_HUES, OrbIcon, ShimmerProgress, StageBadge } from '../../../components/dashboard/Stage'
+import { useStageModalButtons } from '../../../components/modules/calendar/StageModal'
+import { ArrowLeft, Home, Check, Save, ArrowRight, Star } from 'react-feather'
+import {
+  Info, User, DollarSign, Grid, Sun, Settings, List, MapPin, FileText,
+  Share2, Folder, Calendar, Map, Briefcase, Lock, TrendingUp,
+} from 'react-feather'
 
 type TabDef = {
   id: string;
@@ -73,11 +82,41 @@ const TAB_ICONS: Record<string, string> = {
   mandat_saisonniere: 'file-text',
 };
 
+const TAB_FEATHER: Record<string, React.ComponentType<{ size?: number | string; className?: string }>> = {
+  general: Info,
+  owner: User,
+  pricing: DollarSign,
+  property: Home,
+  exterior: Sun,
+  interior: Grid,
+  equipment: Settings,
+  inventory: List,
+  proximities: MapPin,
+  mandate: FileText,
+  transfert: Share2,
+  documents: Folder,
+  seasonal: Settings,
+  land: Map,
+  commercial: Briefcase,
+  luxury: Lock,
+  marketing: TrendingUp,
+  mandat_saisonniere: FileText,
+  calendar: Calendar,
+  reservations: Calendar,
+};
+
+const TYPE_HUE_MAP: Record<string, any> = {
+  residential: STAGE_HUES.violet,
+  commercial: STAGE_HUES.sky,
+  land: STAGE_HUES.emerald,
+  vacation: STAGE_HUES.amber,
+  luxury: STAGE_HUES.fuchsia,
+};
+
 const ALL_TAB_IDS = Object.keys(TAB_ICONS);
 
 const GERANT_BUTTON_CLASSES = 'bg-[#905D5D] hover:bg-[#7D5050] border-[#905D5D] hover:border-[#7D5050] text-white shadow-[0_10px_24px_rgba(144,93,93,0.35)]'
 
-// Stable identity of the auto-generated seasonal rental mandate document
 const MANDAT_DOC_ID = 'mandat-location-saisonniere';
 const MANDAT_DOC_NAME = 'Mandat de location saisonnière.pdf';
 
@@ -124,7 +163,6 @@ export default function AddPropertyForm() {
 
   const tabs = getTabs(type, furnishing, constructionType).filter((t) => t.id !== 'transfert' || canSeeTransfert);
 
-  // Restore tab from URL (persists across refresh)
   const getInitialTab = useCallback(() => {
     const t = searchParams.get('tab');
     return t && ALL_TAB_IDS.includes(t) ? t : 'general';
@@ -140,7 +178,6 @@ export default function AddPropertyForm() {
     }
   }, [draftId, reset, userId]);
 
-  // Initialize tab from URL on first render
   useEffect(() => {
     const tabFromUrl = getInitialTab();
     setValue('currentTab', tabFromUrl);
@@ -150,7 +187,6 @@ export default function AddPropertyForm() {
     }
   }, []);
 
-  // Auto-set transactionType for vacation properties
   useEffect(() => {
     if (type === 'vacation') {
       setValue('transactionType', 'location_saisonniere');
@@ -180,7 +216,6 @@ export default function AddPropertyForm() {
               chargesAnnuelles: property.chargesAnnuelles,
               rooms: property.rooms,
               landSize: property.landSize,
-
               buildableSurface: property.buildableSurface,
               cadastralReference: property.cadastralReference,
               constructionYear: property.yearBuilt,
@@ -373,7 +408,6 @@ export default function AddPropertyForm() {
 
   const [savedDraftId, setSavedDraftId] = useState<string | undefined>(draftId || undefined);
 
-  // Sync URL tab param → form state on browser back/forward
   const urlTab = searchParams.get('tab');
   useEffect(() => {
     if (urlTab && tabs.some(t => t.id === urlTab) && urlTab !== currentTab) {
@@ -387,7 +421,6 @@ export default function AddPropertyForm() {
     return draft;
   };
 
-  // Auto-save existing draft on form changes (debounced 2s)
   useEffect(() => {
     if (!savedDraftId) return;
     const timer = setTimeout(() => {
@@ -496,7 +529,6 @@ export default function AddPropertyForm() {
       const suffix = forcedRef || m.referenceInterne ? ` - ${forcedRef || m.referenceInterne}` : '';
       const file = new File([blob], `Mandat de location saisonniere${suffix}.pdf`, { type: 'application/pdf' });
       const tree: any[] = Array.isArray(payload.documents?.fileTree) ? [...payload.documents.fileTree] : [];
-      // Reuse the previously generated mandat document: update it in place instead of piling up copies
       const idx = tree.findIndex(
         (n) => n?.type === 'file' && (n?.id === MANDAT_DOC_ID || n?.name === MANDAT_DOC_NAME)
       );
@@ -532,18 +564,12 @@ export default function AddPropertyForm() {
 
   const onSubmit = async (data: any) => {
     if (savedDraftId) deleteDraft(userId, savedDraftId);
-
-    // Strip images to avoid duplication with photos on update
     delete data.images;
-
-    // Strip empty strings from date fields before sending to the backend
     if (data.mandate) {
       if (!data.mandate.startDate) delete data.mandate.startDate
       if (!data.mandate.endDate) delete data.mandate.endDate
     }
-
     try {
-      // If this is a new property with owner info but no linked client, create the client
       if (!editId && !data.clientId) {
         const hasOwnerInfo = data.owner?.lastName || data.owner?.firstName || data.company?.name;
         if (hasOwnerInfo) {
@@ -564,13 +590,11 @@ export default function AddPropertyForm() {
           data.clientId = created.id;
         }
       }
-
       const submitData = { ...data, propertyType: type, ...(type === 'vacation' ? { transactionType: 'location_saisonniere' } : {}) };
       if (type === 'vacation') {
         submitData.priceGrid = convertGridToSave(data.priceGrid);
         submitData.options = convertOptionsToSave(data.options);
       }
-
       if (editId) {
         await attachMandatSaisonnier(submitData, submitData?.reference)
         await updateProperty(editId, submitData)
@@ -582,13 +606,10 @@ export default function AddPropertyForm() {
         await attachMandatSaisonnier(submitData, ref)
         const targetAgentId = assignedTo && assignedType ? assignedTo : (agentId || '')
         await addProperty({ ...submitData, reference: ref, agentId: targetAgentId })
-
         window.dispatchEvent(new CustomEvent('sq:triggered-notifs-changed'))
-
         toast('success', assignedTo && assignedType
           ? `Bien attribué avec succès à ${assignedType === 'admin' ? "l'admin" : "l'agent"}`
           : 'Bien ajouté avec succès')
-
         navigate('..', { replace: true })
       }
     } catch (e: any) {
@@ -603,17 +624,13 @@ export default function AddPropertyForm() {
   const setTab = (tab: string) => setValue('currentTab', tab);
   const scrollPositions = useRef<Record<string, number>>({});
   const contentRef = useRef<HTMLDivElement | null>(null);
-
-  // Persist scroll positions across refresh (sessionStorage)
   const scrollStorageKey = `sq-addprop-scroll:${editId || draftId || `new-${type}`}`;
-
   useEffect(() => {
     try {
       const raw = sessionStorage.getItem(scrollStorageKey);
       if (raw) scrollPositions.current = { ...JSON.parse(raw) };
     } catch {}
   }, [scrollStorageKey]);
-
   const saveScrollPosition = useCallback(() => {
     if (contentRef.current) {
       scrollPositions.current[currentTab] = contentRef.current.scrollTop;
@@ -622,7 +639,6 @@ export default function AddPropertyForm() {
       } catch {}
     }
   }, [currentTab, scrollStorageKey]);
-
   const restoreScrollPosition = useCallback((tab: string) => {
     requestAnimationFrame(() => {
       if (contentRef.current && scrollPositions.current[tab] != null) {
@@ -630,15 +646,12 @@ export default function AddPropertyForm() {
       }
     });
   }, []);
-
-  // Restore the scroll position of the initial tab after the form/data is rendered
   useEffect(() => {
     const raf = requestAnimationFrame(() => requestAnimationFrame(() => {
       restoreScrollPosition(getInitialTab());
     }));
     return () => cancelAnimationFrame(raf);
   }, [getInitialTab, restoreScrollPosition]);
-
   const handleTabChange = useCallback((tab: string) => {
     saveScrollPosition();
     setTab(tab);
@@ -649,7 +662,6 @@ export default function AddPropertyForm() {
       return next;
     }, { replace: true });
   }, [saveScrollPosition, restoreScrollPosition, setTab, setSearchParams]);
-
   const handleBackClick = useCallback(() => {
     const idx = tabs.findIndex(t => t.id === currentTab);
     if (idx > 0) {
@@ -697,6 +709,19 @@ export default function AddPropertyForm() {
     luxury: 'Luxe',
   };
 
+  // ── Stage chrome ──
+  const { staged, dark } = useStageChrome();
+  const theme = useStageTheme();
+  const isDark = staged ? dark : theme === 'dark';
+  const btns = useStageModalButtons();
+  const typeHue = TYPE_HUE_MAP[type] || STAGE_HUES.violet;
+  // Exact mint from Save button (StageModal light primary: from-teal-400 #2DD4BF to emerald-600 #059669)
+  const mintHue = { a: '#2DD4BF', b: '#059669', glow: 'rgba(20,184,166,0.50)', line: '#14B8A6' } as any;
+  const heroHue = isDark ? typeHue : mintHue;
+  const tabHue = heroHue;
+  const pct = Math.round(score.overall ?? 0);
+  const completionHue = pct >= 80 ? mintHue : pct >= 50 ? STAGE_HUES.amber : heroHue;
+
   if (!canWrite) {
     return (
       <div className="p-6 max-w-6xl mx-auto">
@@ -717,6 +742,135 @@ export default function AddPropertyForm() {
     );
   }
 
+  // ── STAGED: premium hero + glass tabs + stage footer ──
+  if (staged) {
+    return (
+      <div className="max-w-6xl mx-auto space-y-6 animate-fade-in pb-8">
+        {/* Command bar */}
+        <div className="flex items-center justify-between flex-wrap gap-3">
+          <button
+            onClick={() => navigate(-1)}
+            className={`group inline-flex items-center gap-2 rounded-xl border px-3 py-1.5 text-xs font-semibold backdrop-blur-md transition-all ${isDark ? 'border-white/10 bg-white/[0.04] text-slate-400 hover:text-white hover:border-white/20' : 'border-teal-900/10 bg-white/60 text-teal-900/60 hover:text-teal-900 hover:border-teal-900/20'}`}
+          >
+            <ArrowLeft size={13} className="transition-transform duration-200 group-hover:-translate-x-0.5" />
+            Retour
+          </button>
+          <div className="flex items-center gap-2">
+            {savedDraftId ? (
+              <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-bold ${isDark ? 'border-emerald-400/25 bg-emerald-400/10 text-emerald-300' : 'border-emerald-500/25 bg-emerald-500/10 text-emerald-700'}`}>
+                <Check size={12} /> Auto-sauvegardé
+              </span>
+            ) : (
+              <button type="button" onClick={handleSaveDraft} className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-semibold transition-colors active:scale-95 ${isDark ? 'border-white/10 bg-white/5 text-slate-400 hover:bg-white/10 hover:text-white' : 'border-teal-900/10 bg-white/70 text-teal-700 hover:bg-white'}`}>
+                <Save size={13} /> Brouillon
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Hero — pure mint in light (isDark ? typeHue : mint) */}
+        <div className="stage-glass relative overflow-hidden p-5 sm:p-6">
+          <div aria-hidden className="pointer-events-none absolute -right-16 -top-16 h-44 w-44 rounded-full" style={{ background: `radial-gradient(circle, ${heroHue.glow.replace(/[\d.]+\)$/, '0.18)')}, transparent 70%)` }} />
+          <div className="relative flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div className="flex gap-4 min-w-0">
+              <OrbIcon icon={Home} hue={heroHue} size={52} radius={16} />
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="relative flex h-2 w-2"><span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60" /><span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.9)]" /></span>
+                  <p className={`text-[10px] font-bold uppercase tracking-[0.22em] ${isDark ? 'text-slate-400/80' : 'text-teal-900/50'}`}>{editId ? 'Modification' : 'Nouveau dossier'} · {labelMap[type] || type}</p>
+                </div>
+                <h1 className={`mt-1 text-[22px] font-extrabold leading-tight tracking-[-0.4px] ${isDark ? 'bg-gradient-to-r from-white via-indigo-100 to-indigo-300 bg-clip-text text-transparent' : 'bg-gradient-to-r from-teal-400 via-teal-500 to-emerald-600 bg-clip-text text-transparent'}`}>
+                  {editId ? 'Modifier un bien' : 'Ajouter un bien'} — {labelMap[type] || type}
+                </h1>
+                <p className={`mt-1 text-sm ${isDark ? 'text-slate-400' : 'text-teal-900/60'}`}>{editId ? 'Modifiez les informations du bien' : 'Remplissez les informations du bien immobilier'}</p>
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <StageBadge variant={pct >= 80 ? 'ok' : pct >= 50 ? 'warn' : 'violet'}>{pct}% complété</StageBadge>
+                  <span className={`text-xs ${isDark ? 'text-slate-500' : 'text-teal-900/45'}`}>{tabs.find(t=>t.id===currentTab)?.label}</span>
+                </div>
+              </div>
+            </div>
+            <div className="hidden sm:block min-w-[180px] max-w-[260px] w-full">
+              <div className="flex items-center justify-between mb-1.5">
+                <span className={`text-[10px] font-bold uppercase tracking-[0.16em] ${isDark ? 'text-slate-500' : 'text-teal-900/45'}`}>Avancement du dossier</span>
+                <span className="text-xs font-extrabold tabular-nums" style={{ color: completionHue.a }}>{pct}%</span>
+              </div>
+              <ShimmerProgress pct={pct} colorFrom={completionHue.a} colorTo={completionHue.b} glow={completionHue.glow} height={7} />
+              <p className={`mt-1.5 text-[11px] ${isDark ? 'text-slate-500' : 'text-teal-900/45'}`}>{pct < 100 ? 'Complétez les onglets pour atteindre 100%.' : 'Dossier prêt à être enregistré.'}</p>
+            </div>
+          </div>
+          <div className="sm:hidden mt-4">
+            <div className="flex items-center justify-between mb-1.5">
+              <span className={`text-[10px] font-bold uppercase tracking-[0.16em] ${isDark ? 'text-slate-500' : 'text-teal-900/45'}`}>Avancement</span>
+              <span className="text-xs font-extrabold tabular-nums" style={{ color: completionHue.a }}>{pct}%</span>
+            </div>
+            <ShimmerProgress pct={pct} colorFrom={completionHue.a} colorTo={completionHue.b} glow={completionHue.glow} height={7} />
+          </div>
+        </div>
+
+        {/* Tabs — holographic rail */}
+        <div className="stage-glass overflow-x-auto scrollbar-thin rounded-2xl p-1.5" style={{ WebkitOverflowScrolling: 'touch' as any }}>
+          <div className="flex min-w-max gap-1">
+            {tabs.map(tab => {
+              const IconComp = TAB_FEATHER[tab.id] || Info;
+              const active = tab.id === currentTab;
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => handleTabChange(tab.id)}
+                  className={`relative flex items-center gap-1.5 whitespace-nowrap rounded-xl px-3.5 py-2 text-[13px] font-semibold transition-colors duration-200 ${active ? 'text-white' : isDark ? 'text-slate-400 hover:text-slate-200' : 'text-slate-500 hover:text-teal-900'}`}
+                >
+                  {active && (
+                    <motion.span layoutId="addprop-tab-pill" className="absolute inset-0 rounded-xl border border-white/20" style={{ backgroundImage: `linear-gradient(145deg, ${tabHue.a}, ${tabHue.b})`, boxShadow: `inset 0 1px 0 rgba(255,255,255,0.4), 0 8px 22px -8px ${tabHue.glow}` }} transition={{ type: 'spring', stiffness: 380, damping: 32 }} />
+                  )}
+                  {!active && <span className={`absolute inset-0 rounded-xl transition-colors ${isDark ? 'hover:bg-white/5' : 'hover:bg-teal-900/5'}`} />}
+                  <IconComp size={14} className="relative z-10" />
+                  <span className="relative z-10">{tab.label}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Content */}
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+          <div ref={contentRef} className="max-h-[calc(100vh-320px)] overflow-y-auto scrollbar-thin pr-1 -mr-1">
+            <AnimatePresence mode="wait" initial={false}>
+              <motion.div
+                key={currentTab}
+                initial={{ opacity: 0, y: 12, filter: 'blur(6px)' }}
+                animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                exit={{ opacity: 0, y: -8, filter: 'blur(4px)' }}
+                transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] as any }}
+              >
+                {tabComponents[currentTab] || <div className={`stage-glass p-8 text-center text-sm ${isDark ? 'text-slate-400' : 'text-teal-900/60'}`}>Section en cours de développement</div>}
+              </motion.div>
+            </AnimatePresence>
+          </div>
+
+          {/* Footer — Stage glass bar */}
+          <div className="stage-glass flex flex-wrap items-center justify-between gap-3 p-3 sm:p-4">
+            <div className="flex items-center gap-2">
+              <button type="button" onClick={handleBackClick} className={btns.ghost}>Annuler</button>
+              {!savedDraftId && <button type="button" onClick={handleSaveDraft} className={btns.ghost}><Save size={14} /> Enregistrer comme brouillon</button>}
+            </div>
+            <div className="flex items-center gap-2">
+              {currentTab !== 'general' && (
+                <button type="button" onClick={() => { const idx = tabs.findIndex(t => t.id === currentTab); if (idx > 0) handleTabChange(tabs[idx - 1].id); }} className={btns.ghost}><ArrowLeft size={14} /> Précédent</button>
+              )}
+              {editId || currentTab === tabs[tabs.length - 1].id ? (
+                <button type="submit" className={btns.primary}><Star size={14} /> Enregistrer</button>
+              ) : (
+                <button type="button" onClick={() => { const idx = tabs.findIndex(t => t.id === currentTab); if (idx < tabs.length - 1) handleTabChange(tabs[idx + 1].id); }} className={btns.primary}>Suivant <ArrowRight size={14} /></button>
+              )}
+            </div>
+          </div>
+        </form>
+      </div>
+    );
+  }
+
+  // ── ADMIN / fallback: original layout ──
   return (
     <div className="p-6 max-w-6xl mx-auto">
       <div className="mb-6">
@@ -738,11 +892,7 @@ export default function AddPropertyForm() {
               Auto-sauvegardé
             </span>
           ) : (
-            <button
-              type="button"
-              onClick={handleSaveDraft}
-              className="px-3 py-2 text-sm rounded-lg border border-border/60 hover:bg-border/20 transition-colors"
-            >
+            <button type="button" onClick={handleSaveDraft} className="px-3 py-2 text-sm rounded-lg border border-border/60 hover:bg-border/20 transition-colors">
               <Icon name="save" className="w-4 h-4 inline mr-1" />
               Brouillon
             </button>
@@ -751,59 +901,27 @@ export default function AddPropertyForm() {
       </div>
 
       <form onSubmit={handleSubmit(onSubmit)}>
-        <Tabs
-          value={currentTab}
-          onValueChange={handleTabChange}
-          accentClass={isGerant ? 'text-[#905D5D]' : ''}
-          accentBgClass={isGerant ? 'bg-[#905D5D]' : ''}
-        >
+        <Tabs value={currentTab} onValueChange={handleTabChange} accentClass={isGerant ? 'text-[#905D5D]' : ''} accentBgClass={isGerant ? 'bg-[#905D5D]' : ''}>
           <TabsList className="w-full flex-wrap">
             {tabs.map(({ id, label }) => (
-              <TabsTrigger key={id} value={id} className="whitespace-nowrap">
-                {label}
-              </TabsTrigger>
+              <TabsTrigger key={id} value={id} className="whitespace-nowrap">{label}</TabsTrigger>
             ))}
           </TabsList>
-
           <div ref={contentRef} className="mt-2 overflow-y-auto" style={{ maxHeight: 'calc(100vh - 320px)' }}>
             {tabComponents[currentTab] || <div className="p-6 text-text-secondary">Section en cours de développement</div>}
           </div>
         </Tabs>
-
         <div className="flex items-center justify-between mt-8 pt-6 border-t border-border/60">
           <div className="flex items-center gap-3">
-            <Button type="button" variant="ghost" onClick={handleBackClick}>
-              Annuler
-            </Button>
-            {!savedDraftId && (
-              <Button type="button" variant="outline" onClick={handleSaveDraft}>
-                <Icon name="save" className="w-4 h-4" />
-                Enregistrer comme brouillon
-              </Button>
-            )}
+            <Button type="button" variant="ghost" onClick={handleBackClick}>Annuler</Button>
+            {!savedDraftId && <Button type="button" variant="outline" onClick={handleSaveDraft}><Icon name="save" className="w-4 h-4" />Enregistrer comme brouillon</Button>}
           </div>
           <div className="flex items-center gap-3">
-            {currentTab !== 'general' && (
-              <Button type="button" variant="outline" onClick={() => {
-                const idx = tabs.findIndex(t => t.id === currentTab);
-                if (idx > 0) handleTabChange(tabs[idx - 1].id);
-              }}>
-                <Icon name="arrow-left" className="w-4 h-4" />
-                Précédent
-              </Button>
-            )}
+            {currentTab !== 'general' && <Button type="button" variant="outline" onClick={() => { const idx = tabs.findIndex(t => t.id === currentTab); if (idx > 0) handleTabChange(tabs[idx - 1].id); }}><Icon name="arrow-left" className="w-4 h-4" />Précédent</Button>}
             {editId || currentTab === tabs[tabs.length - 1].id ? (
-              <Button type="submit" className={isGerant ? GERANT_BUTTON_CLASSES : ''}>
-                Enregistrer
-              </Button>
+              <Button type="submit" className={isGerant ? GERANT_BUTTON_CLASSES : ''}>Enregistrer</Button>
             ) : (
-              <Button type="button" className={isGerant ? GERANT_BUTTON_CLASSES : ''} onClick={() => {
-                const idx = tabs.findIndex(t => t.id === currentTab);
-                if (idx < tabs.length - 1) handleTabChange(tabs[idx + 1].id);
-              }}>
-                Suivant
-                <Icon name="arrow-right" className="w-4 h-4" />
-              </Button>
+              <Button type="button" className={isGerant ? GERANT_BUTTON_CLASSES : ''} onClick={() => { const idx = tabs.findIndex(t => t.id === currentTab); if (idx < tabs.length - 1) handleTabChange(tabs[idx + 1].id); }}>Suivant<Icon name="arrow-right" className="w-4 h-4" /></Button>
             )}
           </div>
         </div>

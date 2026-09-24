@@ -291,7 +291,14 @@ export const DatePicker = React.forwardRef<HTMLInputElement, DatePickerProps>(
                 exit={{ opacity: 0, y: -8, scale: 0.96 }}
                 transition={{ duration: 0.15, ease: 'easeOut' }}
                 style={dropdownStyle}
-                className="bg-card rounded-2xl border border-border/50 shadow-dropdown p-4 select-none"
+                className={cn(
+                  'rounded-2xl border p-4 select-none backdrop-blur-xl',
+                  staged
+                    ? dark
+                      ? 'border-violet-500/20 bg-[#0F0A1E] shadow-[0_24px_60px_-20px_rgba(124,92,255,0.35),inset_0_1px_0_rgba(255,255,255,0.08)]'
+                      : 'border-white/70 bg-white/92 shadow-[0_24px_60px_-28px_rgba(13,148,136,0.35),inset_0_1px_0_rgba(255,255,255,0.9)]'
+                    : 'bg-card border-border/50 shadow-dropdown'
+                )}
               >
                 {/* header */}
                 <div className="mb-3 flex items-center justify-between gap-2">
@@ -299,18 +306,30 @@ export const DatePicker = React.forwardRef<HTMLInputElement, DatePickerProps>(
                     type="button"
                     onClick={prevMonth}
                     aria-label="Mois précédent"
-                    className="flex h-8 w-8 items-center justify-center rounded-xl text-text-secondary transition-all duration-200 hover:bg-background hover:text-text active:scale-90"
+                    className={cn(
+                      'flex h-8 w-8 items-center justify-center rounded-xl transition-all duration-200 active:scale-90',
+                      staged ? (dark ? 'text-slate-400 hover:bg-white/[0.06] hover:text-white' : 'text-teal-900/60 hover:bg-teal-900/[0.06] hover:text-teal-900') : 'text-text-secondary hover:bg-background hover:text-text'
+                    )}
                   >
                     <ChevronLeft size={16} />
                   </button>
                   <button
                     type="button"
                     onClick={() => setShowYearPicker(!showYearPicker)}
-                    className={`flex items-center gap-1.5 rounded-xl border px-3 py-1.5 font-mono text-[13px] font-bold tabular-nums transition-all duration-200 active:scale-95 ${
-                      showYearPicker
-                        ? 'border-accent/40 bg-accent-light/60 text-accent'
-                        : 'border-border/50 bg-background text-text hover:border-accent/30 hover:text-accent'
-                    }`}
+                    className={cn(
+                      'flex items-center gap-1.5 rounded-xl border px-3 py-1.5 font-mono text-[13px] font-bold tabular-nums transition-all duration-200 active:scale-95',
+                      staged
+                        ? showYearPicker
+                          ? dark
+                            ? 'border-violet-400/30 bg-violet-500/20 text-white'
+                            : 'border-teal-500/30 bg-teal-500/12 text-teal-900'
+                          : dark
+                            ? 'border-white/10 bg-white/[0.06] text-slate-200 hover:border-violet-400/20 hover:text-white'
+                            : 'border-teal-900/10 bg-white text-teal-800 hover:border-teal-500/20'
+                        : showYearPicker
+                          ? 'border-accent/40 bg-accent-light/60 text-accent'
+                          : 'border-border/50 bg-background text-text hover:border-accent/30 hover:text-accent'
+                    )}
                   >
                     {MONTHS[viewMonth]} {viewYear}
                     <ChevronRight size={12} className={cn('transition-transform duration-200', showYearPicker && 'rotate-90')} />
@@ -319,7 +338,10 @@ export const DatePicker = React.forwardRef<HTMLInputElement, DatePickerProps>(
                     type="button"
                     onClick={nextMonth}
                     aria-label="Mois suivant"
-                    className="flex h-8 w-8 items-center justify-center rounded-xl text-text-secondary transition-all duration-200 hover:bg-background hover:text-text active:scale-90"
+                    className={cn(
+                      'flex h-8 w-8 items-center justify-center rounded-xl transition-all duration-200 active:scale-90',
+                      staged ? (dark ? 'text-slate-400 hover:bg-white/[0.06] hover:text-white' : 'text-teal-900/60 hover:bg-teal-900/[0.06] hover:text-teal-900') : 'text-text-secondary hover:bg-background hover:text-text'
+                    )}
                   >
                     <ChevronRight size={16} />
                   </button>
@@ -334,24 +356,24 @@ export const DatePicker = React.forwardRef<HTMLInputElement, DatePickerProps>(
                       transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
                       className="mb-3 overflow-hidden"
                     >
-                      <div className="rounded-xl border border-border/50 bg-background p-3">
+                      <div className={cn('rounded-xl border p-3', staged ? (dark ? 'border-white/10 bg-white/[0.04]' : 'border-teal-900/10 bg-white') : 'border-border/50 bg-background')}>
                         <div className="mb-2.5 flex items-center justify-between">
                           <button
                             type="button"
                             aria-label="Décennie précédente"
                             onClick={() => setViewYear(y => y - 10)}
-                            className="flex h-7 w-7 items-center justify-center rounded-lg text-text-secondary transition-all duration-200 hover:bg-card hover:text-text active:scale-90"
+                            className={cn('flex h-7 w-7 items-center justify-center rounded-lg transition-all duration-200 active:scale-90', staged ? (dark ? 'text-slate-400 hover:bg-white/[0.06] hover:text-white' : 'text-teal-900/60 hover:bg-teal-900/[0.04]') : 'text-text-secondary hover:bg-card hover:text-text')}
                           >
                             <ChevronLeft size={14} />
                           </button>
-                          <span className="font-mono text-[11px] font-bold uppercase tracking-[0.18em] text-text-secondary">
+                          <span className={cn('font-mono text-[11px] font-bold uppercase tracking-[0.18em]', staged ? (dark ? 'text-slate-400' : 'text-teal-900/55') : 'text-text-secondary')}>
                             {decadeStart} – {decadeStart + 9}
                           </span>
                           <button
                             type="button"
                             aria-label="Décennie suivante"
                             onClick={() => setViewYear(y => y + 10)}
-                            className="flex h-7 w-7 items-center justify-center rounded-lg text-text-secondary transition-all duration-200 hover:bg-card hover:text-text active:scale-90"
+                            className={cn('flex h-7 w-7 items-center justify-center rounded-lg transition-all duration-200 active:scale-90', staged ? (dark ? 'text-slate-400 hover:bg-white/[0.06] hover:text-white' : 'text-teal-900/60 hover:bg-teal-900/[0.04]') : 'text-text-secondary hover:bg-card hover:text-text')}
                           >
                             <ChevronRight size={14} />
                           </button>
@@ -370,10 +392,10 @@ export const DatePicker = React.forwardRef<HTMLInputElement, DatePickerProps>(
                                 onClick={() => { setViewYear(y); setShowYearPicker(false); }}
                                 className={cn(
                                   'flex h-9 items-center justify-center rounded-lg text-xs font-semibold tabular-nums transition-colors duration-150',
-                                  !isInRange && 'text-text-secondary/25',
-                                  isInRange && !isSelected && !isCurrent && 'text-text-secondary hover:bg-card hover:text-text',
-                                  isCurrent && !isSelected && 'bg-accent/10 text-accent ring-1 ring-accent/40',
-                                  isSelected && 'dp-selected !text-white',
+                                  !isInRange && (staged ? (dark ? 'text-slate-600' : 'text-teal-900/20') : 'text-text-secondary/25'),
+                                  isInRange && !isSelected && !isCurrent && (staged ? (dark ? 'text-slate-300 hover:bg-white/[0.06] hover:text-white' : 'text-teal-900/70 hover:bg-teal-900/[0.04]') : 'text-text-secondary hover:bg-card hover:text-text'),
+                                  isCurrent && !isSelected && (staged ? (dark ? 'bg-violet-500/20 text-violet-200 ring-1 ring-violet-400/30' : 'bg-teal-500/12 text-teal-800 ring-1 ring-teal-500/20') : 'bg-accent/10 text-accent ring-1 ring-accent/40'),
+                                  isSelected && (staged ? (dark ? 'bg-gradient-to-b from-[#8B7CFF] to-[#5646C9] text-white shadow-[0_0_12px_rgba(124,92,255,0.5)]' : 'bg-gradient-to-b from-teal-400 to-emerald-600 text-white shadow-[0_0_12px_rgba(20,184,166,0.4)]') : 'dp-selected !text-white'),
                                 )}
                               >
                                 {y}
@@ -389,7 +411,7 @@ export const DatePicker = React.forwardRef<HTMLInputElement, DatePickerProps>(
                 {/* weekdays */}
                 <div className="mb-1.5 grid grid-cols-7 gap-1">
                   {DAYS.map((d) => (
-                    <div key={d} className="py-1 text-center text-[10px] font-bold uppercase tracking-[0.12em] text-text-secondary/45">
+                    <div key={d} className={cn('py-1 text-center text-[10px] font-bold uppercase tracking-[0.12em]', staged ? (dark ? 'text-slate-500' : 'text-teal-900/35') : 'text-text-secondary/45')}>
                       {d}
                     </div>
                   ))}
@@ -418,10 +440,16 @@ export const DatePicker = React.forwardRef<HTMLInputElement, DatePickerProps>(
                         onClick={() => selectDay(cell.year, cell.month, cell.day)}
                         className={cn(
                           'flex aspect-square w-full items-center justify-center rounded-lg text-[13px] font-medium transition-colors duration-150',
-                          cell.current ? 'text-text hover:bg-accent-light/60' : 'text-text-secondary/25',
-                          isDisabled(cell.year, cell.month, cell.day) && 'cursor-not-allowed text-text-secondary/20 hover:bg-transparent',
-                          isSelected(cell.year, cell.month, cell.day) && 'dp-selected !text-white font-bold hover:brightness-110',
-                          isToday(cell.year, cell.month, cell.day) && !isSelected(cell.year, cell.month, cell.day) && 'ring-1 ring-accent/50',
+                          staged
+                            ? cell.current
+                              ? isSelected(cell.year, cell.month, cell.day)
+                                ? dark ? 'bg-gradient-to-b from-[#8B7CFF] to-[#5646C9] text-white shadow-[0_0_12px_rgba(124,92,255,0.5)] font-bold' : 'bg-gradient-to-b from-teal-400 to-emerald-600 text-white shadow-[0_0_12px_rgba(20,184,166,0.4)] font-bold'
+                                : isToday(cell.year, cell.month, cell.day) ? (dark ? 'text-white ring-1 ring-violet-400/40 bg-white/[0.06]' : 'text-teal-900 ring-1 ring-teal-500/30 bg-teal-500/10') : (dark ? 'text-slate-200 hover:bg-white/[0.06] hover:text-white' : 'text-teal-900 hover:bg-teal-900/[0.06]')
+                              : 'text-slate-600 dark:text-slate-600'
+                            : cell.current ? 'text-text hover:bg-accent-light/60' : 'text-text-secondary/25',
+                          isDisabled(cell.year, cell.month, cell.day) && 'cursor-not-allowed opacity-40 hover:bg-transparent',
+                          !staged && isSelected(cell.year, cell.month, cell.day) && 'dp-selected !text-white font-bold hover:brightness-110',
+                          !staged && isToday(cell.year, cell.month, cell.day) && !isSelected(cell.year, cell.month, cell.day) && 'ring-1 ring-accent/50',
                         )}
                       >
                         {cell.day}

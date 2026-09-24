@@ -12,6 +12,94 @@ import { BASE } from '../../../services/api'
 import { useStageChrome } from '../calendar/useStageChrome'
 import { OrbIcon, STAGE_HUES, SLATE_HUE } from '../../dashboard/Stage'
 
+/* ── 3D glossy icons ── */
+function Folder3D({ expanded, isDark, size = 18 }: { expanded: boolean; isDark: boolean; size?: number }) {
+  const uid = React.useId().replace(/:/g, '')
+  const a = expanded ? (isDark ? '#A78BFA' : '#8B7CFF') : '#FBBF24'
+  const b = expanded ? (isDark ? '#5B4BD4' : '#6D28D9') : '#D97706'
+  const gradId = `fld-${uid}-${expanded ? 'o' : 'c'}`
+  const hlId = `fld-hl-${uid}`
+  return (
+    <span
+      className="inline-flex shrink-0 items-center justify-center"
+      style={{
+        width: size,
+        height: size,
+        filter: expanded ? 'drop-shadow(0 3px 8px rgba(124,92,255,0.35))' : 'drop-shadow(0 2px 6px rgba(245,158,11,0.30))',
+      }}
+    >
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <defs>
+          <linearGradient id={gradId} x1="0" y1="2" x2="0" y2="22" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor={a} />
+            <stop offset="55%" stopColor={a} />
+            <stop offset="100%" stopColor={b} />
+          </linearGradient>
+          <linearGradient id={hlId} x1="0" y1="2" x2="0" y2="9" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor="white" stopOpacity={isDark ? 0.42 : 0.50} />
+            <stop offset="100%" stopColor="white" stopOpacity="0" />
+          </linearGradient>
+        </defs>
+        {expanded ? (
+          <>
+            <path d="M3 6.5a2 2 0 0 1 2-2h4.2l1.8 1.8H19a2 2 0 0 1 2 2v1.2H3V6.5Z" fill={`url(#${hlId})`} />
+            <path d="M3 6.5a2 2 0 0 1 2-2h4.2l1.8 1.8H19a2 2 0 0 1 2 2v8.2a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6.5Z" fill={`url(#${gradId})`} />
+            <path d="M3 9.5h18" stroke="rgba(0,0,0,0.09)" strokeWidth="0.9" />
+            <path d="M5 4.5h4.2l1.8 1.8H19a2 2 0 0 1 2 2v.6a2 2 0 0 0-2-2H9L7.2 4.5H5a2 2 0 0 0-2 2v1a2 2 0 0 1 2-2Z" fill="white" opacity={isDark ? 0.14 : 0.22} />
+          </>
+        ) : (
+          <>
+            <path d="M4 7.2a2 2 0 0 1 2-2h3.6l1.9-1.7H17a2 2 0 0 1 2 2v1H4v0.7Z" fill={`url(#${hlId})`} />
+            <path d="M4 7.2a2 2 0 0 1 2-2h3.6l1.9-1.7H17a2 2 0 0 1 2 2v10.7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7.2Z" fill={`url(#${gradId})`} />
+            <path d="M6 5.2l1.9-1.7H17a2 2 0 0 1 2 2v.7a2 2 0 0 0-2-2H7.9L6 5.9V5.2Z" fill="white" opacity={isDark ? 0.16 : 0.26} />
+            <path d="M4 9.4h15" stroke="rgba(0,0,0,0.08)" strokeWidth="0.8" />
+          </>
+        )}
+      </svg>
+    </span>
+  )
+}
+
+function File3D({ isImage, isPdf, isDark, size = 18 }: { isImage: boolean; isPdf: boolean; isDark: boolean; size?: number }) {
+  const uid = React.useId().replace(/:/g, '')
+  let a = '#94A3B8'
+  let b = '#475569'
+  let fold = '#E2E8F0'
+  if (isImage) { a = isDark ? '#34D399' : '#2DD4BF'; b = isDark ? '#059669' : '#0D9488'; fold = isDark ? '#6EE7B7' : '#5EEAD4' }
+  else if (isPdf) { a = isDark ? '#FB7185' : '#F43F5E'; b = isDark ? '#BE123C' : '#9F1239'; fold = isDark ? '#FDA4AF' : '#FECDD3' }
+  const gradId = `file-${uid}`
+  const foldGradId = `fold-${uid}`
+  return (
+    <span
+      className="inline-flex shrink-0 items-center justify-center"
+      style={{
+        width: size,
+        height: size,
+        filter: isPdf ? 'drop-shadow(0 2px 6px rgba(244,63,94,0.28))' : isImage ? 'drop-shadow(0 2px 6px rgba(16,185,129,0.28))' : 'drop-shadow(0 2px 5px rgba(15,23,42,0.18))',
+      }}
+    >
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <defs>
+          <linearGradient id={gradId} x1="7" y1="2" x2="7" y2="22" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor={a} />
+            <stop offset="100%" stopColor={b} />
+          </linearGradient>
+          <linearGradient id={foldGradId} x1="14" y1="2" x2="19" y2="7" gradientUnits="userSpaceOnUse">
+            <stop offset="0%" stopColor={fold} stopOpacity={0.95} />
+            <stop offset="100%" stopColor={fold} stopOpacity={0.72} />
+          </linearGradient>
+        </defs>
+        <path d="M7.2 2.6H13.8L18.7 6.9V20.2a1.6 1.6 0 0 1-1.6 1.6H7.2a1.6 1.6 0 0 1-1.6-1.6V4.2A1.6 1.6 0 0 1 7.2 2.6Z" fill={`url(#${gradId})`} />
+        <path d="M13.8 2.6L18.7 6.9H15.1A1.3 1.3 0 0 1 13.8 5.6V2.6Z" fill={`url(#${foldGradId})`} stroke="rgba(0,0,0,0.10)" strokeWidth="0.6" />
+        <path d="M7.2 2.6a1.6 1.6 0 0 0-1.6 1.6v1.2a1.6 1.6 0 0 1 1.6-1.6H13l.8-.8H7.2Z" fill="white" opacity={isDark ? 0.14 : 0.22} />
+        <path d="M9.2 12.5h5.6M9.2 15.2h5.6M9.2 17.9h3.8" stroke="white" strokeOpacity={isDark ? 0.88 : 0.95} strokeWidth="1.1" strokeLinecap="round" />
+        {isPdf && <path d="M8.2 8.2h1.7M8.2 9.8h2.6" stroke="white" strokeOpacity="0.95" strokeWidth="1.15" strokeLinecap="round" />}
+        {isImage && <><circle cx="12" cy="9.2" r="1.4" fill="white" fillOpacity="0.92" /><path d="M8.5 13.2l2.2-1.7 1.6 1.1 1.8-1.4 1.4 1.9H8.5Z" fill="white" fillOpacity="0.88" /></>}
+      </svg>
+    </span>
+  )
+}
+
 export interface FileNode {
   id: string
   name: string
@@ -580,11 +668,12 @@ export function FileTreeEditor({ tree, onChange }: FileTreeEditorProps) {
             </button>
           )}
           {!isFolder && <div className="w-4 h-4 flex items-center justify-center" />}
-          <span className="flex-shrink-0 w-4 h-4">
-            {isFolder ? (
+          <span className="flex-shrink-0">
+            {staged ? (
+              isFolder ? <Folder3D expanded={isExpanded} isDark={dark} size={20} /> : <File3D isImage={isFileImage(node)} isPdf={isFilePdf(node)} isDark={dark} size={20} />
+            ) : isFolder ? (
               <svg
-                className={`w-4 h-4 ${isExpanded ? (staged ? '' : 'text-accent') : dark && staged ? 'text-amber-400' : 'text-amber-500'}`}
-                style={staged && isExpanded ? { color: STAGE_HUES.violet.a } : undefined}
+                className={`w-4 h-4 ${isExpanded ? 'text-accent' : 'text-amber-500'}`}
                 fill={isExpanded ? 'currentColor' : 'none'} viewBox="0 0 24 24" stroke="currentColor" strokeWidth={isExpanded ? 0 : 2}
               >
                 {isExpanded
@@ -593,7 +682,7 @@ export function FileTreeEditor({ tree, onChange }: FileTreeEditorProps) {
                 }
               </svg>
             ) : (
-              <svg className={`w-4 h-4 ${staged && dark ? 'text-rose-400/80' : 'text-red-400'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <svg className="w-4 h-4 text-red-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
               </svg>
             )}

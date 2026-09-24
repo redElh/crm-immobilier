@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
+import { useState, useEffect } from 'react';
+import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import type { Map as LeafletMap } from 'leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -8,6 +8,21 @@ import { MapPin, ExternalLink, Navigation, Eye, EyeOff, Layers } from 'react-fea
 import { useConfidential } from '../confidentiality/ConfidentialContext';
 import { useStageChrome } from '../calendar/useStageChrome';
 import { StagePanel, OrbIcon, STAGE_HUES } from '../../dashboard/Stage';
+
+function InvalidateSize() {
+  const map = useMap();
+  useEffect(() => {
+    const t = setTimeout(() => {
+      try {
+        const c = map.getContainer();
+        // container must still be in DOM and map pane must exist
+        if (c?.isConnected && (map as any)._mapPane) map.invalidateSize();
+      } catch {}
+    }, 200);
+    return () => clearTimeout(t);
+  }, [map]);
+  return null;
+}
 
 const customIcon = new L.DivIcon({
   className: '',
@@ -154,7 +169,6 @@ export const PropertyPlanMap = ({ property }: { property: any }) => {
                 key={dark ? 'dark' : 'light'}
                 ref={(map: LeafletMap | null) => {
                   mapRef.current = map;
-                  if (map) setTimeout(() => map.invalidateSize(), 150);
                 }}
                 center={center}
                 zoom={15}
@@ -166,6 +180,7 @@ export const PropertyPlanMap = ({ property }: { property: any }) => {
                   attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
                   url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                 />
+                <InvalidateSize />
                 {hasCoords && (
                   <Marker position={center} icon={stageMarkerIcon(pinColor)}>
                     <Popup>
@@ -373,6 +388,7 @@ export const PropertyPlanMap = ({ property }: { property: any }) => {
               attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
               url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
             />
+            <InvalidateSize />
             {hasCoords && (
               <Marker position={center} icon={customIcon}>
                 <Popup>

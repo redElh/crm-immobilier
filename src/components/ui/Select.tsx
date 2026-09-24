@@ -109,8 +109,8 @@ export const Select = ({
 
   const stagedButtonClass = staged
     ? dark
-      ? 'w-full h-9 flex items-center justify-between px-3 text-sm rounded-xl border border-white/10 bg-gradient-to-b from-white/[0.08] to-white/[0.02] [background-color:transparent] text-slate-100 outline-none transition-all duration-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.14),inset_0_-8px_16px_-12px_rgba(0,0,0,0.7),0_6px_18px_-8px_rgba(3,5,14,0.9)] hover:border-white/15 focus:border-violet-400/70'
-      : 'w-full h-9 flex items-center justify-between px-3 text-sm rounded-xl border border-teal-900/15 bg-gradient-to-b from-white to-teal-50/70 [background-color:transparent] text-teal-950 outline-none transition-all duration-200 shadow-[inset_0_1px_0_rgba(255,255,255,1),inset_0_-6px_14px_-10px_rgba(13,148,136,0.35),0_6px_18px_-10px_rgba(13,148,136,0.45)] hover:border-teal-900/20 focus:border-teal-500/70'
+      ? 'w-full h-9 flex items-center justify-between px-3 text-sm rounded-xl border border-white/10 bg-gradient-to-b from-white/[0.08] to-white/[0.02] [background-color:transparent] text-slate-100 outline-none transition-all duration-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.14),inset_0_-8px_16px_-12px_rgba(0,0,0,0.7),0_6px_18px_-8px_rgba(3,5,14,0.9)] hover:border-white/15 focus:border-violet-400/70 focus:shadow-[inset_0_1px_0_rgba(255,255,255,0.22),inset_0_-8px_16px_-12px_rgba(0,0,0,0.6),0_0_0_3px_rgba(124,92,255,0.28),0_10px_30px_-8px_rgba(124,92,255,0.55)]'
+      : 'w-full h-9 flex items-center justify-between px-3 text-sm rounded-xl border border-teal-900/15 bg-gradient-to-b from-white to-teal-50/70 [background-color:transparent] text-teal-950 outline-none transition-all duration-200 shadow-[inset_0_1px_0_rgba(255,255,255,1),inset_0_-6px_14px_-10px_rgba(13,148,136,0.35),0_6px_18px_-10px_rgba(13,148,136,0.45)] hover:border-teal-900/20 focus:border-teal-500/70 focus:shadow-[inset_0_1px_0_rgba(255,255,255,1),inset_0_-6px_14px_-10px_rgba(13,148,136,0.4),0_0_0_3px_rgba(20,184,166,0.25),0_10px_28px_-10px_rgba(13,148,136,0.6)]'
     : null
   return (
     <div ref={containerRef}>
@@ -168,9 +168,18 @@ export const Select = ({
               exit={{ opacity: 0, y: -8, scale: 0.96 }}
               transition={{ duration: 0.15, ease: 'easeOut' }}
               style={dropdownStyle}
-              className="bg-card rounded-lg border border-border/50 shadow-dropdown py-1 max-h-48 overflow-y-auto"
+              className={cn(
+                'py-1 max-h-64 overflow-y-auto scrollbar-thin rounded-2xl border',
+                staged
+                  ? dark
+                    ? 'border-violet-500/20 bg-[#0F0A1E] shadow-[0_24px_60px_-20px_rgba(124,92,255,0.35),inset_0_1px_0_rgba(255,255,255,0.08)]'
+                    : 'border-white/70 bg-white/92 backdrop-blur-xl shadow-[0_24px_60px_-28px_rgba(13,148,136,0.35),inset_0_1px_0_rgba(255,255,255,0.9)]'
+                  : 'bg-card rounded-lg border-border/50 shadow-dropdown'
+              )}
             >
-            {options.map((option, idx) => (
+            {options.map((option, idx) => {
+              const active = currentValue === option.value
+              return (
               <motion.button
                 key={option.value}
                 initial={{ opacity: 0, x: -8 }}
@@ -178,28 +187,36 @@ export const Select = ({
                 transition={{ duration: 0.12, delay: idx * 0.025 }}
                 type="button"
                 className={cn(
-                  'w-full text-left px-3 py-2 text-sm transition-colors flex items-center gap-2',
-                  currentValue === option.value
-                    ? 'bg-accent-light text-accent font-medium'
-                    : 'text-text-secondary hover:text-text hover:bg-background'
+                  'w-full text-left px-3 py-2 text-sm transition-all flex items-center gap-2 mx-1 rounded-xl',
+                  staged
+                    ? active
+                      ? dark
+                        ? 'bg-gradient-to-r from-violet-500/25 to-indigo-600/25 text-white border border-violet-400/30 shadow-[0_0_16px_-4px_rgba(124,92,255,0.7),inset_0_1px_0_rgba(255,255,255,0.12)] font-medium'
+                        : 'bg-teal-500/14 text-teal-900 border border-teal-500/25 font-medium shadow-[0_0_12px_-4px_rgba(20,184,166,0.5)]'
+                      : dark
+                        ? 'text-slate-200 border border-transparent hover:bg-white/[0.06] hover:text-white hover:border-white/10'
+                        : 'text-teal-900/70 border border-transparent hover:bg-teal-900/[0.04] hover:text-teal-900'
+                    : active
+                      ? 'bg-accent-light text-accent font-medium mx-0 rounded-none'
+                      : 'text-text-secondary hover:text-text hover:bg-background mx-0 rounded-none'
                 )}
                 onClick={() => handleSelect(option.value)}
               >
-                {currentValue === option.value && (
+                {active && (
                   <motion.span
                     initial={{ scale: 0 }}
                     animate={{ scale: 1 }}
-                    className="w-1.5 h-1.5 rounded-full bg-accent shrink-0"
+                    className={cn('w-1.5 h-1.5 rounded-full shrink-0', staged ? (dark ? 'bg-violet-400 shadow-[0_0_8px_rgba(139,124,255,0.8)]' : 'bg-teal-500 shadow-[0_0_8px_rgba(20,184,166,0.7)]') : 'bg-accent')}
                   />
                 )}
-                <span className={cn('flex items-center gap-2', !(currentValue === option.value) && 'ml-[18px]')}>
-                  {option.icon && <option.icon size={14} className="text-text-secondary shrink-0" />}
+                <span className={cn('flex items-center gap-2', !active && staged && 'ml-[14px]', !active && !staged && 'ml-[18px]')}>
+                  {option.icon && <option.icon size={14} className={cn('shrink-0', staged ? (dark ? 'text-slate-400' : 'text-teal-700/60') : 'text-text-secondary')} />}
                   {option.label}
                 </span>
               </motion.button>
-            ))}
+            )})}
             {options.length === 0 && (
-              <div className="px-3 py-4 text-center text-xs text-text-secondary/60">
+              <div className={cn('px-3 py-4 text-center text-xs', staged ? (dark ? 'text-slate-500' : 'text-teal-900/45') : 'text-text-secondary/60')}>
                 Aucune option disponible
               </div>
             )}
