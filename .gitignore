@@ -30,3 +30,14 @@ dist/
 nul
 *.log
 src/backend/uploads/
+
+# local artifacts - do not commit
+Reda_ELHIRI_CV*.pdf
+_untr_*.txt
+_work/
+build_out.txt
+public/admin-pages-screenshots/
+public/agent-pages-screenshots/
+scripts/__pycache__/
+*.bak
+*.new
