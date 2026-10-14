@@ -35,10 +35,10 @@ const iconSizes = {
 export function Avatar({ participant, size = 'md', showPresence = false, className }: AvatarProps) {
   const isGroup = participant.type === 'group'
   return (
-    <div className={cn('relative shrink-0', className)}>
+    <div className={cn('relative shrink-0 rounded-full', className)}>
       <div
         className={cn(
-          'rounded-full flex items-center justify-center font-bold text-white select-none overflow-hidden',
+          'rounded-full flex items-center justify-center font-bold text-white select-none overflow-hidden ring-0',
           sizeClasses[size],
           avatarColor(isGroup ? 'Groupe Équipe' : participant.name)
         )}

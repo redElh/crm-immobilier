@@ -1,7 +1,9 @@
 import { useNavigate, useParams } from 'react-router-dom';
 import { ClientCard } from '../../components/modules/clients/ClientCard';
 import { SearchInput } from '../../components/ui/SearchInput';
-import { FilterDropdown } from '../../components/ui/FilterDropdown';
+import { Select } from '../../components/ui/Select';
+import { useStageFormClasses } from '../../components/modules/calendar/StageModal';
+import { cn } from '../../lib/utils';
 import { AddClientButton } from '../../components/modules/clients/AddClientButton';
 import { ClientFormModal } from '../../components/modules/clients/ClientFormModal';
 import { BuyerFormModal } from '../../components/modules/clients/BuyerFormModal';
@@ -18,14 +20,14 @@ import { BackLink } from '../../components/ui/BackLink';
 import Card from '../../components/ui/Card';
 import { motion } from 'framer-motion';
 import {
-  BarChart2, UserCheck, UserX, Target, Calendar, Home, ArrowUp, ArrowDown, CheckCircle, Sun, Users, Search, Sliders, X, TrendingUp, Layers, Info, ArrowLeft, Plus, Zap
+  BarChart2, UserCheck, UserX, Target, Calendar, Home, ArrowUp, ArrowDown, CheckCircle, Sun, Users, Search, X, ArrowLeft, Plus, Zap
 } from 'react-feather';
 import { api } from '../../services/api';
 import { triggerMandatExpireNotification } from '../../services/automatorTrigger';
 import { useMyPermissions, permissionAllowed } from '../../hooks/useMyPermissions';
 import { Lock } from 'react-feather';
 import { useStageChrome } from '../../components/modules/calendar/useStageChrome';
-import { Stage, StageStatCard, StagePanel, StageBadge, STAGE_HUES, useStageTheme } from '../../components/dashboard/Stage';
+import { Stage, StageStatCard, StagePanel, StageBadge, STAGE_HUES, useStageTheme, OrbIcon, TiltCard, AnimatedNumber } from '../../components/dashboard/Stage';
 
 const ACHETEUR_STATUS_OPTIONS = [
   { value: 'all', label: 'Tous statuts' },
@@ -215,6 +217,22 @@ export default function ClientsPageWithType() {
     return map[type || ''] || STAGE_HUES.violet;
   })();
 
+  /* Liste header orb: per-type hue in dark, sidebar emerald in light
+     (blue/violet orbs look off-context on the light lagoon canvas). */
+  const listHue = isDark
+    ? heroHue
+    : { a: '#2DD4BF', b: '#0D9488', glow: 'rgba(13,148,136,0.35)', line: '#14B8A6' };
+
+  const statusOptions = isAcheteur ? ACHETEUR_STATUS_OPTIONS : isVendeur ? VENDEUR_STATUS_OPTIONS : isBailleur ? BAILLEUR_STATUS_OPTIONS : isLocataire ? LOCATAIRE_STATUS_OPTIONS : isVoyageur ? VOYAGEUR_STATUS_OPTIONS : [
+    { value: 'all', label: 'Tous statuts' }, { value: 'Actif', label: 'Actif' }, { value: 'En négociation', label: 'En négociation' }, { value: 'Contrat signé', label: 'Contrat signé' }, { value: 'Inactif', label: 'Inactif' },
+  ];
+
+  const { input: stageInput } = useStageFormClasses();
+  const ctrl = (extra?: string) => stageInput(extra);
+  const sectionTitle = 'mb-2 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.2em] opacity-80';
+  const hasActiveFilters = searchTerm.trim() !== '' || statusFilter !== 'all';
+  const clearFilters = () => { setSearchTerm(''); setStatusFilter('all'); };
+
   if (permsLoaded && !canRead) {
     return (
       <Stage theme={theme}>
@@ -303,137 +321,65 @@ export default function ClientsPageWithType() {
           <ClientDraftSection key={draftVersion} userId={String(currentUser.id)} clientType={typeLabels[type || '']} onResume={(draft) => setResumeDraftId(draft.id)} />
         )}
 
-        {/* Recherche & Filtres — holographic Stage */}
-        <div
-          className="overflow-hidden rounded-2xl border"
-          style={{
-            borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(15,23,42,0.07)',
-            background: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.62)',
-            boxShadow: isDark ? 'inset 0 1px 0 rgba(255,255,255,0.05)' : 'inset 0 1px 0 rgba(255,255,255,0.85), 0 10px 28px -16px rgba(13,148,136,0.18)',
-            backdropFilter: 'blur(16px)',
-          }}
-        >
-          <div className="flex items-center gap-2.5 px-4 py-3" style={{ borderBottom: `1px solid ${isDark ? 'rgba(255,255,255,0.06)' : 'rgba(15,23,42,0.06)'}` }}>
-            <span className="flex h-8 w-8 items-center justify-center rounded-xl border" style={{ borderColor: isDark ? 'rgba(167,139,250,0.22)' : 'rgba(20,184,166,0.18)', background: isDark ? 'rgba(167,139,250,0.12)' : 'rgba(20,184,166,0.10)', color: isDark ? '#A78BFA' : '#0D9488' }}>
-              <Search size={14} />
-            </span>
-            <div>
-              <h3 className={`text-sm font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>Recherche & filtres</h3>
-              <p className={`text-xs ${isDark ? 'text-slate-400' : 'text-teal-900/50'}`}>{filteredClients.length} résultat{filteredClients.length !== 1 ? 's' : ''} · Affinez votre recherche</p>
-            </div>
-            {statusFilter !== 'all' && (
-              <button onClick={() => setStatusFilter('all')} className={`ml-auto inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-semibold ${isDark ? 'border-white/10 bg-white/5 text-slate-300 hover:bg-white/10' : 'border-teal-900/10 bg-white text-teal-700 hover:bg-teal-50'}`}>
-                <X size={11} />
-                Effacer filtre
-              </button>
-            )}
-          </div>
-          <div className="p-4 space-y-3">
-            <div className="flex flex-col sm:flex-row gap-3">
-              <div className="flex-1 relative group">
-                <Search size={14} className={`absolute left-3 top-1/2 -translate-y-1/2 transition-colors ${isDark ? 'text-slate-500 group-focus-within:text-violet-300' : 'text-slate-400 group-focus-within:text-teal-600'}`} />
-                <input
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  placeholder="Rechercher par nom, téléphone, email..."
-                  className={`w-full h-10 pl-9 pr-3 text-sm rounded-xl border backdrop-blur-md transition-all focus:outline-none ${isDark ? 'bg-white/[0.04] border-white/10 text-white placeholder:text-slate-500 focus:border-violet-400/40 focus:bg-white/[0.06]' : 'bg-white border-teal-900/10 text-slate-900 placeholder:text-slate-400 focus:border-teal-500/30 focus:bg-white'}`}
-                />
+        {/* ── Command bar — Recherche + Filtres (same pattern as Documents) ── */}
+        <div className={cn('overflow-hidden', isDark ? 'pop-glass rounded-3xl border border-white/10' : 'stage-glass rounded-2xl')}>
+          <div className="h-[3px] w-full" style={{ background: `linear-gradient(90deg, transparent, ${isDark ? 'rgba(139,124,255,0.9)' : 'rgba(20,184,166,0.9)'} 18%, ${isDark ? '#8B7CFF' : '#14B8A6'} 50%, transparent)` }} />
+          <div className="space-y-5 px-5 pb-4 pt-5" style={{ background: isDark ? 'radial-gradient(90% 140% at 0% 0%, rgba(139,124,255,0.07), transparent 65%)' : 'radial-gradient(90% 140% at 0% 0%, rgba(20,184,166,0.06), transparent 65%)' }}>
+            {/* Recherche */}
+            <section>
+              <p className={`${sectionTitle} ${isDark ? 'text-violet-400' : 'text-violet-600'}`}><span className="h-px w-4 bg-gradient-to-r from-violet-400 to-transparent" /> Recherche</p>
+              <div className="flex flex-col gap-3 sm:flex-row">
+                <div className="relative flex-1">
+                  <Search size={13} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2" style={{ color: isDark ? '#8B7CFF' : '#0D9488' }} />
+                  <input placeholder="Rechercher par nom, téléphone, email..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className={ctrl('h-10 pl-9 pr-9')} />
+                  {searchTerm && <button onClick={() => setSearchTerm('')} aria-label="Effacer la recherche" className={cn('absolute right-1.5 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-lg', isDark ? 'text-slate-400 hover:bg-white/10 hover:text-white' : 'text-teal-900/40 hover:bg-teal-900/5 hover:text-teal-900')}><X size={13} /></button>}
+                </div>
+                <div className="w-full sm:w-64 sm:shrink-0">
+                  <Select value={statusFilter} onValueChange={setStatusFilter} options={statusOptions} className={ctrl('h-10')} />
+                </div>
+                {hasActiveFilters && <button onClick={clearFilters} className={cn('inline-flex h-10 shrink-0 items-center gap-1.5 rounded-xl border px-4 text-xs font-semibold transition-colors', isDark ? 'border-white/10 bg-white/5 text-slate-300 hover:bg-white/10 hover:text-white' : 'border-teal-900/10 bg-white text-teal-700 hover:bg-teal-50')}><X size={12} /> Réinitialiser</button>}
               </div>
-              <div className="w-full sm:w-64">
-                <FilterDropdown
-                  label=""
-                  options={isAcheteur ? ACHETEUR_STATUS_OPTIONS : isVendeur ? VENDEUR_STATUS_OPTIONS : isBailleur ? BAILLEUR_STATUS_OPTIONS : isLocataire ? LOCATAIRE_STATUS_OPTIONS : isVoyageur ? VOYAGEUR_STATUS_OPTIONS : [
-                    { value: 'all', label: 'Tous statuts' }, { value: 'Actif', label: 'Actif' }, { value: 'En négociation', label: 'En négociation' }, { value: 'Contrat signé', label: 'Contrat signé' }, { value: 'Inactif', label: 'Inactif' },
-                  ]}
-                  value={statusFilter}
-                  onChange={setStatusFilter}
-                />
-              </div>
-            </div>
-            <div className="flex flex-wrap items-center gap-1.5">
-              <span className={`text-[11px] font-medium ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>Filtres rapides:</span>
-              {[
-                { v: 'all', l: 'Tous' },
-                { v: 'Actif', l: 'Actifs' },
-                { v: 'En recherche', l: 'En recherche' },
-                { v: 'En negociation', l: 'Négociation' },
-              ].map((f) => (
-                <button
-                  key={f.v}
-                  onClick={() => setStatusFilter(f.v)}
-                  className={`rounded-full border px-2.5 py-1 text-xs font-semibold transition-all ${statusFilter === f.v ? (isDark ? 'bg-violet-500 text-white border-violet-400 shadow-[0_4px_12px_rgba(124,92,255,0.35)]' : 'bg-teal-600 text-white border-teal-500 shadow-[0_4px_12px_rgba(13,148,136,0.3)]') : (isDark ? 'bg-white/5 border-white/10 text-slate-400 hover:bg-white/10 hover:text-white' : 'bg-white border-slate-200 text-slate-600 hover:border-teal-300 hover:text-teal-700')}`}
-                >
-                  {f.l}
-                </button>
-              ))}
-              <span className={`ml-auto hidden sm:inline-flex items-center gap-1 text-xs ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
-                <Layers size={11} />
-                {filteredClients.length} sur {typeStats.total}
-              </span>
-            </div>
+            </section>
           </div>
         </div>
 
-        {/* Liste des clients — holographic cards */}
-        <div
-          className="overflow-hidden rounded-2xl border"
-          style={{
-            borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(15,23,42,0.07)',
-            background: isDark ? 'rgba(255,255,255,0.02)' : 'rgba(255,255,255,0.45)',
-            boxShadow: isDark ? 'inset 0 1px 0 rgba(255,255,255,0.04)' : 'inset 0 1px 0 rgba(255,255,255,0.8), 0 12px 28px -18px rgba(13,148,136,0.16)',
-          }}
-        >
-          <div className="flex items-center justify-between gap-3 px-4 py-3" style={{ borderBottom: `1px solid ${isDark ? 'rgba(255,255,255,0.06)' : 'rgba(15,23,42,0.06)'}` }}>
-            <div className="flex items-center gap-2.5">
-              <span className="flex h-8 w-8 items-center justify-center rounded-xl border" style={{ borderColor: isDark ? 'rgba(167,139,250,0.22)' : 'rgba(20,184,166,0.18)', background: isDark ? 'rgba(167,139,250,0.12)' : 'rgba(20,184,166,0.10)', color: isDark ? '#A78BFA' : '#0D9488' }}>
-                <Users size={14} />
-              </span>
-              <div>
-                <h3 className={`text-sm font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>Liste des clients</h3>
-                <p className={`text-xs ${isDark ? 'text-slate-400' : 'text-teal-900/50'}`}>{filteredClients.length} client{filteredClients.length !== 1 ? 's' : ''} · {typeLabels[type || ''] || 'Client'} · Cartes holographiques</p>
+        {/* ── Results ── */}
+        {filteredClients.length > 0 ? (
+          <div>
+            <div className="mb-3 flex items-center justify-between gap-3 px-1">
+              <div className="flex items-center gap-2.5">
+                <OrbIcon icon={Users} hue={listHue} size={26} radius={8} />
+                <span className={`text-sm font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>Liste des clients</span>
               </div>
+              <StageBadge variant="neutral">
+                <AnimatedNumber value={filteredClients.length} className="inline font-bold" /> client{filteredClients.length !== 1 ? 's' : ''}
+              </StageBadge>
             </div>
-            <span className={`hidden sm:inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium ${isDark ? 'bg-white/5 border-white/10 text-slate-300' : 'bg-white border-slate-200 text-slate-600'}`}>
-              <TrendingUp size={11} />
-              {filteredClients.length} affichés
-            </span>
+            <div className="grid auto-rows-fr grid-cols-1 items-stretch gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {filteredClients.map((client, i) => (
+                <ClientCard key={client.id} index={i} client={client} agentId={agentId} onEdit={handleEditClient} onDelete={handleDeleteClient} locked={!canInfo} canEdit={canWrite} canDelete={canDelete} canExport={canExport} />
+              ))}
+            </div>
           </div>
-          {filteredClients.length === 0 ? (
-            <div className="py-14 text-center">
-              <div className={`mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl border ${isDark ? 'bg-white/5 border-white/10 text-slate-500' : 'bg-white border-slate-200 text-slate-400'}`}>
-                <Search size={22} />
+        ) : (
+          <div className="flex items-center justify-center py-16">
+            <TiltCard className="max-w-sm p-12 text-center">
+              <div
+                className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl"
+                style={{
+                  background: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(15,23,42,0.03)',
+                  border: `1px solid ${isDark ? 'rgba(255,255,255,0.08)' : 'rgba(15,23,42,0.06)'}`,
+                }}
+              >
+                <Search size={24} style={{ color: isDark ? 'rgba(255,255,255,0.2)' : 'rgba(15,23,42,0.2)' }} />
               </div>
-              <p className={`font-semibold ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>Aucun client trouvé</p>
-              <p className={`mt-1 text-sm ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>Essayez de modifier vos filtres ou créez un nouveau client</p>
-              {canWrite && (
-                <button onClick={() => setIsModalOpen(true)} className="mt-4 inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold text-white" style={{ background: `linear-gradient(145deg, ${heroHue.a}, ${heroHue.b})`, boxShadow: `0 8px 20px -8px ${heroHue.glow}` }}>
-                  <Plus size={14} />
-                  Nouveau client
-                </button>
-              )}
-            </div>
-          ) : (
-            <div className="p-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 auto-rows-fr">
-                {filteredClients.map((client) => (
-                  <div key={client.id} className="group relative overflow-hidden rounded-2xl border p-0.5 transition-all duration-300 hover:-translate-y-1 hover:shadow-xl" style={{ borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(15,23,42,0.06)', background: isDark ? 'rgba(255,255,255,0.02)' : 'rgba(255,255,255,0.7)' }}>
-                    <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity" style={{ background: `radial-gradient(400px circle at 50% -10%, ${heroHue.a}14, transparent 60%)` }} />
-                    <div className="relative h-full">
-                      <ClientCard client={client} agentId={agentId} onEdit={handleEditClient} onDelete={handleDeleteClient} locked={!canInfo} canEdit={canWrite} canDelete={canDelete} canExport={canExport} />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-          <div className={`flex items-center justify-between border-t px-4 py-2.5 text-xs ${isDark ? 'border-white/5 bg-white/[0.02] text-slate-500' : 'border-slate-100 bg-slate-50/50 text-slate-500'}`}>
-            <span className="flex items-center gap-1.5">
-              <Info size={11} />
-              Cliquez sur une carte pour voir la fiche complète
-            </span>
-            <span className="hidden sm:inline">{filteredClients.length} · {typeLabels[type || ''] || 'Client'}</span>
+              <h3 className={`mb-1 text-lg font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>Aucun client trouvé</h3>
+              <p className={`text-sm ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                Essayez de modifier vos filtres ou d'ajouter un nouveau client
+              </p>
+            </TiltCard>
           </div>
-        </div>
+        )}
       </div>
     </Stage>
   );

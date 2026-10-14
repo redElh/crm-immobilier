@@ -2,6 +2,7 @@ import { useRef, useState } from 'react'
 import { motion } from 'framer-motion'
 import { Play, Square } from 'react-feather'
 import { cn } from '../../../lib/utils'
+import { useStageTheme } from '../../dashboard/Stage'
 
 function formatTime(total: number): string {
   if (!isFinite(total) || total < 0) return '0:00'
@@ -39,6 +40,7 @@ export function AudioPlayer({ src, isMine = false, fallbackDuration, className }
   const total = duration > 0 ? duration : parseFallback(fallbackDuration)
   const progress = total > 0 ? Math.min(1, Math.max(0, current / total)) : 0
   const activeBars = Math.round(progress * BARS.length)
+  const isDark = useStageTheme() === 'dark'
 
   const toggle = () => {
     const el = audioRef.current
@@ -74,8 +76,8 @@ export function AudioPlayer({ src, isMine = false, fallbackDuration, className }
     seekingRef.current = false
   }
 
-  const barColor = isMine ? 'bg-white' : 'bg-accent'
-  const barInactive = isMine ? 'bg-white/30' : 'bg-accent/25'
+  const barColor = isMine ? 'bg-white' : isDark ? 'bg-indigo-300' : 'bg-teal-600'
+  const barInactive = isMine ? 'bg-white/30' : isDark ? 'bg-white/15' : 'bg-teal-600/25'
 
   return (
     <div className={cn('w-64 flex items-center gap-2.5 px-3 py-2.5', className)}>
@@ -98,7 +100,9 @@ export function AudioPlayer({ src, isMine = false, fallbackDuration, className }
         onClick={toggle}
         className={cn(
           'w-9 h-9 rounded-full flex items-center justify-center shrink-0 transition-colors',
-          isMine ? 'bg-white/20 text-white hover:bg-white/30' : 'bg-accent/10 text-accent hover:bg-accent/20'
+          isMine
+            ? 'bg-white/20 text-white hover:bg-white/30'
+            : isDark ? 'bg-violet-400/15 text-indigo-200 hover:bg-violet-400/25' : 'bg-teal-500/10 text-teal-700 hover:bg-teal-500/20'
         )}
         title={playing ? 'Pause' : 'Écouter'}
       >
@@ -128,15 +132,15 @@ export function AudioPlayer({ src, isMine = false, fallbackDuration, className }
             ))}
           </div>
           <span
-            className={cn('absolute top-0 bottom-0 w-0.5 rounded-full pointer-events-none', isMine ? 'bg-white/80' : 'bg-accent')}
+            className={cn('absolute top-0 bottom-0 w-0.5 rounded-full pointer-events-none', isMine ? 'bg-white/80' : isDark ? 'bg-indigo-300' : 'bg-teal-600')}
             style={{ left: `${progress * 100}%` }}
           />
         </div>
         <div className="mt-1 flex items-center justify-between">
-          <span className={cn('text-[10px] leading-none tabular-nums', isMine ? 'text-white/70' : 'text-text-secondary/70')}>
+          <span className={cn('text-[10px] leading-none tabular-nums', isMine ? 'text-white/70' : isDark ? 'text-slate-400' : 'text-slate-500')}>
             {formatTime(current)}
           </span>
-          <span className={cn('text-[10px] leading-none tabular-nums', isMine ? 'text-white/70' : 'text-text-secondary/70')}>
+          <span className={cn('text-[10px] leading-none tabular-nums', isMine ? 'text-white/70' : isDark ? 'text-slate-400' : 'text-slate-500')}>
             {total > 0 ? formatTime(total) : '--:--'}
           </span>
         </div>

@@ -6,6 +6,7 @@ import { Button } from '../../../ui/Button';
 import { ClientTransactionsTab } from '../ClientTransactionsTab';
 import { NotesActiviteTab } from './NotesActiviteTab';
 import { ClientContractsTab } from '../ClientContractsTab';
+import { ClientTabsShell, StageField, StageSection, StageTags, HeaderPills, StageEmpty, ProximitesGrid, PrestationsGrid, StageHeroAmount, StagePill, StageLinkCard, getMandatStatusHue, OK_STAGE_HUE, SLATE_STAGE_HUE, useDetailAccent } from './ClientDetailStage';
 import { Client } from '../../../../types/client';
 import { api } from '../../../../services/api';
 import { useMyPermissions, permissionAllowed } from '../../../../hooks/useMyPermissions';
@@ -82,6 +83,9 @@ export const SellerDetailTabs = ({ client: initialClient, adminId, agentId, high
   useEffect(() => {
     setClientState(initialClient);
   }, [initialClient]);
+
+  /* Staged theme accents for the first tab (Infos). */
+  const { isDark, accent, ink } = useDetailAccent(client.type, isGerant);
   const [bienProp, setBienProp] = useState<any>(null);
   const [rawViewerUrl, setRawViewerUrl] = useState<string | null>(null);
   const [viewerTitle, setViewerTitle] = useState('');
@@ -122,183 +126,135 @@ export const SellerDetailTabs = ({ client: initialClient, adminId, agentId, high
     </div>
   );
 
-  // ─── TAB 1: INFOS (Localisation & Type) ───
+  // ─── TAB 1: INFOS (Localisation & Type) — staged ───
   const renderInfos = () => {
     const c = client as any;
     const hasData = client.localisation || c.adresseComplete || c.codePostalVille || client.secteur ||
       client.categorie || client.propertyType || c.referenceCadastrale || c.lotCopropriete ||
       c.nbLotsTotal || client.latitude || client.longitude;
 
-    if (!hasData) return renderEmpty();
+    if (!hasData) return <StageEmpty isDark={isDark} />;
 
     return (
       <div className="space-y-5">
-        <div className="flex flex-wrap items-center gap-3">
-          {client.statutMetier && (
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-medium text-text-secondary">Statut:</span>
-              <span className="px-2.5 py-1 text-xs font-medium rounded-lg bg-premium/10 text-premium border border-premium/20">
-                {client.statutMetier}
-              </span>
-            </div>
-          )}
-          {client.classification && (
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-medium text-text-secondary">Classification:</span>
-              <span className={`px-2.5 py-1 text-xs font-medium rounded-lg ${isGerant ? 'bg-[#905D5D]/10 text-[#905D5D] border border-[#905D5D]/20' : 'bg-accent/10 text-accent border border-accent/20'}`}>
-                {client.classification}
-              </span>
-            </div>
-          )}
-          {client.source && (
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-medium text-text-secondary">Origine:</span>
-              <span className="px-2.5 py-1 text-xs font-medium rounded-lg bg-blue-500/10 text-blue-500 border border-blue-500/20">
-                {client.source}
-              </span>
-            </div>
-          )}
-        </div>
+        <HeaderPills statutMetier={client.statutMetier} classification={client.classification} source={client.source} isDark={isDark} />
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {client.localisation && <InfoField label="Pays" value={client.localisation} icon={<MapPin size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />}
-          {client.categorie && <InfoField label="Catégorie" value={client.categorie} icon={<Tag size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />}
-          {client.propertyType && <InfoField label="Type de bien" value={client.propertyType} icon={<Home size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />}
-          {client.secteur && <InfoField label="Secteur" value={client.secteur} icon={<MapPin size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />}
-        </div>
+        <StageSection icon={Home} title="Bien & Localisation" accent={accent} ink={ink} isDark={isDark} delay={0.05}>
+          {client.localisation && <StageField icon={MapPin} label="Pays" value={client.localisation} accent={accent} ink={ink} isDark={isDark} />}
+          {client.categorie && <StageField icon={Tag} label="Catégorie" value={client.categorie} accent={accent} ink={ink} isDark={isDark} />}
+          {client.propertyType && <StageField icon={Home} label="Type de bien" value={client.propertyType} accent={accent} ink={ink} isDark={isDark} />}
+          {client.secteur && <StageField icon={MapPin} label="Secteur" value={client.secteur} accent={accent} ink={ink} isDark={isDark} />}
+          {c.adresseComplete && <StageField icon={MapPin} label="Adresse complète" value={c.adresseComplete} accent={accent} ink={ink} isDark={isDark} />}
+          {c.complementAdresse && <StageField icon={MapPin} label="Complément d'adresse" value={c.complementAdresse} accent={accent} ink={ink} isDark={isDark} />}
+          {c.codePostalVille && <StageField icon={MapPin} label="Code postal & Ville" value={c.codePostalVille} accent={accent} ink={ink} isDark={isDark} />}
+        </StageSection>
 
-        {c.adresseComplete && (
-          <InfoField label="Adresse complète" value={c.adresseComplete} icon={<MapPin size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />
-        )}
-        {(c.complementAdresse || c.codePostalVille) && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {c.complementAdresse && <InfoField label="Complément d'adresse" value={c.complementAdresse} icon={<MapPin size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />}
-            {c.codePostalVille && <InfoField label="Code postal & Ville" value={c.codePostalVille} icon={<MapPin size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />}
-          </div>
-        )}
-
-        <div className="border-t border-border/30 pt-4">
-          <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-3">Informations foncières</p>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {c.referenceCadastrale && <InfoField label="Référence cadastrale" value={c.referenceCadastrale} icon={<Hash size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />}
-            {c.lotCopropriete && <InfoField label="Lot copropriété" value={`${c.lotCopropriete}`} icon={<Layers size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />}
-            <InfoField label="Syndic présent" value={c.syndicPresent ? 'Oui' : 'Non'} icon={<CheckCircle size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />
-            {c.syndicPresent && c.nbLotsTotal && (
-              <InfoField label="Nombre total de lots" value={`${c.nbLotsTotal}`} icon={<Layers size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />
-            )}
-          </div>
-        </div>
+        <StageSection icon={Layers} title="Informations foncières" accent={accent} ink={ink} isDark={isDark} delay={0.1}>
+          {c.referenceCadastrale && <StageField icon={Hash} label="Référence cadastrale" value={c.referenceCadastrale} accent={accent} ink={ink} isDark={isDark} />}
+          {c.lotCopropriete && <StageField icon={Layers} label="Lot copropriété" value={`${c.lotCopropriete}`} accent={accent} ink={ink} isDark={isDark} />}
+          <StageField icon={CheckCircle} label="Syndic présent" value={c.syndicPresent ? 'Oui' : 'Non'} accent={accent} ink={ink} isDark={isDark} />
+          {c.syndicPresent && c.nbLotsTotal && (
+            <StageField icon={Layers} label="Nombre total de lots" value={`${c.nbLotsTotal}`} accent={accent} ink={ink} isDark={isDark} />
+          )}
+        </StageSection>
 
         {(client.latitude || client.longitude) && (
-          <div className="border-t border-border/30 pt-4">
-            <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-3">Géolocalisation</p>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {client.latitude && <InfoField label="Latitude" value={`${client.latitude}`} icon={<MapPin size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />}
-              {client.longitude && <InfoField label="Longitude" value={`${client.longitude}`} icon={<MapPin size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />}
-            </div>
-          </div>
+          <StageSection icon={Compass} title="Géolocalisation" accent={accent} ink={ink} isDark={isDark} delay={0.15}>
+            {client.latitude && <StageField icon={MapPin} label="Latitude" value={`${client.latitude}`} accent={accent} ink={ink} isDark={isDark} />}
+            {client.longitude && <StageField icon={MapPin} label="Longitude" value={`${client.longitude}`} accent={accent} ink={ink} isDark={isDark} />}
+          </StageSection>
         )}
       </div>
     );
   };
 
-  // ─── TAB 2: CARACTÉRISTIQUES ───
+  // ─── TAB 2: CARACTÉRISTIQUES — staged ───
   const renderCaracteristiques = () => {
     const hasData = client.pieces || client.chambres || client.minSurface || client.surfaceMax ||
       client.etage !== undefined || client.vue || client.exposition || client.etat ||
       client.standing || client.disponibilite || client.attributPrincipal ||
       client.attributsPersonnalises?.length || client.criteres?.length;
 
-    if (!hasData) return renderEmpty();
+    if (!hasData) return <StageEmpty isDark={isDark} />;
+
+    const showQuant = client.pieces || client.chambres || client.minSurface || client.surfaceMax || client.etage !== undefined;
+    const showQual = client.vue || client.exposition || client.etat || client.standing || client.disponibilite || client.attributPrincipal;
 
     return (
-      <div className="space-y-6">
-        {/* Quantitatives */}
-        <div>
-          <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-3">Caractéristiques quantitatives</p>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {client.pieces && <InfoField label="Pièces" value={`${client.pieces}`} icon={<Grid size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />}
-            {client.chambres && <InfoField label="Chambres" value={`${client.chambres}`} icon={<Grid size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />}
-            {client.minSurface && <InfoField label="Surface minimale" value={`${client.minSurface} m²`} icon={<Maximize2 size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />}
-            {client.surfaceMax && <InfoField label="Surface maximale" value={`${client.surfaceMax} m²`} icon={<Maximize2 size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />}
+      <div className="space-y-5">
+        {showQuant ? (
+          <StageSection icon={Grid} title="Caractéristiques quantitatives" accent={accent} ink={ink} isDark={isDark} delay={0.05}>
+            {client.pieces && <StageField icon={Grid} label="Pièces" value={`${client.pieces}`} accent={accent} ink={ink} isDark={isDark} />}
+            {client.chambres && <StageField icon={Grid} label="Chambres" value={`${client.chambres}`} accent={accent} ink={ink} isDark={isDark} />}
+            {client.minSurface && <StageField icon={Maximize2} label="Surface minimale" value={`${client.minSurface} m²`} accent={accent} ink={ink} isDark={isDark} />}
+            {client.surfaceMax && <StageField icon={Maximize2} label="Surface maximale" value={`${client.surfaceMax} m²`} accent={accent} ink={ink} isDark={isDark} />}
             {client.etage !== undefined && (
-              <InfoField label="Étage" value={`${client.etageOperator === 'ge' ? '≥ ' : client.etageOperator === 'le' ? '≤ ' : '= '}${client.etage}`} icon={<Layers size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />
+              <StageField icon={Layers} label="Étage" value={`${client.etageOperator === 'ge' ? '≥ ' : client.etageOperator === 'le' ? '≤ ' : '= '}${client.etage}`} accent={accent} ink={ink} isDark={isDark} />
+            )}
+          </StageSection>
+        ) : null}
+
+        {showQual ? (
+          <StageSection icon={Star} title="Caractéristiques qualitatives" accent={accent} ink={ink} isDark={isDark} delay={0.1}>
+            {client.vue && <StageField icon={Eye} label="Vue" value={client.vue} accent={accent} ink={ink} isDark={isDark} />}
+            {client.exposition && <StageField icon={Sun} label="Exposition" value={client.exposition} accent={accent} ink={ink} isDark={isDark} />}
+            {client.etat && <StageField icon={Home} label="État" value={client.etat} accent={accent} ink={ink} isDark={isDark} />}
+            {client.standing && <StageField icon={Star} label="Standing" value={client.standing} accent={accent} ink={ink} isDark={isDark} />}
+            {client.disponibilite && <StageField icon={Clock} label="Disponibilité" value={client.disponibilite} accent={accent} ink={ink} isDark={isDark} />}
+            {client.attributPrincipal && <StageField icon={Sliders} label="Attribut principal" value={client.attributPrincipal} accent={accent} ink={ink} isDark={isDark} />}
+          </StageSection>
+        ) : null}
+
+        {(client.attributsPersonnalises?.length || client.criteres?.length) ? (
+          <div className="grid grid-cols-1 gap-2.5 md:grid-cols-2">
+            {client.attributsPersonnalises && client.attributsPersonnalises.length > 0 && (
+              <StageTags icon={Sliders} label="Attributs personnalisés" items={client.attributsPersonnalises} accent={accent} ink={ink} isDark={isDark} delay={0.15} />
+            )}
+            {client.criteres && client.criteres.length > 0 && (
+              <StageTags icon={CheckCircle} label="Critères de base" items={client.criteres} accent={accent} ink={ink} isDark={isDark} delay={0.2} />
             )}
           </div>
-        </div>
-
-        {/* Qualitatives */}
-        <div className="border-t border-border/30 pt-4">
-          <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-3">Caractéristiques qualitatives</p>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {client.vue && <InfoField label="Vue" value={client.vue} icon={<Eye size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />}
-            {client.exposition && <InfoField label="Exposition" value={client.exposition} icon={<Sun size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />}
-            {client.etat && <InfoField label="État" value={client.etat} icon={<Home size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />}
-            {client.standing && <InfoField label="Standing" value={client.standing} icon={<Star size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />}
-            {client.disponibilite && <InfoField label="Disponibilité" value={client.disponibilite} icon={<Clock size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />}
-            {client.attributPrincipal && <InfoField label="Attribut principal" value={client.attributPrincipal} icon={<Sliders size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />}
-          </div>
-        </div>
-
-        {/* Attributs & Critères */}
-        {(client.attributsPersonnalises?.length || client.criteres?.length) && (
-          <div className="border-t border-border/30 pt-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {renderTagList(client.attributsPersonnalises, 'Attributs personnalisés', isGerant)}
-              {client.criteres && client.criteres.length > 0 && (
-                <div>
-                  <h3 className="text-sm font-medium flex items-center gap-2 mb-2">
-                    <CheckCircle size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />
-                    Critères de base
-                  </h3>
-                  <div className="flex flex-wrap gap-1.5">
-                    {client.criteres.map(c => (
-                      <span key={c} className={`px-2 py-1 text-xs rounded-lg ${isGerant ? 'bg-[#905D5D]/10 text-[#905D5D] border border-[#905D5D]/20' : 'bg-accent/10 text-accent border border-accent/20'}`}>{c}</span>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
+        ) : null}
       </div>
     );
   };
 
-  // ─── TAB 3: PRIX & HONORAIRES ───
+  // ─── TAB 3: PRIX & HONORAIRES — staged ───
   const renderPrixHonoraires = () => {
     const c = client as any;
     const hasData = client.prixVenteFAI || c.prixNetVendeur || client.typeRemuneration || client.montantRemuneration || c.commissionCoAgencement;
-    if (!hasData) return renderEmpty();
+    if (!hasData) return <StageEmpty isDark={isDark} />;
 
     return (
       <div className="space-y-5">
-        <div>
-          <h3 className="text-sm font-medium flex items-center gap-2 mb-3">
-            <DollarSign size={16} className="text-premium" />
-            Prix et honoraires
-          </h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {c.prixNetVendeur && (
-              <InfoField label="Prix net vendeur" value={`${c.prixNetVendeur.toLocaleString()} ${client.devise || 'MAD'}`} icon={<DollarSign size={16} className="text-premium" />} />
-            )}
-            {client.prixVenteFAI && (
-              <InfoField label="Prix de vente FAI" value={`${client.prixVenteFAI.toLocaleString()} ${client.devise || 'MAD'}`} icon={<DollarSign size={16} className="text-premium" />} highlight />
-            )}
-            {client.typeRemuneration && (
-              <InfoField label="Type d'honoraires" value={client.typeRemuneration === 'inclus' ? 'Inclus dans le prix' : client.typeRemuneration === 'en_sus' ? 'En sus du prix' : client.typeRemuneration} icon={<Tag size={16} className="text-premium" />} />
-            )}
-            {c.modeCalculHonoraires && (
-              <InfoField label="Mode de calcul des honoraires" value={c.modeCalculHonoraires === 'pourcentage' ? 'Pourcentage' : 'Montant fixe'} icon={<CreditCard size={16} className="text-premium" />} />
-            )}
-            {client.montantRemuneration && (
-              <InfoField label="Valeur des honoraires" value={client.remunerationIsPercentage ? `${client.montantRemuneration}%` : `${client.montantRemuneration.toLocaleString()} ${client.devise || 'MAD'}`} icon={<CreditCard size={16} className="text-premium" />} />
-            )}
-            {c.commissionCoAgencement && (
-              <InfoField label="Commission de co-agencement" value={`${c.commissionCoAgencement}%`} icon={<Award size={16} className="text-premium" />} />
-            )}
-          </div>
-        </div>
+        {client.prixVenteFAI ? (
+          <StageHeroAmount
+            icon={DollarSign}
+            label="Prix de vente FAI"
+            value={`${client.prixVenteFAI.toLocaleString()} ${client.devise || 'MAD'}`}
+            accent={accent}
+            ink={ink}
+            isDark={isDark}
+            delay={0.05}
+          />
+        ) : null}
+        <StageSection icon={DollarSign} title="Prix et honoraires" accent={accent} ink={ink} isDark={isDark} delay={0.1}>
+          {c.prixNetVendeur && (
+            <StageField icon={DollarSign} label="Prix net vendeur" value={`${c.prixNetVendeur.toLocaleString()} ${client.devise || 'MAD'}`} accent={accent} ink={ink} isDark={isDark} />
+          )}
+          {client.typeRemuneration && (
+            <StageField icon={Tag} label="Type d'honoraires" value={client.typeRemuneration === 'inclus' ? 'Inclus dans le prix' : client.typeRemuneration === 'en_sus' ? 'En sus du prix' : client.typeRemuneration} accent={accent} ink={ink} isDark={isDark} />
+          )}
+          {c.modeCalculHonoraires && (
+            <StageField icon={CreditCard} label="Mode de calcul des honoraires" value={c.modeCalculHonoraires === 'pourcentage' ? 'Pourcentage' : 'Montant fixe'} accent={accent} ink={ink} isDark={isDark} />
+          )}
+          {client.montantRemuneration && (
+            <StageField icon={CreditCard} label="Valeur des honoraires" value={client.remunerationIsPercentage ? `${client.montantRemuneration}%` : `${client.montantRemuneration.toLocaleString()} ${client.devise || 'MAD'}`} accent={accent} ink={ink} isDark={isDark} />
+          )}
+          {c.commissionCoAgencement && (
+            <StageField icon={Award} label="Commission de co-agencement" value={`${c.commissionCoAgencement}%`} accent={accent} ink={ink} isDark={isDark} />
+          )}
+        </StageSection>
       </div>
     );
   };
@@ -306,49 +262,13 @@ export const SellerDetailTabs = ({ client: initialClient, adminId, agentId, high
   // ─── TAB 4: PROXIMITÉS ───
   const renderProximites = () => {
     const p = client.proximites;
-    if (!p) return renderEmpty();
-    const hasAny = p.transports?.length || p.commerces?.length || p.education?.length || p.sante?.length || p.loisirs?.length;
-    if (!hasAny) return renderEmpty();
-
-    return (
-      <div className="space-y-3">
-        <h3 className="text-sm font-medium flex items-center gap-2 mb-3">
-          <MapPin size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />
-          Proximités
-        </h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-          {renderCategorieGroup(p.transports, 'Transports')}
-          {renderCategorieGroup(p.commerces, 'Commerces & Services')}
-          {renderCategorieGroup(p.education, 'Éducation')}
-          {renderCategorieGroup(p.sante, 'Santé & Sport')}
-          {renderCategorieGroup(p.loisirs, 'Loisirs & Nature')}
-        </div>
-      </div>
-    );
+    return <ProximitesGrid data={p} accent={accent} ink={ink} isDark={isDark} />;
   };
 
-  // ─── TAB 5: PRESTATIONS ───
+  // ─── TAB 5: PRESTATIONS — staged ───
   const renderPrestations = () => {
     const p = client.prestations;
-    if (!p) return renderEmpty();
-    const hasAny = p.exterieur?.length || p.confort?.length || p.electromenager?.length || p.multimedia?.length || p.sport?.length;
-    if (!hasAny) return renderEmpty();
-
-    return (
-      <div className="space-y-3">
-        <h3 className="text-sm font-medium flex items-center gap-2 mb-3">
-          <Star size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />
-          Prestations
-        </h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-          {renderCategorieGroup(p.exterieur, 'Extérieur & Sécurité')}
-          {renderCategorieGroup(p.confort, 'Confort & Équipement')}
-          {renderCategorieGroup(p.electromenager, 'Électroménager & Mobilier')}
-          {renderCategorieGroup(p.multimedia, 'Multimédia & Communication')}
-          {renderCategorieGroup(p.sport, 'Sport & Loisirs')}
-        </div>
-      </div>
-    );
+    return <PrestationsGrid data={p} accent={accent} ink={ink} isDark={isDark} />;
   };
 
   // ─── TAB 6: SITUATION ───
@@ -385,65 +305,61 @@ export const SellerDetailTabs = ({ client: initialClient, adminId, agentId, high
 
   // ─── TAB 7: MANDAT ───
   const renderMandat = () => {
-    if (!client.numeroMandat) return renderEmpty();
+    if (!client.numeroMandat) return <StageEmpty isDark={isDark} />;
     const c = client as any;
     const clauseActive = !!client.dureeProtection;
 
     return (
       <div className="space-y-5">
-        <h3 className="text-sm font-medium flex items-center gap-2 mb-3">
-          <Layers size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />
-          Mandat de vente
-        </h3>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <InfoField label="Numéro de mandat" value={client.numeroMandat} icon={<Tag size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />
-          {client.typeMandat && <InfoField label="Type de mandat" value={client.typeMandat} icon={<Compass size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />}
-          {client.statutMandat && <InfoField label="Statut du mandat" value={client.statutMandat} icon={<Clock size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />}
-          {client.dateSignature && <InfoField label="Date signature" value={new Date(client.dateSignature).toLocaleDateString('fr-FR')} icon={<Calendar size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />}
-          {client.dateDebut && <InfoField label="Date début" value={new Date(client.dateDebut).toLocaleDateString('fr-FR')} icon={<Calendar size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />}
-          {client.dateExpiration && <InfoField label="Date expiration" value={new Date(client.dateExpiration).toLocaleDateString('fr-FR')} icon={<Calendar size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />}
-          {client.conjoint && <InfoField label="Conjoint" value={client.conjoint} icon={<User size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />}
-          {client.agentDesigne && <InfoField label="Agent désigné" value={client.agentDesigne} icon={<User size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />}
-          {c.bienConcerneId && (
-            <div
-              role="button"
-              tabIndex={0}
-              onClick={() => basePath && navigate(`${basePath}/properties/${c.bienConcerneId}`)}
-              onKeyDown={(e) => { if (e.key === 'Enter' && basePath) navigate(`${basePath}/properties/${c.bienConcerneId}`); }}
-              className={`p-4 rounded-xl bg-background transition-colors ${basePath ? `cursor-pointer ${isGerant ? 'hover:bg-[#905D5D]/5' : 'hover:bg-accent/5'}` : ''}`}
-            >
-              <div className="flex items-center gap-2 text-xs text-text-secondary mb-1">
-                <Layers size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />
-                <span>Bien concerné</span>
-              </div>
-              <p className={`text-sm font-medium ${isGerant ? 'text-[#905D5D]' : 'text-accent'} hover:underline`}>
-                {bienProp ? (
-                  <>{bienProp.title || bienProp.reference || `Bien #${bienProp.id}`}{bienProp.city ? ` - ${bienProp.city}` : ''}</>
-                ) : (
-                  <>Bien #{c.bienConcerneId}</>
-                )}
-              </p>
-            </div>
-          )}
-        </div>
-
-        <div className="border-t border-border/30 pt-4">
-          <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-3">Clause de protection</p>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <InfoField
-              label="Clause de protection"
-              value={clauseActive ? 'Activée' : 'Désactivée'}
-              icon={<Shield size={16} className={clauseActive ? 'text-emerald-500' : 'text-text-secondary'} />}
+        <StageSection icon={Layers} title="Mandat de vente" accent={accent} ink={ink} isDark={isDark} delay={0.05}>
+          <StageField icon={Tag} label="Numéro de mandat" value={client.numeroMandat} accent={accent} ink={ink} isDark={isDark} />
+          {client.typeMandat && <StageField icon={Compass} label="Type de mandat" value={client.typeMandat} accent={accent} ink={ink} isDark={isDark} />}
+          {client.statutMandat && (
+            <StageField
+              icon={Clock}
+              label="Statut du mandat"
+              value={<StagePill label={client.statutMandat} hue={getMandatStatusHue(client.statutMandat) || accent} isDark={isDark} />}
+              accent={accent}
+              ink={ink}
+              isDark={isDark}
             />
-            {clauseActive && client.dureeProtection && (
-              <InfoField label="Durée de protection" value={`${client.dureeProtection} mois`} icon={<Clock size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />
-            )}
-          </div>
-          {clauseActive && (
-            <p className="text-xs text-text-secondary mt-2">Si l'acquéreur visitant pendant le mandat achète après expiration, l'agence conserve droit à commission.</p>
           )}
-        </div>
+          {client.dateSignature && <StageField icon={Calendar} label="Date signature" value={new Date(client.dateSignature).toLocaleDateString('fr-FR')} accent={accent} ink={ink} isDark={isDark} />}
+          {client.dateDebut && <StageField icon={Calendar} label="Date début" value={new Date(client.dateDebut).toLocaleDateString('fr-FR')} accent={accent} ink={ink} isDark={isDark} />}
+          {client.dateExpiration && <StageField icon={Calendar} label="Date expiration" value={new Date(client.dateExpiration).toLocaleDateString('fr-FR')} accent={accent} ink={ink} isDark={isDark} />}
+          {client.conjoint && <StageField icon={User} label="Conjoint" value={client.conjoint} accent={accent} ink={ink} isDark={isDark} />}
+          {client.agentDesigne && <StageField icon={User} label="Agent désigné" value={client.agentDesigne} accent={accent} ink={ink} isDark={isDark} />}
+        </StageSection>
+
+        {c.bienConcerneId && (
+          <StageLinkCard
+            icon={Layers}
+            eyebrow="Bien concerné"
+            title={bienProp ? `${bienProp.title || bienProp.reference || `Bien #${bienProp.id}`}${bienProp.city ? ` - ${bienProp.city}` : ''}` : `Bien #${c.bienConcerneId}`}
+            onOpen={basePath ? () => navigate(`${basePath}/properties/${c.bienConcerneId}`) : undefined}
+            accent={accent}
+            ink={ink}
+            isDark={isDark}
+            delay={0.1}
+          />
+        )}
+
+        <StageSection icon={Shield} title="Clause de protection" accent={accent} ink={ink} isDark={isDark} delay={0.15}>
+          <StageField
+            icon={Shield}
+            label="Clause de protection"
+            value={<StagePill label={clauseActive ? 'Activée' : 'Désactivée'} hue={clauseActive ? OK_STAGE_HUE : SLATE_STAGE_HUE} isDark={isDark} dot={false} />}
+            accent={accent}
+            ink={ink}
+            isDark={isDark}
+          />
+          {clauseActive && client.dureeProtection && (
+            <StageField icon={Clock} label="Durée de protection" value={`${client.dureeProtection} mois`} accent={accent} ink={ink} isDark={isDark} />
+          )}
+        </StageSection>
+        {clauseActive && (
+          <p className={`text-xs leading-relaxed ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Si l'acquéreur visitant pendant le mandat achète après expiration, l'agence conserve droit à commission.</p>
+        )}
       </div>
     );
   };
@@ -546,23 +462,16 @@ export const SellerDetailTabs = ({ client: initialClient, adminId, agentId, high
   };
 
   return (
-    <div className="bg-card rounded-xl border border-border/50 shadow-card mt-4">
-      <div className="px-6 border-b border-border/30 flex justify-between gap-1 overflow-x-auto rounded-t-xl">
-        {visibleTabs.map((t) => (
-          <button
-            key={t.id}
-            onClick={() => setActiveTab(t.id)}
-            className={`px-3 py-3 text-xs font-medium border-b-2 transition-all whitespace-nowrap ${
-              activeTab === t.id ? (isGerant ? 'text-[#905D5D] border-[#905D5D]' : 'text-accent border-accent') : 'text-text-secondary border-transparent hover:text-text'
-            }`}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
-      <div className="p-5">
+    <>
+      <ClientTabsShell
+        tabs={visibleTabs}
+        activeTab={activeTab}
+        onChange={setActiveTab}
+        clientType={client.type}
+        isGerant={isGerant}
+      >
         {renderTabContent()}
-      </div>
+      </ClientTabsShell>
 
       {/* Document Viewer Modal */}
       {viewerUrl && (
@@ -582,6 +491,6 @@ export const SellerDetailTabs = ({ client: initialClient, adminId, agentId, high
           </div>
         </div>
       )}
-    </div>
+    </>
   );
 };

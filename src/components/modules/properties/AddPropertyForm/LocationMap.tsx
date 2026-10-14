@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { MapContainer, TileLayer, Marker, useMapEvents, useMap } from 'react-leaflet';
 import type { Map as LeafletMap } from 'leaflet';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -166,6 +167,14 @@ export function LocationMap({ latitude, longitude, onLatitudeChange, onLongitude
     onLongitudeChange(Math.round(lng * 1000000) / 1000000);
   };
 
+  /* Escape closes the expanded map */
+  useEffect(() => {
+    if (!modalOpen) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setModalOpen(false); };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [modalOpen]);
+
   if (staged) {
     return (
       <>
@@ -194,21 +203,24 @@ export function LocationMap({ latitude, longitude, onLatitudeChange, onLongitude
           <StageMapContent latitude={latitude} longitude={longitude} onLocationSelect={handleLocationSelect} height={260} dark={dark} mapRef={mapRef} />
           <p className={`mt-2 flex items-center gap-1.5 text-[11px] ${dark ? 'text-slate-600' : 'text-teal-900/30'}`}><Layers size={11} /> Molette pour zoomer · glisser pour naviguer · clic pour marquer</p>
         </div>
-        <AnimatePresence>
-          {modalOpen && (
-            <motion.div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setModalOpen(false)}>
-              <motion.div className={`relative w-full max-w-6xl overflow-hidden rounded-3xl border shadow-2xl ${dark ? 'border-white/10 bg-[#0B1022]' : 'border-white/60 bg-white'}`} initial={{ scale: 0.94, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.94, opacity: 0 }} onClick={e => e.stopPropagation()}>
-                <div className="absolute right-4 top-4 z-[500] flex gap-2">
-                  <div className={`rounded-lg border px-3 py-1 font-mono text-xs backdrop-blur-md ${dark ? 'border-white/10 bg-black/30 text-slate-300' : 'border-teal-900/10 bg-white/80 text-slate-600'}`}>Lat: {latitude.toFixed(5)} · Lng: {longitude.toFixed(5)}</div>
-                  <button type="button" onClick={() => setModalOpen(false)} className={`flex h-8 w-8 items-center justify-center rounded-xl border backdrop-blur-md transition-colors active:scale-95 ${dark ? 'border-white/10 bg-white/5 text-slate-300 hover:bg-white/10 hover:text-white' : 'border-teal-900/10 bg-white text-teal-700 hover:bg-teal-50'}`}><X size={14} /></button>
-                </div>
-                <div className="p-2">
-                  <StageMapContent latitude={latitude} longitude={longitude} onLocationSelect={handleLocationSelect} height={560} dark={dark} mapRef={modalMapRef} />
-                </div>
+        {typeof document !== 'undefined' && createPortal(
+          <AnimatePresence>
+            {modalOpen && (
+              <motion.div className="fixed inset-0 z-[9990] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setModalOpen(false)}>
+                <motion.div className={`relative w-full max-w-6xl overflow-hidden rounded-3xl border shadow-2xl ${dark ? 'border-white/10 bg-[#0B1022]' : 'border-white/60 bg-white'}`} initial={{ scale: 0.94, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.94, opacity: 0 }} onClick={e => e.stopPropagation()}>
+                  <div className="absolute right-4 top-4 z-[1100] flex gap-2">
+                    <div className={`rounded-lg border px-3 py-1 font-mono text-xs backdrop-blur-md ${dark ? 'border-white/10 bg-black/30 text-slate-300' : 'border-teal-900/10 bg-white/80 text-slate-600'}`}>Lat: {latitude.toFixed(5)} · Lng: {longitude.toFixed(5)}</div>
+                    <button type="button" onClick={() => setModalOpen(false)} className={`flex h-8 w-8 items-center justify-center rounded-xl border backdrop-blur-md transition-colors active:scale-95 ${dark ? 'border-white/10 bg-white/5 text-slate-300 hover:bg-white/10 hover:text-white' : 'border-teal-900/10 bg-white text-teal-700 hover:bg-teal-50'}`}><X size={14} /></button>
+                  </div>
+                  <div className="p-2">
+                    <StageMapContent latitude={latitude} longitude={longitude} onLocationSelect={handleLocationSelect} height={560} dark={dark} mapRef={modalMapRef} />
+                  </div>
+                </motion.div>
               </motion.div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+            )}
+          </AnimatePresence>,
+          document.body,
+        )}
       </>
     );
   }
@@ -225,19 +237,22 @@ export function LocationMap({ latitude, longitude, onLatitudeChange, onLongitude
         <MapContent latitude={latitude} longitude={longitude} onLocationSelect={handleLocationSelect} height={220} />
         <p className="text-xs text-text-secondary mt-2">Cliquez sur la carte pour positionner le bien</p>
       </div>
-      <AnimatePresence>
-        {modalOpen && (
-          <motion.div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-            <motion.div className="relative w-[90vw] h-[85vh] max-w-6xl bg-card rounded-2xl shadow-2xl border border-border/40 overflow-hidden" initial={{ scale: 0.92, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.92, opacity: 0 }}>
-              <div className="absolute top-4 right-4 z-[1000] flex items-center gap-2">
-                <button type="button" onClick={() => setModalOpen(false)} className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg bg-card text-text border border-border/40 hover:bg-background shadow-lg"><X size={14} />Fermer</button>
-              </div>
-              <MapContent latitude={latitude} longitude={longitude} onLocationSelect={handleLocationSelect} height={500} />
-              <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-[1000] bg-card/90 backdrop-blur-sm border border-border/40 rounded-lg px-4 py-2 shadow-lg text-sm text-text flex items-center gap-4"><span>Lat: {latitude}</span><span className="text-text-secondary">|</span><span>Lng: {longitude}</span></div>
+      {typeof document !== 'undefined' && createPortal(
+        <AnimatePresence>
+          {modalOpen && (
+            <motion.div className="fixed inset-0 z-[9990] flex items-center justify-center bg-black/50 backdrop-blur-sm" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setModalOpen(false)}>
+              <motion.div className="relative w-[90vw] h-[85vh] max-w-6xl bg-card rounded-2xl shadow-2xl border border-border/40 overflow-hidden" initial={{ scale: 0.92, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.92, opacity: 0 }} onClick={e => e.stopPropagation()}>
+                <div className="absolute top-4 right-4 z-[1100] flex items-center gap-2">
+                  <button type="button" onClick={() => setModalOpen(false)} className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg bg-card text-text border border-border/40 hover:bg-background shadow-lg"><X size={14} />Fermer</button>
+                </div>
+                <MapContent latitude={latitude} longitude={longitude} onLocationSelect={handleLocationSelect} height={500} />
+                <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-[1100] bg-card/90 backdrop-blur-sm border border-border/40 rounded-lg px-4 py-2 shadow-lg text-sm text-text flex items-center gap-4"><span>Lat: {latitude}</span><span className="text-text-secondary">|</span><span>Lng: {longitude}</span></div>
+              </motion.div>
             </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+          )}
+        </AnimatePresence>,
+        document.body,
+      )}
     </>
   );
 }

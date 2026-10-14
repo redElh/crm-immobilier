@@ -6,6 +6,8 @@ import { Input } from '../../components/ui/Input'
 import { Button } from '../../components/ui/Button'
 import { useToast } from '../../components/ui/Toast'
 import { setAuthToken, getAuthToken, setSessionId } from '../../utils/auth'
+import { ensureE2EEIdentity } from '../../services/e2ee/session'
+import { myIdFromToken } from '../../services/e2ee/conversation'
 import TwoFactorVerify from '../../components/auth/TwoFactorVerify'
 import { getDeviceInfo, getPublicIP } from '../../utils/device'
 import { Mail, Lock, Check, Key, Loader } from 'react-feather'
@@ -128,6 +130,14 @@ export default function LoginPage() {
       }
       setAuthToken(data.token, rememberMe)
       if (data.sessionId) setSessionId(data.sessionId, rememberMe)
+      // First login on this device = crypto birth: generate the Identity Key
+      // + prekeys now (never blocks navigation; layout bootstrap is idempotent).
+      try {
+        const uid = myIdFromToken()
+        if (uid) ensureE2EEIdentity(uid)
+      } catch {
+        // encryption stays unavailable until the next bootstrap
+      }
       toast('success', 'Connexion réussie ! Bienvenue sur votre espace agent.')
       navigate('/')
     } catch (error) {
@@ -151,6 +161,12 @@ export default function LoginPage() {
 
       setAuthToken(loginData.token, rememberMe)
       if (loginData.sessionId) setSessionId(loginData.sessionId, rememberMe)
+      try {
+        const uid = myIdFromToken()
+        if (uid) ensureE2EEIdentity(uid)
+      } catch {
+        // encryption stays unavailable until the next bootstrap
+      }
 
       const res = await fetch(`${API_ORIGIN}/api/auth/password`, {
         method: 'PUT',
@@ -186,8 +202,8 @@ export default function LoginPage() {
             Vous devez changer votre mot de passe avant de continuer.
           </div>
           <div className="space-y-3">
-            <Input label="Nouveau mot de passe" type="password" name="newPassword" placeholder="••••••••" value={newPassword} onChange={(e) => { setNewPassword(e.target.value); setErrors({}) }} error={errors.newPassword} icon={<Key size={14} />} />
-            <Input label="Confirmer le mot de passe" type="password" name="confirmNewPassword" placeholder="••••••••" value={confirmNewPassword} onChange={(e) => { setConfirmNewPassword(e.target.value); setErrors({}) }} error={errors.confirmNewPassword} icon={<Key size={14} />} />
+            <Input label="Nouveau mot de passe" type="password" name="newPassword" placeholder="••••••••" value={newPassword} onChange={(e) => { setNewPassword(e.target.value); setErrors({}) }} error={errors.newPassword} icon={<Key size={14} />} revealable />
+            <Input label="Confirmer le mot de passe" type="password" name="confirmNewPassword" placeholder="••••••••" value={confirmNewPassword} onChange={(e) => { setConfirmNewPassword(e.target.value); setErrors({}) }} error={errors.confirmNewPassword} icon={<Key size={14} />} revealable />
           </div>
           <Button type="submit" variant="primary" className="w-full golden-border-animated" loading={isLoading}>Changer le mot de passe</Button>
         </form>
@@ -195,21 +211,20 @@ export default function LoginPage() {
       <form onSubmit={handleSubmit} className="space-y-4">
         <div className="space-y-3">
           <Input label="Email" type="email" name="email" placeholder="agent@email.com" value={formData.email} onChange={handleChange} error={errors.email} icon={<Mail size={14} />} />
-          <Input label="Mot de passe" type="password" name="password" placeholder="••••••••" value={formData.password} onChange={handleChange} error={errors.password} icon={<Lock size={14} />} />
+          <Input label="Mot de passe" type="password" name="password" placeholder="••••••••" value={formData.password} onChange={handleChange} error={errors.password} icon={<Lock size={14} />} revealable />
         </div>
 
-        <div className="flex items-center justify-between">
-          <label className="flex items-center gap-2 cursor-pointer">
-            <div className="relative">
-              <input type="checkbox" checked={rememberMe} onChange={(e) => setRememberMe(e.target.checked)} className="sr-only" />
-              <div className={`w-4 h-4 rounded border-2 flex items-center justify-center transition-all ${rememberMe ? 'bg-accent border-accent' : 'border-border'}`}>
-                {rememberMe && <Check size={10} className="text-white" />}
-              </div>
-            </div>
-            <span className="text-xs text-text-secondary">Se souvenir de moi</span>
+        <div className="flex items-center justify-between gap-3">
+          <label className="group flex cursor-pointer select-none items-center gap-2.5">
+            <input type="checkbox" checked={rememberMe} onChange={(e) => setRememberMe(e.target.checked)} className="peer sr-only" />
+            <span className={`relative flex h-[18px] w-[18px] items-center justify-center rounded-[6px] border transition-all duration-200 ${rememberMe ? 'border-transparent bg-gradient-to-br from-[var(--auth-accent)] to-[var(--auth-accent2)] shadow-[0_0_12px_var(--auth-accent)]' : 'border-white/15 bg-white/[0.04] group-hover:border-white/35'}`}>
+              <Check size={12} strokeWidth={3} className={`text-white transition-all duration-200 ${rememberMe ? 'scale-100 opacity-100' : 'scale-50 opacity-0'}`} />
+            </span>
+            <span className="text-xs font-medium normal-case tracking-normal text-white/55 transition-colors duration-200 group-hover:text-white/85">Se souvenir de moi</span>
           </label>
-          <Link to="/auth/forgot-password" className="text-xs font-medium text-accent hover:text-accent-hover transition-colors">
+          <Link to="/auth/forgot-password" className="group relative whitespace-nowrap text-xs font-semibold text-white/55 transition-colors duration-200 hover:text-[var(--auth-accent)]">
             Mot de passe oublié ?
+            <span className="absolute -bottom-0.5 left-0 h-px w-0 bg-[var(--auth-accent)] transition-all duration-300 group-hover:w-full" />
           </Link>
         </div>
 

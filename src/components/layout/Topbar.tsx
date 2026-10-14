@@ -349,7 +349,7 @@ export default function Topbar({ basePath = '' }: { basePath?: string }) {
                 animate={{ opacity: 1, y: 0, scale: 1, filter: 'blur(0px)' }}
                 exit={{ opacity: 0, y: 8, scale: 0.97, filter: 'blur(4px)' }}
                 transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
-                className="pop-glass absolute right-0 mt-2 z-50 w-[350px] origin-top-right overflow-hidden"
+                className="pop-glass rounded-2xl absolute right-0 mt-2 z-50 w-[350px] origin-top-right overflow-hidden"
               >
                 <div className={cn('relative z-[1] flex items-center gap-2.5 border-b px-4 py-3', hairline)}>
                   <OrbIcon icon={Bell} hue={STAGE_HUES.violet} size={32} radius={10} />
@@ -480,7 +480,7 @@ export default function Topbar({ basePath = '' }: { basePath?: string }) {
                 exit={{ opacity: 0, y: 8, scale: 0.97, filter: 'blur(4px)' }}
                 transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
                 style={{ transformOrigin: 'top right' }}
-                className="pop-glass absolute right-0 mt-2 z-50 w-72 overflow-hidden"
+                className="pop-glass rounded-2xl absolute right-0 mt-2 z-50 w-72 overflow-hidden"
               >
                 {/* Identity header */}
                 <div className={cn('relative z-[1] flex items-center gap-3 border-b px-4 py-4', hairline)}>

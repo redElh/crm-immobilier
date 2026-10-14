@@ -5,7 +5,7 @@ import {
   useReducedMotion,
   useSpring,
 } from 'framer-motion'
-import { ArrowDownRight, ArrowUpRight, ChevronRight, MoreHorizontal } from 'react-feather'
+import { ArrowDownRight, ArrowUpRight, ChevronRight } from 'react-feather'
 import {
   Area,
   AreaChart,
@@ -209,7 +209,7 @@ export function TiltCard({
       className={cn('tilt-card stage-glass overflow-hidden', className)}
     >
       <div className="tilt-glare" aria-hidden="true" />
-      <div className="relative">
+      <div className="relative h-full">
         {children}
       </div>
     </motion.div>
@@ -273,6 +273,8 @@ interface StageStatCardProps {
   hue: StageHue
   spark?: number[]
   delay?: number
+  /** Useful top-right slot (e.g. live badge, mini action). Renders nothing when omitted. */
+  action?: React.ReactNode
 }
 
 export function StageStatCard({
@@ -285,6 +287,7 @@ export function StageStatCard({
   hue,
   spark,
   delay = 0,
+  action,
 }: StageStatCardProps) {
   const theme = useStageTheme()
   const TrendIcon = trendUp ? ArrowUpRight : ArrowDownRight
@@ -300,13 +303,9 @@ export function StageStatCard({
       transition={{ duration: 0.5, delay, ease: [0.22, 1, 0.36, 1] }}
     >
       <TiltCard className="flex h-full flex-col p-5">
-        <div className="flex items-start justify-between">
+        <div className="flex items-start justify-between gap-2">
           <OrbIcon icon={icon} hue={hue} size={46} />
-          <span className={`flex h-7 w-7 cursor-pointer items-center justify-center rounded-lg transition-colors ${
-            theme === 'dark' ? 'text-slate-500 hover:bg-white/5 hover:text-slate-300' : 'text-teal-900/35 hover:bg-teal-900/5 hover:text-teal-900/60'
-          }`}>
-            <MoreHorizontal size={15} />
-          </span>
+          {action}
         </div>
 
         <p className={`mt-4 text-[11px] font-semibold uppercase tracking-[1.6px] ${labelColor}`}>
@@ -427,6 +426,7 @@ export function StagePanel({
   hue,
   children,
   className,
+  outerClassName,
 }: {
   title: string
   icon?: React.ComponentType<{ size?: number | string; className?: string }>
@@ -435,6 +435,8 @@ export function StagePanel({
   hue?: StageHue
   children: React.ReactNode
   className?: string
+  /** classes for the motion wrapper (e.g. h-full / flex-1 to equalize grid tracks) */
+  outerClassName?: string
 }) {
   const theme = useStageTheme()
   return (
@@ -443,6 +445,7 @@ export function StagePanel({
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true, margin: '-30px' }}
       transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
+      className={outerClassName}
     >
       <div
         className={cn(
@@ -483,6 +486,16 @@ const BADGE_VARIANTS: Record<string, { fg: string; bg: string; border: string }>
   danger: { fg: '#FDA4AF', bg: 'rgba(251,113,133,0.13)', border: 'rgba(251,113,133,0.32)' },
 }
 
+/* Light (lagoon) counterparts — deep ink text on soft tints so every
+   variant stays readable on bright glass (dark map above is untouched). */
+const BADGE_VARIANTS_LIGHT: Record<string, { fg: string; bg: string; border: string }> = {
+  neutral: { fg: '#334155', bg: 'rgba(15,23,42,0.05)', border: 'rgba(15,23,42,0.10)' },
+  violet: { fg: '#5B4BD4', bg: 'rgba(124,92,255,0.12)', border: 'rgba(124,92,255,0.30)' },
+  ok: { fg: '#047857', bg: 'rgba(5,150,105,0.10)', border: 'rgba(5,150,105,0.28)' },
+  warn: { fg: '#B45309', bg: 'rgba(251,191,36,0.14)', border: 'rgba(217,119,6,0.30)' },
+  danger: { fg: '#DC2626', bg: 'rgba(220,38,38,0.08)', border: 'rgba(220,38,38,0.28)' },
+}
+
 export function StageBadge({
   variant = 'neutral',
   children,
@@ -495,10 +508,8 @@ export function StageBadge({
   style?: React.CSSProperties
 }) {
   const theme = useStageTheme()
-  let v = BADGE_VARIANTS[variant] || BADGE_VARIANTS.neutral
-  if (variant === 'neutral' && theme === 'light') {
-    v = { fg: '#334155', bg: 'rgba(15,23,42,0.05)', border: 'rgba(15,23,42,0.10)' }
-  }
+  const map = theme === 'light' ? BADGE_VARIANTS_LIGHT : BADGE_VARIANTS
+  const v = map[variant] || map.neutral
   return (
     <span
       className={cn(

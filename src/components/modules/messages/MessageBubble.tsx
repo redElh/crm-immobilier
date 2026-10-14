@@ -4,12 +4,15 @@ import { CheckCheck } from 'lucide-react'
 import {
   Check, Paperclip, File, FileText, Image as ImageIcon,
   Video, Phone, PhoneMissed, PhoneIncoming, PhoneOutgoing, Play, Mic,
-  Download, Film, Plus, Trash2,
+  Download, Film, Plus, Trash2, X,
 } from 'react-feather'
 import type { Message, MessageReaction } from '../../../types/messages'
 import { cn } from '../../../lib/utils'
 import { resolveMediaUrl } from '../../../utils/mediaUrl'
 import { AudioPlayer } from './AudioPlayer'
+import { innerKindOf } from '../../../services/e2ee/conversation'
+import { useSealedMediaUrl } from './useSealedMedia'
+import { StageBadge, useStageTheme } from '../../dashboard/Stage'
 
 export const QUICK_REACTIONS = ['👍', '❤️', '😂', '😮', '😢', '🙏']
 
@@ -24,6 +27,17 @@ function formatTime(iso: string): string {
   return new Date(iso).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
 }
 
+function formatSeenAt(iso: string): string {
+  const d = new Date(iso)
+  const now = new Date()
+  const time = d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
+  if (d.toDateString() === now.toDateString()) return `Aujourd'hui à ${time}`
+  const yesterday = new Date(now)
+  yesterday.setDate(now.getDate() - 1)
+  if (d.toDateString() === yesterday.toDateString()) return `Hier à ${time}`
+  return `${d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })} à ${time}`
+}
+
 function fileIcon(name: string) {
   const ext = name.split('.').pop()?.toLowerCase() ?? ''
   if (['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(ext)) return <ImageIcon size={16} />
@@ -34,14 +48,12 @@ function fileIcon(name: string) {
   return <File size={16} />
 }
 
-export function ReadReceipts({ status, readAt }: { status?: 'sent' | 'delivered' | 'read', readAt?: string }) {
+export function ReadReceipts({ status }: {
+  status?: 'sent' | 'delivered' | 'read'
+}) {
+  const isDark = useStageTheme() === 'dark'
   if (status === 'read') {
-    return (
-      <span className="flex items-center gap-1">
-        <CheckCheck size={14} className="text-emerald-300" />
-        {readAt && <span className="text-[10px] leading-none opacity-90">{formatTime(readAt)}</span>}
-      </span>
-    )
+    return <CheckCheck size={14} className={isDark ? 'text-emerald-300' : 'text-sky-500'} />
   }
   if (status === 'delivered') return <CheckCheck size={14} className="opacity-80" />
   return <Check size={14} className="opacity-70" />
@@ -78,25 +90,81 @@ export function MessageBubble({
   selected = false,
   toggleSelect,
 }: MessageBubbleProps) {
-  const kind = message.kind ?? (message.attachments.length > 0 ? 'file' : 'text')
+  // Sealed messages render through their decrypted inner kind.
+  const kind =
+    message.kind === 'sealed'
+      ? message.sealedOk
+        ? innerKindOf(message)
+        : 'sealed'
+      : (message.kind ?? (message.attachments.length > 0 ? 'file' : 'text'))
   const reactions = message.reactions ?? []
+  const theme = useStageTheme()
+  const isDark = theme === 'dark'
   const [menu, setMenu] = useState<null | 'quick' | 'picker'>(null)
+  // Seen-at popover: whole-bubble hover opens (desktop), tap toggles
+  // (mobile). Only one popover open at a time across bubbles.
+  const [seenPin, setSeenPin] = useState(false)
+  const [seenHover, setSeenHover] = useState(false)
+  const seenPop = seenPin || seenHover
+  const showSeenPop = isMine && message.status === 'read' && !!message.readAt
+
+  useEffect(() => {
+    if (!seenPop) return
+    const closeOthers = (e: Event) => {
+      if ((e as CustomEvent).detail !== message.id) {
+        setSeenPin(false)
+        setSeenHover(false)
+      }
+    }
+    window.addEventListener('seen-pop-open', closeOthers)
+    return () => window.removeEventListener('seen-pop-open', closeOthers)
+  }, [seenPop, message.id])
+
+  const announceSeenPop = () => {
+    window.dispatchEvent(new CustomEvent('seen-pop-open', { detail: message.id }))
+  }
   const longPressRef = useRef<number | null>(null)
   const pressPosRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 })
   const movedRef = useRef(false)
 
+  const bubbleRef = useRef<HTMLDivElement>(null)
+
+  // Sealed media bytes are decrypted lazily (ciphertext URL -> object URL).
+  const sealedMediaUrl = useSealedMediaUrl(message)
+  const sealedMediaActive = message.kind === 'sealed' && message.sealedOk === true && !!message.sealedMedia
+
+  // Collapse the reaction menu on outside click (independent of CSS containing blocks)
+  useEffect(() => {
+    if (!menu) return
+    const onPointerDown = (e: MouseEvent) => {
+      const t = e.target as Element
+      if (bubbleRef.current && !bubbleRef.current.contains(t)) setMenu(null)
+    }
+    document.addEventListener('mousedown', onPointerDown)
+    return () => document.removeEventListener('mousedown', onPointerDown)
+  }, [menu])
+
   const bubbleBase = isMine
-    ? 'bg-accent text-white shadow-sm rounded-2xl rounded-br-md'
-    : 'bg-card text-text border border-border/60 shadow-sm rounded-2xl rounded-bl-md'
+    ? 'text-white rounded-2xl rounded-br-md'
+    : cn('relative rounded-2xl rounded-bl-md border backdrop-blur-md overflow-hidden', isDark ? 'bg-white/[0.08] border-white/10 text-slate-100 shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_12px_28px_-14px_rgba(0,0,0,0.7)]' : 'bg-white/85 border-teal-900/10 text-slate-900 shadow-[inset_0_1px_0_rgba(255,255,255,0.9),0_12px_28px_-16px_rgba(13,148,136,0.35)]')
+  const mineBubbleStyle = isMine
+    ? isDark
+      ? { backgroundImage: 'linear-gradient(135deg, #8B7CFF 0%, #6C5ECF 100%)', boxShadow: '0 10px 24px -10px rgba(124,92,255,0.6), inset 0 1px 0 rgba(255,255,255,0.25)' }
+      : { backgroundImage: 'linear-gradient(135deg, #2DD4BF 0%, #0D9488 100%)', boxShadow: '0 10px 24px -10px rgba(13,148,136,0.55), inset 0 1px 0 rgba(255,255,255,0.35)' }
+    : undefined
 
-  const attachmentUrl = resolveMediaUrl(
-    message.attachmentUrl ||
-      (message.attachments[0] && message.attachments[0].url && message.attachments[0].url !== '#' ? message.attachments[0].url : undefined)
-  )
-  const audioSrc = resolveMediaUrl(message.audioUrl || message.attachmentUrl)
+  const attachmentUrl = sealedMediaActive
+    ? sealedMediaUrl || undefined
+    : resolveMediaUrl(
+      message.attachmentUrl ||
+        (message.attachments[0] && message.attachments[0].url && message.attachments[0].url !== '#' ? message.attachments[0].url : undefined)
+    )
+  const audioSrc = sealedMediaActive
+    ? sealedMediaUrl || undefined
+    : resolveMediaUrl(message.audioUrl || message.attachmentUrl)
 
-  const subText = isMine ? 'text-white/70' : 'text-text-secondary/70'
-  const subTextStrong = isMine ? 'text-white/90' : 'text-text-secondary'
+  const subText = isMine ? 'text-white/70' : isDark ? 'text-slate-400' : 'text-slate-500'
+  const subTextStrong = isMine ? 'text-white/90' : isDark ? 'text-slate-200' : 'text-slate-700'
 
   const cancelLongPress = () => {
     if (longPressRef.current) {
@@ -114,10 +182,10 @@ export function MessageBubble({
         animate={{ opacity: 1 }}
         className={cn('flex', isMine ? 'justify-end' : 'justify-start')}
       >
-        <div className="flex items-center gap-1.5 max-w-[78%] px-3 py-1.5 rounded-xl bg-card/60 border border-border/40 text-text-secondary/70">
+        <StageBadge variant="neutral" className="gap-1.5">
           <Trash2 size={12} className="shrink-0" />
-          <span className="text-xs">Ce message a été supprimé</span>
-        </div>
+          Ce message a été supprimé
+        </StageBadge>
       </motion.div>
     )
   }
@@ -129,9 +197,25 @@ export function MessageBubble({
         animate={{ opacity: 1 }}
         className="flex justify-center my-1.5"
       >
-        <span className="px-3 py-1 text-[11px] text-text-secondary/80 bg-card/60 border border-border/40 rounded-full">
-          {message.body}
-        </span>
+        <StageBadge variant="neutral">{message.body}</StageBadge>
+      </motion.div>
+    )
+  }
+
+  // Undecryptable on this device — neutral placeholder, never ciphertext.
+  if (message.kind === 'sealed' && message.sealedOk !== true) {
+    return (
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        className={cn('flex', isMine ? 'justify-end' : 'justify-start')}
+      >
+        <div className={cn('px-4 py-2.5 rounded-2xl border backdrop-blur-md max-w-[78%]',
+          isDark ? 'bg-white/[0.04] border-white/10' : 'bg-white/70 border-teal-900/10')}>
+          <p className={cn('text-xs italic', isDark ? 'text-slate-400' : 'text-slate-500')}>
+            Message illisible sur cet appareil.
+          </p>
+        </div>
       </motion.div>
     )
   }
@@ -180,6 +264,18 @@ export function MessageBubble({
       className={cn('flex', isMine ? 'justify-end' : 'justify-start')}
     >
       <div
+        ref={bubbleRef}
+        onMouseEnter={showSeenPop ? () => { setSeenHover(true); announceSeenPop() } : undefined}
+        onMouseLeave={showSeenPop ? () => setSeenHover(false) : undefined}
+        onClick={showSeenPop ? (e: React.MouseEvent) => {
+          const t = e.target as Element
+          if (t.closest('button, a, video, audio, input')) return
+          setSeenPin(v => {
+            const next = !v
+            if (next) announceSeenPop()
+            return next
+          })
+        } : undefined}
         className={cn(
           'relative max-w-[78%] sm:max-w-[68%] min-w-[80px]',
           isMine ? 'items-end' : 'items-start',
@@ -202,15 +298,21 @@ export function MessageBubble({
             className={cn(
               'absolute -top-2 left-2 z-20 w-5 h-5 rounded-full flex items-center justify-center border shadow-sm transition-colors',
               selected
-                ? 'bg-accent border-accent text-white'
-                : 'bg-card border-border text-transparent hover:border-accent'
+                ? 'text-white border-transparent'
+                : isDark ? 'bg-white/10 border-white/20 text-transparent hover:border-violet-400/50' : 'bg-white border-slate-900/20 text-transparent hover:border-teal-500/50'
             )}
+            style={selected ? {
+              backgroundImage: isDark
+                ? 'linear-gradient(145deg,#8B7CFF,#5646C9)'
+                : 'linear-gradient(145deg,#2DD4BF,#0D9488)',
+              boxShadow: isDark ? '0 0 12px rgba(124,92,255,0.6)' : '0 0 12px rgba(13,148,136,0.5)',
+            } : undefined}
           >
             <Check size={12} strokeWidth={3} />
           </button>
         )}
         {showSenderName && !isMine && (
-          <p className={cn('text-[11px] font-semibold mb-1 px-1', 'text-accent')}>
+          <p className={cn('text-[11px] font-bold mb-1 px-1', isDark ? 'text-indigo-300' : 'text-teal-700')}>
             {message.sender.name}
             {senderIsGroupAdmin && (
               <span className="font-medium opacity-70"> (Admin du groupe)</span>
@@ -219,7 +321,16 @@ export function MessageBubble({
         )}
 
         <div className="relative">
-          <div className={cn(bubbleBase, 'overflow-hidden')}>
+          <div className={cn(bubbleBase, 'overflow-hidden')} style={mineBubbleStyle}>
+            {!isMine && (
+              <span
+                aria-hidden="true"
+                className="pointer-events-none absolute inset-x-8 top-0 h-px z-10"
+                style={{ background: isDark
+                  ? 'linear-gradient(90deg, transparent, rgba(139,124,255,0.5), rgba(94,234,212,0.3), transparent)'
+                  : 'linear-gradient(90deg, transparent, rgba(45,212,191,0.5), rgba(124,92,255,0.25), transparent)' }}
+              />
+            )}
             {/* Image */}
             {kind === 'image' && message.attachments.length > 0 && (
               <div className="max-w-[260px]">
@@ -239,7 +350,7 @@ export function MessageBubble({
                   </button>
                 ) : (
                   <div className="h-40 bg-gradient-to-br from-indigo-100 via-violet-100 to-sky-100 flex flex-col items-center justify-center gap-1.5">
-                    <ImageIcon size={28} className={isMine ? 'text-white/70' : 'text-accent/50'} />
+                    <ImageIcon size={28} className={isMine ? 'text-white/70' : isDark ? 'text-indigo-300/60' : 'text-teal-600/60'} />
                     <span className={cn('text-[11px] font-medium', subText)}>{message.attachments[0].name}</span>
                   </div>
                 )}
@@ -281,14 +392,14 @@ export function MessageBubble({
               audioSrc ? (
                 <AudioPlayer src={audioSrc} isMine={isMine} fallbackDuration={message.duration} />
               ) : (
-                <div className="w-60 flex items-center gap-2.5 px-3 py-2.5 opacity-50">
-                  <span className="w-8 h-8 rounded-full bg-accent/10 text-accent flex items-center justify-center">
+                <div className="w-60 flex items-center gap-2.5 px-3 py-2.5 opacity-90">
+                  <span className={cn('w-8 h-8 rounded-full flex items-center justify-center', isMine ? 'bg-white/20 text-white' : isDark ? 'bg-violet-400/15 text-indigo-300' : 'bg-teal-500/10 text-teal-700')}>
                     <Play size={14} />
                   </span>
                   <div className="flex-1">
                     <div className="flex items-end gap-0.5 h-6">
                       {[10, 18, 26, 14, 30, 22, 12, 24, 16, 28].map((h, i) => (
-                        <span key={i} className={cn('w-[3px] rounded-sm origin-bottom', isMine ? 'bg-white/50' : 'bg-accent/40')} style={{ height: `${h}px` }} />
+                        <span key={i} className={cn('w-[3px] rounded-sm origin-bottom', isMine ? 'bg-white/50' : isDark ? 'bg-indigo-300/50' : 'bg-teal-600/50')} style={{ height: `${h}px` }} />
                       ))}
                     </div>
                   </div>
@@ -337,7 +448,7 @@ export function MessageBubble({
             {/* Text body */}
             {message.body && (
               <div className={cn(kind === 'image' && 'px-3 pt-2')}>
-                <p className={cn('text-sm leading-relaxed whitespace-pre-wrap px-3 py-2', isMine ? 'text-white/95' : 'text-text')}>
+                <p className={cn('text-sm leading-relaxed whitespace-pre-wrap break-words px-3 py-2', isMine ? 'text-white/95' : isDark ? 'text-slate-100' : 'text-slate-900')}>
                   {message.body}
                 </p>
               </div>
@@ -350,7 +461,7 @@ export function MessageBubble({
                   const realUrl = att.url && att.url !== '#' ? att.url : undefined
                   const row = (
                     <>
-                      <span className={cn('shrink-0', isMine ? 'text-white/80' : 'text-accent')}>
+                      <span className={cn('shrink-0', isMine ? 'text-white/80' : isDark ? 'text-indigo-300' : 'text-teal-600')}>
                         {fileIcon(att.name)}
                       </span>
                       <div className="flex-1 min-w-0">
@@ -362,7 +473,9 @@ export function MessageBubble({
                   )
                   const cls = cn(
                     'mx-3 flex items-center gap-2.5 px-2.5 py-2 rounded-xl transition-colors',
-                    isMine ? 'bg-white/10 hover:bg-white/20' : 'bg-background hover:bg-border/40',
+                    isMine
+                      ? 'bg-white/10 hover:bg-white/20'
+                      : isDark ? 'bg-white/5 hover:bg-white/10' : 'bg-teal-900/[0.05] hover:bg-teal-900/[0.09]',
                     realUrl && onOpenMedia ? 'cursor-pointer' : 'cursor-default'
                   )
                   return realUrl && onOpenMedia ? (
@@ -383,9 +496,55 @@ export function MessageBubble({
             {/* Footer */}
             <div className={cn('flex items-center justify-end gap-1 pb-1.5 pr-2', isMine ? 'pl-3' : 'pl-2 pr-3')}>
               <span className={cn('text-[10px] leading-none', subText)}>{formatTime(message.sentAt)}</span>
-              {isMine && <ReadReceipts status={message.status} readAt={message.readAt} />}
+              {isMine && (
+                <ReadReceipts status={message.status} />
+              )}
             </div>
           </div>
+
+          {/* Seen-at popover (staged) */}
+          <AnimatePresence>
+            {seenPop && showSeenPop && (
+              <motion.div
+                initial={{ opacity: 0, y: 6, scale: 0.96 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 6, scale: 0.96 }}
+                transition={{ duration: 0.15 }}
+                className="absolute bottom-full right-0 z-40 mb-2"
+              >
+                <div className="stage-glass !rounded-2xl pl-2 pr-1.5 py-1.5 flex items-center gap-2 whitespace-nowrap">
+                  <span
+                    className="w-7 h-7 rounded-xl flex items-center justify-center text-white shrink-0"
+                    style={isDark
+                      ? { backgroundImage: 'linear-gradient(145deg,#8B7CFF,#5646C9)', boxShadow: '0 4px 12px -4px rgba(124,92,255,0.7), inset 0 1px 0 rgba(255,255,255,0.4)' }
+                      : { backgroundImage: 'linear-gradient(145deg,#2DD4BF,#0D9488)', boxShadow: '0 4px 12px -4px rgba(13,148,136,0.6), inset 0 1px 0 rgba(255,255,255,0.5)' }}
+                  >
+                    <CheckCheck size={13} />
+                  </span>
+                  <span className="min-w-0">
+                    <span className={cn('block text-[10px] font-bold uppercase tracking-wider leading-tight', isDark ? 'text-slate-400' : 'text-slate-500')}>
+                      Vu
+                    </span>
+                    <span className={cn('block text-xs font-semibold leading-tight tabular-nums', isDark ? 'text-white' : 'text-slate-900')}>
+                      {formatSeenAt(message.readAt!)}
+                    </span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={e => {
+                      e.stopPropagation()
+                      setSeenPin(false)
+                      setSeenHover(false)
+                    }}
+                    className={cn('w-5 h-5 rounded-full flex items-center justify-center transition-colors shrink-0', isDark ? 'text-slate-500 hover:text-white hover:bg-white/10' : 'text-slate-400 hover:text-slate-700 hover:bg-slate-900/5')}
+                    title="Fermer"
+                  >
+                    <X size={11} />
+                  </button>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           {/* Reaction chips */}
           {reactions.length > 0 && (
@@ -395,11 +554,12 @@ export function MessageBubble({
                   key={r.emoji}
                   onClick={() => handleReact(r.emoji)}
                   title={(r.users || []).join(', ')}
+                  style={r.mine ? mineBubbleStyle : undefined}
                   className={cn(
-                    'flex items-center gap-1 pl-1.5 pr-2 py-0.5 rounded-full text-[11px] leading-none shadow-sm border transition-colors',
+                    'flex items-center gap-1 pl-1.5 pr-2 py-0.5 rounded-full text-[11px] leading-none shadow-sm border backdrop-blur-md transition-colors',
                     r.mine
-                      ? 'bg-accent text-white border-accent'
-                      : 'bg-card text-text border-border/60 hover:bg-background'
+                      ? 'text-white border-transparent'
+                      : isDark ? 'bg-white/[0.06] border-white/10 text-slate-200 hover:bg-white/10' : 'bg-white border-teal-900/10 text-slate-700 hover:bg-teal-900/5'
                   )}
                 >
                   <span className="text-xs leading-none">{r.emoji}</span>
@@ -412,20 +572,18 @@ export function MessageBubble({
           {/* Reaction bar */}
           <AnimatePresence>
             {menu && (
-              <>
-                <div className="fixed inset-0 z-30" onClick={() => setMenu(null)} />
-                <motion.div
+              <motion.div
                   key={menu}
                   initial={{ opacity: 0, scale: 0.9, y: 6 }}
                   animate={{ opacity: 1, scale: 1, y: 0 }}
                   exit={{ opacity: 0, scale: 0.9, y: 6 }}
                   transition={{ duration: 0.12 }}
                   className={cn(
-                    'absolute z-40 flex bg-card border border-border/60 shadow-modal',
+                    '!absolute z-40 flex stage-glass',
                     isMine ? 'right-0' : 'left-0',
                     menu === 'quick'
                       ? '-top-12 items-center gap-0.5 px-1.5 py-1 rounded-full'
-                      : '-top-40 w-48 flex-wrap p-2 rounded-xl'
+                      : '-top-40 w-48 flex-wrap p-2 rounded-2xl'
                   )}
                 >
                   {menu === 'quick' ? (
@@ -434,7 +592,7 @@ export function MessageBubble({
                         <button
                           key={e}
                           onClick={() => handleReact(e)}
-                          className="w-8 h-8 flex items-center justify-center text-lg hover:bg-background hover:scale-110 transition rounded-full"
+                          className={cn('w-8 h-8 flex items-center justify-center text-lg hover:scale-110 transition rounded-full', isDark ? 'hover:bg-white/10' : 'hover:bg-teal-900/5')}
                         >
                           {e}
                         </button>
@@ -442,7 +600,7 @@ export function MessageBubble({
                       <button
                         onClick={() => setMenu('picker')}
                         title="Plus de réactions"
-                        className="w-8 h-8 flex items-center justify-center text-text-secondary hover:text-text hover:bg-background hover:scale-110 transition rounded-full"
+                        className={cn('w-8 h-8 flex items-center justify-center hover:scale-110 transition rounded-full', isDark ? 'text-slate-400 hover:text-white hover:bg-white/10' : 'text-slate-500 hover:text-teal-900 hover:bg-teal-900/5')}
                       >
                         <Plus size={15} />
                       </button>
@@ -452,14 +610,13 @@ export function MessageBubble({
                       <button
                         key={e}
                         onClick={() => handleReact(e)}
-                        className="w-7 h-7 flex items-center justify-center text-base hover:bg-background rounded-md transition-colors"
+                        className={cn('w-7 h-7 flex items-center justify-center text-base rounded-md transition-colors', isDark ? 'hover:bg-white/10' : 'hover:bg-teal-900/5')}
                       >
                         {e}
                       </button>
                     ))
                   )}
                 </motion.div>
-              </>
             )}
           </AnimatePresence>
         </div>
@@ -467,7 +624,7 @@ export function MessageBubble({
         {/* System line */}
         {reactions.length > 0 && (
           <div className="mt-4 px-1 text-center">
-            <span className="text-[10px] text-text-secondary/70">{reactionSystemLine(reactions)}</span>
+            <span className={cn('text-[10px]', isDark ? 'text-slate-500' : 'text-slate-400')}>{reactionSystemLine(reactions)}</span>
           </div>
         )}
       </div>
@@ -476,7 +633,19 @@ export function MessageBubble({
 }
 
 export function attachmentLabel(message: Message): string {
-  const kind = message.kind ?? 'text'
+  const rawKind = message.kind ?? 'text'
+  if (rawKind === 'sealed') {
+    if (!message.sealedOk) return 'Fichier'
+    const kind = innerKindOf(message)
+    switch (kind) {
+      case 'image': return 'Photo'
+      case 'video': return 'Vidéo'
+      case 'audio': return 'Message vocal'
+      case 'file': return 'Fichier'
+      default: return 'Message'
+    }
+  }
+  const kind = rawKind
   switch (kind) {
     case 'image': return 'Photo'
     case 'video': return 'Vidéo'
@@ -489,6 +658,7 @@ export function attachmentLabel(message: Message): string {
 
 export function previewIcon(kind?: string) {
   switch (kind) {
+    case 'sealed': return null
     case 'image': return <ImageIcon size={12} className="shrink-0" />
     case 'video': return <Film size={12} className="shrink-0" />
     case 'audio': return <Mic size={12} className="shrink-0" />

@@ -2,10 +2,11 @@ import { API_ORIGIN } from '../../utils/config'
 import { NavLink, useLocation } from 'react-router-dom'
 import { Activity, Home, Users, FileText, MessageSquare, Settings, Crosshair, CheckCircle, Calendar, BookOpen, Eye, Zap, Edit3, Compass, ChevronLeft, Tool } from 'react-feather'
 import { Library as LibraryIcon } from 'lucide-react'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { useMessageUnread } from '../../services/realtime'
 import { useAutomator } from '../../contexts/AutomatorContext'
+import { getEventById } from '../../types/automator'
 import { getMyEffectivePermissions } from '../../services/permissionsService'
 import { getAuthToken } from '../../utils/auth'
 import { useStageTheme } from '../dashboard/Stage'
@@ -36,30 +37,34 @@ const BADGE_TOKENS: Record<BadgeHue, { dark: [string, string, string, string]; l
   },
 }
 
-const EQ_BARS = [
-  { d: 0.0, s: 1.0, c: '#8B7CFF' },
-  { d: 0.18, s: 1.25, c: '#38BDF8' },
-  { d: 0.36, s: 0.85, c: '#34D399' },
-  { d: 0.09, s: 1.15, c: '#8B7CFF' },
-  { d: 0.27, s: 0.95, c: '#38BDF8' },
-  { d: 0.45, s: 1.35, c: '#34D399' },
-  { d: 0.06, s: 1.05, c: '#E879F9' },
-  { d: 0.24, s: 0.8, c: '#38BDF8' },
-  { d: 0.42, s: 1.2, c: '#8B7CFF' },
-  { d: 0.15, s: 0.9, c: '#34D399' },
-  { d: 0.33, s: 1.3, c: '#38BDF8' },
-  { d: 0.51, s: 1.0, c: '#8B7CFF' },
-]
-
 export default function Sidebar({ basePath = '' }: { basePath?: string }) {
   const location = useLocation()
   const theme = useStageTheme()
   const dark = theme === 'dark'
   const [collapsed, setCollapsed] = useState(false)
   const [espaceType, setEspaceType] = useState('')
+  const [agentName, setAgentName] = useState('')
   const unreadCount = useMessageUnread()
   const automator = useAutomator()
-  const automatorBadge = automator.getUnreadCount() || 0
+  /* Badge scoped to this agent's own automations (same rule as the automator
+     page): the backend feed is global, so counting it raw shows phantom
+     notifications from other agents/admin events with zero automations. */
+  const myAutomatorEventIds = useMemo(() => {
+    return new Set(
+      automator.automators.filter(a => {
+        if (!a.eventId) return false
+        const ev = getEventById(a.eventId)
+        if (ev?.clientType === 'admin') return false
+        if (a.createdBy === agentName) return true
+        if (a.delegatedTo === 'all') return true
+        if (a.delegatedTo && a.delegatedTo === agentName) return true
+        return false
+      }).map(a => a.eventId as string)
+    )
+  }, [automator.automators, agentName])
+  const automatorBadge = automator.triggeredNotifications.filter(
+    n => !n.read && n.eventId && myAutomatorEventIds.has(n.eventId)
+  ).length || 0
   const [calendarVisible, setCalendarVisible] = useState(true)
   const [contactsVisible, setContactsVisible] = useState(true)
   const [prospectsVisible, setProspectsVisible] = useState(true)
@@ -97,6 +102,7 @@ export default function Sidebar({ basePath = '' }: { basePath?: string }) {
           if (data.role === 'admin') setEspaceType('Administrateur')
           else if (data.role === 'gerant') setEspaceType('Gérant')
           else setEspaceType(data.position || 'Agent')
+          setAgentName([data.first_name, data.last_name].filter(Boolean).join(' '))
         }
       })
       .catch(() => {})
@@ -334,61 +340,6 @@ export default function Sidebar({ basePath = '' }: { basePath?: string }) {
           )
         })}
       </nav>
-
-      {/* Telemetry footer */}
-      <div className="relative z-10 px-3 pb-3 pt-1">
-        {collapsed ? (
-          <div className={cn('flex h-11 items-center justify-center border-t pt-2', dark ? 'border-white/[0.06]' : 'border-teal-900/[0.08]')}>
-            <span className="live-dot h-2 w-2 rounded-full bg-emerald-400 text-emerald-400" />
-          </div>
-        ) : (
-          <motion.div
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.15, duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
-            className={cn(
-              'relative overflow-hidden rounded-2xl border p-3',
-              dark
-                ? 'border-white/[0.08] bg-white/[0.04] shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]'
-                : 'border-teal-900/10 bg-white/70 shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]'
-            )}
-          >
-            <div
-              aria-hidden="true"
-              className="pointer-events-none absolute inset-x-6 top-0 h-px"
-              style={{ background: dark
-                ? 'linear-gradient(90deg, transparent, rgba(139,124,255,0.55), rgba(94,234,212,0.35), transparent)'
-                : 'linear-gradient(90deg, transparent, rgba(45,212,191,0.6), rgba(124,92,255,0.3), transparent)' }}
-            />
-            <div className="flex items-center justify-between">
-              <span className="flex items-center gap-2">
-                <span className="live-dot h-1.5 w-1.5 rounded-full bg-emerald-400 text-emerald-400" />
-                <span className={cn('text-[9px] font-extrabold uppercase tracking-[2.2px]', dark ? 'text-slate-400' : 'text-teal-900/60')}>
-                  Système opérationnel
-                </span>
-              </span>
-              <span className="text-[10px] font-extrabold tabular-nums text-emerald-400">99.98%</span>
-            </div>
-            <div className="mt-2.5 flex h-7 items-end gap-[3px]">
-              {EQ_BARS.map((bar, i) => (
-                <span
-                  key={i}
-                  className="eq-bar flex-1"
-                  style={{
-                    height: '100%',
-                    animationDelay: `${bar.d}s`,
-                    animationDuration: `${bar.s}s`,
-                    background: bar.c,
-                    opacity: 0.85,
-                    borderRadius: 9999,
-                    filter: dark ? `drop-shadow(0 0 4px ${bar.c})` : 'none',
-                  }}
-                />
-              ))}
-            </div>
-          </motion.div>
-        )}
-      </div>
 
       {/* Collapse toggle */}
       <motion.button

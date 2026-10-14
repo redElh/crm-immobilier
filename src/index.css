@@ -1186,6 +1186,19 @@
 .stage-light .stage-glass:before{
   background: linear-gradient(90deg, transparent, rgba(45,212,191,0.55), rgba(124,92,255,0.25), transparent);
 }
+/* Popups / dropdowns: opaque + blurry (unlike the translucent stage-glass),
+   so floating menus stay readable over busy content. Radius via utilities. */
+.pop-glass{
+  backdrop-filter: blur(22px) saturate(1.25); -webkit-backdrop-filter: blur(22px) saturate(1.25);
+  background: linear-gradient(180deg, rgba(21,28,54,0.95), rgba(10,14,32,0.97));
+  border: 1px solid rgba(255,255,255,0.12);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.09), 0 24px 60px -20px rgba(0,0,0,0.85);
+}
+.stage-light .pop-glass{
+  background: linear-gradient(180deg, rgba(255,255,255,0.97), rgba(255,255,255,0.92));
+  border: 1px solid rgba(255,255,255,0.95);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.95), 0 24px 60px -24px rgba(13,148,136,0.35);
+}
 .aurora-blob{ position:absolute; border-radius:9999px; filter:blur(90px); pointer-events:none; will-change:transform }
 .aurora-violet{ background: radial-gradient(circle at center, rgba(124,92,255,0.32), transparent 65%); width:640px; height:480px; right:-80px; top:-220px; animation: aurora-drift-a 26s ease-in-out infinite alternate }
 .aurora-cyan{ background: radial-gradient(circle at center, rgba(34,211,238,0.18), transparent 65%); width:520px; height:420px; left:-120px; bottom:-200px; animation: aurora-drift-b 32s ease-in-out infinite alternate }

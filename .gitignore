@@ -41,3 +41,11 @@ public/agent-pages-screenshots/
 scripts/__pycache__/
 *.bak
 *.new
+
+# whisper-service (Python STT microservice)
+whisper-service/venv/
+whisper-service/__pycache__/
+whisper-service/.venv/
+whisper-service/*.log
+whisper-service/*.pid
+*.pid

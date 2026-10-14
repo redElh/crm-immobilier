@@ -5,11 +5,12 @@ import { InfoField } from '../../../ui/InfoField';
 import { Button } from '../../../ui/Button';
 import { ClientContractsTab } from '../ClientContractsTab';
 import { NotesActiviteTab } from './NotesActiviteTab';
+import { ClientTabsShell, StageField, StageSection, StageTags, HeaderPills, StageEmpty, ProximitesGrid, PrestationsGrid, useDetailAccent } from './ClientDetailStage';
 import { Client } from '../../../../types/client';
 import {
   Home, MapPin, Maximize2, Grid, Clock, User, Briefcase, CheckCircle,
   AlertCircle, Calendar, Eye, Sun, Tag, Star, Layers, Compass,
-  DollarSign, CreditCard, FileText, Plus, Shield, X,
+  DollarSign, CreditCard, FileText, Plus, Shield, X, Sliders,
   TrendingUp, Users, Upload, Phone, Mail, MessageCircle, Smartphone, Activity, CheckSquare
 } from 'react-feather';
 import { api } from '../../../../services/api';
@@ -80,6 +81,9 @@ export const VoyageurDetailTabs = ({ client: initialClient, adminId, agentId, hi
   useEffect(() => {
     setClientState(initialClient);
   }, [initialClient]);
+
+  /* Staged theme accents for the first tab (Critères). */
+  const { isDark, accent, ink } = useDetailAccent(client.type, isGerant);
   const [bienReserveProp, setBienReserveProp] = useState<any>(null);
 
   useEffect(() => {
@@ -121,79 +125,59 @@ export const VoyageurDetailTabs = ({ client: initialClient, adminId, agentId, hi
       client.propertyType || client.secteur || client.area || client.localisation ||
       client.pieces || client.chambres || client.nbPersonnes || client.minSurface || client.surfaceMax;
 
-    if (!hasData) return renderEmpty();
+    if (!hasData) return <StageEmpty isDark={isDark} />;
+
+    const showGeo = ((client.latitude && client.latitude !== 0) || (client.longitude && client.longitude !== 0));
 
     return (
       <div className="space-y-5">
-        <div className="flex flex-wrap items-center gap-3">
-          {client.statutMetier && (
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-medium text-text-secondary">Statut:</span>
-              <span className="px-2.5 py-1 text-xs font-medium rounded-lg bg-premium/10 text-premium border border-premium/20">
-                {client.statutMetier}
-              </span>
-            </div>
-          )}
-          {client.classification && (
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-medium text-text-secondary">Classification:</span>
-              <span className={`px-2.5 py-1 text-xs font-medium rounded-lg ${isGerant ? 'bg-[#905D5D]/10 text-[#905D5D] border border-[#905D5D]/20' : 'bg-accent/10 text-accent border border-accent/20'}`}>
-                {client.classification}
-              </span>
-            </div>
-          )}
-          {client.source && (
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-medium text-text-secondary">Origine:</span>
-              <span className="px-2.5 py-1 text-xs font-medium rounded-lg bg-emerald-100 text-emerald-700 border border-emerald-200">
-                {client.source}
-              </span>
-            </div>
-          )}
-        </div>
+        <HeaderPills statutMetier={client.statutMetier} classification={client.classification} source={client.source} isDark={isDark} />
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <InfoField label="Catégorie" value={client.categorie || 'Location saisonnière'} icon={<Tag size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />
-          {client.propertyType && <InfoField label="Type de bien recherché" value={client.propertyType} icon={<Home size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />}
-          {(client.secteur || client.area) && <InfoField label="Secteur géographique" value={client.secteur || client.area || 'Non spécifié'} icon={<MapPin size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />}
-          {client.localisation && <InfoField label="Localisation" value={client.localisation} icon={<MapPin size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />}
-        </div>
+        <StageSection icon={Home} title="Séjour" accent={accent} ink={ink} isDark={isDark} delay={0.05}>
+          <StageField icon={Tag} label="Catégorie" value={client.categorie || 'Location saisonnière'} accent={accent} ink={ink} isDark={isDark} />
+          {client.propertyType && <StageField icon={Home} label="Type de bien recherché" value={client.propertyType} accent={accent} ink={ink} isDark={isDark} />}
+          {(client.secteur || client.area) && <StageField icon={MapPin} label="Secteur géographique" value={client.secteur || client.area || 'Non spécifié'} accent={accent} ink={ink} isDark={isDark} />}
+          {client.localisation && <StageField icon={MapPin} label="Localisation" value={client.localisation} accent={accent} ink={ink} isDark={isDark} />}
+        </StageSection>
 
-        {((client.latitude && client.latitude !== 0) || (client.longitude && client.longitude !== 0)) && (
-          <div className="p-3 rounded-xl bg-background border border-border/50">
-            <InfoField
+        {showGeo && (
+          <StageSection icon={Compass} title="Géolocalisation" accent={accent} ink={ink} isDark={isDark} delay={0.1}>
+            <StageField
+              icon={Compass}
               label="Coordonnées"
               value={`${client.latitude?.toFixed(4) || '0'}, ${client.longitude?.toFixed(4) || '0'}`}
-              icon={<Compass size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />}
+              accent={accent}
+              ink={ink}
+              isDark={isDark}
+              action={
+                <a
+                  href={`https://www.google.com/maps?q=${client.latitude},${client.longitude}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="shrink-0 text-[11px] font-bold transition-opacity hover:opacity-80"
+                  style={{ color: ink }}
+                >
+                  Maps ↗
+                </a>
+              }
             />
-            <a
-              href={`https://www.google.com/maps?q=${client.latitude},${client.longitude}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className={`text-xs ${isGerant ? 'text-[#905D5D]' : 'text-accent'} hover:underline mt-1 inline-block`}
-            >
-              Voir sur Google Maps
-            </a>
-          </div>
+          </StageSection>
         )}
 
-        <div className="border-t border-border/30 pt-4">
-          <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-3">Caractéristiques quantitatives</p>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {client.pieces && (
-              <InfoField label="Pièces" value={`${client.pieces}`} icon={<Grid size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />
-            )}
-            {client.chambres && (
-              <InfoField label="Chambres" value={`${client.chambres}`} icon={<Grid size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />
-            )}
-            {(client.minSurface || client.surfaceMax) && (
-              <InfoField label="Surface" value={`${client.minSurface || '?'} ~ ${client.surfaceMax || '?'} m²`} icon={<Maximize2 size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />
-            )}
-            {client.nbPersonnes && (
-              <InfoField label="Couchages max" value={`${client.nbPersonnes} personnes`} icon={<Users size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />
-            )}
-          </div>
-        </div>
+        <StageSection icon={Grid} title="Capacité" accent={accent} ink={ink} isDark={isDark} delay={0.15}>
+          {client.pieces && (
+            <StageField icon={Grid} label="Pièces" value={`${client.pieces}`} accent={accent} ink={ink} isDark={isDark} />
+          )}
+          {client.chambres && (
+            <StageField icon={Grid} label="Chambres" value={`${client.chambres}`} accent={accent} ink={ink} isDark={isDark} />
+          )}
+          {(client.minSurface || client.surfaceMax) && (
+            <StageField icon={Maximize2} label="Surface" value={`${client.minSurface || '?'} ~ ${client.surfaceMax || '?'} m²`} accent={accent} ink={ink} isDark={isDark} />
+          )}
+          {client.nbPersonnes && (
+            <StageField icon={Users} label="Couchages max" value={`${client.nbPersonnes} personnes`} accent={accent} ink={ink} isDark={isDark} />
+          )}
+        </StageSection>
       </div>
     );
   };
@@ -202,44 +186,34 @@ export const VoyageurDetailTabs = ({ client: initialClient, adminId, agentId, hi
     const hasData = client.vue || client.exposition || client.etat || client.standing ||
       client.attributPrincipal || client.attributsPersonnalises?.length || client.criteres?.length;
 
-    if (!hasData) return renderEmpty();
+    if (!hasData) return <StageEmpty isDark={isDark} />;
+
+    const showQual = client.vue || client.exposition || client.etat || client.standing;
 
     return (
       <div className="space-y-5">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {client.vue && <InfoField label="Vue" value={client.vue} icon={<Eye size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />}
-          {client.exposition && <InfoField label="Exposition" value={client.exposition} icon={<Sun size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />}
-          {client.etat && <InfoField label="État" value={client.etat} icon={<Home size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />}
-          {client.standing && <InfoField label="Standing" value={client.standing} icon={<Star size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />}
-        </div>
+        {showQual ? (
+          <StageSection icon={Eye} title="Atouts du bien" accent={accent} ink={ink} isDark={isDark} delay={0.05}>
+            {client.vue && <StageField icon={Eye} label="Vue" value={client.vue} accent={accent} ink={ink} isDark={isDark} />}
+            {client.exposition && <StageField icon={Sun} label="Exposition" value={client.exposition} accent={accent} ink={ink} isDark={isDark} />}
+            {client.etat && <StageField icon={Home} label="État" value={client.etat} accent={accent} ink={ink} isDark={isDark} />}
+            {client.standing && <StageField icon={Star} label="Standing" value={client.standing} accent={accent} ink={ink} isDark={isDark} />}
+          </StageSection>
+        ) : null}
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {client.attributPrincipal && (
-            <div>
-              <p className="text-sm font-medium text-text mb-2">Attribut principal</p>
-              <span className="px-2.5 py-1 text-xs font-medium rounded-lg bg-premium/10 text-premium border border-premium/20">
-                {client.attributPrincipal}
-              </span>
-            </div>
-          )}
-
-          <div>
-            {renderTagList(client.attributsPersonnalises, 'Attributs personnalisés', isGerant)}
-          </div>
-
-          <div>
+        {(client.attributPrincipal || client.attributsPersonnalises?.length || client.criteres?.length) ? (
+          <div className="grid grid-cols-1 gap-2.5 md:grid-cols-2">
+            {client.attributPrincipal && (
+              <StageTags icon={Star} label="Attribut principal" items={[client.attributPrincipal]} accent={accent} ink={ink} isDark={isDark} delay={0.1} />
+            )}
+            {client.attributsPersonnalises && client.attributsPersonnalises.length > 0 && (
+              <StageTags icon={Sliders} label="Attributs personnalisés" items={client.attributsPersonnalises} accent={accent} ink={ink} isDark={isDark} delay={0.15} />
+            )}
             {client.criteres && client.criteres.length > 0 && (
-              <div className="space-y-2">
-                <p className="text-sm font-medium text-text mb-2">Critères de base</p>
-                <div className="flex flex-wrap gap-1.5">
-                  {client.criteres.map((crit: string) => (
-                    <span key={crit} className={`px-2 py-1 text-xs rounded-lg ${isGerant ? 'bg-[#905D5D]/10 text-[#905D5D] border border-[#905D5D]/20' : 'bg-accent/10 text-accent border border-accent/20'}`}>{crit}</span>
-                  ))}
-                </div>
-              </div>
+              <StageTags icon={CheckCircle} label="Critères de base" items={client.criteres} accent={accent} ink={ink} isDark={isDark} delay={0.2} />
             )}
           </div>
-        </div>
+        ) : null}
       </div>
     );
   };
@@ -253,90 +227,58 @@ export const VoyageurDetailTabs = ({ client: initialClient, adminId, agentId, hi
 
     return (
       <div className="space-y-5">
-        <div>
-          <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-3">Budget</p>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {(budgetMin || budgetMax) && (
-              <InfoField label="Budget par nuit" value={`${budgetMin.toLocaleString() || '?'} ~ ${budgetMax.toLocaleString() || '?'} ${devise}`} icon={<DollarSign size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />
-            )}
-            {(c.tarifNuit || budgetMin) && (
-              <InfoField label="Budget par semaine" value={c.tarifNuit ? `${(c.tarifNuit * 7).toLocaleString()} ${devise}` : `${(budgetMin * 7).toLocaleString()} ~ ${(budgetMax * 7).toLocaleString()} ${devise}`} icon={<DollarSign size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />
-            )}
-            {c.budgetTotal != null && (
-              <InfoField label="Budget total pour le séjour" value={`${c.budgetTotal.toLocaleString()} ${devise}`} icon={<DollarSign size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />
-            )}
-          </div>
-        </div>
+        <StageSection icon={DollarSign} title="Budget" accent={accent} ink={ink} isDark={isDark} delay={0.05}>
+          {(budgetMin || budgetMax) && (
+            <StageField icon={DollarSign} label="Budget par nuit" value={`${budgetMin.toLocaleString() || '?'} ~ ${budgetMax.toLocaleString() || '?'} ${devise}`} accent={accent} ink={ink} isDark={isDark} />
+          )}
+          {(c.tarifNuit || budgetMin) && (
+            <StageField icon={DollarSign} label="Budget par semaine" value={c.tarifNuit ? `${(c.tarifNuit * 7).toLocaleString()} ${devise}` : `${(budgetMin * 7).toLocaleString()} ~ ${(budgetMax * 7).toLocaleString()} ${devise}`} accent={accent} ink={ink} isDark={isDark} />
+          )}
+          {c.budgetTotal != null && (
+            <StageField icon={DollarSign} label="Budget total pour le séjour" value={`${c.budgetTotal.toLocaleString()} ${devise}`} accent={accent} ink={ink} isDark={isDark} />
+          )}
+        </StageSection>
 
-        <div className="border-t border-border/30 pt-4">
-          <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-3">Période recherchée</p>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {client.dateArrivee && (
-              <InfoField label="Date d'arrivée souhaitée" value={new Date(client.dateArrivee).toLocaleDateString('fr-FR')} icon={<Calendar size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />
-            )}
-            {client.dateDepart && (
-              <InfoField label="Date de départ souhaitée" value={new Date(client.dateDepart).toLocaleDateString('fr-FR')} icon={<Calendar size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />
-            )}
-            {(c.nbNuits !== undefined && c.nbNuits > 0) && (
-              <InfoField label="Nombre de nuits" value={`${c.nbNuits}`} icon={<Clock size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />
-            )}
-            {(c.nbAdultes !== undefined && c.nbAdultes > 0) && (
-              <InfoField label="Nombre d'adultes" value={`${c.nbAdultes}`} icon={<Users size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />
-            )}
-            {(c.nbEnfants !== undefined && c.nbEnfants > 0) && (
-              <InfoField label="Nombre d'enfants" value={`${c.nbEnfants}`} icon={<Users size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />
-            )}
-            {client.flexibiliteDates && (
-              <InfoField label="Flexibilité sur les dates" value={client.flexibiliteDates} icon={<Clock size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />
-            )}
-          </div>
-        </div>
+        <StageSection icon={Calendar} title="Période recherchée" accent={accent} ink={ink} isDark={isDark} delay={0.1}>
+          {client.dateArrivee && (
+            <StageField icon={Calendar} label="Date d'arrivée souhaitée" value={new Date(client.dateArrivee).toLocaleDateString('fr-FR')} accent={accent} ink={ink} isDark={isDark} />
+          )}
+          {client.dateDepart && (
+            <StageField icon={Calendar} label="Date de départ souhaitée" value={new Date(client.dateDepart).toLocaleDateString('fr-FR')} accent={accent} ink={ink} isDark={isDark} />
+          )}
+          {(c.nbNuits !== undefined && c.nbNuits > 0) && (
+            <StageField icon={Clock} label="Nombre de nuits" value={`${c.nbNuits}`} accent={accent} ink={ink} isDark={isDark} />
+          )}
+          {(c.nbAdultes !== undefined && c.nbAdultes > 0) && (
+            <StageField icon={Users} label="Nombre d'adultes" value={`${c.nbAdultes}`} accent={accent} ink={ink} isDark={isDark} />
+          )}
+          {(c.nbEnfants !== undefined && c.nbEnfants > 0) && (
+            <StageField icon={Users} label="Nombre d'enfants" value={`${c.nbEnfants}`} accent={accent} ink={ink} isDark={isDark} />
+          )}
+          {client.flexibiliteDates && (
+            <StageField icon={Clock} label="Flexibilité sur les dates" value={client.flexibiliteDates} accent={accent} ink={ink} isDark={isDark} />
+          )}
+        </StageSection>
       </div>
     );
   };
 
   const renderProximites = () => {
     const p = client.proximites;
-    if (!p) return renderEmpty();
-    const hasAny = p.transports?.length || p.commerces?.length || p.education?.length || p.sante?.length || p.loisirs?.length;
-    if (!hasAny) return renderEmpty();
-
-    return (
-      <div className="space-y-3">
-        <h3 className="text-sm font-medium flex items-center gap-2 mb-3">
-          <MapPin size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />
-          Proximités
-        </h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-          {renderCategorieGroup(p.transports, 'Transports')}
-          {renderCategorieGroup(p.commerces, 'Commerces & Services')}
-          {renderCategorieGroup(p.education, 'Éducation')}
-          {renderCategorieGroup(p.sante, 'Santé & Sport')}
-          {renderCategorieGroup(p.loisirs, 'Loisirs & Nature')}
-        </div>
-      </div>
-    );
+    return <ProximitesGrid data={p} accent={accent} ink={ink} isDark={isDark} />;
   };
 
   const renderPrestations = () => {
     const p = client.prestations;
-    if (!p) return renderEmpty();
-    const hasAny = p.exterieur?.length || p.confort?.length || p.electromenager?.length || p.multimedia?.length || p.sport?.length;
-    if (!hasAny) return renderEmpty();
-
     return (
-      <div className="space-y-3">
-        <h3 className="text-sm font-medium flex items-center gap-2 mb-3">
-          <Star size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />
-          Prestations
-        </h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-          {renderCategorieGroup(p.exterieur, 'Extérieur & Services')}
-          {renderCategorieGroup(p.confort, 'Équipements')}
-          {renderCategorieGroup(p.electromenager, 'Cuisine')}
-          {renderCategorieGroup(p.multimedia, 'Divertissement')}
-        </div>
-      </div>
+      <PrestationsGrid
+        data={p}
+        accent={accent}
+        ink={ink}
+        isDark={isDark}
+        only={['exterieur', 'confort', 'electromenager', 'multimedia']}
+        labels={{ exterieur: 'Extérieur & Services', confort: 'Équipements', electromenager: 'Cuisine', multimedia: 'Divertissement' }}
+      />
     );
   };
 
@@ -673,23 +615,16 @@ export const VoyageurDetailTabs = ({ client: initialClient, adminId, agentId, hi
   };
 
   return (
-    <div className="bg-card rounded-xl border border-border/50 shadow-card mt-4">
-      <div className="px-6 border-b border-border/30 flex justify-between overflow-x-auto rounded-t-xl">
-        {visibleTabs.map((t) => (
-          <button
-            key={t.id}
-            onClick={() => setActiveTab(t.id)}
-            className={`py-3 px-2 text-xs font-medium border-b-2 transition-all text-center whitespace-nowrap ${
-              activeTab === t.id ? (isGerant ? 'text-[#905D5D] border-[#905D5D]' : 'text-accent border-accent') : 'text-text-secondary border-transparent hover:text-text'
-            }`}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
-      <div className="p-5">
+    <>
+      <ClientTabsShell
+        tabs={visibleTabs}
+        activeTab={activeTab}
+        onChange={setActiveTab}
+        clientType={client.type}
+        isGerant={isGerant}
+      >
         {renderTabContent()}
-      </div>
+      </ClientTabsShell>
 
       {viewerUrl && (
         <div className="fixed inset-0 z-50 bg-black/80 flex flex-col items-center justify-center" onClick={(e) => { if (e.target === e.currentTarget) closeViewer(); }}>
@@ -708,6 +643,6 @@ export const VoyageurDetailTabs = ({ client: initialClient, adminId, agentId, hi
           </div>
         </div>
       )}
-    </div>
+    </>
   );
 };

@@ -2,6 +2,7 @@ import pool from '../config/db.js';
 import { broadcastToConversation, broadcastToUser } from '../ws/server.js';
 import { getPresence } from '../ws/presence.js';
 import { getMessagingSettings, saveMessagingSettings, MESSAGING_SETTINGS_DEFAULTS } from '../services/message-digest.service.js';
+import { transcribeAudio } from '../services/whisper.service.js';
 
 const ALLOWED_REACTIONS = [
   '👍', '❤️', '😂', '😮', '😢', '🙏',
@@ -308,6 +309,8 @@ function buildMessage(row, userMap, viewerId, readMap, settingsMap = {}, isGroup
 function rawPreview(row) {
   if (!row) return '';
   if (row.deleted_at) return 'Message supprimé';
+  // Sealed (E2EE) bodies are opaque ciphertext — never expose them in previews.
+  if (row.kind === 'sealed') return '🔒 Message chiffré';
   if (row.attachment_name) return row.attachment_name;
   if (row.is_call) {
     const dir = row.call_direction === 'outgoing' ? 'Appel' : row.call_direction === 'missed' ? 'Appel manqué' : 'Appel';
@@ -539,7 +542,7 @@ export async function getMessages(req, res) {
 
 export async function createConversation(req, res) {
   try {
-    const { participantIds, name, firstMessage } = req.body || {};
+    const { participantIds, name, firstMessage, kind } = req.body || {};
     if (!Array.isArray(participantIds) || participantIds.length === 0) {
       return res.status(400).json({ error: 'Au moins un destinataire est requis' });
     }
@@ -596,8 +599,8 @@ export async function createConversation(req, res) {
         disableReadReceipts: senderSettings.disableReadReceipts,
       });
       await pool.query(
-        `INSERT INTO messages (conversation_id, sender_id, body, kind, receipt_settings) VALUES ($1, $2, $3, 'text', $4)`,
-        [conversationId, req.user.id, firstMessage.trim(), receiptSettings]
+        `INSERT INTO messages (conversation_id, sender_id, body, kind, receipt_settings) VALUES ($1, $2, $3, $4, $5)`,
+        [conversationId, req.user.id, firstMessage.trim(), kind === 'sealed' ? 'sealed' : 'text', receiptSettings]
       );
       await pool.query(
         `UPDATE conversations SET last_message_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP WHERE id = $1`,
@@ -911,9 +914,28 @@ export async function uploadVoice(req, res) {
   try {
     if (!req.file) return res.status(400).json({ error: 'Aucun fichier audio' });
     const sizeMb = req.file.size / (1024 * 1024);
+
+    // Best-effort French transcription via the local faster-whisper service.
+    // The upload still succeeds if the speech-to-text service is unavailable.
+    let transcript = null;
+    let transcriptError = null;
+    try {
+      const result = await transcribeAudio(req.file.path, {
+        language: req.body?.language || 'fr',
+        filename: req.file.filename,
+        mime: req.file.mimetype,
+      });
+      transcript = result.text || '';
+    } catch (err) {
+      transcriptError = err.message;
+      console.error('Voice transcription failed:', err.message);
+    }
+
     res.json({
       url: `/uploads/voice/${req.file.filename}`,
       size: `${sizeMb.toFixed(1)} Mo`,
+      transcript,
+      ...(transcriptError ? { transcriptError } : {}),
     });
   } catch (error) {
     console.error('Error uploading voice message:', error);
@@ -1072,6 +1094,184 @@ export async function updateMessagingSettingsController(req, res) {
     res.json(saved);
   } catch (error) {
     console.error('Error saving messaging settings:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+}
+
+// ---------------------------------------------------------------------------
+// End-to-end encryption: public key distribution (Signal prekey bundles).
+// The server stores and forwards PUBLIC keys only — it can never decrypt.
+// ---------------------------------------------------------------------------
+
+function isB64SizeOk(value, byteLength) {
+  if (typeof value !== 'string' || value.length === 0 || value.length > 512) return false;
+  if (!/^[A-Za-z0-9+/=_-]+$/.test(value)) return false;
+  // base64 length must decode to the expected size (tolerate padding)
+  const approx = Math.floor((value.length * 3) / 4);
+  return approx >= byteLength && approx <= byteLength + 3;
+}
+
+export async function publishSignalKeys(req, res) {
+  try {
+    const { identityKey, registrationId, signedPreKey, preKeys } = req.body || {};
+    if (!isB64SizeOk(identityKey, 32)) {
+      return res.status(400).json({ error: "Clé d'identité invalide" });
+    }
+    if (!Number.isInteger(registrationId)) {
+      return res.status(400).json({ error: "Registration ID invalide" });
+    }
+    if (
+      !signedPreKey ||
+      !Number.isInteger(signedPreKey.keyId) ||
+      !isB64SizeOk(signedPreKey.publicKey, 33) ||
+      !isB64SizeOk(signedPreKey.signature, 64)
+    ) {
+      return res.status(400).json({ error: 'Signed prekey invalide' });
+    }
+    if (!Array.isArray(preKeys) || preKeys.length > 100) {
+      return res.status(400).json({ error: 'Lot de prekeys invalide' });
+    }
+    for (const pk of preKeys) {
+      if (!pk || !Number.isInteger(pk.keyId) || !isB64SizeOk(pk.publicKey, 33)) {
+        return res.status(400).json({ error: 'Prekey invalide' });
+      }
+    }
+
+    const { rows: prevRows } = await pool.query(
+      'SELECT identity_key FROM signal_identities WHERE user_id = $1',
+      [req.user.id]
+    );
+    const identityChanged = prevRows.length === 0 || prevRows[0].identity_key !== identityKey;
+
+    await pool.query(
+      `INSERT INTO signal_identities (user_id, identity_key, registration_id, signed_prekey_id, signed_prekey_pub, signed_prekey_sig, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP)
+       ON CONFLICT (user_id) DO UPDATE SET
+         identity_key = EXCLUDED.identity_key,
+         registration_id = EXCLUDED.registration_id,
+         signed_prekey_id = EXCLUDED.signed_prekey_id,
+         signed_prekey_pub = EXCLUDED.signed_prekey_pub,
+         signed_prekey_sig = EXCLUDED.signed_prekey_sig,
+         updated_at = CURRENT_TIMESTAMP`,
+      [req.user.id, identityKey, registrationId, signedPreKey.keyId, signedPreKey.publicKey, signedPreKey.signature]
+    );
+
+    if (identityChanged) {
+      // New identity (fresh install / wiped device): previously pooled
+      // one-time prekeys belong to a dead device whose private halves are
+      // gone. Handing them out would produce undecryptable first messages,
+      // so purge them — the batch below restocks the pool for the new device.
+      await pool.query('DELETE FROM signal_prekeys WHERE user_id = $1', [req.user.id]);
+    }
+
+    for (const pk of preKeys) {
+      await pool.query(
+        `INSERT INTO signal_prekeys (user_id, key_id, public_key) VALUES ($1, $2, $3)
+         ON CONFLICT (user_id, key_id) DO NOTHING`,
+        [req.user.id, pk.keyId, pk.publicKey]
+      );
+    }
+
+    res.json({ ok: true });
+  } catch (error) {
+    console.error('Error publishing signal keys:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+}
+
+export async function getSignalBundle(req, res) {
+  const targetId = Number(req.params.userId);
+  if (!Number.isInteger(targetId)) {
+    return res.status(400).json({ error: 'Utilisateur invalide' });
+  }
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const { rows: idRows } = await client.query(
+      'SELECT identity_key, registration_id, signed_prekey_id, signed_prekey_pub, signed_prekey_sig FROM signal_identities WHERE user_id = $1',
+      [targetId]
+    );
+    if (idRows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: 'Aucune clé publiée pour cet utilisateur' });
+    }
+    // Atomically hand out a single one-time prekey (each is single-use).
+    const { rows: preRows } = await client.query(
+      `SELECT key_id, public_key FROM signal_prekeys
+       WHERE user_id = $1 AND used = false
+       ORDER BY key_id LIMIT 1 FOR UPDATE SKIP LOCKED`,
+      [targetId]
+    );
+    let preKey = null;
+    if (preRows.length > 0) {
+      await client.query(
+        'UPDATE signal_prekeys SET used = true WHERE user_id = $1 AND key_id = $2',
+        [targetId, preRows[0].key_id]
+      );
+      preKey = { keyId: preRows[0].key_id, publicKey: preRows[0].public_key };
+    }
+    const { rows: countRows } = await client.query(
+      'SELECT COUNT(*)::int AS remaining FROM signal_prekeys WHERE user_id = $1 AND used = false',
+      [targetId]
+    );
+    await client.query('COMMIT');
+    const id = idRows[0];
+    res.json({
+      userId: String(targetId),
+      identityKey: id.identity_key,
+      registrationId: id.registration_id,
+      signedPreKey: {
+        keyId: id.signed_prekey_id,
+        publicKey: id.signed_prekey_pub,
+        signature: id.signed_prekey_sig,
+      },
+      preKey,
+      remaining: countRows[0]?.remaining ?? 0,
+    });
+  } catch (error) {
+    try {
+      await client.query('ROLLBACK');
+    } catch {
+      // ignore rollback errors
+    }
+    console.error('Error fetching signal bundle:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  } finally {
+    client.release();
+  }
+}
+
+export async function countSignalPreKeys(req, res) {
+  try {
+    const { rows } = await pool.query(
+      'SELECT COUNT(*)::int AS remaining FROM signal_prekeys WHERE user_id = $1 AND used = false',
+      [req.user.id]
+    );
+    res.json({ remaining: rows[0]?.remaining ?? 0 });
+  } catch (error) {
+    console.error('Error counting signal prekeys:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+}
+
+export async function getSignalIdentity(req, res) {
+  try {
+    const targetId = Number(req.params.userId);
+    if (!Number.isInteger(targetId)) {
+      return res.status(400).json({ error: 'Utilisateur invalide' });
+    }
+    // Identity only — unlike the bundle endpoint this consumes nothing, so
+    // clients can poll it to detect safety-number changes.
+    const { rows } = await pool.query(
+      'SELECT identity_key FROM signal_identities WHERE user_id = $1',
+      [targetId]
+    );
+    if (rows.length === 0) {
+      return res.status(404).json({ error: 'Aucune clé publiée pour cet utilisateur' });
+    }
+    res.json({ userId: String(targetId), identityKey: rows[0].identity_key });
+  } catch (error) {
+    console.error('Error fetching signal identity:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 }

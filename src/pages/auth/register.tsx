@@ -80,7 +80,7 @@ export default function RegisterPage() {
           <Input label="Email" type="email" name="email" placeholder="agent@email.com" value={formData.email} onChange={handleChange} error={errors.email} icon={<Mail size={14} />} />
           <Input label="Téléphone" type="tel" name="phone" placeholder="+212 6 12 34 56 78" value={formData.phone} onChange={handleChange} error={errors.phone} icon={<Phone size={14} />} />
           <div>
-            <Input label="Mot de passe" type="password" name="password" placeholder="••••••••" value={formData.password} onChange={handleChange} error={errors.password} icon={<Lock size={14} />} />
+            <Input label="Mot de passe" type="password" name="password" placeholder="••••••••" value={formData.password} onChange={handleChange} error={errors.password} icon={<Lock size={14} />} revealable />
             <PasswordStrengthMeter password={formData.password} />
           </div>
         </div>

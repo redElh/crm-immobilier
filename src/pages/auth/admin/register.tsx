@@ -4,7 +4,6 @@ import { Link, useNavigate } from 'react-router-dom'
 import { AuthFormContainer } from '../../../components/auth/AuthFormContainer'
 import { Input } from '../../../components/ui/Input'
 import { Button } from '../../../components/ui/Button'
-import { SocialAuthButtons } from '../../../components/auth/SocialAuthButtons'
 import { PasswordStrengthMeter } from '../../../components/auth/PasswordStrengthMeter'
 import { getAuthToken } from '../../../utils/auth'
 import { useToast } from '../../../components/ui/Toast'
@@ -116,7 +115,7 @@ export default function AdminRegisterPage() {
           <Input label="Email" type="email" name="email" placeholder="admin@email.com" value={formData.email} onChange={handleChange} error={errors.email} icon={<Mail size={14} />} />
           <Input label="Téléphone" type="tel" name="phone" placeholder="+212 6 12 34 56 78" value={formData.phone} onChange={handleChange} error={errors.phone} icon={<Phone size={14} />} />
           <div>
-            <Input label="Mot de passe" type="password" name="password" placeholder="••••••••" value={formData.password} onChange={handleChange} error={errors.password} icon={<Lock size={14} />} />
+            <Input label="Mot de passe" type="password" name="password" placeholder="••••••••" value={formData.password} onChange={handleChange} error={errors.password} icon={<Lock size={14} />} revealable />
             <PasswordStrengthMeter password={formData.password} />
           </div>
         </div>
@@ -124,13 +123,6 @@ export default function AdminRegisterPage() {
         <Button type="submit" variant="primary" className="w-full golden-border-animated" loading={isLoading}>
           Créer mon compte administrateur
         </Button>
-
-        <div className="relative my-4">
-          <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-border" /></div>
-          <div className="relative flex justify-center text-xs"><span className="px-2 bg-card text-text-secondary">Ou continuer avec</span></div>
-        </div>
-
-        <SocialAuthButtons />
 
         <p className="text-center text-xs text-text-secondary">
           Vous avez déjà un compte ?{' '}

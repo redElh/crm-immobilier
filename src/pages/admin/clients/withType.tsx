@@ -9,7 +9,7 @@ import {
   Search, Sliders, X, MoreVertical, User, Edit3, Copy, Repeat, Trash2,
   Eye, Phone, Mail, MapPin, CheckCircle, AlertTriangle,
   Users, Shield, Calendar, Star, Home, Briefcase, Sun, Plus,
-  ArrowUp, ArrowDown, UserCheck, FileText, DollarSign, TrendingUp, Layers, Zap, Activity, Filter, ArrowLeft, ChevronDown
+  ArrowUp, ArrowDown, UserCheck, FileText, DollarSign, TrendingUp, Layers, Zap, Activity, Filter, ArrowLeft, ChevronDown, ChevronRight
 } from 'react-feather';
 import { CITIES } from './mockData';
 import type { AdminClient } from './mockData';
@@ -21,6 +21,7 @@ import { LocataireFormModal } from '../../../components/modules/clients/Locatair
 import { VoyageurFormModal } from '../../../components/modules/clients/VoyageurFormModal';
 import { ClientFormModal } from '../../../components/modules/clients/ClientFormModal';
 import { ClientDraftSection } from '../../../components/modules/clients/ClientDraftSection';
+import { getClientStatusHue, getClientInitials } from '../../../components/modules/clients/ClientCard';
 import { api } from '../../../services/api';
 import { deleteClient, fetchClients, duplicateClient } from '../../../services/clientService';
 import { useToast } from '../../../components/ui/Toast';
@@ -136,116 +137,180 @@ const typeKpiConfig: Record<string, { label: string; icon: any; hue: any }[]> = 
   ],
 };
 
-const CLIENT_COLORS = ['bg-violet-500', 'bg-blue-500', 'bg-emerald-500', 'bg-amber-500', 'bg-rose-500', 'bg-indigo-500', 'bg-cyan-500', 'bg-pink-500'];
-const HONORIFICS = new Set(['m', 'mme', 'mlle', 'mr', 'mrs', 'dr', 'pr', 'maitre', 'me']);
-const getClientInitials = (name?: string) => {
-  if (!name) return '??';
-  const words = name.trim().split(/\s+/).filter(Boolean);
-  const meaningful = words.filter(w => !HONORIFICS.has(w.replace(/\.$/, '').toLowerCase()));
-  const src = meaningful.length > 0 ? meaningful : words;
-  return src.slice(0, 2).map(w => w[0].toUpperCase()).join('') || '??';
+/* Sidebar emerald identity (agent shell): logo orb #2DD4BF -> #0D9488.
+   Admin cards use it in light mode (premium staged); dark keeps hue. */
+const SIDEBAR_EMERALD = {
+  a: '#2DD4BF',
+  b: '#0D9488',
+  glow: 'rgba(13,148,136,0.35)',
+  line: '#14B8A6',
 };
-const getClientColor = (name?: string) => {
-  const s = (name || '').trim();
-  if (!s) return 'bg-gray-400';
-  const seed = s.split('').reduce((a, ch) => a + ch.charCodeAt(0), 0);
-  return CLIENT_COLORS[seed % CLIENT_COLORS.length];
-};
+const LIGHT_INK = '#0F766E';
 
-function StageClientCard({ client, onClick, onMenu, isDark, hue }: { client: any; onClick: () => void; onMenu: (e: React.MouseEvent) => void; isDark: boolean; hue: any }) {
-  const statusKey = (client.statutMetier || client.status || '').trim();
-  const badgeClass = STATUS_COLORS[statusKey] || 'bg-slate-100 text-slate-600 border-slate-200';
-  const [hovered, setHovered] = useState(false);
-  const tiltRef = useRef<HTMLDivElement>(null);
-  const rafRef = useRef<number | null>(null);
-  const applyTilt = (x: number, y: number) => {
-    const el = tiltRef.current;
-    if (!el) return;
-    el.style.transform = `rotateX(${(y - 0.5) * -8}deg) rotateY(${(x - 0.5) * 8}deg)`;
-  };
-  const handleMove = (e: React.MouseEvent) => {
-    const r = e.currentTarget.getBoundingClientRect();
-    if (rafRef.current) cancelAnimationFrame(rafRef.current);
-    rafRef.current = requestAnimationFrame(() => applyTilt((e.clientX - r.left) / r.width, (e.clientY - r.top) / r.height));
-  };
-  const handleLeave = () => {
-    setHovered(false);
-    if (rafRef.current) cancelAnimationFrame(rafRef.current);
-    if (tiltRef.current) tiltRef.current.style.transform = 'rotateX(0deg) rotateY(0deg)';
-  };
+/* Premium Stage client card — dark: hue identity; light: sidebar emerald
+   shades. Status badge = per-status convenient color (all types).
+   Orb avatar, chip details, halo + lift. Footer pinned to bottom. */
+function StageClientCard({ client, onClick, onMenu, isDark, hue, index = 0 }: { client: any; onClick: () => void; onMenu: (e: React.MouseEvent) => void; isDark: boolean; hue: any; index?: number }) {
+  const statusKey = (client.statutMetier || client.status || '').trim() || '—';
+  const accent = isDark ? hue : SIDEBAR_EMERALD;
+  const ink = isDark ? hue.a : LIGHT_INK;
+  const statusHue = getClientStatusHue(statusKey) || accent;
+  const badgeStyle: React.CSSProperties = isDark
+    ? { background: `${statusHue.a}2E`, color: '#fff', border: `1px solid ${statusHue.a}5C`, boxShadow: `0 2px 12px ${statusHue.glow}, inset 0 1px 0 rgba(255,255,255,0.14)` }
+    : { background: `${statusHue.a}1C`, color: statusHue.b, border: `1px solid ${statusHue.a}42`, boxShadow: `0 2px 10px ${statusHue.glow}, inset 0 1px 0 rgba(255,255,255,0.7)` };
+  const devise = (client as any).devise || 'MAD';
+  const fmt = (v?: number) => (v != null ? Number(v).toLocaleString('fr-FR') : null);
+  const money = client.budget != null
+    ? `${fmt(client.budget)} ${devise}`
+    : (client.prixMin != null || client.prixMax != null)
+      ? `${fmt(client.prixMin) || '?'} ~ ${fmt(client.prixMax) || '?'} ${devise}`
+      : client.loyerHC != null
+        ? `${fmt(client.loyerHC)} ${devise}/mois`
+        : client.tarifNuit != null
+          ? `${fmt(client.tarifNuit)} ${devise}/nuit`
+          : client.budgetTotal != null
+            ? `Total ${fmt(client.budgetTotal)} ${devise}`
+            : null;
+  const units = client.pieces
+    ? `${client.pieces} pièces`
+    : client.chambres
+      ? `${client.chambres} ch.`
+      : client.nbPersonnes || client.nbVoyageurs
+        ? `${client.nbPersonnes || client.nbVoyageurs} pers.`
+        : null;
   return (
-    <div
-      className="group relative h-full cursor-pointer"
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={handleLeave}
-      onMouseMove={handleMove}
-      onClick={onClick}
-      style={{ perspective: 900 }}
+    <motion.div
+      layout
+      className="h-full"
+      initial={{ opacity: 0, y: 28, scale: 0.96, filter: 'blur(6px)' }}
+      animate={{ opacity: 1, y: 0, scale: 1, filter: 'blur(0px)' }}
+      whileHover={{ y: -5 }}
+      transition={{ duration: 0.55, delay: Math.min(index * 0.05, 0.4), ease: [0.22, 1, 0.36, 1] }}
     >
-      <div className="absolute -inset-2 rounded-[22px] -z-10 pointer-events-none" style={{ background: `radial-gradient(ellipse at center, ${hue.glow} 0%, transparent 65%)`, opacity: hovered ? 0.28 : 0.12, transition: 'opacity 0.3s' }} />
-      <div
-        ref={tiltRef}
-        className="relative flex h-full flex-col overflow-hidden rounded-2xl border"
-        style={{
-          transformStyle: 'preserve-3d', transition: 'transform 0.15s ease-out',
-          background: isDark ? 'linear-gradient(145deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02))' : 'linear-gradient(145deg, rgba(255,255,255,0.92), rgba(255,255,255,0.58))',
-          borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(15,23,42,0.08)',
-          boxShadow: isDark ? `inset 0 1px 0 rgba(255,255,255,0.07), 0 12px 32px -12px ${hue.glow}` : `inset 0 1px 0 rgba(255,255,255,0.9), 0 12px 32px -16px ${hue.glow}`,
-        }}
-      >
-        <div className="absolute top-0 left-0 right-0 h-[2px]" style={{ background: `linear-gradient(90deg, ${hue.a}, ${hue.b})`, opacity: hovered ? 1 : 0.7 }} />
-        <div className="p-4 pb-3">
-          <div className="flex items-start justify-between gap-3">
-            <div className="flex items-center gap-3 min-w-0">
-              <div className="relative shrink-0" style={{ transform: 'translateZ(14px)' }}>
-                <div className={`w-11 h-11 rounded-xl ${getClientColor(client.name)} flex items-center justify-center text-white text-xs font-extrabold shadow-lg`} style={{ boxShadow: `0 8px 20px -8px ${hue.glow}, inset 0 1px 0 rgba(255,255,255,0.35)` }}>{getClientInitials(client.name)}</div>
-                <span className="absolute -bottom-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full border-2 border-white text-[8px] font-bold text-white" style={{ background: `linear-gradient(145deg, ${hue.a}, ${hue.b})` }}>
-                  <CheckCircle size={8} />
-                </span>
+      <div className="group relative h-full cursor-pointer" onClick={onClick} style={{ perspective: 1000 }}>
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute -inset-2 rounded-[26px] opacity-60 transition-opacity duration-500 group-hover:opacity-100"
+          style={{ background: `radial-gradient(60% 55% at 50% 0%, ${accent.glow}, transparent 70%)`, filter: 'blur(18px)' }}
+        />
+        <TiltCard className="h-full !rounded-[20px]" onClick={onClick}>
+          <div className="absolute inset-x-0 top-0 z-10 h-[3px]" style={{ background: `linear-gradient(90deg, ${accent.a}, ${accent.b})`, boxShadow: `0 0 14px ${accent.glow}` }} />
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-0"
+            style={{
+              background: isDark
+                ? `radial-gradient(120% 85% at 50% 0%, ${accent.a}26, transparent 62%), radial-gradient(80% 60% at 100% 100%, ${accent.b}14, transparent 60%)`
+                : `radial-gradient(120% 85% at 50% 0%, ${accent.a}1F, transparent 62%), radial-gradient(80% 60% at 100% 100%, ${accent.a}10, transparent 60%)`,
+            }}
+          />
+          <div className="relative flex h-full flex-col">
+            <div className="flex flex-1 flex-col px-4 pb-3 pt-4">
+              <div className="flex items-start gap-3">
+                <div className="relative shrink-0">
+                  <div
+                    className="orb-icon select-none text-[15px] font-extrabold tracking-tight"
+                    style={{ width: 50, height: 50, borderRadius: 16, '--orb-a': accent.a, '--orb-b': accent.b, '--orb-glow': accent.glow } as React.CSSProperties}
+                  >
+                    {getClientInitials(client.name)}
+                  </div>
+                  <span
+                    className="absolute -bottom-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full border-2 text-white"
+                    style={{ borderColor: isDark ? '#0B1022' : '#ffffff', background: `linear-gradient(145deg, ${accent.a}, ${accent.b})`, boxShadow: `0 2px 8px ${accent.glow}` }}
+                  >
+                    <CheckCircle size={9} />
+                  </span>
+                </div>
+                <div className="min-w-0 flex-1 pt-0.5">
+                  <h3 className={`truncate text-[15px] font-extrabold leading-snug tracking-[-0.2px] ${isDark ? 'text-white' : 'text-slate-900'}`}>{client.name || 'Sans nom'}</h3>
+                  <div className={`mt-1 flex min-w-0 items-center gap-2 text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                    <span className="inline-flex min-w-0 items-center gap-1 truncate">
+                      <Phone size={11} className="shrink-0" style={{ color: ink }} />
+                      <span className="truncate font-medium">{client.phone || '—'}</span>
+                    </span>
+                    {client.email && (
+                      <span className="inline-flex min-w-0 items-center gap-1 truncate">
+                        <span className={isDark ? 'text-slate-600' : 'text-slate-300'}>·</span>
+                        <Mail size={11} className="shrink-0 opacity-60" />
+                        <span className="truncate">{client.email}</span>
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <button
+                  onClick={(e) => { e.stopPropagation(); onMenu(e); }}
+                  title="Actions"
+                  className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border backdrop-blur-md transition-all duration-200 hover:scale-105 active:scale-95 ${isDark ? 'border-white/10 bg-white/[0.05] text-slate-400 hover:border-white/20 hover:bg-white/10 hover:text-white' : 'border-slate-200/80 bg-white text-slate-500 shadow-sm hover:bg-white hover:text-slate-900'}`}
+                >
+                  <MoreVertical size={14} />
+                </button>
               </div>
-              <div className="min-w-0">
-                <h3 className={`truncate text-sm font-bold tracking-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>{client.name || 'Sans nom'}</h3>
-                <div className="flex items-center gap-1.5 mt-0.5">
-                  <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-bold ${badgeClass}`}>{statusKey || '—'}</span>
-                  {(client as any).originalClientId && <span className="rounded-full bg-orange-100 text-orange-700 px-1.5 py-0.5 text-[8px] font-bold uppercase">Copie</span>}
+
+              <div className="mt-3 flex flex-wrap items-center gap-1.5">
+                <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-[0.08em] backdrop-blur-md" style={badgeStyle}>
+                  <span className="relative flex h-1.5 w-1.5">
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full opacity-60" style={{ background: statusHue.line }} />
+                    <span className="relative inline-flex h-1.5 w-1.5 rounded-full" style={{ background: statusHue.line, boxShadow: `0 0 8px ${statusHue.glow}` }} />
+                  </span>
+                  <span className="max-w-[160px] truncate">{statusKey}</span>
+                </span>
+                {client.type && (
+                  <span
+                    className="inline-flex items-center rounded-full px-2 py-1 text-[10px] font-bold"
+                    style={isDark ? { background: `${accent.a}14`, color: accent.a, border: `1px solid ${accent.a}30` } : { background: `${accent.a}12`, color: ink, border: `1px solid ${accent.a}30` }}
+                  >
+                    {client.type}
+                  </span>
+                )}
+                {(client as any).originalClientId && (
+                  <span className={`inline-flex items-center rounded-full border px-2 py-1 text-[10px] font-bold uppercase ${isDark ? 'border-amber-400/25 bg-amber-400/10 text-amber-300' : 'border-amber-300/60 bg-amber-50 text-amber-700'}`}>Copie</span>
+                )}
+              </div>
+
+              <div className="mt-3 grid grid-cols-2 gap-1.5">
+                <div className={`flex min-w-0 items-center gap-1.5 rounded-xl border px-2 py-[7px] backdrop-blur-sm ${isDark ? 'border-white/[0.07] bg-white/[0.04]' : 'border-slate-200/70 bg-white/75 shadow-[0_1px_2px_rgba(15,23,42,0.05)]'}`}>
+                  <MapPin size={12} className="shrink-0" style={{ color: ink }} />
+                  <span className={`truncate text-[11px] font-semibold ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>{client.secteur || client.area || '—'}</span>
+                </div>
+                <div className={`flex min-w-0 items-center gap-1.5 rounded-xl border px-2 py-[7px] backdrop-blur-sm ${isDark ? 'border-white/[0.07] bg-white/[0.04]' : 'border-slate-200/70 bg-white/75 shadow-[0_1px_2px_rgba(15,23,42,0.05)]'}`}>
+                  <Home size={12} className="shrink-0" style={{ color: ink }} />
+                  <span className={`truncate text-[11px] font-semibold ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>{client.propertyType || '—'}</span>
                 </div>
               </div>
+              <div className="mt-1.5 flex flex-wrap gap-1.5">
+                {money && (
+                  <span
+                    className="inline-flex max-w-full items-center truncate rounded-lg px-2 py-1 text-[10px] font-bold"
+                    style={isDark ? { background: `${accent.a}1E`, color: accent.a, border: `1px solid ${accent.a}36` } : { background: `${accent.a}14`, color: ink, border: `1px solid ${accent.a}36` }}
+                  >
+                    <DollarSign size={10} className="mr-1 shrink-0" />
+                    <span className="truncate">{money}</span>
+                  </span>
+                )}
+                {units && (
+                  <span className={`inline-flex items-center rounded-lg border px-2 py-1 text-[10px] font-semibold ${isDark ? 'border-white/10 bg-white/[0.04] text-slate-300' : 'border-slate-200/80 bg-white/60 text-slate-500'}`}>{units}</span>
+                )}
+                {client.agentDesigne || client.agentId ? (
+                  <span className={`inline-flex max-w-full items-center gap-1 truncate rounded-lg border px-2 py-1 text-[10px] font-semibold ${isDark ? 'border-white/10 bg-white/[0.04] text-slate-300' : 'border-slate-200/80 bg-white/60 text-slate-500'}`}>
+                    <User size={10} className="shrink-0 opacity-60" />
+                    <span className="truncate">{client.agentDesigne || 'Assigné'}</span>
+                  </span>
+                ) : null}
+              </div>
+              {/* spacer pushes footer to the bottom so all cards align */}
+              <div className="flex-1" style={{ minHeight: 12 }} />
             </div>
-            <button onClick={(e) => { e.stopPropagation(); onMenu(e); }} className={`flex h-8 w-8 items-center justify-center rounded-xl border backdrop-blur-md transition-colors ${isDark ? 'bg-white/5 border-white/10 text-slate-400 hover:bg-white/10 hover:text-white' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50 hover:text-slate-900'}`}>
-              <MoreVertical size={14} />
-            </button>
+            <div className={`mt-auto flex items-center justify-between gap-2 border-t px-4 py-2.5 backdrop-blur-md ${isDark ? 'border-white/[0.06] bg-white/[0.02]' : 'border-teal-900/10 bg-white/60'}`}>
+              <span className="group/btn inline-flex cursor-pointer items-center gap-1 text-xs font-bold transition-all duration-200 hover:gap-1.5" style={{ color: ink }} onClick={(e) => { e.stopPropagation(); onClick(); }}>
+                Voir fiche
+                <ChevronRight size={13} strokeWidth={2.5} className="transition-transform duration-200 group-hover/btn:translate-x-0.5" />
+              </span>
+              <span className={`text-[10px] font-medium tabular-nums ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>{client.lastContact ? new Date(client.lastContact).toLocaleDateString('fr-FR') : ''}</span>
+            </div>
           </div>
-          <div className="mt-3 flex items-center gap-2 text-xs">
-            <span className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-[11px] font-medium ${isDark ? 'bg-white/5 text-slate-300' : 'bg-slate-50 text-slate-600'}`}>
-              <Phone size={11} /> {client.phone || '—'}
-            </span>
-            <span className={`truncate text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{client.email || ''}</span>
-          </div>
-        </div>
-        <div className={`mx-4 h-px ${isDark ? 'bg-white/5' : 'bg-slate-100'}`} />
-        <div className="flex-1 p-4 pt-3 space-y-2">
-          <div className="grid grid-cols-2 gap-2 text-xs">
-            <span className={`inline-flex items-center gap-1 rounded-lg px-2 py-1.5 ${isDark ? 'bg-white/5 text-slate-300' : 'bg-slate-50 text-slate-600'}`}>
-              <MapPin size={11} className="opacity-60" /> {client.secteur || client.area || '—'}
-            </span>
-            <span className={`inline-flex items-center gap-1 rounded-lg px-2 py-1.5 ${isDark ? 'bg-white/5 text-slate-300' : 'bg-slate-50 text-slate-600'}`}>
-              <Home size={11} className="opacity-60" /> {client.propertyType || '—'}
-            </span>
-          </div>
-          <div className="flex flex-wrap gap-1.5">
-            {client.budget ? <span className="rounded-full bg-emerald-500/10 text-emerald-600 border border-emerald-500/15 px-2 py-1 text-[10px] font-semibold">{Number(client.budget).toLocaleString('fr-FR')} {(client as any).devise || 'MAD'}</span> : null}
-            {client.pieces ? <span className={`rounded-full px-2 py-1 text-[10px] font-medium border ${isDark ? 'bg-white/5 text-slate-300 border-white/10' : 'bg-white text-slate-600 border-slate-200'}`}>{client.pieces} pièces</span> : null}
-            {client.statutMetier ? <span className="rounded-full bg-violet-500/10 text-violet-600 border border-violet-500/15 px-2 py-1 text-[10px] font-semibold">{client.statutMetier}</span> : null}
-          </div>
-        </div>
-        <div className={`flex items-center justify-between border-t px-4 py-2.5 ${isDark ? 'bg-white/[0.02] border-white/5' : 'bg-slate-50/50 border-slate-100'}`}>
-          <span className={`inline-flex items-center gap-1 text-xs font-medium ${isDark ? 'text-violet-300' : 'text-violet-600'}`}>
-            Voir fiche <ChevronDown size={12} className="rotate-[-90deg]" />
-          </span>
-          <span className={`text-[10px] ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>{client.lastContact ? new Date(client.lastContact).toLocaleDateString('fr-FR') : ''}</span>
-        </div>
+        </TiltCard>
       </div>
-    </div>
+    </motion.div>
   );
 }
 
@@ -829,8 +894,8 @@ export default function AdminClientsPageWithType() {
           </div>
         </StagePanel>
 
-        {/* Client List — Stage holographic cards */}
-        <StagePanel title={`Liste des clients • ${filteredClients.length} sur ${clientsForType.length}`} icon={Users} hue={heroHue}>
+        {/* Client List — Stage holographic cards (emerald orb in light mode) */}
+        <StagePanel title={`Liste des clients • ${filteredClients.length} sur ${clientsForType.length}`} icon={Users} hue={isDark ? heroHue : SIDEBAR_EMERALD}>
           {filteredClients.length === 0 ? (
             <div className="py-14 text-center">
               <div className={`mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl ${isDark ? 'bg-white/5 text-slate-500' : 'bg-teal-50 text-teal-700'}`}>
@@ -841,10 +906,11 @@ export default function AdminClientsPageWithType() {
               {activeFiltersCount > 0 && <button onClick={resetFilters} className={`mt-3 inline-flex items-center gap-1 rounded-xl border px-3 py-1.5 text-xs font-semibold ${isDark ? 'border-white/10 bg-white/5 text-slate-300 hover:bg-white/10' : 'border-teal-900/10 bg-white text-teal-700 hover:bg-teal-50'}`}><X size={12} /> Effacer les filtres</button>}
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-              {filteredClients.map((c) => (
+            <div className="grid auto-rows-fr grid-cols-1 items-stretch gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {filteredClients.map((c, i) => (
                 <StageClientCard
                   key={c.id}
+                  index={i}
                   client={c}
                   hue={heroHue}
                   isDark={isDark}

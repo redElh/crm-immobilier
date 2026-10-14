@@ -595,11 +595,19 @@ export default function AddPropertyForm() {
         submitData.priceGrid = convertGridToSave(data.priceGrid);
         submitData.options = convertOptionsToSave(data.options);
       }
+      /* Explicit destinations: all add/edit routes are flat siblings, so a
+         relative '..' would land on the dashboard instead of the type list. */
+      const listPath = adminId
+        ? `/admin/${adminId}/properties/type/${type}`
+        : `/${agentId || userId}/properties/type/${type}`;
       if (editId) {
         await attachMandatSaisonnier(submitData, submitData?.reference)
         await updateProperty(editId, submitData)
         toast('success', 'Bien modifié avec succès')
-        navigate(`/${userId}/properties/type/${type}/${editId}`, { replace: true })
+        const detailPath = adminId
+          ? `/admin/${adminId}/properties/type/${type}/${editId}`
+          : `/${agentId || userId}/properties/type/${type}/${editId}`;
+        navigate(detailPath, { replace: true })
       } else {
         const ref = await generateReference(type)
         submitData.reference = ref
@@ -610,7 +618,7 @@ export default function AddPropertyForm() {
         toast('success', assignedTo && assignedType
           ? `Bien attribué avec succès à ${assignedType === 'admin' ? "l'admin" : "l'agent"}`
           : 'Bien ajouté avec succès')
-        navigate('..', { replace: true })
+        navigate(listPath, { replace: true })
       }
     } catch (e: any) {
       toast('error', e.message || 'Erreur lors de la sauvegarde')
@@ -724,7 +732,7 @@ export default function AddPropertyForm() {
 
   if (!canWrite) {
     return (
-      <div className="p-6 max-w-6xl mx-auto">
+      <div className="p-6 w-full">
         <div className="mb-6">
           <BackLink onClick={handleBackClick} />
         </div>
@@ -745,7 +753,7 @@ export default function AddPropertyForm() {
   // ── STAGED: premium hero + glass tabs + stage footer ──
   if (staged) {
     return (
-      <div className="max-w-6xl mx-auto space-y-6 animate-fade-in pb-8">
+      <div className="w-full space-y-6 animate-fade-in pb-8">
         {/* Command bar */}
         <div className="flex items-center justify-between flex-wrap gap-3">
           <button
@@ -872,7 +880,7 @@ export default function AddPropertyForm() {
 
   // ── ADMIN / fallback: original layout ──
   return (
-    <div className="p-6 max-w-6xl mx-auto">
+    <div className="p-6 w-full">
       <div className="mb-6">
         <BackLink onClick={handleBackClick} />
       </div>

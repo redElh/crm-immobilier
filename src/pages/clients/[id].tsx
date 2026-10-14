@@ -16,13 +16,13 @@ import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "../../components/ui/Button";
-import { BackLink } from "../../components/ui/BackLink";
-import { Heart, Edit3, ExternalLink, Trash2, Lock } from "react-feather";
+import { Heart, Edit3, ExternalLink, Trash2, Lock, ArrowLeft } from "react-feather";
 import { api } from "../../services/api";
 import { deleteClient } from "../../services/clientService";
 import { useToast } from "../../components/ui/Toast";
 import { triggerMandatExpireNotification } from "../../services/automatorTrigger";
 import { useMyPermissions, permissionAllowed } from "../../hooks/useMyPermissions";
+import { useStageTheme } from "../../components/dashboard/Stage";
 
 // Import or define the sampleClients data
 import { sampleClients } from "./index"; // Adjust the import path as needed
@@ -77,6 +77,8 @@ export default function ClientPage() {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [dataRefreshKey, setDataRefreshKey] = useState(0);
   const [currentUser, setCurrentUser] = useState<any>(null);
+  const stageTheme = useStageTheme();
+  const isDark = stageTheme === 'dark';
 
   useEffect(() => {
     api.get<any>('/auth/me').then(setCurrentUser).catch(() => {});
@@ -187,19 +189,57 @@ export default function ClientPage() {
 
   return (
     <ClientLayout>
-      <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
-        <BackLink to={detailBackPath} />
-        <div className="flex items-center gap-2">
-          <Button variant="ghost" size="sm" icon={<Heart size={14} />}
-            className={liked ? 'text-red-500' : ''}
+      {/* ── Staged action bar: Retour + quick actions (fluid entrance) ── */}
+      <motion.div
+        initial={{ opacity: 0, y: -12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+        className="mb-4 flex flex-wrap items-center justify-between gap-3"
+      >
+        <button
+          type="button"
+          onClick={() => navigate(detailBackPath)}
+          className={`group inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-bold backdrop-blur-md transition-all ${isDark ? 'border-white/10 bg-white/[0.04] text-slate-400 hover:border-white/20 hover:bg-white/10 hover:text-white' : 'border-teal-900/10 bg-white/60 text-teal-900/60 hover:border-teal-900/20 hover:bg-white hover:text-teal-900'}`}
+        >
+          <ArrowLeft size={14} className="transition-transform duration-200 group-hover:-translate-x-0.5" />
+          Retour
+        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <motion.button
+            type="button"
+            whileTap={{ scale: 0.85 }}
+            title="J'aime"
             onClick={() => setLiked(!liked)}
-          />
-          {canWrite && <Button variant="outline" size="sm" icon={<Edit3 size={14} />}
-            onClick={() => setIsEditModalOpen(true)}>Modifier</Button>}
-          {canExport && <Button variant="ghost" size="sm" icon={<ExternalLink size={14} />}>Partager</Button>}
+            className={`flex h-9 w-9 items-center justify-center rounded-xl border backdrop-blur-md transition-all duration-200 hover:scale-105 active:scale-95 ${isDark ? 'border-white/10 bg-white/[0.04] text-slate-400 hover:border-white/20 hover:bg-white/10 hover:text-white' : 'border-teal-900/10 bg-white/60 text-slate-500 shadow-sm hover:bg-white hover:text-slate-900'}`}
+          >
+            <Heart size={15} fill={liked ? 'currentColor' : 'none'} className={liked ? 'text-rose-500' : ''} />
+          </motion.button>
+          {canWrite && (
+            <motion.button
+              type="button"
+              whileTap={{ scale: 0.96 }}
+              onClick={() => setIsEditModalOpen(true)}
+              className="inline-flex items-center gap-2 rounded-xl border border-white/20 px-4 py-2 text-xs font-bold text-white shadow-lg transition-all hover:scale-[1.02] active:scale-95"
+              style={isDark
+                ? { backgroundImage: 'linear-gradient(145deg, #8B7CFF 0%, #6C5ECF 60%, #5646C9 100%)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.4), 0 10px 26px -8px rgba(124,92,255,0.65)' }
+                : { backgroundImage: 'linear-gradient(145deg, #2DD4BF 0%, #14B8A6 60%, #0D9488 100%)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.5), 0 10px 26px -10px rgba(13,148,136,0.6)' }}
+            >
+              <Edit3 size={14} />
+              Modifier
+            </motion.button>
+          )}
+          {canExport && (
+            <button
+              type="button"
+              className={`inline-flex items-center gap-2 rounded-xl border px-4 py-2 text-xs font-bold backdrop-blur-md transition-all duration-200 hover:scale-[1.02] active:scale-95 ${isDark ? 'border-white/10 bg-white/[0.04] text-slate-300 hover:bg-white/10 hover:text-white' : 'border-teal-900/10 bg-white/60 text-slate-600 shadow-sm hover:bg-white hover:text-slate-900'}`}
+            >
+              <ExternalLink size={14} />
+              Partager
+            </button>
+          )}
           {canDelete && (
-            <Button variant="ghost" size="sm" icon={<Trash2 size={14} />}
-              className="text-error hover:bg-error/5"
+            <button
+              type="button"
               onClick={async () => {
                 const typeName = client.type || 'Client';
                 try {
@@ -211,10 +251,14 @@ export default function ClientPage() {
                   toast('error', `Erreur lors de la suppression du ${typeName.toLowerCase()}`);
                 }
               }}
-            >Supprimer</Button>
+              className={`inline-flex items-center gap-2 rounded-xl border px-4 py-2 text-xs font-bold backdrop-blur-md transition-all duration-200 hover:scale-[1.02] active:scale-95 ${isDark ? 'border-rose-400/20 bg-rose-500/10 text-rose-300 hover:bg-rose-500/20 hover:text-rose-200' : 'border-rose-200/80 bg-rose-50/70 text-rose-600 shadow-sm hover:bg-rose-50 hover:text-rose-700'}`}
+            >
+              <Trash2 size={14} />
+              Supprimer
+            </button>
           )}
         </div>
-      </div>
+      </motion.div>
       <AnimatePresence>
         {showContent && (
           <motion.div

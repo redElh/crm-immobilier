@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { motion } from 'framer-motion'
 import { CheckCheck } from 'lucide-react'
 import {
   Save, ArrowLeft, Bell, MessageSquare, Edit3, User, Shield, Moon,
-  Sun, Monitor, Download, Trash2, EyeOff,
+  Sun, Monitor, Download, Trash2, EyeOff, Settings as SettingsIcon,
   Smile, Mail, Clock, Camera, Loader,
 } from 'react-feather'
 import { Switch } from '../../components/ui/Switch'
@@ -13,6 +14,10 @@ import type { MessagingSettings } from '../../types/messages'
 import { Avatar } from '../../components/modules/messages/Avatar'
 import { cn, getAdminBasePath } from '../../lib/utils'
 import { useToast } from '../../components/ui/Toast'
+import {
+  OrbIcon, STAGE_HUES, StageBadge, StageButton, useStageTheme,
+  type StageHue,
+} from '../../components/dashboard/Stage'
 import {
   fetchCurrentUser, uploadProfileImage, currentUserToParticipant,
   fetchMessagingSettings, saveMessagingSettings,
@@ -27,9 +32,9 @@ function isAdminRoute() {
 }
 
 const THEME_OPTIONS = [
-  { value: 'light', label: 'Clair' },
-  { value: 'dark', label: 'Sombre' },
-  { value: 'system', label: 'Système' },
+  { value: 'light', label: 'Clair', icon: Sun },
+  { value: 'dark', label: 'Sombre', icon: Moon },
+  { value: 'system', label: 'Système', icon: Monitor },
 ]
 
 const SIZE_OPTIONS = [
@@ -39,22 +44,26 @@ const SIZE_OPTIONS = [
 ]
 
 function SettingRow({
-  icon, title, description, children,
+  Icon, title, description, children, isDark,
 }: {
-  icon: React.ReactNode
+  Icon: React.ComponentType<{ size?: number | string; className?: string }>
   title: string
   description: string
   children: React.ReactNode
+  isDark: boolean
 }) {
   return (
     <div className="flex items-center justify-between gap-4 py-3">
       <div className="flex items-center gap-3 min-w-0">
-        <span className="w-8 h-8 rounded-lg bg-accent/10 text-accent flex items-center justify-center shrink-0">
-          {icon}
+        <span className={cn('w-8 h-8 rounded-lg flex items-center justify-center shrink-0 border',
+          isDark
+            ? 'bg-violet-400/10 text-indigo-300 border-violet-400/20'
+            : 'bg-teal-500/10 text-teal-700 border-teal-500/20')}>
+          <Icon size={15} />
         </span>
         <div className="min-w-0">
-          <p className="text-sm font-medium text-text">{title}</p>
-          <p className="text-xs text-text-secondary mt-0.5">{description}</p>
+          <p className={cn('text-sm font-semibold truncate', isDark ? 'text-white' : 'text-slate-900')}>{title}</p>
+          <p className={cn('text-xs mt-0.5 leading-relaxed', isDark ? 'text-slate-400' : 'text-slate-500')}>{description}</p>
         </div>
       </div>
       <div className="shrink-0">{children}</div>
@@ -63,27 +72,32 @@ function SettingRow({
 }
 
 function SectionCard({
-  icon, title, description, children, className,
+  Icon, hue, title, description, children, className, isDark,
 }: {
-  icon: React.ReactNode
+  Icon: React.ComponentType<{ size?: number | string; className?: string }>
+  hue: StageHue
   title: string
   description?: string
   children: React.ReactNode
   className?: string
+  isDark: boolean
 }) {
   return (
-    <div className={cn('bg-card rounded-2xl border border-border/50 shadow-card p-5', className)}>
-      <div className="flex items-center gap-3 mb-4">
-        <div className="w-9 h-9 rounded-xl bg-accent/10 flex items-center justify-center shrink-0">
-          {icon}
-        </div>
-        <div>
-          <h2 className="text-sm font-semibold text-text">{title}</h2>
-          {description && <p className="text-xs text-text-secondary mt-0.5">{description}</p>}
+    <motion.section
+      initial={{ opacity: 0, y: 14 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+      className={cn('stage-glass p-5 overflow-hidden', className)}
+    >
+      <div className="flex items-center gap-2.5 mb-2">
+        <OrbIcon icon={Icon} hue={hue} size={36} radius={12} />
+        <div className="min-w-0">
+          <h2 className={cn('text-sm font-bold tracking-tight', isDark ? 'text-white' : 'text-slate-900')}>{title}</h2>
+          {description && <p className={cn('text-xs mt-0.5', isDark ? 'text-slate-400' : 'text-slate-500')}>{description}</p>}
         </div>
       </div>
-      <div className="divide-y divide-border/30">{children}</div>
-    </div>
+      <div className={cn('divide-y', isDark ? 'divide-white/10' : 'divide-teal-900/10')}>{children}</div>
+    </motion.section>
   )
 }
 
@@ -92,6 +106,8 @@ export default function MessagingSettingsPage() {
   const admin = isAdminRoute()
   const backPath = `${admin ? getAdminBasePath() : ''}/messages`
   const { toast } = useToast()
+  const theme = useStageTheme()
+  const isDark = theme === 'dark'
   const [settings, setSettings] = useState<MessagingSettings>({ ...defaultSettings })
   const [isSaving, setIsSaving] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -188,238 +204,266 @@ export default function MessagingSettingsPage() {
         presence: 'online' as const,
       }
 
+  const notifCount = [settings.notifyOnNewMessage, settings.dailyDigest, settings.emailNotifications].filter(Boolean).length
+  const receiptsOn = !settings.disableReadReceipts && (settings.showReadReceipts || settings.showOthersReadReceipts)
+  const themeLabel = THEME_OPTIONS.find(t => t.value === settings.theme)?.label ?? 'Clair'
+  const sizeLabel = SIZE_OPTIONS.find(s => s.value === settings.messageSize)?.label ?? 'Moyen'
+
+  const glowTextarea = isDark
+    ? 'bg-white/[0.05] border-white/10 text-white placeholder:text-slate-500 focus:border-violet-400/60 focus:ring-2 focus:ring-violet-400/20 focus:shadow-[0_0_0_1px_rgba(139,124,255,0.35),0_0_44px_-12px_rgba(139,124,255,0.6)]'
+    : 'bg-white border-teal-900/10 text-slate-900 placeholder:text-slate-400 focus:border-teal-500/60 focus:ring-2 focus:ring-teal-500/20 focus:shadow-[0_0_0_1px_rgba(45,212,191,0.35),0_0_44px_-14px_rgba(45,212,191,0.55)]'
+
   return (
-    <div className={cn('animate-fade-in', settings.theme === 'dark' && 'dark bg-background')}>
-      {/* Header */}
-      <div className="flex items-center justify-between gap-3 flex-wrap mb-6">
-        <div className="flex items-center gap-3">
+    <div className={cn('h-full w-full animate-fade-in', isDark ? 'stage-dark' : 'stage-light')}>
+      {/* Défilement interne : la classe stage impose overflow:hidden (canvas aurora) */}
+      <div className="flex flex-col h-full w-full overflow-y-auto scrollbar-thin">
+      {/* Hero */}
+      <div className="relative z-10 flex flex-wrap items-end justify-between gap-4 shrink-0 pb-4">
+        <div className="flex items-center gap-3 min-w-0">
           <button
             onClick={() => navigate(backPath)}
-            className="p-2 rounded-lg text-text-secondary hover:text-text hover:bg-card border border-border/60 transition-colors"
-            title="Retour"
+            className={cn('w-10 h-10 rounded-xl border flex items-center justify-center transition-colors shrink-0',
+              isDark ? 'border-white/10 text-slate-300 hover:text-white hover:bg-white/5' : 'border-teal-900/10 text-slate-500 hover:text-teal-900 hover:bg-white/70 bg-white/60')}
+            title="Retour à la messagerie"
           >
             <ArrowLeft size={17} />
           </button>
-          <div>
-            <h1 className="text-xl font-bold leading-tight">Paramètres</h1>
-            <p className="text-xs text-text-secondary">Messagerie, confidentialité et notifications</p>
+          <OrbIcon icon={SettingsIcon} hue={STAGE_HUES.violet} size={48} radius={14} />
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <span className="relative flex h-2 w-2 shrink-0">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60" />
+                <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.9)]" />
+              </span>
+              <p className={cn('text-[10px] font-bold uppercase tracking-[0.24em] truncate', isDark ? 'text-slate-400/80' : 'text-teal-900/50')}>
+                Messagerie · Paramètres
+              </p>
+            </div>
+            <h1 className={cn('mt-1 text-2xl sm:text-3xl font-extrabold tracking-tight truncate',
+              isDark ? 'bg-gradient-to-r from-white via-indigo-100 to-indigo-300 bg-clip-text text-transparent'
+                : 'bg-gradient-to-r from-teal-900 via-teal-700 to-emerald-600 bg-clip-text text-transparent')}>
+              Paramètres
+            </h1>
+            <p className={cn('mt-0.5 text-sm truncate', isDark ? 'text-slate-400' : 'text-teal-900/60')}>
+              Messagerie, confidentialité et notifications
+            </p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0">
           {saved && (
-            <span className="flex items-center gap-1.5 text-xs font-medium text-emerald-600 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2">
-              <CheckCheck size={14} />
-              Paramètres enregistrés
-            </span>
+            <StageBadge variant={isDark ? 'violet' : 'ok'}>
+              <CheckCheck size={13} /> Enregistré
+            </StageBadge>
           )}
-          <button
+          <StageButton
+            variant="primary"
+            icon={isSaving ? <span className="w-3.5 h-3.5 border-2 border-white/40 border-t-white rounded-full animate-spin" /> : <Save size={14} />}
             onClick={handleSave}
             disabled={isSaving}
-            className="flex items-center gap-2 px-5 py-2.5 bg-accent text-white rounded-xl text-sm font-medium hover:bg-accent-hover active:scale-[0.98] shadow-sm transition-all disabled:opacity-60"
           >
-            {isSaving ? (
-              <>
-                <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
-                Enregistrement...
-              </>
-            ) : (
-              <>
-                <Save size={15} />
-                Enregistrer
-              </>
-            )}
-          </button>
+            {isSaving ? 'Enregistrement…' : 'Enregistrer'}
+          </StageButton>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-      {/* Profil */}
-      <SectionCard icon={<User size={16} />} title="Profil" description="Vos informations de messagerie">
-        <div className="py-4 flex items-center gap-4">
-          <div className="relative shrink-0">
-            <Avatar participant={currentUser} size="lg" />
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/jpeg,image/png,image/gif,image/webp"
-              className="hidden"
-              onChange={handleImageUpload}
-            />
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              disabled={uploading}
-              title="Changer la photo de profil"
-              className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full bg-card border border-border shadow-sm flex items-center justify-center hover:bg-background transition-colors disabled:opacity-50"
-            >
-              {uploading ? <Loader size={12} className="animate-spin" /> : <Camera size={12} className="text-text-secondary" />}
-            </button>
-          </div>
-          <div className="min-w-0">
-            <p className="text-sm font-semibold text-text">{currentUser.name}</p>
-            <p className="text-xs text-text-secondary">{currentUser.role} · M2 Square Meter</p>
-            <p className="text-xs text-text-secondary/60 mt-0.5">{currentUser.email}</p>
-            {uploadError && <p className="text-xs text-error mt-1">{uploadError}</p>}
-          </div>
-        </div>
-      </SectionCard>
-
-      {/* Notifications */}
-      <SectionCard
-        icon={<Bell size={16} />}
-        title="Notifications"
-        description="Choisissez comment être alerté des nouveaux messages"
-      >
-        <SettingRow icon={<Mail size={15} />} title="Nouveau message" description="Notifier pour chaque nouveau message reçu">
-          <Switch checked={settings.notifyOnNewMessage} onCheckedChange={c => updateSetting('notifyOnNewMessage', c)} />
-        </SettingRow>
-        <SettingRow icon={<Clock size={15} />} title="Résumé quotidien" description="Recevoir un récapitulatif des messages non lus chaque jour">
-          <Switch checked={settings.dailyDigest} onCheckedChange={c => updateSetting('dailyDigest', c)} />
-        </SettingRow>
-        <SettingRow icon={<Mail size={15} />} title="Notification par email" description="Recevoir un email hors CRM pour les nouveaux messages">
-          <Switch checked={settings.emailNotifications} onCheckedChange={c => updateSetting('emailNotifications', c)} />
-        </SettingRow>
-      </SectionCard>
-
-      {/* Confidentialité */}
-      <SectionCard
-        icon={<Shield size={16} />}
-        title="Confidentialité"
-        description="Gérez les accusés de réception"
-      >
-        <SettingRow icon={<CheckCheck size={15} />} title="Afficher les accusés de réception" description="Afficher les coches bleues (lu) sur vos messages">
-          <Switch
-            checked={settings.showReadReceipts}
-            disabled={settings.disableReadReceipts}
-            onCheckedChange={toggleShowReadReceipts}
-          />
-        </SettingRow>
-        <SettingRow icon={<EyeOff size={15} />} title="Voir les accusés des autres" description="Afficher l'heure à laquelle vos messages ont été lus">
-          <Switch
-            checked={settings.showOthersReadReceipts}
-            disabled={settings.disableReadReceipts}
-            onCheckedChange={toggleShowOthersReadReceipts}
-          />
-        </SettingRow>
-        <SettingRow icon={<EyeOff size={15} />} title="Désactiver les accusés" description="Ne plus envoyer ni recevoir d'accusés de lecture">
-          <Switch checked={settings.disableReadReceipts} onCheckedChange={toggleDisableReadReceipts} />
-        </SettingRow>
-        {settings.disableReadReceipts && (
-          <p className="pt-2 pb-1 text-xs text-text-secondary/70">
-            Les accusés de réception sont désactivés pour vos nouveaux messages, envoyés et reçus. Les messages envoyés avant cette désactivation conservent leurs accusés.
-          </p>
-        )}
-      </SectionCard>
-
-      {/* Apparence */}
-      <SectionCard
-        icon={<Sun size={16} />}
-        title="Apparence"
-        description="Personnalisez l'affichage de votre messagerie"
-      >
-        <div className="py-3">
-          <div className="flex items-center gap-3 mb-2.5">
-            <span className="w-8 h-8 rounded-lg bg-accent/10 text-accent flex items-center justify-center shrink-0">
-              <Moon size={15} />
-            </span>
-            <div className="flex-1">
-              <p className="text-sm font-medium text-text">Thème de la messagerie</p>
-              <p className="text-xs text-text-secondary mt-0.5">Clair, sombre ou selon le système</p>
-            </div>
-            <div className="w-44 shrink-0">
-              <Select
-                value={settings.theme}
-                onChange={val => updateSetting('theme', val as MessagingSettings['theme'])}
-                options={THEME_OPTIONS}
-              />
-            </div>
-          </div>
-        </div>
-        <div className="py-3">
-          <div className="flex items-center gap-3">
-            <span className="w-8 h-8 rounded-lg bg-accent/10 text-accent flex items-center justify-center shrink-0">
-              <MessageSquare size={15} />
-            </span>
-            <div className="flex-1">
-              <p className="text-sm font-medium text-text">Taille des messages</p>
-              <p className="text-xs text-text-secondary mt-0.5">Taille du texte dans les conversations</p>
-            </div>
-            <div className="w-44 shrink-0">
-              <Select
-                value={settings.messageSize}
-                onChange={val => updateSetting('messageSize', val as MessagingSettings['messageSize'])}
-                options={SIZE_OPTIONS}
-              />
-            </div>
-          </div>
-        </div>
-        <div className="flex items-center justify-between gap-4 py-3">
-          <div className="flex items-center gap-3 min-w-0">
-            <span className="w-8 h-8 rounded-lg bg-accent/10 text-accent flex items-center justify-center shrink-0">
-              <Smile size={15} />
-            </span>
+      {/* Aperçu rapide */}
+      <div className="relative z-10 grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3 shrink-0 pb-4">
+        {[
+          { label: 'Notifications', value: `${notifCount}/3 actives`, Icon: Bell, hue: STAGE_HUES.amber },
+          { label: 'Accusés de lecture', value: receiptsOn ? 'Activés' : 'Désactivés', Icon: Shield, hue: STAGE_HUES.violet },
+          { label: 'Affichage', value: `${themeLabel} · ${sizeLabel}`, Icon: Sun, hue: STAGE_HUES.sky },
+        ].map(stat => (
+          <div key={stat.label} className="stage-glass !rounded-2xl px-4 py-3 flex items-center gap-3 min-w-0">
+            <OrbIcon icon={stat.Icon} hue={stat.hue} size={38} radius={12} />
             <div className="min-w-0">
-              <p className="text-sm font-medium text-text">Émoticônes</p>
-              <p className="text-xs text-text-secondary mt-0.5">Activer les émoticônes dans le composeur</p>
+              <p className={cn('text-sm font-extrabold leading-tight tracking-tight truncate', isDark ? 'text-white' : 'text-slate-900')}>{stat.value}</p>
+              <p className={cn('text-[11px] truncate', isDark ? 'text-slate-400' : 'text-slate-500')}>{stat.label}</p>
             </div>
           </div>
-          <Switch checked={settings.showEmojis} onCheckedChange={c => updateSetting('showEmojis', c)} />
-        </div>
-      </SectionCard>
+        ))}
+      </div>
 
-      {/* Réponses automatiques */}
-      <SectionCard
-        icon={<Edit3 size={16} />}
-        title="Réponses automatiques"
-        description="Gérez votre réponse automatique en cas d'absence"
-        className="lg:col-span-2"
-      >
-        <div className="py-3">
-          <SettingRow icon={<Mail size={15} />} title="Réponses automatiques (absence)" description="Un message sera envoyé automatiquement aux expéditeurs">
+      {/* Cartes */}
+      <div className="relative z-10 grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4 pb-4">
+        {/* Profil */}
+        <SectionCard Icon={User} hue={STAGE_HUES.sky} title="Profil" description="Vos informations de messagerie" isDark={isDark}>
+          <div className="py-4 flex items-center gap-4">
+            <div className="relative shrink-0">
+              <Avatar participant={currentUser} size="lg" showPresence />
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/gif,image/webp"
+                className="hidden"
+                onChange={handleImageUpload}
+              />
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploading}
+                title="Changer la photo de profil"
+                className={cn('absolute -bottom-1 -right-1 w-7 h-7 rounded-full border flex items-center justify-center transition-all disabled:opacity-50 backdrop-blur-md',
+                  isDark
+                    ? 'bg-[#1b2342]/90 border-white/15 hover:bg-violet-500/30 shadow-[0_4px_14px_-4px_rgba(124,92,255,0.7)]'
+                    : 'bg-white border-teal-900/15 hover:bg-teal-500/10 shadow-sm')}
+              >
+                {uploading
+                  ? <Loader size={12} className={cn('animate-spin', isDark ? 'text-indigo-300' : 'text-teal-700')} />
+                  : <Camera size={12} className={isDark ? 'text-indigo-300' : 'text-teal-700'} />}
+              </button>
+            </div>
+            <div className="min-w-0">
+              <p className={cn('text-sm font-bold truncate', isDark ? 'text-white' : 'text-slate-900')}>{currentUser.name}</p>
+              <p className={cn('text-xs truncate', isDark ? 'text-slate-400' : 'text-slate-500')}>{currentUser.role} · M2 Square Meter</p>
+              {currentUser.email && (
+                <p className={cn('text-xs truncate mt-0.5', isDark ? 'text-slate-500' : 'text-slate-400')}>{currentUser.email}</p>
+              )}
+              {uploadError && <p className="text-xs text-rose-400 mt-1">{uploadError}</p>}
+            </div>
+          </div>
+        </SectionCard>
+
+        {/* Notifications */}
+        <SectionCard Icon={Bell} hue={STAGE_HUES.amber} title="Notifications" description="Choisissez comment être alerté des nouveaux messages" isDark={isDark}>
+          <SettingRow Icon={Mail} title="Nouveau message" description="Notifier pour chaque nouveau message reçu" isDark={isDark}>
+            <Switch checked={settings.notifyOnNewMessage} onCheckedChange={c => updateSetting('notifyOnNewMessage', c)} />
+          </SettingRow>
+          <SettingRow Icon={Clock} title="Résumé quotidien" description="Recevoir un récapitulatif des messages non lus chaque jour" isDark={isDark}>
+            <Switch checked={settings.dailyDigest} onCheckedChange={c => updateSetting('dailyDigest', c)} />
+          </SettingRow>
+          <SettingRow Icon={Mail} title="Notification par email" description="Recevoir un email hors CRM pour les nouveaux messages" isDark={isDark}>
+            <Switch checked={settings.emailNotifications} onCheckedChange={c => updateSetting('emailNotifications', c)} />
+          </SettingRow>
+        </SectionCard>
+
+        {/* Confidentialité */}
+        <SectionCard Icon={Shield} hue={STAGE_HUES.violet} title="Confidentialité" description="Gérez les accusés de réception" isDark={isDark}>
+          <SettingRow Icon={CheckCheck} title="Afficher les accusés de réception" description="Afficher les coches bleues (lu) sur vos messages" isDark={isDark}>
+            <Switch
+              checked={settings.showReadReceipts}
+              disabled={settings.disableReadReceipts}
+              onCheckedChange={toggleShowReadReceipts}
+            />
+          </SettingRow>
+          <SettingRow Icon={EyeOff} title="Voir les accusés des autres" description="Afficher l'heure à laquelle vos messages ont été lus" isDark={isDark}>
+            <Switch
+              checked={settings.showOthersReadReceipts}
+              disabled={settings.disableReadReceipts}
+              onCheckedChange={toggleShowOthersReadReceipts}
+            />
+          </SettingRow>
+          <SettingRow Icon={EyeOff} title="Désactiver les accusés" description="Ne plus envoyer ni recevoir d'accusés de lecture" isDark={isDark}>
+            <Switch checked={settings.disableReadReceipts} onCheckedChange={toggleDisableReadReceipts} />
+          </SettingRow>
+          {settings.disableReadReceipts && (
+            <p className={cn('pt-2 pb-1 text-xs leading-relaxed', isDark ? 'text-slate-500' : 'text-slate-400')}>
+              Les accusés de réception sont désactivés pour vos nouveaux messages, envoyés et reçus. Les messages envoyés avant cette désactivation conservent leurs accusés.
+            </p>
+          )}
+        </SectionCard>
+
+        {/* Apparence */}
+        <SectionCard Icon={Sun} hue={STAGE_HUES.fuchsia} title="Apparence" description="Personnalisez l'affichage de votre messagerie" isDark={isDark}>
+          <div className="py-3">
+            <div className="flex flex-wrap items-center gap-3">
+              <span className={cn('w-8 h-8 rounded-lg flex items-center justify-center shrink-0 border',
+                isDark ? 'bg-violet-400/10 text-indigo-300 border-violet-400/20' : 'bg-teal-500/10 text-teal-700 border-teal-500/20')}>
+                <Moon size={15} />
+              </span>
+              <div className="flex-1 min-w-[140px]">
+                <p className={cn('text-sm font-semibold', isDark ? 'text-white' : 'text-slate-900')}>Thème de la messagerie</p>
+                <p className={cn('text-xs mt-0.5', isDark ? 'text-slate-400' : 'text-slate-500')}>Clair, sombre ou selon le système</p>
+              </div>
+              <div className="w-full sm:w-44 shrink-0">
+                <Select
+                  value={settings.theme}
+                  onChange={val => updateSetting('theme', val as MessagingSettings['theme'])}
+                  options={THEME_OPTIONS}
+                />
+              </div>
+            </div>
+          </div>
+          <div className="py-3">
+            <div className="flex flex-wrap items-center gap-3">
+              <span className={cn('w-8 h-8 rounded-lg flex items-center justify-center shrink-0 border',
+                isDark ? 'bg-violet-400/10 text-indigo-300 border-violet-400/20' : 'bg-teal-500/10 text-teal-700 border-teal-500/20')}>
+                <MessageSquare size={15} />
+              </span>
+              <div className="flex-1 min-w-[140px]">
+                <p className={cn('text-sm font-semibold', isDark ? 'text-white' : 'text-slate-900')}>Taille des messages</p>
+                <p className={cn('text-xs mt-0.5', isDark ? 'text-slate-400' : 'text-slate-500')}>Taille du texte dans les conversations</p>
+              </div>
+              <div className="w-full sm:w-44 shrink-0">
+                <Select
+                  value={settings.messageSize}
+                  onChange={val => updateSetting('messageSize', val as MessagingSettings['messageSize'])}
+                  options={SIZE_OPTIONS}
+                />
+              </div>
+            </div>
+          </div>
+          <SettingRow Icon={Smile} title="Émoticônes" description="Activer les émoticônes dans le composeur" isDark={isDark}>
+            <Switch checked={settings.showEmojis} onCheckedChange={c => updateSetting('showEmojis', c)} />
+          </SettingRow>
+        </SectionCard>
+
+        {/* Réponses automatiques */}
+        <SectionCard Icon={Edit3} hue={STAGE_HUES.emerald} title="Réponses automatiques" description="Gérez votre réponse automatique en cas d'absence" className="lg:col-span-2" isDark={isDark}>
+          <SettingRow Icon={Mail} title="Réponses automatiques (absence)" description="Un message sera envoyé automatiquement aux expéditeurs" isDark={isDark}>
             <Switch checked={settings.autoReplyEnabled} onCheckedChange={c => updateSetting('autoReplyEnabled', c)} />
           </SettingRow>
           {settings.autoReplyEnabled && (
             <div className="py-3">
-              <p className="text-sm font-medium text-text mb-2">Message d'absence</p>
-              <textarea
-                value={settings.autoReplyMessage}
-                onChange={e => updateSetting('autoReplyMessage', e.target.value)}
-                rows={3}
-                className="w-full rounded-xl bg-background border border-border/60 px-4 py-3 text-sm text-text placeholder:text-text-secondary/40 focus:outline-none focus:border-accent/50 focus:ring-2 focus:ring-accent/10 transition-all resize-y"
-              />
+              <p className={cn('text-sm font-semibold mb-2', isDark ? 'text-white' : 'text-slate-900')}>Message d'absence</p>
+              <div className="relative rounded-2xl">
+                <span
+                  aria-hidden="true"
+                  className="pointer-events-none absolute inset-x-8 top-0 h-px z-10"
+                  style={{ background: isDark
+                    ? 'linear-gradient(90deg, transparent, rgba(139,124,255,0.6), rgba(94,234,212,0.35), transparent)'
+                    : 'linear-gradient(90deg, transparent, rgba(45,212,191,0.6), rgba(124,92,255,0.3), transparent)' }}
+                />
+                <textarea
+                  value={settings.autoReplyMessage}
+                  onChange={e => updateSetting('autoReplyMessage', e.target.value)}
+                  rows={3}
+                  placeholder="Votre message d'absence…"
+                  className={cn('w-full rounded-2xl border px-4 py-3 text-sm leading-relaxed focus:outline-none transition-all duration-300 resize-y', glowTextarea)}
+                />
+              </div>
             </div>
           )}
-        </div>
-      </SectionCard>
+        </SectionCard>
 
-      {/* Données */}
-      <SectionCard
-        icon={<Download size={16} />}
-        title="Données & actions"
-        description="Exporter, sauvegarder ou nettoyer vos conversations"
-        className="lg:col-span-2"
-      >
-        <div className="py-3">
-          <SettingRow icon={<Download size={15} />} title="Exporter les conversations" description="Télécharger l'historique complet en CSV">
-            <button className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-border text-text hover:bg-background transition-colors">
+        {/* Données */}
+        <SectionCard Icon={Download} hue={STAGE_HUES.sky} title="Données & actions" description="Exporter, sauvegarder ou nettoyer vos conversations" className="lg:col-span-2" isDark={isDark}>
+          <SettingRow Icon={Download} title="Exporter les conversations" description="Télécharger l'historique complet en CSV" isDark={isDark}>
+            <button className={cn('flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-xl border transition-all',
+              isDark
+                ? 'border-white/10 text-slate-200 bg-white/[0.04] hover:bg-white/[0.08] hover:border-violet-400/30'
+                : 'border-teal-900/10 text-slate-600 bg-white hover:border-teal-500/30 hover:text-teal-800')}>
               <Download size={13} /> Exporter
             </button>
           </SettingRow>
-        </div>
-        <div className="py-3">
-          <SettingRow icon={<Trash2 size={15} />} title="Supprimer les conversations" description="Effacer définitivement tous les échanges">
-            <button className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-error/30 text-error hover:bg-error/5 transition-colors">
+          <SettingRow Icon={Trash2} title="Supprimer les conversations" description="Effacer définitivement tous les échanges" isDark={isDark}>
+            <button className={cn('flex items-center gap-1.5 px-3 py-2 text-xs font-semibold rounded-xl border transition-all',
+              isDark
+                ? 'border-rose-400/30 text-rose-300 bg-rose-500/10 hover:bg-rose-500/20'
+                : 'border-rose-500/30 text-rose-600 bg-rose-50 hover:bg-rose-100')}>
               <Trash2 size={13} /> Supprimer
             </button>
           </SettingRow>
-        </div>
-      </SectionCard>
-
+        </SectionCard>
       </div>
 
-      {/* Status / privacy footer */}
-      <div className="flex items-center justify-center gap-1.5 py-2 text-xs text-text-secondary/50">
-        <Monitor size={12} />
-        <span>Thème actuel : {THEME_OPTIONS.find(t => t.value === settings.theme)?.label} · Taille : {SIZE_OPTIONS.find(s => s.value === settings.messageSize)?.label}</span>
+      {/* Pied de page */}
+      <div className="relative z-10 flex justify-center pb-6">
+        <div className="stage-glass !rounded-full px-4 py-2 flex items-center gap-2">
+          <Monitor size={12} className={isDark ? 'text-slate-400' : 'text-slate-500'} />
+          <span className={cn('text-[11px] font-medium', isDark ? 'text-slate-400' : 'text-slate-500')}>
+            Thème : {themeLabel} · Taille : {sizeLabel}
+          </span>
+        </div>
+      </div>
       </div>
     </div>
   )

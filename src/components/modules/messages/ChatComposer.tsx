@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { AnimatePresence, motion } from 'framer-motion'
 import {
   Paperclip, Smile, Mic, Send, X, Image as ImageIcon, Video, FileText,
@@ -8,17 +9,23 @@ import EmojiPicker, { Theme } from 'emoji-picker-react'
 import { cn } from '../../../lib/utils'
 import { useMessagingAppearance } from '../../../services/messageAppearance'
 import { uploadVoice } from '../../../services/messageService'
+import { useStageTheme } from '../../dashboard/Stage'
 
 type AttachKind = 'image' | 'video' | 'document' | 'audio'
 
 interface ChatComposerProps {
   onSendText: (text: string) => void
-  onSendVoice: (duration: string, audioUrl?: string, audioSize?: string) => void
+  onSendVoice: (duration: string, audioUrl?: string, audioSize?: string, blob?: Blob | null) => void
   onAttach: (kind: AttachKind, file: File) => Promise<boolean> | boolean
   onCapture: (file: File) => Promise<boolean> | boolean
   showEmojis?: boolean
   onTypingChange?: (active: boolean) => void
   onRecordingChange?: (active: boolean) => void
+  /**
+   * When true, voice notes are NOT uploaded here — the raw blob is handed to
+   * onSendVoice so the parent can encrypt-then-upload (E2EE) or upload as-is.
+   */
+  deferUpload?: boolean
 }
 
 function formatSeconds(total: number): string {
@@ -43,7 +50,7 @@ const ATTACH_LABELS: Record<AttachKind | 'camera', string> = {
 
 const DOCUMENT_ACCEPT = '.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.zip,.rar,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/zip'
 
-export function ChatComposer({ onSendText, onSendVoice, onAttach, onCapture, showEmojis = true, onTypingChange, onRecordingChange }: ChatComposerProps) {
+export function ChatComposer({ onSendText, onSendVoice, onAttach, onCapture, showEmojis = true, onTypingChange, onRecordingChange, deferUpload = false }: ChatComposerProps) {
   const [text, setText] = useState('')
   const [attachOpen, setAttachOpen] = useState(false)
   const [emojiOpen, setEmojiOpen] = useState(false)
@@ -70,7 +77,20 @@ export function ChatComposer({ onSendText, onSendVoice, onAttach, onCapture, sho
   const pendingPreviewRef = useRef<string | null>(null)
   const videoRef = useRef<HTMLVideoElement>(null)
   const cameraStreamRef = useRef<MediaStream | null>(null)
+  const attachWrapRef = useRef<HTMLDivElement>(null)
+  const emojiWrapRef = useRef<HTMLDivElement>(null)
   const appearance = useMessagingAppearance()
+  const theme = useStageTheme()
+  const isDark = theme === 'dark'
+  const ghostBtn = isDark
+    ? 'text-slate-400 hover:text-white hover:bg-white/5'
+    : 'text-slate-500 hover:text-teal-900 hover:bg-teal-900/5'
+  const sendBtnStyle = isDark
+    ? { backgroundImage: 'linear-gradient(145deg, #8B7CFF 0%, #6C5ECF 60%, #5646C9 100%)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.4), 0 8px 20px -6px rgba(124,92,255,0.65)' }
+    : { backgroundImage: 'linear-gradient(145deg, #2DD4BF 0%, #14B8A6 60%, #0D9488 100%)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.5), 0 8px 20px -8px rgba(13,148,136,0.6)' }
+  const stageField = isDark
+    ? 'bg-white/[0.05] border-white/10 text-white placeholder:text-slate-500 focus:border-violet-400/60 focus:ring-violet-400/20'
+    : 'bg-white border-teal-900/10 text-slate-900 placeholder:text-slate-400 focus:border-teal-500/50 focus:ring-teal-500/15'
 
   useEffect(() => {
     return () => {
@@ -246,6 +266,12 @@ export function ChatComposer({ onSendText, onSendVoice, onAttach, onCapture, sho
     try {
       const duration = recorded
       const blob = recordedBlobRef.current
+      if (deferUpload) {
+        // Parent owns the upload (encrypt-then-upload for sealed chats).
+        if (duration) onSendVoice(duration, undefined, undefined, blob)
+        cancelRecording()
+        return
+      }
       let url: string | undefined
       let size: string | undefined
       if (blob) {
@@ -257,7 +283,7 @@ export function ChatComposer({ onSendText, onSendVoice, onAttach, onCapture, sho
           console.warn('Voice upload failed, sending without audio')
         }
       }
-      if (duration) onSendVoice(duration, url, size)
+      if (duration) onSendVoice(duration, url, size, blob)
       cancelRecording()
     } finally {
       setSending(false)
@@ -358,8 +384,20 @@ export function ChatComposer({ onSendText, onSendVoice, onAttach, onCapture, sho
     setEmojiOpen(false)
   }
 
+  // Collapse floating popups on outside click (independent of CSS containing blocks)
+  useEffect(() => {
+    if (!attachOpen && !emojiOpen) return
+    const onPointerDown = (e: MouseEvent) => {
+      const t = e.target as Element
+      if (attachOpen && attachWrapRef.current && !attachWrapRef.current.contains(t)) setAttachOpen(false)
+      if (emojiOpen && emojiWrapRef.current && !emojiWrapRef.current.contains(t)) setEmojiOpen(false)
+    }
+    document.addEventListener('mousedown', onPointerDown)
+    return () => document.removeEventListener('mousedown', onPointerDown)
+  }, [attachOpen, emojiOpen])
+
   return (
-    <div className="px-4 py-3 border-t border-border/40 bg-card shrink-0 relative">
+    <div className={cn('px-4 py-3 border-t backdrop-blur-md shrink-0 relative', isDark ? 'border-white/10 bg-white/[0.02]' : 'border-teal-900/10 bg-white/60')}>
       <input
         ref={fileInputRef}
         type="file"
@@ -369,49 +407,46 @@ export function ChatComposer({ onSendText, onSendVoice, onAttach, onCapture, sho
 
       <div className="flex items-end gap-2">
         {/* Attach */}
-        <div className="relative">
+        <div ref={attachWrapRef} className="relative">
           <button
             type="button"
             onClick={() => { setAttachOpen(o => !o); setEmojiOpen(false) }}
-            className="w-10 h-10 rounded-full flex items-center justify-center text-text-secondary hover:text-accent hover:bg-accent/10 transition-colors"
+            className={cn('w-10 h-10 rounded-full flex items-center justify-center transition-colors', ghostBtn)}
             title="Pièce jointe"
           >
             <Paperclip size={20} />
           </button>
           <AnimatePresence>
             {attachOpen && (
-              <>
-                <div className="fixed inset-0 z-30" onClick={closeAll} />
-                <motion.div
+              <motion.div
                   initial={{ opacity: 0, y: 8, scale: 0.95 }}
                   animate={{ opacity: 1, y: 0, scale: 1 }}
                   exit={{ opacity: 0, y: 8, scale: 0.95 }}
                   transition={{ duration: 0.15 }}
-                  className="absolute bottom-12 left-0 z-40 w-48 bg-card border border-border/60 rounded-xl shadow-modal p-1.5"
+                  className="!absolute bottom-12 left-0 z-40 w-48 stage-glass rounded-2xl p-1.5"
                 >
                   {attachItems.map(item => (
                     <button
                       key={item.kind}
                       type="button"
                       onClick={() => { openPicker(item.kind); closeAll() }}
-                      className="w-full flex items-center gap-3 px-3 py-2.5 text-sm rounded-lg text-text hover:bg-background transition-colors"
+                      className={cn('w-full flex items-center gap-3 px-3 py-2.5 text-sm font-medium rounded-xl transition-colors', isDark ? 'text-slate-200 hover:bg-white/5' : 'text-slate-700 hover:bg-teal-900/5')}
                     >
-                      <span className="w-8 h-8 rounded-lg bg-accent/10 text-accent flex items-center justify-center">
+                      <span className={cn('w-8 h-8 rounded-lg flex items-center justify-center', isDark ? 'bg-violet-400/10 text-indigo-300' : 'bg-teal-500/10 text-teal-700')}>
                         {item.icon}
                       </span>
                       {item.label}
                     </button>
                   ))}
                 </motion.div>
-              </>
             )}
           </AnimatePresence>
         </div>
 
         {/* Pending attachment preview */}
         {pendingFile ? (
-          <div className="flex-1 flex items-center gap-3 bg-accent/5 border border-accent/20 rounded-2xl px-3 py-2">
-            <div className="w-10 h-10 rounded-lg overflow-hidden shrink-0 bg-background flex items-center justify-center">
+          <div className={cn('flex-1 flex items-center gap-3 border rounded-2xl px-3 py-2 backdrop-blur-md', isDark ? 'bg-violet-400/10 border-violet-400/25' : 'bg-teal-500/[0.07] border-teal-500/25')}>
+            <div className={cn('w-10 h-10 rounded-lg overflow-hidden shrink-0 flex items-center justify-center', isDark ? 'bg-white/5' : 'bg-white')}>
               {pendingKind !== 'document' && pendingPreview ? (
                 pendingKind === 'video' ? (
                   <video src={pendingPreview} className="w-full h-full object-cover" muted playsInline />
@@ -419,14 +454,14 @@ export function ChatComposer({ onSendText, onSendVoice, onAttach, onCapture, sho
                   <img src={pendingPreview} alt="" className="w-full h-full object-cover" />
                 )
               ) : pendingKind === 'audio' ? (
-                <Mic size={16} className="text-accent" />
+                <Mic size={16} className={isDark ? 'text-indigo-300' : 'text-teal-600'} />
               ) : (
-                <FileText size={16} className="text-accent" />
+                <FileText size={16} className={isDark ? 'text-indigo-300' : 'text-teal-600'} />
               )}
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-text truncate">{pendingFile.name}</p>
-              <p className="text-[11px] text-text-secondary">
+              <p className={cn('text-sm font-medium truncate', isDark ? 'text-white' : 'text-slate-900')}>{pendingFile.name}</p>
+              <p className={cn('text-[11px]', isDark ? 'text-slate-400' : 'text-slate-500')}>
                 {sending
                   ? 'Envoi en cours...'
                   : `${formatFileSize(pendingFile.size)} · ${ATTACH_LABELS[pendingKind]}`}
@@ -434,14 +469,14 @@ export function ChatComposer({ onSendText, onSendVoice, onAttach, onCapture, sho
             </div>
             {sending ? (
               <span className="w-9 h-9 flex items-center justify-center shrink-0" title="Envoi en cours...">
-                <span className="w-5 h-5 rounded-full border-2 border-accent/30 border-t-accent animate-spin" />
+                <span className={cn('w-5 h-5 rounded-full border-2 animate-spin', isDark ? 'border-violet-400/30 border-t-violet-300' : 'border-teal-500/30 border-t-teal-600')} />
               </span>
             ) : (
               <>
                 <button
                   type="button"
                   onClick={clearPending}
-                  className="w-9 h-9 rounded-full text-text-secondary hover:bg-background flex items-center justify-center transition-colors shrink-0"
+                  className={cn('w-9 h-9 rounded-full flex items-center justify-center transition-colors shrink-0', ghostBtn)}
                   title="Annuler"
                 >
                   <X size={16} />
@@ -449,7 +484,8 @@ export function ChatComposer({ onSendText, onSendVoice, onAttach, onCapture, sho
                 <button
                   type="button"
                   onClick={confirmAttachment}
-                  className="w-9 h-9 rounded-full bg-accent text-white flex items-center justify-center hover:bg-accent-hover active:scale-95 transition-all shrink-0"
+                  className="w-9 h-9 rounded-full text-white flex items-center justify-center active:scale-95 transition-all shrink-0"
+                  style={sendBtnStyle}
                   title="Envoyer"
                 >
                   <Check size={16} />
@@ -458,10 +494,10 @@ export function ChatComposer({ onSendText, onSendVoice, onAttach, onCapture, sho
             )}
           </div>
         ) : recording ? (
-          <div className="flex-1 flex items-center gap-3 bg-error/5 border border-error/20 rounded-2xl px-4 py-2.5 animate-pulse-soft">
-            <span className="w-3 h-3 rounded-full bg-error animate-pulse" />
-            <span className="text-sm font-medium text-error">Enregistrement en cours...</span>
-            <span className="text-sm font-semibold text-text tabular-nums ml-auto">{formatSeconds(recSeconds)}</span>
+          <div className={cn('flex-1 flex items-center gap-3 border rounded-2xl px-4 py-2.5 animate-pulse-soft backdrop-blur-md', isDark ? 'bg-red-500/10 border-red-500/25' : 'bg-error/5 border-error/20')}>
+            <span className="w-3 h-3 rounded-full bg-error animate-pulse shadow-[0_0_10px_rgba(239,68,68,0.8)]" />
+            <span className={cn('text-sm font-semibold', isDark ? 'text-red-300' : 'text-error')}>Enregistrement en cours...</span>
+            <span className={cn('text-sm font-semibold tabular-nums ml-auto', isDark ? 'text-white' : 'text-slate-900')}>{formatSeconds(recSeconds)}</span>
             <button
               type="button"
               onClick={stopRecording}
@@ -473,15 +509,15 @@ export function ChatComposer({ onSendText, onSendVoice, onAttach, onCapture, sho
             <button
               type="button"
               onClick={cancelRecording}
-              className="w-9 h-9 rounded-full text-text-secondary hover:bg-background flex items-center justify-center transition-colors"
+              className={cn('w-9 h-9 rounded-full flex items-center justify-center transition-colors', ghostBtn)}
               title="Annuler"
             >
               <X size={16} />
             </button>
           </div>
         ) : recorded ? (
-          <div className="flex-1 flex items-center gap-3 bg-emerald-50 border border-emerald-200 rounded-2xl px-4 py-2.5">
-            <Mic size={16} className="text-emerald-600 shrink-0" />
+          <div className={cn('flex-1 flex items-center gap-3 border rounded-2xl px-4 py-2.5 backdrop-blur-md', isDark ? 'bg-emerald-400/10 border-emerald-400/25' : 'bg-emerald-50 border-emerald-200')}>
+            <Mic size={16} className={cn('shrink-0', isDark ? 'text-emerald-300' : 'text-emerald-600')} />
             <button
               type="button"
               onClick={togglePreview}
@@ -491,25 +527,26 @@ export function ChatComposer({ onSendText, onSendVoice, onAttach, onCapture, sho
             >
               {previewPlaying ? <Pause size={14} /> : <Play size={14} />}
             </button>
-            <span className="text-sm font-medium text-text flex-1">Message vocal prêt ({recorded})</span>
+            <span className={cn('text-sm font-medium flex-1', isDark ? 'text-slate-200' : 'text-slate-800')}>Message vocal prêt ({recorded})</span>
             <button
               type="button"
               onClick={cancelRecording}
               disabled={sending}
-              className="w-9 h-9 rounded-full text-text-secondary hover:bg-background flex items-center justify-center transition-colors disabled:opacity-40"
+              className={cn('w-9 h-9 rounded-full flex items-center justify-center transition-colors disabled:opacity-40', ghostBtn)}
               title="Supprimer"
             >
               <X size={16} />
             </button>
             {sending ? (
               <span className="w-9 h-9 flex items-center justify-center shrink-0" title="Envoi en cours...">
-                <span className="w-5 h-5 rounded-full border-2 border-accent/30 border-t-accent animate-spin" />
+                <span className={cn('w-5 h-5 rounded-full border-2 animate-spin', isDark ? 'border-violet-400/30 border-t-violet-300' : 'border-teal-500/30 border-t-teal-600')} />
               </span>
             ) : (
               <button
                 type="button"
                 onClick={confirmVoice}
-                className="w-9 h-9 rounded-full bg-accent text-white flex items-center justify-center hover:bg-accent-hover transition-colors"
+                className="w-9 h-9 rounded-full text-white flex items-center justify-center transition-colors"
+                style={sendBtnStyle}
                 title="Envoyer"
               >
                 <Check size={16} />
@@ -520,30 +557,28 @@ export function ChatComposer({ onSendText, onSendVoice, onAttach, onCapture, sho
           <>
             {/* Emoji */}
             {showEmojis && (
-              <div className="relative">
+              <div ref={emojiWrapRef} className="relative">
                 <button
                   type="button"
                   onClick={() => { setEmojiOpen(o => !o); setAttachOpen(false) }}
-                  className="w-10 h-10 rounded-full flex items-center justify-center text-text-secondary hover:text-accent hover:bg-accent/10 transition-colors"
+                  className={cn('w-10 h-10 rounded-full flex items-center justify-center transition-colors', ghostBtn)}
                   title="Émoticônes"
                 >
                   <Smile size={20} />
                 </button>
                 <AnimatePresence>
                   {emojiOpen && (
-                    <>
-                      <div className="fixed inset-0 z-30" onClick={closeAll} />
-                      <motion.div
+                    <motion.div
                         initial={{ opacity: 0, y: 8, scale: 0.95 }}
                         animate={{ opacity: 1, y: 0, scale: 1 }}
                         exit={{ opacity: 0, y: 8, scale: 0.95 }}
                         transition={{ duration: 0.15 }}
-                        className="absolute bottom-12 left-0 z-40 overflow-hidden rounded-xl border border-border/60 shadow-modal"
+                        className="!absolute bottom-12 left-0 z-40 overflow-hidden stage-glass rounded-2xl"
                       >
                         <EmojiPicker
                           width={336}
                           height={400}
-                          theme={appearance.theme === 'dark' ? Theme.DARK : Theme.LIGHT}
+                          theme={isDark || appearance.theme === 'dark' ? Theme.DARK : Theme.LIGHT}
                           onEmojiClick={({ emoji }) => {
                             setText(t => t + emoji)
                             textareaRef.current?.focus()
@@ -553,7 +588,6 @@ export function ChatComposer({ onSendText, onSendVoice, onAttach, onCapture, sho
                           lazyLoadEmojis
                         />
                       </motion.div>
-                    </>
                   )}
                 </AnimatePresence>
               </div>
@@ -569,14 +603,15 @@ export function ChatComposer({ onSendText, onSendVoice, onAttach, onCapture, sho
               onKeyDown={handleKeyDown}
               placeholder="Écrivez votre message..."
               rows={1}
-              className="flex-1 resize-none bg-background border border-border/60 rounded-2xl px-4 py-2.5 text-sm text-text placeholder:text-text-secondary/40 focus:outline-none focus:border-accent/50 focus:ring-2 focus:ring-accent/10 transition-all max-h-[120px]"
+              className={cn('flex-1 resize-none border rounded-2xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 transition-all max-h-[120px]', stageField)}
             />
 
             {text.trim() ? (
               <button
                 type="button"
                 onClick={handleSend}
-                className="w-10 h-10 rounded-full bg-accent text-white flex items-center justify-center hover:bg-accent-hover active:scale-95 shadow-sm transition-all"
+                className="w-10 h-10 rounded-full text-white flex items-center justify-center active:scale-95 transition-all"
+                style={sendBtnStyle}
                 title="Envoyer"
               >
                 <Send size={18} />
@@ -585,7 +620,8 @@ export function ChatComposer({ onSendText, onSendVoice, onAttach, onCapture, sho
               <button
                 type="button"
                 onClick={startRecording}
-                className="w-10 h-10 rounded-full bg-accent text-white flex items-center justify-center hover:bg-accent-hover active:scale-95 shadow-sm transition-all"
+                className="w-10 h-10 rounded-full text-white flex items-center justify-center active:scale-95 transition-all"
+                style={sendBtnStyle}
                 title="Message vocal"
               >
                 <Mic size={18} />
@@ -600,15 +636,16 @@ export function ChatComposer({ onSendText, onSendVoice, onAttach, onCapture, sho
         <button
           type="button"
           onClick={() => setCameraOpen(true)}
-          className="flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-medium text-text-secondary hover:text-accent hover:bg-accent/5 rounded-lg transition-colors"
+          className={cn('flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-semibold rounded-lg transition-colors', ghostBtn)}
         >
           <Camera size={13} /> Caméra
         </button>
       </div>
 
-      {/* Camera capture modal */}
-      <AnimatePresence>
-        {cameraOpen && (
+      {/* Camera capture modal — portaled to body so it centers on the viewport */}
+      {createPortal(
+        <AnimatePresence>
+          {cameraOpen && (
           <>
             <div className="fixed inset-0 z-50 bg-black/85" onClick={() => setCameraOpen(false)} />
             <motion.div
@@ -658,7 +695,9 @@ export function ChatComposer({ onSendText, onSendVoice, onAttach, onCapture, sho
             </motion.div>
           </>
         )}
-      </AnimatePresence>
+        </AnimatePresence>,
+        document.body
+      )}
     </div>
   )
 }

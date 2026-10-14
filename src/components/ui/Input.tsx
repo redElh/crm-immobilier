@@ -2,16 +2,32 @@ import React from "react";
 import { cn } from "../../lib/utils";
 import { useStageChrome } from "../modules/calendar/useStageChrome";
 
+const EyeOpenIcon = ({ className }: { className?: string }) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <path d="M2.1 12S6.2 5.8 12 5.8 21.9 12 21.9 12s-4.1 6.2-9.9 6.2S2.1 12 2.1 12Z" />
+    <circle cx="12" cy="12" r="2.9" />
+  </svg>
+)
+
+const EyeClosedIcon = ({ className }: { className?: string }) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <path d="M2.1 12S6.2 5.8 12 5.8 21.9 12 21.9 12s-4.1 6.2-9.9 6.2S2.1 12 2.1 12Z" />
+    <path d="M7.2 12h9.6" />
+  </svg>
+)
+
 interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   label?: string;
   error?: string;
   icon?: React.ReactNode;
   suffix?: React.ReactNode;
   prefix?: string;
+  revealable?: boolean;
 }
 
 export const Input = React.forwardRef<HTMLInputElement, InputProps>(
-  ({ className, type = "text", label, error, icon, suffix, prefix, ...props }, ref) => {
+  ({ className, type = "text", label, error, icon, suffix, prefix, revealable, ...props }, ref) => {
+    const [showPassword, setShowPassword] = React.useState(false)
     const { staged, dark } = useStageChrome()
     const { style: propStyle, ...restProps } = props as any
     const stagedInputClass = staged
@@ -19,6 +35,8 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
         ? 'w-full h-9 rounded-xl border border-white/10 bg-gradient-to-b from-white/[0.08] to-white/[0.02] [background-color:transparent] px-3 py-2 text-sm text-slate-100 outline-none transition-all duration-200 placeholder:text-slate-500 focus:border-violet-400/70 focus:from-violet-400/25 focus:to-indigo-500/[0.07] shadow-[inset_0_1px_0_rgba(255,255,255,0.14),inset_0_-8px_16px_-12px_rgba(0,0,0,0.7),0_6px_18px_-8px_rgba(3,5,14,0.9)] focus:shadow-[inset_0_1px_0_rgba(255,255,255,0.22),inset_0_-8px_16px_-12px_rgba(0,0,0,0.6),0_0_0_3px_rgba(124,92,255,0.28),0_10px_30px_-8px_rgba(124,92,255,0.55)] disabled:opacity-50 disabled:cursor-not-allowed'
         : 'w-full h-9 rounded-xl border border-teal-900/15 bg-gradient-to-b from-white to-teal-50/70 [background-color:transparent] px-3 py-2 text-sm text-teal-950 outline-none transition-all duration-200 placeholder:text-teal-900/35 focus:border-teal-500/70 shadow-[inset_0_1px_0_rgba(255,255,255,1),inset_0_-6px_14px_-10px_rgba(13,148,136,0.35),0_6px_18px_-10px_rgba(13,148,136,0.45)] focus:shadow-[inset_0_1px_0_rgba(255,255,255,1),inset_0_-6px_14px_-10px_rgba(13,148,136,0.4),0_0_0_3px_rgba(20,184,166,0.25),0_10px_28px_-10px_rgba(13,148,136,0.6)] disabled:opacity-50 disabled:cursor-not-allowed'
       : null
+    const resolvedType = revealable && type === 'password' ? (showPassword ? 'text' : 'password') : type
+    const isRevealable = revealable && type === 'password'
     return (
       <div className="space-y-1.5 w-full">
         {label && (
@@ -40,7 +58,7 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
               </div>
             )}
             <input
-              type={type}
+              type={resolvedType}
               style={{ ...(propStyle || {}), ...(staged ? { colorScheme: dark ? ('dark' as const) : ('light' as const) } : {}) } as any}
               className={cn(
                 stagedInputClass
@@ -55,7 +73,7 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
                       error ? "border-error focus:ring-error/15 focus:border-error" : "border-border"
                     ),
                 icon && "pl-10",
-                suffix && "pr-10",
+                (suffix || isRevealable) && "pr-10",
                 prefix && "rounded-l-none",
                 error && staged ? "!border-rose-400/60 !shadow-[0_0_0_3px_rgba(251,113,133,0.2)]" : "",
                 className
@@ -63,8 +81,26 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
               ref={ref}
               {...(restProps as any)}
             />
-            {suffix && (
-              <div className={cn("absolute inset-y-0 right-0 pr-3 flex items-center", staged ? (dark ? "text-slate-400" : "text-teal-900/50") : "text-text-secondary")}>
+            {(suffix || isRevealable) && (
+              <div className={cn("absolute inset-y-0 right-0 pr-3 flex items-center gap-2", staged ? (dark ? "text-slate-400" : "text-teal-900/50") : "text-text-secondary")}>
+                {isRevealable && (
+                  <button
+                    type="button"
+                    aria-label={showPassword ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
+                    title={showPassword ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
+                    className="flex h-6 w-6 items-center justify-center rounded-full text-current opacity-75 transition-opacity duration-200 hover:opacity-100 focus:outline-none focus-visible:ring-1 focus-visible:ring-current/60"
+                    onClick={() => setShowPassword(v => !v)}
+                  >
+                    <div className="relative h-5 w-5 overflow-hidden">
+                      <EyeOpenIcon
+                        className={`absolute inset-0 transition-all duration-300 ease-out ${showPassword ? 'translate-y-0 opacity-100' : '-translate-y-3 opacity-0'}`}
+                      />
+                      <EyeClosedIcon
+                        className={`absolute inset-0 transition-all duration-300 ease-out ${showPassword ? 'translate-y-3 opacity-0' : 'translate-y-0 opacity-100'}`}
+                      />
+                    </div>
+                  </button>
+                )}
                 {suffix}
               </div>
             )}

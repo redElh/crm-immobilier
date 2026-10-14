@@ -1,5 +1,6 @@
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { useState, useEffect, useRef } from 'react'
+import { motion } from 'framer-motion'
 import { Button } from '../../../components/ui/Button'
 import Card from '../../../components/ui/Card'
 import { Dialog } from '../../../components/ui/Dialog'
@@ -21,8 +22,9 @@ import { BailleurFormModal } from '../../../components/modules/clients/BailleurF
 import { LocataireFormModal } from '../../../components/modules/clients/LocataireFormModal'
 import { VoyageurFormModal } from '../../../components/modules/clients/VoyageurFormModal'
 import type { Client } from '../../../types/client'
-import { Repeat, Trash2, RefreshCw, AlertTriangle, Shield, Copy, Heart, Edit3, ExternalLink } from 'react-feather'
+import { Repeat, Trash2, RefreshCw, AlertTriangle, Shield, Copy, Heart, Edit3, ExternalLink, ArrowLeft } from 'react-feather'
 import { triggerMandatExpireNotification } from '../../../services/automatorTrigger'
+import { useStageTheme } from '../../../components/dashboard/Stage'
 
 const GERANT_BUTTON_CLASSES = 'bg-[#905D5D] hover:bg-[#7D5050] border-[#905D5D] hover:border-[#7D5050] text-white shadow-[0_10px_24px_rgba(144,93,93,0.35)]'
 
@@ -89,6 +91,8 @@ export default function AdminClientPage() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [dataRefreshKey, setDataRefreshKey] = useState(0);
   const [isGerant, setIsGerant] = useState(false);
+  const stageTheme = useStageTheme();
+  const isDark = stageTheme === 'dark';
 
   useEffect(() => {
     api.get<any>('/auth/me')
@@ -343,28 +347,62 @@ export default function AdminClientPage() {
 
   return (
     <div className="space-y-6 animate-fade-in pb-8">
-      {/* Top bar with BackLink + actions */}
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <BackLink to={backRoute} />
-        <div className="flex items-center gap-2">
-          <Button variant="ghost" size="sm" icon={<Heart size={14} />}
-            className={liked ? 'text-red-500' : ''}
+      {/* Top bar — staged: Retour + quick actions (fluid entrance) */}
+      <motion.div
+        initial={{ opacity: 0, y: -12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+        className="flex items-center justify-between flex-wrap gap-3"
+      >
+        <button
+          type="button"
+          onClick={() => navigate(backRoute)}
+          className={`group inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-bold backdrop-blur-md transition-all ${isDark ? 'border-white/10 bg-white/[0.04] text-slate-400 hover:border-white/20 hover:bg-white/10 hover:text-white' : 'border-teal-900/10 bg-white/60 text-teal-900/60 hover:border-teal-900/20 hover:bg-white hover:text-teal-900'}`}
+        >
+          <ArrowLeft size={14} className="transition-transform duration-200 group-hover:-translate-x-0.5" />
+          Retour
+        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <motion.button
+            type="button"
+            whileTap={{ scale: 0.85 }}
+            title="J'aime"
             onClick={() => setLiked(!liked)}
-          />
-          <Button variant="outline" size="sm" icon={<Edit3 size={14} />}
-            onClick={() => setShowEditModal(true)}>
+            className={`flex h-9 w-9 items-center justify-center rounded-xl border backdrop-blur-md transition-all duration-200 hover:scale-105 active:scale-95 ${isDark ? 'border-white/10 bg-white/[0.04] text-slate-400 hover:border-white/20 hover:bg-white/10 hover:text-white' : 'border-teal-900/10 bg-white/60 text-slate-500 shadow-sm hover:bg-white hover:text-slate-900'}`}
+          >
+            <Heart size={15} fill={liked ? 'currentColor' : 'none'} className={liked ? 'text-rose-500' : ''} />
+          </motion.button>
+          <motion.button
+            type="button"
+            whileTap={{ scale: 0.96 }}
+            onClick={() => setShowEditModal(true)}
+            className="inline-flex items-center gap-2 rounded-xl border border-white/20 px-4 py-2 text-xs font-bold text-white shadow-lg transition-all hover:scale-[1.02] active:scale-95"
+            style={isGerant
+              ? { backgroundImage: 'linear-gradient(145deg, #C9A0A0 0%, #905D5D 100%)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.4), 0 10px 26px -10px rgba(144,93,93,0.6)' }
+              : isDark
+                ? { backgroundImage: 'linear-gradient(145deg, #8B7CFF 0%, #6C5ECF 60%, #5646C9 100%)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.4), 0 10px 26px -8px rgba(124,92,255,0.65)' }
+                : { backgroundImage: 'linear-gradient(145deg, #2DD4BF 0%, #14B8A6 60%, #0D9488 100%)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.5), 0 10px 26px -10px rgba(13,148,136,0.6)' }}
+          >
+            <Edit3 size={14} />
             Modifier
-          </Button>
-          <Button variant="default" size="sm" icon={<ExternalLink size={14} />} className={isGerant ? GERANT_BUTTON_CLASSES : ''}>
+          </motion.button>
+          <button
+            type="button"
+            className={`inline-flex items-center gap-2 rounded-xl border px-4 py-2 text-xs font-bold backdrop-blur-md transition-all duration-200 hover:scale-[1.02] active:scale-95 ${isDark ? 'border-white/10 bg-white/[0.04] text-slate-300 hover:bg-white/10 hover:text-white' : 'border-teal-900/10 bg-white/60 text-slate-600 shadow-sm hover:bg-white hover:text-slate-900'}`}
+          >
+            <ExternalLink size={14} />
             Partager
-          </Button>
-          <Button variant="ghost" size="sm" icon={<Trash2 size={14} />}
-            className="text-error hover:bg-error/5"
-            onClick={() => { setDeleteConfirm(''); setDeleteReason(''); setShowDeleteDialog(true); }}>
+          </button>
+          <button
+            type="button"
+            onClick={() => { setDeleteConfirm(''); setDeleteReason(''); setShowDeleteDialog(true); }}
+            className={`inline-flex items-center gap-2 rounded-xl border px-4 py-2 text-xs font-bold backdrop-blur-md transition-all duration-200 hover:scale-[1.02] active:scale-95 ${isDark ? 'border-rose-400/20 bg-rose-500/10 text-rose-300 hover:bg-rose-500/20 hover:text-rose-200' : 'border-rose-200/80 bg-rose-50/70 text-rose-600 shadow-sm hover:bg-rose-50 hover:text-rose-700'}`}
+          >
+            <Trash2 size={14} />
             Supprimer
-          </Button>
+          </button>
         </div>
-      </div>
+      </motion.div>
 
       {/* Admin actions bar */}
       <Card className={`p-3 ${isGerant ? 'border-[#905D5D]/20 bg-[#905D5D]/5' : 'border-accent/20 bg-accent/5'}`}>

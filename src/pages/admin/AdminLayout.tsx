@@ -6,6 +6,7 @@ import { useToast } from '../../components/ui/Toast'
 import { useNotifications } from '../../contexts/NotificationContext'
 import { useMessageUnread, sendPresence } from '../../services/realtime'
 import { usePresenceReporter } from '../../services/presenceReporter'
+import { ensureE2EEIdentity } from '../../services/e2ee/session'
 import { useMessagingAppearance } from '../../services/messageAppearance'
 import { cn } from '../../lib/utils'
 import {
@@ -101,8 +102,14 @@ export function AdminLayout({ children }: { children: React.ReactNode }) {
         navigate('/auth/admin/login', { replace: true })
       }
     }
-    loadProfile()
+      loadProfile()
   }, [navigate, adminId, toast])
+
+  /* E2EE keys: generate + publish at login so others can seal to this
+     device even before the messages module is ever opened. */
+  useEffect(() => {
+    if (userId != null) ensureE2EEIdentity(String(userId))
+  }, [userId])
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {

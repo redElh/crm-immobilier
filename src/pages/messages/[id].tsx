@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { Pin, Check, CheckCheck } from 'lucide-react'
 import {
   ArrowLeft, MoreVertical, Star, Trash2, Home,
-  Download, Delete, CornerUpRight, Users, Shield,
+  Download, Delete, CornerUpRight, Users,
 } from 'react-feather'
 import type { Conversation, Message, MessageParticipant, MessageKind } from '../../types/messages'
 import { cn, getAdminBasePath } from '../../lib/utils'
@@ -16,10 +16,24 @@ import { PresenceIndicator } from '../../components/modules/messages/PresenceInd
 import { GroupMembersModal } from '../../components/modules/messages/GroupMembersModal'
 import { useToast } from '../../components/ui/Toast'
 import {
+  StageBadge,
+  StageButton,
+  useStageTheme,
+} from '../../components/dashboard/Stage'
+import {
   fetchCurrentUser, fetchConversation, fetchMessages, sendMessage,
   deleteConversation, clearConversation, markConversationRead, currentUserToParticipant,
-  toggleReaction, deleteMessages, uploadAttachment,
+  toggleReaction, deleteMessages, uploadAttachment, uploadVoice,
 } from '../../services/messageService'
+import {
+  ensureE2EEIdentity,
+  sealForConversation,
+  prepareSealedMedia,
+  normalizeMessage,
+  normalizeMessages,
+  cacheOwnSealed,
+  previewTextFor,
+} from '../../services/e2ee/conversation'
 import {
   subscribeRealtime, sendTyping, sendRecording, setActiveConversation, setConversationRead, sendPresence,
 } from '../../services/realtime'
@@ -43,18 +57,18 @@ function dateSeparator(iso: string): string {
   return d.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
 }
 
-function TypingBubble() {
+function TypingBubble({ isDark }: { isDark: boolean }) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       className="flex justify-start"
     >
-      <div className="bg-card border border-border/60 shadow-sm rounded-2xl rounded-bl-md px-4 py-3 flex items-center gap-1">
+      <div className={cn('rounded-2xl rounded-bl-md px-4 py-3 flex items-center gap-1 border backdrop-blur-md', isDark ? 'bg-white/[0.06] border-white/10' : 'bg-white/80 border-teal-900/10')}>
         {[0, 1, 2].map(i => (
           <motion.span
             key={i}
-            className="w-1.5 h-1.5 rounded-full bg-text-secondary/50"
+            className={cn('w-1.5 h-1.5 rounded-full', isDark ? 'bg-indigo-300' : 'bg-teal-600')}
             animate={{ y: [0, -4, 0], opacity: [0.4, 1, 0.4] }}
             transition={{ duration: 0.9, repeat: Infinity, delay: i * 0.15 }}
           />
@@ -64,16 +78,16 @@ function TypingBubble() {
   )
 }
 
-function RecordingBubble() {
+function RecordingBubble({ isDark }: { isDark: boolean }) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       className="flex justify-start"
     >
-      <div className="bg-card border border-border/60 shadow-sm rounded-2xl rounded-bl-md px-4 py-3 flex items-center gap-2">
+      <div className={cn('rounded-2xl rounded-bl-md px-4 py-3 flex items-center gap-2 border backdrop-blur-md', isDark ? 'bg-white/[0.06] border-white/10' : 'bg-white/80 border-teal-900/10')}>
         <span className="w-2 h-2 rounded-full bg-error animate-pulse" />
-        <span className="text-xs text-text-secondary">enregistre un message vocal...</span>
+        <span className={cn('text-xs', isDark ? 'text-slate-300' : 'text-slate-500')}>enregistre un message vocal...</span>
       </div>
     </motion.div>
   )
@@ -87,6 +101,11 @@ export default function ConversationDetailPage() {
   const basePath = admin ? getAdminBasePath() : ''
   const appearance = useMessagingAppearance()
   const zoomStyle = messageZoomStyle(appearance.messageSize)
+  const theme = useStageTheme()
+  const isDark = theme === 'dark'
+  const chatWallpaper = isDark
+    ? { backgroundImage: 'radial-gradient(rgba(148,163,184,0.12) 1px, transparent 1.4px)', backgroundSize: '18px 18px' }
+    : { backgroundImage: 'radial-gradient(rgba(13,148,136,0.12) 1px, transparent 1.4px)', backgroundSize: '18px 18px' }
   const [currentUser, setCurrentUser] = useState<MessageParticipant>(EMPTY_PARTICIPANT)
 
   const [conversation, setConversation] = useState<Conversation | null>(null)
@@ -101,6 +120,24 @@ export default function ConversationDetailPage() {
   const scrollAnchorRef = useRef<HTMLDivElement>(null)
   const currentUserIdRef = useRef<string>('')
   const presenceTimerRef = useRef<number | null>(null)
+  const chatMenuRef = useRef<HTMLDivElement>(null)
+
+  // Collapse the floating menu on outside click (independent of CSS containing blocks)
+  useEffect(() => {
+    if (!moreMenu) return
+    const onPointerDown = (e: MouseEvent) => {
+      const t = e.target as Element
+      if (
+        chatMenuRef.current &&
+        !chatMenuRef.current.contains(t) &&
+        !(t.closest && t.closest('[data-chat-menu-toggle]'))
+      ) {
+        setMoreMenu(false)
+      }
+    }
+    document.addEventListener('mousedown', onPointerDown)
+    return () => document.removeEventListener('mousedown', onPointerDown)
+  }, [moreMenu])
 
   const showPresence = (p: 'typing' | 'recording' | null) => {
     setPresence(p)
@@ -124,7 +161,10 @@ export default function ConversationDetailPage() {
           setCurrentUser(currentUserToParticipant(me))
         }
         const conv = await fetchConversation(id!)
-        if (!cancelled) setConversation(conv)
+        if (!cancelled && conv) {
+          conv.messages = await normalizeMessages(currentUserIdRef.current, conv.messages || [])
+          if (!cancelled) setConversation(conv)
+        }
       } catch {
         if (!cancelled) {
           toast('error', 'Conversation introuvable.')
@@ -136,6 +176,11 @@ export default function ConversationDetailPage() {
     return () => { cancelled = true }
   }, [id, basePath, navigate, toast])
 
+  // E2EE identity: generate + publish once the user is known (never throws).
+  useEffect(() => {
+    if (currentUser.id) ensureE2EEIdentity(currentUser.id)
+  }, [currentUser.id])
+
   // Poll for new messages (fallback for missed realtime events)
   useEffect(() => {
     if (!id) return
@@ -144,7 +189,10 @@ export default function ConversationDetailPage() {
       try {
         const msgs = await fetchMessages(id!)
         if (!cancelled) {
-          setConversation(prev => (prev ? { ...prev, messages: msgs, unreadCount: 0 } : prev))
+          const norm = await normalizeMessages(currentUserIdRef.current, msgs)
+          if (!cancelled) {
+            setConversation(prev => (prev ? { ...prev, messages: norm, unreadCount: 0 } : prev))
+          }
         }
       } catch {
         // ignore transient polling errors
@@ -163,17 +211,19 @@ export default function ConversationDetailPage() {
     const unsubscribe = subscribeRealtime(event => {
       if (event.type === 'message:new') {
         if (event.conversationId !== id) return
-        setConversation(prev => {
-          if (!prev) return prev
-          if (prev.messages.some(m => m.id === event.message.id)) return prev
-          markConversationRead(event.conversationId).catch(() => {})
-          return {
-            ...prev,
-            messages: [...prev.messages, event.message],
-            lastActivityAt: event.message.sentAt,
-            preview: event.message.body || 'Nouveau message',
-            unreadCount: 0,
-          }
+        normalizeMessage(currentUserIdRef.current, event.message).then(nmsg => {
+          setConversation(prev => {
+            if (!prev) return prev
+            if (prev.messages.some(m => m.id === nmsg.id)) return prev
+            markConversationRead(event.conversationId).catch(() => {})
+            return {
+              ...prev,
+              messages: [...prev.messages, nmsg],
+              lastActivityAt: nmsg.sentAt,
+              preview: previewTextFor(nmsg),
+              unreadCount: 0,
+            }
+          })
         })
       } else if (event.type === 'typing') {
         if (event.conversationId !== id) return
@@ -182,7 +232,10 @@ export default function ConversationDetailPage() {
       } else if (event.type === 'message:read') {
         if (id) {
           fetchMessages(id)
-            .then(msgs => setConversation(prev => (prev ? { ...prev, messages: msgs } : prev)))
+            .then(async msgs => {
+              const norm = await normalizeMessages(currentUserIdRef.current, msgs)
+              setConversation(prev => (prev ? { ...prev, messages: norm } : prev))
+            })
             .catch(() => {})
         }
       } else if (event.type === 'message:deleted') {
@@ -285,21 +338,78 @@ export default function ConversationDetailPage() {
     }
   }
 
+  // Delete key goes back to the conversation list.
+  // Ignored while typing, selecting messages, or when a dialog is open.
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'Delete') return
+      const el = document.activeElement as HTMLElement | null
+      if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable)) return
+      if (selectionMode || viewerMessage || moreMenu || membersModal || clearTarget || deleteTargets) return
+      e.preventDefault()
+      navigate(`${basePath}/messages`)
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [navigate, basePath, selectionMode, viewerMessage, moreMenu, membersModal, clearTarget, deleteTargets])
+
   const handleSendText = async (text: string) => {
     if (!conversation) return
     try {
-      const msg = await sendMessage(conversation.id, { body: text })
+      const myId = currentUser.id
+      const attempt = await sealForConversation({ myId, participants: conversation.participants, text })
+      const msg = await sendMessage(
+        conversation.id,
+        attempt.sealed ? { body: attempt.body, kind: 'sealed' } : { body: text }
+      )
+      if (attempt.sealed && attempt.payload) cacheOwnSealed(myId, msg.id, attempt.payload)
+      const finalMsg = await normalizeMessage(myId, msg)
       updateConv(c => ({
-        ...c, messages: [...c.messages, msg], lastActivityAt: new Date().toISOString(), preview: text, unreadCount: 0,
+        ...c, messages: [...c.messages, finalMsg], lastActivityAt: new Date().toISOString(),
+        preview: text, unreadCount: 0,
       }))
     } catch {
       toast('error', "Impossible d'envoyer le message.")
     }
   }
 
-  const handleSendVoice = async (duration: string, audioUrl?: string, audioSize?: string) => {
+  const handleSendVoice = async (duration: string, audioUrl?: string, audioSize?: string, blob?: Blob | null) => {
     if (!conversation) return
     try {
+      const myId = currentUser.id
+      if (blob) {
+        const prepared = await prepareSealedMedia({
+          myId,
+          participants: conversation.participants,
+          file: blob,
+          filename: 'note-vocale.webm',
+          mime: blob.type || 'audio/webm',
+          upload: b => uploadVoice(b),
+        })
+        if (prepared.sealed && prepared.meta) {
+          const attempt = await sealForConversation({
+            myId, participants: conversation.participants, text: '', media: prepared.meta,
+          })
+          if (attempt.sealed && attempt.payload) {
+            const msg = await sendMessage(conversation.id, {
+              body: attempt.body, kind: 'sealed', duration,
+              attachmentName: prepared.name, attachmentSize: prepared.size, attachmentUrl: prepared.url,
+            })
+            cacheOwnSealed(myId, msg.id, attempt.payload)
+            const finalMsg = await normalizeMessage(myId, msg)
+            updateConv(c => ({
+              ...c, messages: [...c.messages, finalMsg], lastActivityAt: new Date().toISOString(), preview: 'Message vocal', unreadCount: 0,
+            }))
+            return
+          }
+        }
+        const plain = await uploadVoice(blob)
+        const msg = await sendMessage(conversation.id, { kind: 'audio', duration, audioUrl: plain.url })
+        updateConv(c => ({
+          ...c, messages: [...c.messages, msg], lastActivityAt: new Date().toISOString(), preview: 'Message vocal', unreadCount: 0,
+        }))
+        return
+      }
       const msg = await sendMessage(conversation.id, {
         kind: 'audio', duration,
         ...(audioUrl
@@ -317,6 +427,37 @@ export default function ConversationDetailPage() {
   const handleAttach = async (kind: 'image' | 'video' | 'document' | 'audio', file: File): Promise<boolean> => {
     if (!conversation) return false
     const msgKind: MessageKind = kind === 'document' ? 'file' : kind
+    const myId = currentUser.id
+    try {
+      const prepared = await prepareSealedMedia({
+        myId,
+        participants: conversation.participants,
+        file,
+        filename: file.name,
+        mime: file.type || 'application/octet-stream',
+        upload: b => uploadAttachment(b as File).then(u => ({ url: u.url, size: u.size })),
+      })
+      if (prepared.sealed && prepared.meta) {
+        const attempt = await sealForConversation({
+          myId, participants: conversation.participants, text: '', media: prepared.meta,
+        })
+        if (attempt.sealed && attempt.payload) {
+          const msg = await sendMessage(conversation.id, {
+            body: attempt.body, kind: 'sealed',
+            attachmentName: prepared.name, attachmentSize: prepared.size, attachmentUrl: prepared.url,
+          })
+          cacheOwnSealed(myId, msg.id, attempt.payload)
+          const finalMsg = await normalizeMessage(myId, msg)
+          updateConv(c => ({
+            ...c, messages: [...c.messages, finalMsg], lastActivityAt: new Date().toISOString(), preview: prepared.name, unreadCount: 0,
+          }))
+          return true
+        }
+      }
+    } catch {
+      toast('error', "Impossible de chiffrer la pièce jointe.")
+      return false
+    }
     let uploaded: { url: string; name: string; size: string }
     try {
       uploaded = await uploadAttachment(file)
@@ -370,12 +511,21 @@ export default function ConversationDetailPage() {
   const lastMsg = conversation.messages[conversation.messages.length - 1]
 
   return (
-    <div className={cn('flex flex-col h-full w-full rounded-2xl overflow-hidden border border-border/60 bg-card shadow-card animate-fade-in', appearance.theme === 'dark' && 'dark')} style={zoomStyle}>
+    <div className={cn('relative flex flex-col h-full w-full rounded-2xl overflow-hidden animate-fade-in', isDark ? 'stage-dark' : 'stage-light', appearance.theme === 'dark' && 'dark')} style={zoomStyle}>
+      {moreMenu && (
+        <div
+          aria-hidden="true"
+          onClick={() => setMoreMenu(false)}
+          className="absolute inset-0 z-[5] backdrop-blur-[2px]"
+          style={{ background: isDark ? 'rgba(5,9,20,0.45)' : 'rgba(13,60,60,0.10)' }}
+        />
+      )}
       {/* Header */}
-      <div className="relative flex items-center gap-3 px-4 py-3 border-b border-border/40 bg-card shrink-0 z-10">
+      <div className={cn('relative flex items-center gap-3 px-4 py-3 border-b backdrop-blur-md shrink-0 z-10', isDark ? 'border-white/10 bg-white/[0.02]' : 'border-teal-900/10 bg-white/60')}>
+        <span aria-hidden="true" className="pointer-events-none absolute inset-x-8 bottom-0 h-px" style={{ background: isDark ? 'linear-gradient(90deg, transparent, rgba(139,124,255,0.55), rgba(94,234,212,0.3), transparent)' : 'linear-gradient(90deg, transparent, rgba(45,212,191,0.55), rgba(124,92,255,0.3), transparent)' }} />
         <button
           onClick={() => navigate(`${basePath}/messages`)}
-          className="p-1.5 rounded-lg text-text-secondary hover:text-text hover:bg-background transition-colors"
+          className={cn('p-1.5 rounded-lg transition-colors', isDark ? 'text-slate-400 hover:text-white hover:bg-white/5' : 'text-slate-500 hover:text-teal-900 hover:bg-teal-900/5')}
           title="Retour"
         >
           <ArrowLeft size={18} />
@@ -383,14 +533,14 @@ export default function ConversationDetailPage() {
         <Avatar participant={otherParticipant} showPresence={!conversation.isGroup} />
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            <h3 className="text-sm font-semibold text-text truncate">{otherParticipant.name}</h3>
+            <h3 className={cn('text-sm font-bold tracking-tight truncate', isDark ? 'text-white' : 'text-slate-900')}>{otherParticipant.name}</h3>
             {conversation.isGroup && (
-              <span className="flex items-center gap-1 text-[9px] font-semibold px-1.5 py-0.5 rounded-md bg-accent/10 text-accent">
+              <span className={cn('flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded-md border', isDark ? 'bg-violet-400/10 text-indigo-300 border-violet-400/25' : 'bg-teal-500/10 text-teal-700 border-teal-500/25')}>
                 <Users size={9} /> Groupe
               </span>
             )}
           </div>
-          <p className={cn('text-[11px] flex items-center gap-1.5 truncate', presence ? 'text-accent font-medium' : 'text-text-secondary')}>
+          <p className={cn('text-[11px] flex items-center gap-1.5 truncate', presence ? cn('font-semibold', isDark ? 'text-indigo-300' : 'text-teal-700') : isDark ? 'text-slate-400' : 'text-slate-500')}>
             {presence === 'recording' ? (
               <>
                 <span className="w-1.5 h-1.5 rounded-full bg-error animate-pulse" />
@@ -406,7 +556,7 @@ export default function ConversationDetailPage() {
                 en train d'écrire...
               </>
             ) : conversation.isGroup ? (
-              <span className="text-text-secondary">{conversation.participants.filter(p => p.type !== 'group').length} membres</span>
+              <span>{conversation.participants.filter(p => p.type !== 'group').length} membres</span>
             ) : (
               <PresenceIndicator participant={otherParticipant} />
             )}
@@ -416,7 +566,7 @@ export default function ConversationDetailPage() {
         {conversation.relatedPropertyTitle && (
           <button
             onClick={() => navigate(`${basePath}/properties/${conversation.relatedPropertyId}`)}
-            className="hidden md:flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-accent bg-accent/10 hover:bg-accent/20 rounded-lg transition-colors shrink-0"
+            className={cn('hidden md:flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold rounded-xl border backdrop-blur-md transition-colors shrink-0', isDark ? 'text-indigo-300 bg-violet-400/10 hover:bg-violet-400/20 border-violet-400/25' : 'text-teal-700 bg-teal-500/10 hover:bg-teal-500/20 border-teal-500/25')}
           >
             <Home size={12} />
             {conversation.relatedPropertyTitle}
@@ -425,8 +575,11 @@ export default function ConversationDetailPage() {
 
         <div className="flex items-center gap-1 shrink-0">
           <button
+            data-chat-menu-toggle
             onClick={() => setMoreMenu(o => !o)}
-            className={cn('p-2 rounded-lg transition-colors', moreMenu ? 'text-accent bg-accent/10' : 'text-text-secondary hover:text-text hover:bg-background')}
+            className={cn('p-2 rounded-xl border transition-colors', moreMenu
+              ? isDark ? 'text-indigo-300 bg-violet-400/10 border-violet-400/30' : 'text-teal-700 bg-teal-500/10 border-teal-500/30'
+              : isDark ? 'text-slate-400 border-transparent hover:text-white hover:bg-white/5 hover:border-white/10' : 'text-slate-500 border-transparent hover:text-teal-900 hover:bg-teal-900/5 hover:border-teal-900/10')}
             title="Plus d'options"
           >
             <MoreVertical size={17} />
@@ -435,15 +588,14 @@ export default function ConversationDetailPage() {
 
         <AnimatePresence>
           {moreMenu && (
-            <>
-              <div className="fixed inset-0 z-20" onClick={() => setMoreMenu(false)} />
-              <motion.div
-                initial={{ opacity: 0, y: -6, scale: 0.97 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, y: -6, scale: 0.97 }}
-                transition={{ duration: 0.14 }}
-                className="absolute right-3 top-14 z-30 w-56 bg-card border border-border/60 rounded-xl shadow-modal p-1.5"
-              >
+            <motion.div
+              ref={chatMenuRef}
+              initial={{ opacity: 0, y: -6, scale: 0.97 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -6, scale: 0.97 }}
+              transition={{ duration: 0.14 }}
+              className="!absolute right-3 top-14 z-30 w-56 stage-glass rounded-2xl p-1.5"
+            >
                 {[
                   { icon: <CheckCheck size={14} />, label: 'Marquer comme lu', action: () => setMoreMenu(false) },
                   ...(conversation.isGroup && conversation.createdBy === currentUser.id
@@ -467,21 +619,22 @@ export default function ConversationDetailPage() {
                     key={item.label}
                     onClick={item.action}
                     className={cn(
-                      'w-full flex items-center gap-2.5 px-3 py-2 text-sm rounded-lg transition-colors',
-                      (item as any).danger ? 'text-error hover:bg-error/5' : 'text-text hover:bg-background'
+                      'w-full flex items-center gap-2.5 px-3 py-2 text-sm rounded-xl transition-colors',
+                      (item as any).danger
+                        ? 'text-error hover:bg-error/5'
+                        : isDark ? 'text-slate-200 hover:bg-white/5' : 'text-slate-700 hover:bg-teal-900/5'
                     )}
                   >
                     {item.icon} {item.label}
                   </button>
                 ))}
               </motion.div>
-            </>
           )}
         </AnimatePresence>
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto scrollbar-thin px-4 sm:px-6 py-4 relative bg-gradient-to-br from-background/40 via-card to-accent-light/20">
+      <div className="flex-1 overflow-y-auto scrollbar-thin px-4 sm:px-6 py-4 relative" style={chatWallpaper}>
         <div className="space-y-1.5 max-w-4xl mx-auto">
           {(() => {
             let lastDateKey = ''
@@ -497,9 +650,7 @@ export default function ConversationDetailPage() {
                 <div key={msg.id}>
                   {showDate && (
                     <div className="flex items-center justify-center my-4">
-                      <span className="px-3 py-1 text-[10px] font-medium text-text-secondary bg-card border border-border/50 rounded-full shadow-sm">
-                        {dateSeparator(msg.sentAt)}
-                      </span>
+                      <StageBadge variant="neutral">{dateSeparator(msg.sentAt)}</StageBadge>
                     </div>
                   )}
                   <MessageBubble
@@ -526,13 +677,12 @@ export default function ConversationDetailPage() {
             })
           })()}
 
-          {presence === 'typing' && <TypingBubble />}
-          {presence === 'recording' && <RecordingBubble />}
+          {presence === 'typing' && <TypingBubble isDark={isDark} />}
+          {presence === 'recording' && <RecordingBubble isDark={isDark} />}
 
           <div className="flex items-center justify-center gap-1.5 py-3">
-            <Shield size={11} className="text-text-secondary/40" />
-            <span className="text-[10px] text-text-secondary/40">
-              {conversation.messages.length} message{conversation.messages.length !== 1 ? 's' : ''} · Chiffré de bout en bout · {lastMsg ? new Date(lastMsg.sentAt).toLocaleDateString('fr-FR') : ''}
+            <span className={cn('text-[10px] font-medium', isDark ? 'text-slate-400' : 'text-slate-500')}>
+              {conversation.messages.length} message{conversation.messages.length !== 1 ? 's' : ''} · {lastMsg ? new Date(lastMsg.sentAt).toLocaleDateString('fr-FR') : ''}
             </span>
           </div>
           <div ref={scrollAnchorRef} />
@@ -544,7 +694,7 @@ export default function ConversationDetailPage() {
         <motion.div
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
-          className="mx-4 sm:mx-6 mb-3 flex items-center justify-between gap-2 px-3 py-2 rounded-xl bg-card border border-border/60 shadow-sm shrink-0"
+          className="mx-4 sm:mx-6 mb-3 flex items-center justify-between gap-2 px-3 py-2 rounded-2xl stage-glass shrink-0"
         >
           <span className="text-xs text-text-secondary truncate">
             {selectedIds.size > 0
@@ -554,7 +704,7 @@ export default function ConversationDetailPage() {
           <div className="flex items-center gap-1 shrink-0">
             <button
               onClick={() => setSelectionMode(false)}
-              className="px-3 py-1.5 text-xs font-medium text-text-secondary hover:text-text hover:bg-background rounded-lg transition-colors"
+              className={cn('px-3 py-1.5 text-xs font-medium rounded-lg transition-colors', isDark ? 'text-slate-400 hover:text-white hover:bg-white/5' : 'text-slate-500 hover:text-teal-900 hover:bg-teal-900/5')}
             >
               Annuler
             </button>
@@ -582,6 +732,7 @@ export default function ConversationDetailPage() {
         onAttach={handleAttach}
         onCapture={handleCapture}
         showEmojis={appearance.showEmojis}
+        deferUpload
         onTypingChange={active => {
           if (conversation) sendTyping(conversation.id, active)
         }}
@@ -598,22 +749,19 @@ export default function ConversationDetailPage() {
             initial={{ opacity: 0, scale: 0.95, y: 10 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             transition={{ duration: 0.16 }}
-            className="relative bg-card border border-border/60 rounded-2xl shadow-modal p-6 w-full max-w-sm"
+            className="relative stage-glass rounded-2xl p-6 w-full max-w-sm"
           >
-            <h3 className="text-base font-semibold text-text mb-2">Vider la conversation ?</h3>
-            <p className="text-sm text-text-secondary leading-relaxed mb-5">
+            <h3 className={cn('text-base font-extrabold tracking-tight mb-2', isDark ? 'text-white' : 'text-slate-900')}>Vider la conversation ?</h3>
+            <p className={cn('text-sm leading-relaxed mb-5', isDark ? 'text-slate-400' : 'text-slate-500')}>
               Les messages seront supprimés de votre vue uniquement. L'autre participant continuera de les voir.
             </p>
             <div className="flex items-center justify-end gap-2">
-              <button
-                onClick={() => setClearTarget(false)}
-                className="px-4 py-2 text-sm font-medium rounded-xl text-text hover:bg-background transition-colors"
-              >
+              <StageButton variant="glass" onClick={() => setClearTarget(false)}>
                 Annuler
-              </button>
+              </StageButton>
               <button
                 onClick={handleClearConversation}
-                className="px-4 py-2 text-sm font-medium rounded-xl bg-error text-white hover:bg-error/90 transition-colors"
+                className="px-4 h-8 text-xs font-semibold rounded-xl bg-error text-white hover:bg-error/90 transition-colors"
               >
                 Vider
               </button>
@@ -629,24 +777,21 @@ export default function ConversationDetailPage() {
             initial={{ opacity: 0, scale: 0.95, y: 10 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             transition={{ duration: 0.16 }}
-            className="relative bg-card border border-border/60 rounded-2xl shadow-modal p-6 w-full max-w-sm"
+            className="relative stage-glass rounded-2xl p-6 w-full max-w-sm"
           >
-            <h3 className="text-base font-semibold text-text mb-2">
+            <h3 className={cn('text-base font-extrabold tracking-tight mb-2', isDark ? 'text-white' : 'text-slate-900')}>
               Supprimer {deleteTargets.length} message{deleteTargets.length > 1 ? 's' : ''} ?
             </h3>
-            <p className="text-sm text-text-secondary leading-relaxed mb-5">
+            <p className={cn('text-sm leading-relaxed mb-5', isDark ? 'text-slate-400' : 'text-slate-500')}>
               Les messages seront supprimés pour tout le monde et remplacés par « Ce message a été supprimé ».
             </p>
             <div className="flex items-center justify-end gap-2">
-              <button
-                onClick={() => setDeleteTargets(null)}
-                className="px-4 py-2 text-sm font-medium rounded-xl text-text hover:bg-background transition-colors"
-              >
+              <StageButton variant="glass" onClick={() => setDeleteTargets(null)}>
                 Annuler
-              </button>
+              </StageButton>
               <button
                 onClick={() => handleDeleteMessages(deleteTargets)}
-                className="px-4 py-2 text-sm font-medium rounded-xl bg-error text-white hover:bg-error/90 transition-colors"
+                className="px-4 h-8 text-xs font-semibold rounded-xl bg-error text-white hover:bg-error/90 transition-colors"
               >
                 Supprimer
               </button>

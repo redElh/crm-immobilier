@@ -77,6 +77,7 @@ export default function ResetPasswordPage() {
               onChange={(e) => setPassword(e.target.value)}
               required
               icon={<Lock size={14} />}
+              revealable
             />
             <PasswordStrengthMeter password={password} />
           </div>
@@ -89,6 +90,7 @@ export default function ResetPasswordPage() {
             onChange={(e) => setConfirmPassword(e.target.value)}
             required
             icon={<Lock size={14} />}
+            revealable
           />
 
           <Button

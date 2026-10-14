@@ -12,6 +12,7 @@ import {
 } from '../../components/dashboard/Stage'
 import { getAuthToken } from '../../utils/auth'
 import { usePresenceReporter } from '../../services/presenceReporter'
+import { ensureE2EEIdentity } from '../../services/e2ee/session'
 import { useMessagingAppearance } from '../../services/messageAppearance'
 import { useToast } from '../../components/ui/Toast'
 import { cn } from '../../lib/utils'
@@ -29,6 +30,12 @@ export function AgentLayout() {
   const dark = stageTheme === 'dark'
   const mainRef = useRef<HTMLElement>(null)
   usePresenceReporter()
+
+  /* E2EE keys: generate + publish at login so others can seal to this
+     device even before the messages module is ever opened. */
+  useEffect(() => {
+    if (agentId) ensureE2EEIdentity(agentId)
+  }, [agentId])
 
   /* Keep-alive cache — visited modules stay mounted so switching is instant */
   const outlet = useOutlet()
@@ -164,7 +171,7 @@ export function AgentLayout() {
                 <div
                   key={key}
                   aria-hidden={key !== sectionKey}
-                  className={cn(key === sectionKey && 'section-enter')}
+                  className={cn(key === sectionKey && 'section-enter', 'h-full')}
                   style={{ display: key === sectionKey ? 'block' : 'none' }}
                 >
                   {element}

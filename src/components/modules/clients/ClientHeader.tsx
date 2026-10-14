@@ -1,10 +1,42 @@
 import { useState, useEffect, useCallback } from 'react';
+import type { CSSProperties } from 'react';
+import { motion } from 'framer-motion';
 import { Mail, Phone, User, DollarSign, MapPin, Home, Calendar, FileText, TrendingUp, CheckCircle, MessageSquare, Compass, ExternalLink } from "react-feather";
-import { Badge } from "../../ui/Badge";
-import { Button } from "../../ui/Button";
 import { CompletionRing } from "../../ui/CompletionRing";
 import { calcClientCompletion } from "../../../utils/clientCompletion";
 import { api } from "../../../services/api";
+import { useStageTheme, STAGE_HUES, type StageHue } from "../../dashboard/Stage";
+import { getClientStatusHue, getClientInitials } from "./ClientCard";
+
+/* =====================================================================
+   ClientHeader — premium Stage edition (fluid, staged):
+   dark = per-type hue identity · light = sidebar emerald shades ·
+   gerant = rose identity. Status badge uses the per-status convenient
+   color (shared with the client cards). Orb initials avatar with
+   completion lens, KPI chips, glass contact pills, staged CTA.
+   ===================================================================== */
+
+const TYPE_HUE: Record<string, StageHue> = {
+  Acheteur: STAGE_HUES.violet,
+  Vendeur: STAGE_HUES.sky,
+  Bailleur: STAGE_HUES.emerald,
+  Locataire: STAGE_HUES.amber,
+  Voyageur: STAGE_HUES.fuchsia,
+};
+
+const SIDEBAR_EMERALD: StageHue = {
+  a: '#2DD4BF',
+  b: '#0D9488',
+  glow: 'rgba(13,148,136,0.35)',
+  line: '#14B8A6',
+};
+const LIGHT_INK = '#0F766E';
+const GERANT_HUE: StageHue = {
+  a: '#C9A0A0',
+  b: '#905D5D',
+  glow: 'rgba(144,93,93,0.35)',
+  line: '#905D5D',
+};
 
 interface ClientActivity {
   id: string | number;
@@ -13,37 +45,6 @@ interface ClientActivity {
   activity_date?: string;
   notes?: string;
 }
-
-const STATUT_METIER_BADGES: Record<string, string> = {
-  'En qualification': 'bg-blue-100 text-blue-700',
-  'En recherche': 'bg-emerald-100 text-emerald-700',
-  'En negociation': 'bg-amber-100 text-amber-700',
-  'En compromis': 'bg-purple-100 text-purple-700',
-  'Vendu / Achete': 'bg-emerald-100 text-emerald-700',
-  'Inactif': 'bg-orange-100 text-orange-700',
-  'Perdu': 'bg-red-100 text-red-700',
-};
-
-const CLASSIFICATION_BADGES: Record<string, string> = {
-  'Tres actif': 'bg-emerald-100 text-emerald-700',
-  'Actif': 'bg-blue-100 text-blue-700',
-  'Normal': 'bg-gray-100 text-gray-600',
-  'Peu actif': 'bg-amber-100 text-amber-700',
-  'Tres peu actif': 'bg-red-100 text-red-700',
-};
-
-const getStatutMetierBadge = (s: string, isGerant: boolean) => {
-  const base = STATUT_METIER_BADGES[s];
-  if (isGerant && (s === 'En negociation')) return 'bg-[#E7D5D5] text-[#905D5D]';
-  if (isGerant && s === 'Inactif') return 'bg-[#E7D5D5] text-[#905D5D]';
-  return base || 'bg-gray-100 text-gray-600';
-};
-
-const getClassificationBadge = (s: string, isGerant: boolean) => {
-  const base = CLASSIFICATION_BADGES[s];
-  if (isGerant && s === 'Peu actif') return 'bg-[#E7D5D5] text-[#905D5D]';
-  return base || 'bg-gray-100 text-gray-600';
-};
 
 interface Client {
   id?: string | number; name: string; phone: string; email: string; status: string; type?: string;
@@ -58,18 +59,37 @@ const USER_CACHE: Record<string, { name: string; role: string; position?: string
 const NAME_TO_ROLE: Record<string, string> = {};
 const NAME_TO_POSITION: Record<string, string> = {};
 
-const getRoleBadge = (role?: string, position?: string, isGerant = false) => {
-  if (role === 'agent') return { label: position || 'Agent', cls: 'bg-emerald-100 text-emerald-700' };
-  if (role === 'gerant') return { label: 'Gérant', cls: isGerant ? 'bg-[#E7D5D5] text-[#905D5D]' : 'bg-orange-100 text-orange-700' };
-  if (role === 'admin') return { label: 'Admin', cls: 'bg-indigo-100 text-indigo-700' };
+const getRoleBadge = (role?: string, position?: string, _isGerant = false) => {
+  void _isGerant;
+  if (role === 'agent') return { label: position || 'Agent', hue: STAGE_HUES.emerald };
+  if (role === 'gerant') return { label: 'Gérant', hue: GERANT_HUE };
+  if (role === 'admin') return { label: 'Admin', hue: STAGE_HUES.violet };
   return null;
 };
 
+const COMPLETION_LOW_HUE: StageHue = { a: '#F87171', b: '#B91C1C', glow: 'rgba(248,113,113,0.40)', line: '#F87171' };
+
 export const ClientHeader = ({ client, isGerant = false }: { client: Client; isGerant?: boolean }) => {
+  const theme = useStageTheme();
+  const isDark = theme === 'dark';
   const [nextRdv, setNextRdv] = useState<string | null>(null);
   const [visitsThisMonth, setVisitsThisMonth] = useState<number | null>(null);
   const completion = (client as any).completion ?? calcClientCompletion(client);
   const [, setUsersFetched] = useState(false);
+
+  const typeHue = TYPE_HUE[client.type || ''] || STAGE_HUES.violet;
+  const accent = isGerant ? GERANT_HUE : (isDark ? typeHue : SIDEBAR_EMERALD);
+  const ink = isGerant ? '#905D5D' : (isDark ? typeHue.a : LIGHT_INK);
+  const statusLabel = client.statutMetier || client.status;
+  const statusHue = getClientStatusHue(statusLabel) || accent;
+  const badgeStyle: CSSProperties = isDark
+    ? { background: `${statusHue.a}2E`, color: '#fff', border: `1px solid ${statusHue.a}5C`, boxShadow: `0 2px 12px ${statusHue.glow}, inset 0 1px 0 rgba(255,255,255,0.14)` }
+    : { background: `${statusHue.a}1C`, color: statusHue.b, border: `1px solid ${statusHue.a}42`, boxShadow: `0 2px 10px ${statusHue.glow}, inset 0 1px 0 rgba(255,255,255,0.7)` };
+
+  /* Completion lens hue — semantic, readable in both themes. */
+  const completionHue = completion >= 80 ? STAGE_HUES.emerald : completion >= 50 ? STAGE_HUES.amber : COMPLETION_LOW_HUE;
+  const completionInk = isDark ? completionHue.a : completionHue.b;
+  const completionHint = completion >= 80 ? 'Dossier complet' : completion >= 50 ? 'En cours' : 'À compléter';
 
   const fetchNextRdv = useCallback(() => {
     const clientId = (client as any).id;
@@ -152,27 +172,92 @@ export const ClientHeader = ({ client, isGerant = false }: { client: Client; isG
   const agentPosition = agentInfo?.position || (agentDesigne ? NAME_TO_POSITION[agentDesigne.toLowerCase()] : '') || currentUser?.position || '';
   const agentBadge = getRoleBadge(agentRole, agentPosition, isGerant);
 
+  const contactPill = `inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1.5 text-xs font-semibold backdrop-blur-md transition-all duration-200 ${isDark ? 'border-white/10 bg-white/[0.04] text-slate-300 hover:bg-white/10 hover:text-white' : 'border-slate-200/80 bg-white/70 text-slate-600 shadow-sm hover:bg-white hover:text-slate-900'}`;
+
   return (
-    <div className="bg-card rounded-xl border border-border/50 shadow-card p-5 space-y-4">
-      <div className="flex items-start justify-between">
-        <div className="flex items-start gap-4">
-          <div className="relative">
-            <div className={`w-14 h-14 rounded-xl ${isGerant ? 'bg-[#E7D5D5]' : 'bg-accent-light'} flex items-center justify-center`}>
-              <User size={22} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />
-            </div>
-            <div className="absolute -top-1 -right-1">
-              <CompletionRing percent={completion} size={32} strokeWidth={3} showLabel={true} />
-            </div>
-          </div>
-          <div>
-            <div className="flex items-center gap-3">
-              <h1 className="text-lg font-semibold">{client.name}</h1>
-              {client.statutMetier ? (
-                <span className={`text-[11px] px-2 py-0.5 rounded font-medium ${getStatutMetierBadge(client.statutMetier, isGerant)}`}>
-                  {client.statutMetier}
+    <motion.div
+      initial={{ opacity: 0, y: 24, filter: 'blur(8px)' }}
+      animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+      transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
+      className="stage-glass relative overflow-hidden !rounded-[24px]"
+    >
+      {/* top gradient line */}
+      <div
+        className="absolute inset-x-0 top-0 z-10 h-[3px]"
+        style={{ background: `linear-gradient(90deg, ${accent.a}, ${accent.b})`, boxShadow: `0 0 14px ${accent.glow}` }}
+      />
+      {/* ambient wash */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0"
+        style={{
+          background: isDark
+            ? `radial-gradient(110% 80% at 50% 0%, ${accent.a}26, transparent 62%), radial-gradient(70% 55% at 100% 100%, ${accent.b}14, transparent 60%)`
+            : `radial-gradient(110% 80% at 50% 0%, ${accent.a}1F, transparent 62%), radial-gradient(70% 55% at 100% 100%, ${accent.a}10, transparent 60%)`,
+        }}
+      />
+
+      <div className="relative space-y-5 p-5 sm:p-6">
+        {/* ── Identity row: avatar + name (left), completion lens (right) ── */}
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
+          <div className="flex min-w-0 flex-1 items-start gap-4">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+              className="shrink-0"
+            >
+              <div
+                className="orb-icon select-none text-xl font-extrabold tracking-tight"
+                style={{ width: 64, height: 64, borderRadius: 20, '--orb-a': accent.a, '--orb-b': accent.b, '--orb-glow': accent.glow } as CSSProperties}
+              >
+                {getClientInitials(client.name)}
+              </div>
+            </motion.div>
+
+          <div className="min-w-0 flex-1 pt-0.5">
+            <motion.h1
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.45, delay: 0.05, ease: [0.22, 1, 0.36, 1] }}
+              className={`truncate text-xl font-extrabold tracking-[-0.4px] sm:text-2xl ${isDark ? 'text-white' : 'text-slate-900'}`}
+            >
+              {client.name}
+            </motion.h1>
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.45, delay: 0.1, ease: [0.22, 1, 0.36, 1] }}
+              className="mt-2 flex flex-wrap items-center gap-1.5"
+            >
+              {statusLabel ? (
+                <span
+                  className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-[0.08em] backdrop-blur-md"
+                  style={badgeStyle}
+                >
+                  <span className="relative flex h-1.5 w-1.5">
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full opacity-60" style={{ background: statusHue.line }} />
+                    <span className="relative inline-flex h-1.5 w-1.5 rounded-full" style={{ background: statusHue.line, boxShadow: `0 0 8px ${statusHue.glow}` }} />
+                  </span>
+                  <span className="max-w-[220px] truncate">{statusLabel}</span>
                 </span>
-              ) : (
-                <Badge variant={client.status === 'Actif' ? 'success' : 'warning'} size="sm">{client.status}</Badge>
+              ) : null}
+              {client.type && (
+                <span
+                  className="inline-flex items-center rounded-full px-2 py-1 text-[10px] font-bold"
+                  style={isDark
+                    ? { background: `${accent.a}14`, color: accent.a, border: `1px solid ${accent.a}30` }
+                    : { background: `${accent.a}12`, color: ink, border: `1px solid ${accent.a}30` }}
+                >
+                  {client.type}
+                </span>
+              )}
+              {client.classification && (
+                <span
+                  className={`inline-flex items-center rounded-full border px-2 py-1 text-[10px] font-semibold ${isDark ? 'border-white/10 bg-white/[0.04] text-slate-300' : 'border-slate-200/80 bg-white/70 text-slate-500'}`}
+                >
+                  {client.classification}
+                </span>
               )}
               {(client as any).contactId && (
                 <a
@@ -180,107 +265,173 @@ export const ClientHeader = ({ client, isGerant = false }: { client: Client; isG
                     const base = window.location.pathname.replace(/\/clients\/.*/, '');
                     return `${base}/contacts/${(client as any).contactId}`;
                   })()}
-                  className={`inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded font-medium ${isGerant ? 'bg-[#E7D5D5] text-[#905D5D] hover:bg-[#905D5D]/20' : 'bg-accent-light text-accent hover:bg-accent/20'} transition-colors`}
+                  className="inline-flex items-center gap-1 rounded-full px-2 py-1 text-[10px] font-bold transition-opacity hover:opacity-80"
+                  style={isDark
+                    ? { background: `${accent.a}14`, color: accent.a, border: `1px solid ${accent.a}30` }
+                    : { background: `${accent.a}12`, color: ink, border: `1px solid ${accent.a}30` }}
                   title="Voir le contact d'origine"
                 >
                   <User size={10} /> Contact d'origine <ExternalLink size={9} />
                 </a>
               )}
-            </div>
-            <div className="flex items-center gap-3 mt-1 text-xs text-text-secondary">
-              <span className="capitalize">{client.type || ''}</span>
+            </motion.div>
+            <div className={`mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+              {client.type && <span className="font-semibold capitalize" style={{ color: ink }}>{client.type}</span>}
               {client.createdAt && <span>· Client depuis {new Date(client.createdAt).toLocaleDateString('fr-FR')}</span>}
-              {client.classification && (
-                <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${getClassificationBadge(client.classification, isGerant)}`}>
-                  {client.classification}
+            </div>
+          </div>
+          </div>
+
+          {/* ── Completion lens: standalone staged chip (no avatar overlap) ── */}
+          <motion.div
+            initial={{ opacity: 0, scale: 0.92 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.5, delay: 0.12, ease: [0.22, 1, 0.36, 1] }}
+            title={`Profil complété à ${completion}%`}
+            className={`flex shrink-0 items-center gap-3 rounded-2xl border px-3.5 py-2.5 backdrop-blur-sm sm:ml-auto ${isDark ? 'border-white/[0.07] bg-white/[0.04]' : 'border-slate-200/70 bg-white/75 shadow-[0_1px_2px_rgba(15,23,42,0.05)]'}`}
+          >
+            <CompletionRing percent={completion} size={46} strokeWidth={4} showLabel={true} />
+            <div className="leading-tight">
+              <p className={`text-[9px] font-bold uppercase tracking-[0.14em] ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+                Complétion
+              </p>
+              <p className="text-base font-extrabold tabular-nums" style={{ color: completionInk }}>
+                {completion}%
+              </p>
+              <p className={`text-[10px] font-semibold ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                {completionHint}
+              </p>
+            </div>
+          </motion.div>
+        </div>
+
+        {/* ── KPI chips ── */}
+        <div className="grid grid-cols-2 gap-2.5 lg:grid-cols-4">
+          {typeKpis.map((kpi, i) => {
+            const Icon = kpi.icon;
+            const chip = (
+              <>
+                <div className="flex items-center gap-2">
+                  <span
+                    className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border"
+                    style={isDark
+                      ? { background: `${accent.a}14`, borderColor: `${accent.a}30`, color: accent.a }
+                      : { background: `${accent.a}12`, borderColor: `${accent.a}30`, color: ink }}
+                  >
+                    <Icon size={13} className={kpi.iconColor} style={kpi.iconColor ? undefined : { color: 'inherit' }} />
+                  </span>
+                  <span className={`truncate text-[10px] font-bold uppercase tracking-[0.12em] ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+                    {kpi.label}
+                  </span>
+                </div>
+                <p className={`mt-1.5 truncate text-sm font-extrabold tabular-nums ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                  {kpi.value}
+                </p>
+              </>
+            );
+            const cls = `rounded-2xl border p-3 backdrop-blur-sm transition-all duration-300 ${isDark ? 'border-white/[0.07] bg-white/[0.04]' : 'border-slate-200/70 bg-white/75 shadow-[0_1px_2px_rgba(15,23,42,0.05)]'} ${kpi.link ? (isDark ? 'hover:border-white/20 hover:bg-white/[0.07]' : 'hover:bg-white hover:shadow-md') : ''}`;
+            return kpi.link ? (
+              <motion.a
+                key={i}
+                href={kpi.link}
+                title="Voir dans Notes & Activité"
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.15 + i * 0.06, duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+                className={`${cls} group block`}
+              >
+                {chip}
+              </motion.a>
+            ) : (
+              <motion.div
+                key={i}
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.15 + i * 0.06, duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+                className={cls}
+              >
+                {chip}
+              </motion.div>
+            );
+          })}
+        </div>
+
+        {/* ── Contact + agent bar ── */}
+        <div className={`flex flex-col gap-3 border-t pt-4 lg:flex-row lg:items-center ${isDark ? 'border-white/[0.06]' : 'border-teal-900/10'}`}>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <a href={`tel:${client.phone}`} className={contactPill}>
+              <Phone size={12} style={{ color: ink }} /> {client.phone}
+            </a>
+            {client.email && (
+              <a href={`mailto:${client.email}`} className={contactPill}>
+                <Mail size={12} style={{ color: ink }} /> <span className="max-w-[220px] truncate">{client.email}</span>
+              </a>
+            )}
+            {client.localisation && (
+              <span className={contactPill}>
+                <MapPin size={12} style={{ color: ink }} /> <span className="max-w-[180px] truncate">{client.localisation}</span>
+              </span>
+            )}
+            {client.categorie && (
+              <span className={contactPill}>
+                <Home size={12} style={{ color: ink }} /> {client.categorie}
+              </span>
+            )}
+            {client.latitude !== undefined && client.latitude !== 0 && client.longitude !== undefined && client.longitude !== 0 && (
+              <a
+                href={`https://www.google.com/maps?q=${client.latitude},${client.longitude}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={contactPill}
+              >
+                <Compass size={12} style={{ color: ink }} /> {client.latitude.toFixed(4)}, {client.longitude.toFixed(4)}
+              </a>
+            )}
+          </div>
+          <div className="flex flex-wrap items-center gap-2 lg:ml-auto">
+            <div className={`flex items-center gap-2 rounded-2xl border px-3 py-1.5 backdrop-blur-sm ${isDark ? 'border-white/[0.07] bg-white/[0.04]' : 'border-slate-200/70 bg-white/75 shadow-sm'}`}>
+              <div
+                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-[10px] font-extrabold text-white"
+                style={{ background: `linear-gradient(145deg, ${accent.a}, ${accent.b})`, boxShadow: `0 4px 12px -4px ${accent.glow}` }}
+              >
+                {agentName.split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase() || 'NA'}
+              </div>
+              <div className="leading-tight">
+                <p className={`text-[9px] font-bold uppercase tracking-[0.12em] ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>Assigné à</p>
+                <p className={`max-w-[140px] truncate text-xs font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>{agentName}</p>
+              </div>
+              {agentBadge && (
+                <span
+                  className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-extrabold uppercase tracking-wider backdrop-blur-md"
+                  style={isDark
+                    ? { background: `${agentBadge.hue.a}2E`, color: '#fff', border: `1px solid ${agentBadge.hue.a}5C`, boxShadow: `0 2px 8px ${agentBadge.hue.glow}` }
+                    : { background: `${agentBadge.hue.a}1C`, color: agentBadge.hue.b, border: `1px solid ${agentBadge.hue.a}42`, boxShadow: `0 2px 8px ${agentBadge.hue.glow}` }}
+                >
+                  <span
+                    className="h-1 w-1 rounded-full"
+                    style={{ background: agentBadge.hue.line, boxShadow: `0 0 6px ${agentBadge.hue.glow}` }}
+                  />
+                  {agentBadge.label}
                 </span>
               )}
             </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        {typeKpis.map((kpi, i) => {
-          const Icon = kpi.icon;
-          const content = (
-            <>
-              <div className="flex items-center gap-1.5 text-xs text-text-secondary mb-1">
-                <Icon size={12} className={kpi.iconColor || (isGerant ? 'text-[#905D5D]' : 'text-accent')} />
-                <span>{kpi.label}</span>
-              </div>
-              <p className="text-sm font-semibold">{kpi.value}</p>
-            </>
-          );
-          return kpi.link ? (
-            <a
-              key={i}
-              href={kpi.link}
-              title="Voir les visites dans Notes & Activité"
-              className={`bg-background rounded-lg p-3 border border-border/30 block ${isGerant ? 'hover:border-[#905D5D]/50' : 'hover:border-accent/50'} hover:shadow-md transition-all duration-200 group`}
+            <motion.button
+              type="button"
+              whileTap={{ scale: 0.96 }}
+              className="inline-flex items-center gap-2 rounded-xl border border-white/20 px-4 py-2 text-xs font-bold text-white shadow-lg transition-all hover:scale-[1.02] active:scale-95"
+              style={isGerant
+                ? { backgroundImage: 'linear-gradient(145deg, #C9A0A0 0%, #905D5D 100%)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.4), 0 10px 26px -10px rgba(144,93,93,0.6)' }
+                : isDark
+                  ? { backgroundImage: 'linear-gradient(145deg, #8B7CFF 0%, #6C5ECF 60%, #5646C9 100%)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.4), 0 10px 26px -8px rgba(124,92,255,0.65)' }
+                  : { backgroundImage: 'linear-gradient(145deg, #2DD4BF 0%, #14B8A6 60%, #0D9488 100%)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.5), 0 10px 26px -10px rgba(13,148,136,0.6)' }}
             >
-              {content}
-            </a>
-          ) : (
-            <div key={i} className="bg-background rounded-lg p-3 border border-border/30">
-              {content}
-            </div>
-          );
-        })}
-      </div>
-
-      <div className="flex items-center gap-3 flex-wrap pt-2 border-t border-border/20">
-        <a href={`tel:${client.phone}`} className={`flex items-center gap-1.5 text-xs text-text-secondary ${isGerant ? 'hover:text-[#905D5D]' : 'hover:text-accent'} transition-colors`}>
-          <Phone size={12} /> {client.phone}
-        </a>
-        <span className="text-border/40">|</span>
-        <a href={`mailto:${client.email}`} className={`flex items-center gap-1.5 text-xs text-text-secondary ${isGerant ? 'hover:text-[#905D5D]' : 'hover:text-accent'} transition-colors`}>
-          <Mail size={12} /> {client.email}
-        </a>
-        {(client.localisation || client.categorie || (client.latitude && client.longitude)) && (
-          <span className="text-border/40">|</span>
-        )}
-        {client.localisation && (
-          <span className="flex items-center gap-1.5 text-xs text-text-secondary">
-            <MapPin size={12} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} /> {client.localisation}
-          </span>
-        )}
-        {client.categorie && (
-          <span className="flex items-center gap-1.5 text-xs text-text-secondary">
-            <Home size={12} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} /> {client.categorie}
-          </span>
-        )}
-        {client.latitude !== undefined && client.latitude !== 0 && client.longitude !== undefined && client.longitude !== 0 && (
-          <a
-            href={`https://www.google.com/maps?q=${client.latitude},${client.longitude}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className={`flex items-center gap-1.5 text-xs text-text-secondary ${isGerant ? 'hover:text-[#905D5D]' : 'hover:text-accent'} transition-colors`}
-          >
-            <Compass size={12} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} /> {client.latitude.toFixed(4)}, {client.longitude.toFixed(4)}
-          </a>
-        )}
-        <div className="ml-auto flex items-center gap-3">
-          <div className="flex items-center gap-2 bg-background/80 px-3 py-1.5 rounded-lg border border-border/30">
-            <div className="w-7 h-7 rounded-lg bg-violet-500 flex items-center justify-center flex-shrink-0">
-              <span className="text-white font-bold text-[10px]">
-                {agentName.split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase() || 'NA'}
-              </span>
-            </div>
-            <div>
-              <p className="text-[10px] text-text-secondary leading-none">Assigné à</p>
-              <p className="text-xs font-medium leading-tight">{agentName}</p>
-            </div>
-            {agentBadge && (
-              <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-semibold uppercase tracking-wider ${agentBadge.cls}`}>
-                {agentBadge.label}
-              </span>
-            )}
+              <MessageSquare size={13} />
+              Nouveau message
+            </motion.button>
           </div>
-          <Button variant="default" size="sm" icon={<MessageSquare size={13} />} className={`flex-1 ${isGerant ? 'bg-[#905D5D] hover:bg-[#7D5050] border-[#905D5D] hover:border-[#7D5050] text-white' : ''}`}>Nouveau message</Button>
         </div>
       </div>
-    </div>
+    </motion.div>
   );
 };
 
@@ -315,7 +466,7 @@ function getTypeKpis(client: Client, nextRdv: string | null, visitsThisMonth: nu
         baseKpis('Bien', client.propertyType || '—', Home),
         baseKpis('Loyer', loyerValue, DollarSign),
         baseKpis('Visites ce mois', visitsValue, Calendar, undefined, notesHref),
-        baseKpis('Revenus mensuels', revenusValue, TrendingUp, 'text-emerald-600'),
+        baseKpis('Revenus mensuels', revenusValue, TrendingUp),
       ];
     }
     case 'Locataire':
@@ -330,7 +481,7 @@ function getTypeKpis(client: Client, nextRdv: string | null, visitsThisMonth: nu
         baseKpis('Montant', (client as any).montantTotalAvecOptions ? `${(client as any).montantTotalAvecOptions.toLocaleString('fr-FR')} ${(client as any).devise || 'MAD'}` : (client as any).budgetTotal ? `${(client as any).budgetTotal.toLocaleString('fr-FR')} ${(client as any).devise || 'MAD'}` : '—', DollarSign),
         baseKpis('Bien', (client as any).bienReserveNom || ((client as any).bienReserve ? `Bien #${(client as any).bienReserve}` : client.propertyType || '—'), Home),
         baseKpis('Séjour', (client as any).dateArrivee && (client as any).dateDepart ? `${new Date((client as any).dateArrivee).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' })} → ${new Date((client as any).dateDepart).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' })} · ${(client as any).nbNuits || 0}n` : '—', Calendar),
-        baseKpis('Statut', (client as any).statutReservation || client.statutMetier || '—', CheckCircle, 'text-emerald-600'),
+        baseKpis('Statut', (client as any).statutReservation || client.statutMetier || '—', CheckCircle),
       ];
     default:
       return [
