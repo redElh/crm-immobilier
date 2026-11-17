@@ -109,6 +109,7 @@ export default function TwoFactorSetup({ isOpen, onClose, onComplete }: TwoFacto
       icon={meta.icon}
       hue={meta.hue}
       maxWidth="max-w-[560px]"
+      centered
       bodyClassName="space-y-5"
       footer={
         step === 1 ? (

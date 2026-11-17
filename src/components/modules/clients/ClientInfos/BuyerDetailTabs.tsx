@@ -2,7 +2,6 @@ import { API_ORIGIN } from '../../../../utils/config'
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { InfoField } from '../../../ui/InfoField';
-import { Progress } from '../../../ui/Progress';
 import { Button } from '../../../ui/Button';
 import { Dialog } from '../../../ui/Dialog';
 import { useToast } from '../../../ui/Toast';
@@ -10,6 +9,7 @@ import { ClientTransactionsTab } from '../ClientTransactionsTab';
 import { NotesActiviteTab } from './NotesActiviteTab';
 import { ClientContractsTab } from '../ClientContractsTab';
 import ClientFinancementTab from '../ClientFinancementTab';
+import { ClientTabsShell, StageField, StageSection, StageTags, HeaderPills, StageEmpty, ProximitesGrid, PrestationsGrid, StagePill, StageProgressCard, StageDocButton, StageLinkCard, ScoreRing, getScoreHue, scoreLabel, getFinancementStatusHue, getMandatStatusHue, OK_STAGE_HUE, SLATE_STAGE_HUE, useDetailAccent, StageDocumentsTab } from './ClientDetailStage';
 import { Client } from '../../../../types/client';
 import { AGENTS } from '../../../../types/calendar';
 import { api } from '../../../../services/api';
@@ -17,7 +17,7 @@ import { useMyPermissions, permissionAllowed } from '../../../../hooks/useMyPerm
 import {
   Home, MapPin, Maximize2, Grid, Clock, User, Briefcase, CheckCircle,
   AlertCircle, Calendar, Sliders, Eye, Sun, Tag, Star, Layers, Compass,
-  DollarSign, CreditCard, TrendingUp, FileText, Download, Trash2, Plus,
+  DollarSign, CreditCard, TrendingUp, FileText, Trash2, Plus,
   RefreshCw, Mail, MessageSquare, Upload, X, ChevronDown, ChevronUp,
   BarChart2, Filter, Droplet, CheckSquare, Square, Zap, Shield, Info
 } from 'react-feather';
@@ -50,7 +50,7 @@ const renderTagList = (items: string[] | undefined, label: string, isGerant: boo
       <p className="text-sm font-medium text-text mb-2">{label}</p>
       <div className="flex flex-wrap gap-1.5">
         {items.map(item => (
-          <span key={item} className={`px-2 py-1 text-xs rounded-lg ${isGerant ? 'bg-[#905D5D]/10 text-[#905D5D] border border-[#905D5D]/20' : 'bg-accent/10 text-accent border border-accent/20'}`}>
+          <span key={item} className={`px-2 py-1 text-xs rounded-lg ${'bg-accent/10 text-accent border border-accent/20'}`}>
             {item}
           </span>
         ))}
@@ -112,7 +112,7 @@ const resolveAgentName = (id: string): string => {
 
 const statutFinancementColor = (statut: string | undefined, isGerant: boolean) => {
   switch (statut) {
-    case 'En cours': return isGerant ? 'bg-[#905D5D]/10 text-[#905D5D] border-[#905D5D]/20' : 'bg-amber-500/10 text-amber-500 border-amber-500/20';
+    case 'En cours': return 'bg-accent/10 text-accent border-accent/20';
     case 'Accordé': case 'Accorde': return 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20';
     case 'Refusé': case 'Refuse': return 'bg-error/10 text-error border-error/20';
     default: return 'bg-text-secondary/10 text-text-secondary border-text-secondary/20';
@@ -151,6 +151,9 @@ export const BuyerDetailTabs = ({ client: initialClient, adminId, agentId, highl
   const [proposalEmail, setProposalEmail] = useState('');
   const [proposalMessage, setProposalMessage] = useState('');
   const [proposalSending, setProposalSending] = useState(false);
+
+  /* Staged theme accents for the first tab (Critères). */
+  const { isDark, accent, ink } = useDetailAccent(client.type, isGerant);
 
   useEffect(() => {
     const bienId = (initialClient as any).bienConcerneId;
@@ -232,87 +235,75 @@ export const BuyerDetailTabs = ({ client: initialClient, adminId, agentId, highl
       c.situationActuelle || c.urgence || c.dateEmmenagement || client.surfaceMax || client.prixMax ||
       client.latitude || client.longitude || c.adresseComplete || c.complementAdresse || c.codePostalVille || c.pays;
 
-    if (!hasData) return renderEmpty();
+    if (!hasData) return <StageEmpty isDark={isDark} />;
+
+    const showGeo = ((client.latitude !== 0 && client.latitude !== undefined) || (client.longitude !== 0 && client.longitude !== undefined));
 
     return (
       <div className="space-y-5">
-        <div className="flex flex-wrap items-center gap-3">
-          {client.statutMetier && (
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-medium text-text-secondary">Statut:</span>
-              <span className="px-2.5 py-1 text-xs font-medium rounded-lg bg-premium/10 text-premium border border-premium/20">
-                {client.statutMetier}
-              </span>
-            </div>
-          )}
-          {client.classification && (
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-medium text-text-secondary">Classification:</span>
-              <span className={`px-2.5 py-1 text-xs font-medium rounded-lg ${isGerant ? 'bg-[#905D5D]/10 text-[#905D5D] border border-[#905D5D]/20' : 'bg-accent/10 text-accent border border-accent/20'}`}>
-                {client.classification}
-              </span>
-            </div>
-          )}
-          {client.source && (
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-medium text-text-secondary">Origine:</span>
-              <span className="px-2.5 py-1 text-xs font-medium rounded-lg bg-blue-500/10 text-blue-500 border border-blue-500/20">
-                {client.source}
-              </span>
-            </div>
-          )}
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {client.localisation && <InfoField label="Localisation" value={client.localisation} icon={<MapPin size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />}
-          {client.categorie && <InfoField label="Catégorie" value={client.categorie} icon={<Tag size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />}
-          {client.propertyType && <InfoField label="Type de bien recherché" value={client.propertyType} icon={<Home size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />}
-          <InfoField label="Secteur géographique" value={client.secteur || client.area || 'Non spécifié'} icon={<MapPin size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />
-          {c.adresseComplete && <InfoField label="Adresse complète" value={c.adresseComplete} icon={<MapPin size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />}
-          {c.complementAdresse && <InfoField label="Complément d'adresse" value={c.complementAdresse} icon={<MapPin size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />}
-          {c.codePostalVille && <InfoField label="Code postal / Ville" value={c.codePostalVille} icon={<MapPin size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />}
-          {c.pays && <InfoField label="Pays" value={c.pays} icon={<MapPin size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />}
+        <HeaderPills statutMetier={client.statutMetier} classification={client.classification} source={client.source} isDark={isDark} />
+
+        <StageSection icon={Home} title="Recherche" accent={accent} ink={ink} isDark={isDark} delay={0.05}>
+          {client.localisation && <StageField icon={MapPin} label="Localisation" value={client.localisation} accent={accent} ink={ink} isDark={isDark} />}
+          {client.categorie && <StageField icon={Tag} label="Catégorie" value={client.categorie} accent={accent} ink={ink} isDark={isDark} />}
+          {client.propertyType && <StageField icon={Home} label="Type de bien recherché" value={client.propertyType} accent={accent} ink={ink} isDark={isDark} />}
+          <StageField icon={MapPin} label="Secteur géographique" value={client.secteur || client.area || 'Non spécifié'} accent={accent} ink={ink} isDark={isDark} />
+          {c.adresseComplete && <StageField icon={MapPin} label="Adresse complète" value={c.adresseComplete} accent={accent} ink={ink} isDark={isDark} />}
+          {c.complementAdresse && <StageField icon={MapPin} label="Complément d'adresse" value={c.complementAdresse} accent={accent} ink={ink} isDark={isDark} />}
+          {c.codePostalVille && <StageField icon={MapPin} label="Code postal / Ville" value={c.codePostalVille} accent={accent} ink={ink} isDark={isDark} />}
+          {c.pays && <StageField icon={MapPin} label="Pays" value={c.pays} accent={accent} ink={ink} isDark={isDark} />}
           {(c.surfaceMin || client.surfaceMax) && (
-            <InfoField label="Surface" value={`${c.surfaceMin || '?'} ~ ${client.surfaceMax || '?'} m²`} icon={<Maximize2 size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />
+            <StageField icon={Maximize2} label="Surface" value={`${c.surfaceMin || '?'} ~ ${client.surfaceMax || '?'} m²`} accent={accent} ink={ink} isDark={isDark} />
           )}
           {(client.prixMin || client.prixMax) && (
-            <InfoField label="Budget" value={`${(client.prixMin || 0).toLocaleString()} ~ ${(client.prixMax || 0).toLocaleString()} ${client.devise || 'MAD'}`} icon={<DollarSign size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />
+            <StageField icon={DollarSign} label="Budget" value={`${(client.prixMin || 0).toLocaleString()} ~ ${(client.prixMax || 0).toLocaleString()} ${client.devise || 'MAD'}`} accent={accent} ink={ink} isDark={isDark} />
           )}
           {(client.pieces || client.chambres) && (
-            <InfoField label="Pièces / Chambres" value={`${client.pieces || '?'} pièces / ${client.chambres || '?'} chambres`} icon={<Grid size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />
+            <StageField icon={Grid} label="Pièces / Chambres" value={`${client.pieces || '?'} pièces / ${client.chambres || '?'} chambres`} accent={accent} ink={ink} isDark={isDark} />
           )}
           {client.rooms && !client.pieces && (
-            <InfoField label="Nombre de pièces" value={client.rooms} icon={<Grid size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />
+            <StageField icon={Grid} label="Nombre de pièces" value={client.rooms} accent={accent} ink={ink} isDark={isDark} />
           )}
           {client.etage !== undefined && (
-            <InfoField label="Étage" value={`${client.etageOperator === 'ge' ? '≥ ' : client.etageOperator === 'le' ? '≤ ' : '= '}${client.etage}`} icon={<Layers size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />
+            <StageField icon={Layers} label="Étage" value={`${client.etageOperator === 'ge' ? '≥ ' : client.etageOperator === 'le' ? '≤ ' : '= '}${client.etage}`} accent={accent} ink={ink} isDark={isDark} />
           )}
-        </div>
-        {(client.latitude !== 0 && client.latitude !== undefined) || (client.longitude !== 0 && client.longitude !== undefined) ? (
-          <div className="p-3 rounded-xl bg-background border border-border/50">
-            <InfoField
+        </StageSection>
+
+        {showGeo && (
+          <StageSection icon={Compass} title="Géolocalisation" accent={accent} ink={ink} isDark={isDark} delay={0.1}>
+            <StageField
+              icon={Compass}
               label="Coordonnées"
               value={`${client.latitude?.toFixed(4) || '0'}, ${client.longitude?.toFixed(4) || '0'}`}
-              icon={<Compass size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />}
+              accent={accent}
+              ink={ink}
+              isDark={isDark}
+              action={
+                ((client.latitude !== 0 && client.latitude) || (client.longitude !== 0 && client.longitude)) ? (
+                  <a
+                    href={`https://www.google.com/maps?q=${client.latitude},${client.longitude}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="shrink-0 text-[11px] font-bold transition-opacity hover:opacity-80"
+                    style={{ color: ink }}
+                  >
+                    Maps ↗
+                  </a>
+                ) : undefined
+              }
             />
-            {(client.latitude !== 0 && client.latitude) || (client.longitude !== 0 && client.longitude) ? (
-              <a
-                href={`https://www.google.com/maps?q=${client.latitude},${client.longitude}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className={`text-xs ${isGerant ? 'text-[#905D5D]' : 'text-accent'} hover:underline mt-1 inline-block`}
-              >
-                Voir sur Google Maps
-              </a>
-            ) : null}
-          </div>
-        ) : null}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {c.situationActuelle && <InfoField label="Situation actuelle" value={c.situationActuelle} icon={<User size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />}
-          {c.urgence && <InfoField label="Urgence" value={c.urgence} icon={<Clock size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />}
-          {c.dateEmmenagement && (
-            <InfoField label="Date souhaitée d'emménagement" value={new Date(c.dateEmmenagement).toLocaleDateString('fr-FR')} icon={<Calendar size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />
-          )}
-        </div>
+          </StageSection>
+        )}
+
+        {(c.situationActuelle || c.urgence || c.dateEmmenagement) && (
+          <StageSection icon={User} title="Situation" accent={accent} ink={ink} isDark={isDark} delay={0.15}>
+            {c.situationActuelle && <StageField icon={User} label="Situation actuelle" value={c.situationActuelle} accent={accent} ink={ink} isDark={isDark} />}
+            {c.urgence && <StageField icon={Clock} label="Urgence" value={c.urgence} accent={accent} ink={ink} isDark={isDark} />}
+            {c.dateEmmenagement && (
+              <StageField icon={Calendar} label="Date souhaitée d'emménagement" value={new Date(c.dateEmmenagement).toLocaleDateString('fr-FR')} accent={accent} ink={ink} isDark={isDark} />
+            )}
+          </StageSection>
+        )}
       </div>
     );
   };
@@ -322,97 +313,43 @@ export const BuyerDetailTabs = ({ client: initialClient, adminId, agentId, highl
       client.disponibilite || client.attributPrincipal || client.attributsPersonnalises?.length ||
       client.criteres?.length;
 
-    if (!hasData) return renderEmpty();
+    if (!hasData) return <StageEmpty isDark={isDark} />;
 
     return (
       <div className="space-y-5">
-        {client.vue && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {client.vue && <InfoField label="Vue" value={client.vue} icon={<Eye size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />}
-            {client.exposition && <InfoField label="Exposition" value={client.exposition} icon={<Sun size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />}
-            {client.etat && <InfoField label="État" value={client.etat} icon={<Home size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />}
-            {client.standing && <InfoField label="Standing" value={client.standing} icon={<Star size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />}
-            {client.disponibilite && <InfoField label="Disponibilité" value={client.disponibilite} icon={<Clock size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />}
-            {client.attributPrincipal && <InfoField label="Attribut principal" value={client.attributPrincipal} icon={<Star size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />}
-          </div>
+        {(client.vue || client.exposition || client.etat || client.standing || client.disponibilite || client.attributPrincipal) && (
+          <StageSection icon={Eye} title="Atouts du bien" accent={accent} ink={ink} isDark={isDark} delay={0.05}>
+            {client.vue && <StageField icon={Eye} label="Vue" value={client.vue} accent={accent} ink={ink} isDark={isDark} />}
+            {client.exposition && <StageField icon={Sun} label="Exposition" value={client.exposition} accent={accent} ink={ink} isDark={isDark} />}
+            {client.etat && <StageField icon={Home} label="État" value={client.etat} accent={accent} ink={ink} isDark={isDark} />}
+            {client.standing && <StageField icon={Star} label="Standing" value={client.standing} accent={accent} ink={ink} isDark={isDark} />}
+            {client.disponibilite && <StageField icon={Clock} label="Disponibilité" value={client.disponibilite} accent={accent} ink={ink} isDark={isDark} />}
+            {client.attributPrincipal && <StageField icon={Star} label="Attribut principal" value={client.attributPrincipal} accent={accent} ink={ink} isDark={isDark} />}
+          </StageSection>
         )}
 
-        {(client.attributsPersonnalises?.length || client.criteres?.length) && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {renderTagList(client.attributsPersonnalises, 'Attributs personnalisés', isGerant)}
+        {(client.attributsPersonnalises?.length || client.criteres?.length) ? (
+          <div className="grid grid-cols-1 gap-2.5 md:grid-cols-2">
+            {client.attributsPersonnalises && client.attributsPersonnalises.length > 0 && (
+              <StageTags icon={Sliders} label="Attributs personnalisés" items={client.attributsPersonnalises} accent={accent} ink={ink} isDark={isDark} delay={0.1} />
+            )}
             {client.criteres && client.criteres.length > 0 && (
-              <div className="space-y-2">
-                <h3 className="text-sm font-medium flex items-center gap-2">
-                  <CheckCircle size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />
-                  Critères de base
-                </h3>
-                <div className="flex flex-wrap gap-1.5">
-                  {client.criteres.map(c => (
-                    <span key={c} className={`px-2 py-1 text-xs rounded-lg ${isGerant ? 'bg-[#905D5D]/10 text-[#905D5D] border border-[#905D5D]/20' : 'bg-accent/10 text-accent border border-accent/20'}`}>{c}</span>
-                  ))}
-                </div>
-              </div>
+              <StageTags icon={CheckCircle} label="Critères de base" items={client.criteres} accent={accent} ink={ink} isDark={isDark} delay={0.15} />
             )}
           </div>
-        )}
+        ) : null}
       </div>
     );
   };
 
   const renderProximites = () => {
     const p = client.proximites;
-    if (!p) return renderEmpty();
-    const hasAny = p.transports?.length || p.commerces?.length || p.education?.length || p.sante?.length || p.loisirs?.length;
-    if (!hasAny) return renderEmpty();
-
-    type Cat = [string[] | undefined, string];
-    const proxCategories: Cat[] = [
-      [p.transports, 'Transports'],
-      [p.commerces, 'Commerces & Services'],
-      [p.education, 'Éducation'],
-      [p.sante, 'Santé & Sport'],
-      [p.loisirs, 'Loisirs & Nature'],
-    ];
-
-    return (
-      <div className="space-y-3">
-        <h3 className="text-sm font-medium flex items-center gap-2 mb-3">
-          <MapPin size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />
-          Proximités
-        </h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-          {proxCategories.filter(([items]) => items?.length).map(([items, label]) => renderCategorieGroup(items, label))}
-        </div>
-      </div>
-    );
+    return <ProximitesGrid data={p} accent={accent} ink={ink} isDark={isDark} />;
   };
 
   const renderPrestations = () => {
     const p = client.prestations;
-    if (!p) return renderEmpty();
-    const hasAny = p.exterieur?.length || p.confort?.length || p.electromenager?.length || p.multimedia?.length || p.sport?.length;
-    if (!hasAny) return renderEmpty();
-
-    type Cat = [string[] | undefined, string];
-    const prestCategories: Cat[] = [
-      [p.exterieur, 'Extérieur & Sécurité'],
-      [p.confort, 'Confort & Équipement'],
-      [p.electromenager, 'Électroménager & Mobilier'],
-      [p.multimedia, 'Multimédia & Communication'],
-      [p.sport, 'Sport & Loisirs'],
-    ];
-
-    return (
-      <div className="space-y-3">
-        <h3 className="text-sm font-medium flex items-center gap-2 mb-3">
-          <Star size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />
-          Prestations
-        </h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-          {prestCategories.filter(([items]) => items?.length).map(([items, label]) => renderCategorieGroup(items, label))}
-        </div>
-      </div>
-    );
+    return <PrestationsGrid data={p} accent={accent} ink={ink} isDark={isDark} />;
   };
 
   const renderFinances = () => {
@@ -434,212 +371,191 @@ export const BuyerDetailTabs = ({ client: initialClient, adminId, agentId, highl
 
     return (
       <div className="space-y-5">
-        <div className={`grid gap-4 ${(isAutre || isComptant || isApportPersonnel) ? 'grid-cols-1 md:grid-cols-2' : 'grid-cols-1 md:grid-cols-2'}`}>
-          <InfoField label="Type de financement" value={c.typeFinancement || 'Non spécifié'} icon={<CreditCard size={16} className="text-premium" />} />
+        <StageSection icon={CreditCard} title="Financement" accent={accent} ink={ink} isDark={isDark} delay={0.05}>
+          <StageField icon={CreditCard} label="Type de financement" value={c.typeFinancement || 'Non spécifié'} accent={accent} ink={ink} isDark={isDark} />
           {isPretBancaire && c.dureePret && (
-            <InfoField label="Durée souhaitée" value={`${c.dureePret} ans`} icon={<Calendar size={16} className="text-premium" />} />
+            <StageField icon={Calendar} label="Durée souhaitée" value={`${c.dureePret} ans`} accent={accent} ink={ink} isDark={isDark} />
           )}
-          {isApportPersonnel && c.apport !== undefined && c.apport > 0 && (
-            <InfoField label="Apport personnel" value={`${c.apport.toLocaleString('fr-FR')} ${devise}`} icon={<CreditCard size={16} className="text-premium" />} />
-          )}
-          {isAutre && c.apport !== undefined && c.apport > 0 && (
-            <InfoField label="Apport personnel" value={`${c.apport.toLocaleString('fr-FR')} ${devise}`} icon={<CreditCard size={16} className="text-premium" />} />
-          )}
-          {isComptant && c.apport !== undefined && c.apport > 0 && (
-            <InfoField label="Apport personnel" value={`${c.apport.toLocaleString('fr-FR')} ${devise}`} icon={<CreditCard size={16} className="text-premium" />} />
+          {(isApportPersonnel || isAutre || isComptant) && c.apport !== undefined && c.apport > 0 && (
+            <StageField icon={CreditCard} label="Apport personnel" value={`${c.apport.toLocaleString('fr-FR')} ${devise}`} accent={accent} ink={ink} isDark={isDark} />
           )}
           {isComptant && client.montantTotal !== undefined && client.montantTotal > 0 && (
-            <InfoField label="Montant total" value={`${client.montantTotal.toLocaleString('fr-FR')} ${devise}`} icon={<DollarSign size={16} className="text-premium" />} />
+            <StageField icon={DollarSign} label="Montant total" value={`${client.montantTotal.toLocaleString('fr-FR')} ${devise}`} accent={accent} ink={ink} isDark={isDark} />
           )}
-        </div>
+        </StageSection>
 
         {/* Revenus & Charges — Prêt bancaire only */}
         {isPretBancaire && (client.revenusMensuelsNets || client.chargesCredit) && (
-          <div className="border-t border-border/30 pt-4">
-            <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-3">Revenus & Charges</p>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {client.revenusMensuelsNets !== undefined && (
-                <InfoField label="Revenus mensuels nets" value={`${client.revenusMensuelsNets.toLocaleString('fr-FR')} ${devise}`} icon={<DollarSign size={16} className="text-premium" />} />
-              )}
-              {client.revenusSupplementaires !== undefined && client.revenusSupplementaires > 0 && (
-                <InfoField label="Revenus supplémentaires" value={`${client.revenusSupplementaires.toLocaleString('fr-FR')} ${devise}`} icon={<DollarSign size={16} className="text-premium" />} />
-              )}
-              {client.chargesCredit !== undefined && client.chargesCredit > 0 && (
-                <InfoField label="Charges de crédit en cours" value={`${client.chargesCredit.toLocaleString('fr-FR')} ${devise}`} icon={<AlertCircle size={16} className={isGerant ? 'text-[#905D5D]' : 'text-amber-500'} />} />
-              )}
-              {client.chargesFixes !== undefined && client.chargesFixes > 0 && (
-                <InfoField label="Charges fixes" value={`${client.chargesFixes.toLocaleString('fr-FR')} ${devise}`} icon={<AlertCircle size={16} className={isGerant ? 'text-[#905D5D]' : 'text-amber-500'} />} />
-              )}
-            </div>
-          </div>
+          <StageSection icon={TrendingUp} title="Revenus & Charges" accent={accent} ink={ink} isDark={isDark} delay={0.1}>
+            {client.revenusMensuelsNets !== undefined && (
+              <StageField icon={DollarSign} label="Revenus mensuels nets" value={`${client.revenusMensuelsNets.toLocaleString('fr-FR')} ${devise}`} accent={accent} ink={ink} isDark={isDark} />
+            )}
+            {client.revenusSupplementaires !== undefined && client.revenusSupplementaires > 0 && (
+              <StageField icon={DollarSign} label="Revenus supplémentaires" value={`${client.revenusSupplementaires.toLocaleString('fr-FR')} ${devise}`} accent={accent} ink={ink} isDark={isDark} />
+            )}
+            {client.chargesCredit !== undefined && client.chargesCredit > 0 && (
+              <StageField icon={AlertCircle} label="Charges de crédit en cours" value={`${client.chargesCredit.toLocaleString('fr-FR')} ${devise}`} accent={accent} ink={ink} isDark={isDark} />
+            )}
+            {client.chargesFixes !== undefined && client.chargesFixes > 0 && (
+              <StageField icon={AlertCircle} label="Charges fixes" value={`${client.chargesFixes.toLocaleString('fr-FR')} ${devise}`} accent={accent} ink={ink} isDark={isDark} />
+            )}
+          </StageSection>
         )}
 
         {/* Détails du prêt — Prêt bancaire only */}
         {isPretBancaire && (
-          <div className="border-t border-border/30 pt-4">
-            <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-3">Détails du prêt</p>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {client.montantPretSouhaite !== undefined && client.montantPretSouhaite > 0 && (
-                <InfoField label="Montant du prêt souhaité" value={`${client.montantPretSouhaite.toLocaleString('fr-FR')} ${devise}`} icon={<DollarSign size={16} className="text-premium" />} />
-              )}
-              {client.tauxEnvisage !== undefined && (
-                <InfoField label="Taux envisagé" value={`${client.tauxEnvisage} %`} icon={<TrendingUp size={16} className="text-premium" />} />
-              )}
-              {client.taeg !== undefined && (
-                <InfoField label="TAEG" value={`${client.taeg} %`} icon={<TrendingUp size={16} className="text-premium" />} />
-              )}
-              {client.assuranceEmprunteur !== undefined && (
-                <InfoField label="Assurance emprunteur" value={`${client.assuranceEmprunteur} %`} icon={<CreditCard size={16} className="text-premium" />} />
-              )}
-            </div>
-          </div>
+          <StageSection icon={FileText} title="Détails du prêt" accent={accent} ink={ink} isDark={isDark} delay={0.15}>
+            {client.montantPretSouhaite !== undefined && client.montantPretSouhaite > 0 && (
+              <StageField icon={DollarSign} label="Montant du prêt souhaité" value={`${client.montantPretSouhaite.toLocaleString('fr-FR')} ${devise}`} accent={accent} ink={ink} isDark={isDark} />
+            )}
+            {client.tauxEnvisage !== undefined && (
+              <StageField icon={TrendingUp} label="Taux envisagé" value={`${client.tauxEnvisage} %`} accent={accent} ink={ink} isDark={isDark} />
+            )}
+            {client.taeg !== undefined && (
+              <StageField icon={TrendingUp} label="TAEG" value={`${client.taeg} %`} accent={accent} ink={ink} isDark={isDark} />
+            )}
+            {client.assuranceEmprunteur !== undefined && (
+              <StageField icon={CreditCard} label="Assurance emprunteur" value={`${client.assuranceEmprunteur} %`} accent={accent} ink={ink} isDark={isDark} />
+            )}
+          </StageSection>
         )}
 
         {/* Apport & Capacité — only for Pret bancaire */}
         {isPretBancaire && c.apport !== undefined && c.apport > 0 && (
-          <InfoField label="Apport personnel" value={`${c.apport.toLocaleString('fr-FR')} ${devise}`} icon={<CreditCard size={16} className="text-premium" />} />
+          <StageSection icon={CreditCard} title="Apport" accent={accent} ink={ink} isDark={isDark} delay={0.2}>
+            <StageField icon={CreditCard} label="Apport personnel" value={`${c.apport.toLocaleString('fr-FR')} ${devise}`} accent={accent} ink={ink} isDark={isDark} />
+          </StageSection>
         )}
 
         {client.capaciteEmprunt !== undefined && client.capaciteEmprunt > 0 && (
-          <div className="space-y-2 mt-4">
-            <div className="flex justify-between text-sm">
-              <span className="flex items-center gap-1.5">
-                <TrendingUp size={16} className="text-premium" />
-                Capacité d'emprunt estimée
-              </span>
-              <span className="font-semibold">{client.capaciteEmprunt.toLocaleString('fr-FR')} {devise}</span>
-            </div>
-            <Progress value={financialStatus.percentage} className="h-2 bg-white/10" indicatorColor="bg-premium" />
-            <p className="text-xs text-text/60">{financialStatus.message}</p>
-          </div>
+          <StageProgressCard
+            icon={TrendingUp}
+            label="Capacité d'emprunt estimée"
+            value={`${client.capaciteEmprunt.toLocaleString('fr-FR')} ${devise}`}
+            pct={financialStatus.percentage}
+            message={financialStatus.message}
+            hue={financialStatus.percentage > 60 ? accent : financialStatus.percentage > 40 ? { a: '#FBBF24', b: '#B45309', glow: 'rgba(251,191,36,0.40)', line: '#FBBF24' } : { a: '#F87171', b: '#B91C1C', glow: 'rgba(248,113,113,0.40)', line: '#F87171' }}
+            isDark={isDark}
+            delay={0.2}
+          />
         )}
 
         {/* Autre — description */}
         {isAutre && (c.descriptionAutreFinancement || client.montantTotal) && (
-          <div className="border-t border-border/30 pt-4">
-            <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-3">Détails du financement</p>
-            <div className="grid grid-cols-1 gap-4">
-              {c.descriptionAutreFinancement && (
-                <InfoField label="Description" value={c.descriptionAutreFinancement} icon={<FileText size={16} className="text-premium" />} />
-              )}
-              {client.montantTotal !== undefined && client.montantTotal > 0 && (
-                <InfoField label="Montant" value={`${client.montantTotal.toLocaleString('fr-FR')} ${devise}`} icon={<DollarSign size={16} className="text-premium" />} />
-              )}
-            </div>
-          </div>
+          <StageSection icon={FileText} title="Détails du financement" accent={accent} ink={ink} isDark={isDark} delay={0.2}>
+            {c.descriptionAutreFinancement && (
+              <StageField icon={FileText} label="Description" value={c.descriptionAutreFinancement} accent={accent} ink={ink} isDark={isDark} />
+            )}
+            {client.montantTotal !== undefined && client.montantTotal > 0 && (
+              <StageField icon={DollarSign} label="Montant" value={`${client.montantTotal.toLocaleString('fr-FR')} ${devise}`} accent={accent} ink={ink} isDark={isDark} />
+            )}
+          </StageSection>
         )}
 
         {/* Banque & Statut — Prêt bancaire */}
         {(isPretBancaire || isAutre) && (
-          <div className="border-t border-border/30 pt-4 space-y-4">
-            <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider">Banque & Statut</p>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {client.banqueSollicitee && <InfoField label="Banque sollicitée" value={client.banqueSollicitee} icon={<Briefcase size={16} className="text-premium" />} />}
-              {isPretBancaire && client.statutFinancement && (
-                <div className="p-4 rounded-xl bg-background">
-                  <div className="flex items-center gap-2 text-xs text-text-secondary mb-1">
-                    <AlertCircle size={14} />
-                    <span>Statut du financement</span>
-                  </div>
-                  <span className={`inline-block px-2.5 py-1 text-xs font-medium rounded-lg border ${statutFinancementColor(client.statutFinancement, isGerant)}`}>
-                    {client.statutFinancement}
-                  </span>
-                </div>
-              )}
-              {client.dateObtentionPret && (
-                <InfoField label="Date d'obtention du prêt" value={new Date(client.dateObtentionPret).toLocaleDateString('fr-FR')} icon={<Calendar size={16} className="text-premium" />} />
-              )}
-            </div>
-            {client.attestationPretUrl && (
-              <div className="flex items-center gap-3 p-3 rounded-lg border border-border bg-background/50">
-                <FileText size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />
-                <span className="text-sm text-text flex-1">Attestation de prêt</span>
-                <a href={client.attestationPretUrl} target="_blank" rel="noopener noreferrer" className={`text-xs px-3 py-1.5 rounded-lg ${isGerant ? 'bg-[#905D5D]/10 text-[#905D5D] border border-[#905D5D]/20 hover:bg-[#905D5D]/20' : 'bg-accent/10 text-accent border border-accent/20 hover:bg-accent/20'} transition-all flex items-center gap-1.5`}>
-                  <Download size={12} /> Voir
-                </a>
-              </div>
+          <StageSection icon={Briefcase} title="Banque & Statut" accent={accent} ink={ink} isDark={isDark} delay={0.25}>
+            {client.banqueSollicitee && <StageField icon={Briefcase} label="Banque sollicitée" value={client.banqueSollicitee} accent={accent} ink={ink} isDark={isDark} />}
+            {isPretBancaire && client.statutFinancement && (
+              <StageField
+                icon={AlertCircle}
+                label="Statut du financement"
+                value={<StagePill label={client.statutFinancement} hue={getFinancementStatusHue(client.statutFinancement) || accent} isDark={isDark} />}
+                accent={accent}
+                ink={ink}
+                isDark={isDark}
+              />
             )}
-          </div>
+            {client.dateObtentionPret && (
+              <StageField icon={Calendar} label="Date d'obtention du prêt" value={new Date(client.dateObtentionPret).toLocaleDateString('fr-FR')} accent={accent} ink={ink} isDark={isDark} />
+            )}
+          </StageSection>
+        )}
+        {(isPretBancaire || isAutre) && client.attestationPretUrl && (
+          <StageDocButton
+            title="Attestation de prêt"
+            name="Voir le document"
+            onOpen={() => window.open(client.attestationPretUrl, '_blank', 'noopener,noreferrer')}
+            accent={accent}
+            ink={ink}
+            isDark={isDark}
+          />
         )}
 
         {/* Notes & Informations complémentaires */}
         {(c.situationActuelle || c.urgence || c.dateEmmenagement || client.notes) && (
-          <div className="border-t border-border/30 pt-4">
-            <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-3">Notes & Informations complémentaires</p>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {c.situationActuelle && <InfoField label="Situation actuelle" value={c.situationActuelle} icon={<User size={16} className="text-premium" />} />}
-              {c.urgence && <InfoField label="Urgence" value={c.urgence} icon={<Clock size={16} className="text-premium" />} />}
-              {c.dateEmmenagement && <InfoField label="Date souhaitée d'emménagement" value={new Date(c.dateEmmenagement).toLocaleDateString('fr-FR')} icon={<Calendar size={16} className="text-premium" />} />}
-            </div>
+          <StageSection icon={User} title="Notes & Informations complémentaires" accent={accent} ink={ink} isDark={isDark} delay={0.3}>
+            {c.situationActuelle && <StageField icon={User} label="Situation actuelle" value={c.situationActuelle} accent={accent} ink={ink} isDark={isDark} />}
+            {c.urgence && <StageField icon={Clock} label="Urgence" value={c.urgence} accent={accent} ink={ink} isDark={isDark} />}
+            {c.dateEmmenagement && <StageField icon={Calendar} label="Date souhaitée d'emménagement" value={new Date(c.dateEmmenagement).toLocaleDateString('fr-FR')} accent={accent} ink={ink} isDark={isDark} />}
             {client.notes && (
-              <div className="mt-3">
-                <InfoField label="Notes complémentaires" value={client.notes} icon={<FileText size={16} className="text-premium" />} />
-              </div>
+              <StageField icon={FileText} label="Notes complémentaires" value={client.notes} accent={accent} ink={ink} isDark={isDark} />
             )}
-          </div>
+          </StageSection>
         )}
       </div>
     );
   };
 
   const renderMandat = () => {
-    if (!client.numeroMandat) return renderEmpty();
+    if (!client.numeroMandat) return <StageEmpty isDark={isDark} />;
 
     return (
-      <div className="space-y-3">
-        <h3 className="text-sm font-medium flex items-center gap-2 mb-3">
-          <Layers size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />
-          Mandat de recherche
-        </h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <InfoField label="Numéro de mandat" value={client.numeroMandat || 'Non spécifié'} icon={<Tag size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />
-          {client.statutMandat && <InfoField label="Statut du mandat" value={client.statutMandat} icon={<Clock size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />}
-          {client.typeMandat && <InfoField label="Type de mandat" value={client.typeMandat} icon={<Compass size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />}
-          {client.dateSignature && <InfoField label="Date de signature" value={new Date(client.dateSignature).toLocaleDateString('fr-FR')} icon={<Calendar size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />}
-          {client.dateDebut && <InfoField label="Date de début" value={new Date(client.dateDebut).toLocaleDateString('fr-FR')} icon={<Calendar size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />}
-          {client.dateExpiration && <InfoField label="Date d'expiration" value={new Date(client.dateExpiration).toLocaleDateString('fr-FR')} icon={<Calendar size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />}
-          {client.conjoint && <InfoField label="Conjoint" value={client.conjoint} icon={<User size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />}
-          {client.societe && <InfoField label="Société" value={client.societe} icon={<Briefcase size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />}
-          {client.agentDesigne && <InfoField label="Agent désigné" value={resolveAgentName(client.agentDesigne)} icon={<User size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />}
-          {(initialClient as any).bienConcerneId && (
-            <div
-              role="button"
-              tabIndex={0}
-              onClick={() => basePath && navigate(`${basePath}/properties/${(initialClient as any).bienConcerneId}`)}
-              onKeyDown={(e) => { if (e.key === 'Enter' && basePath) navigate(`${basePath}/properties/${(initialClient as any).bienConcerneId}`); }}
-              className={`p-4 rounded-xl bg-background transition-colors ${basePath ? (isGerant ? 'cursor-pointer hover:bg-[#905D5D]/5' : 'cursor-pointer hover:bg-accent/5') : ''}`}
-            >
-              <div className="flex items-center gap-2 text-xs text-text-secondary mb-1">
-                <Layers size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />
-                <span>Bien concerné</span>
-              </div>
-              <p className={`text-sm font-medium ${isGerant ? 'text-[#905D5D]' : 'text-accent'} hover:underline`}>
-                {bienProp ? (
-                  <>{bienProp.title || bienProp.reference || `Bien #${bienProp.id}`}{bienProp.city ? ` - ${bienProp.city}` : ''}</>
-                ) : (
-                  <>Bien #{(initialClient as any).bienConcerneId}</>
-                )}
-              </p>
-            </div>
+      <div className="space-y-5">
+        <StageSection icon={Layers} title="Mandat de recherche" accent={accent} ink={ink} isDark={isDark} delay={0.05}>
+          <StageField icon={Tag} label="Numéro de mandat" value={client.numeroMandat || 'Non spécifié'} accent={accent} ink={ink} isDark={isDark} />
+          {client.statutMandat && (
+            <StageField
+              icon={Clock}
+              label="Statut du mandat"
+              value={<StagePill label={client.statutMandat} hue={getMandatStatusHue(client.statutMandat) || accent} isDark={isDark} />}
+              accent={accent}
+              ink={ink}
+              isDark={isDark}
+            />
           )}
-        </div>
+          {client.typeMandat && <StageField icon={Compass} label="Type de mandat" value={client.typeMandat} accent={accent} ink={ink} isDark={isDark} />}
+          {client.dateSignature && <StageField icon={Calendar} label="Date de signature" value={new Date(client.dateSignature).toLocaleDateString('fr-FR')} accent={accent} ink={ink} isDark={isDark} />}
+          {client.dateDebut && <StageField icon={Calendar} label="Date de début" value={new Date(client.dateDebut).toLocaleDateString('fr-FR')} accent={accent} ink={ink} isDark={isDark} />}
+          {client.dateExpiration && <StageField icon={Calendar} label="Date d'expiration" value={new Date(client.dateExpiration).toLocaleDateString('fr-FR')} accent={accent} ink={ink} isDark={isDark} />}
+          {client.conjoint && <StageField icon={User} label="Conjoint" value={client.conjoint} accent={accent} ink={ink} isDark={isDark} />}
+          {client.societe && <StageField icon={Briefcase} label="Société" value={client.societe} accent={accent} ink={ink} isDark={isDark} />}
+          {client.agentDesigne && <StageField icon={User} label="Agent désigné" value={resolveAgentName(client.agentDesigne)} accent={accent} ink={ink} isDark={isDark} />}
+        </StageSection>
 
-        <div className="border-t border-border/30 pt-4">
-          <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-3">Rémunération de l'agence</p>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {client.typeRemuneration && <InfoField label="Type de rémunération" value={client.typeRemuneration} icon={<DollarSign size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />}
-            {client.montantRemuneration && (
-              <InfoField label="Montant / Pourcentage" value={(client as any).remunerationIsPercentage ? `${client.montantRemuneration}%` : `${client.montantRemuneration.toLocaleString()} ${client.devise || 'MAD'}`} icon={<DollarSign size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />
-            )}
-            {client.conditionPaiement && <InfoField label="Condition de paiement" value={client.conditionPaiement} icon={<DollarSign size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />}
-          </div>
-        </div>
+        {(initialClient as any).bienConcerneId && (
+          <StageLinkCard
+            icon={Layers}
+            eyebrow="Bien concerné"
+            title={bienProp ? `${bienProp.title || bienProp.reference || `Bien #${bienProp.id}`}${bienProp.city ? ` - ${bienProp.city}` : ''}` : `Bien #${(initialClient as any).bienConcerneId}`}
+            onOpen={basePath ? () => navigate(`${basePath}/properties/${(initialClient as any).bienConcerneId}`) : undefined}
+            accent={accent}
+            ink={ink}
+            isDark={isDark}
+            delay={0.1}
+          />
+        )}
+
+        <StageSection icon={DollarSign} title="Rémunération de l'agence" accent={accent} ink={ink} isDark={isDark} delay={0.15}>
+          {client.typeRemuneration && <StageField icon={DollarSign} label="Type de rémunération" value={client.typeRemuneration} accent={accent} ink={ink} isDark={isDark} />}
+          {client.montantRemuneration && (
+            <StageField icon={DollarSign} label="Montant / Pourcentage" value={(client as any).remunerationIsPercentage ? `${client.montantRemuneration}%` : `${client.montantRemuneration.toLocaleString()} ${client.devise || 'MAD'}`} accent={accent} ink={ink} isDark={isDark} />
+          )}
+          {client.conditionPaiement && <StageField icon={DollarSign} label="Condition de paiement" value={client.conditionPaiement} accent={accent} ink={ink} isDark={isDark} />}
+        </StageSection>
 
         {client.dureeProtection && (
-          <div className="border-t border-border/30 pt-4">
-            <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-3">Clause de protection</p>
-            <InfoField label="Durée de protection" value={`${client.dureeProtection} mois`} icon={<Clock size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />
-          </div>
+          <StageSection icon={Shield} title="Clause de protection" accent={accent} ink={ink} isDark={isDark} delay={0.2}>
+            <StageField
+              icon={Clock}
+              label="Durée de protection"
+              value={`${client.dureeProtection} mois`}
+              accent={accent}
+              ink={ink}
+              isDark={isDark}
+              action={<StagePill label="Activée" hue={OK_STAGE_HUE} isDark={isDark} dot={false} />}
+            />
+          </StageSection>
         )}
       </div>
     );
@@ -727,13 +643,7 @@ export const BuyerDetailTabs = ({ client: initialClient, adminId, agentId, highl
       }
     };
 
-    const scoreMeta = (score: number) => {
-      if (score >= 80) return { text: 'text-emerald-600', bg: 'bg-emerald-500', lightBg: 'bg-emerald-50', ring: 'ring-emerald-500/20', label: 'Excellente', trackBg: 'bg-emerald-100' };
-      if (score >= 60) return isGerant
-        ? { text: 'text-[#905D5D]', bg: 'bg-[#905D5D]', lightBg: 'bg-[#E7D5D5]', ring: 'ring-[#905D5D]/20', label: 'Moyenne', trackBg: 'bg-[#E7D5D5]' }
-        : { text: 'text-amber-600', bg: 'bg-amber-500', lightBg: 'bg-amber-50', ring: 'ring-amber-500/20', label: 'Moyenne', trackBg: 'bg-amber-100' };
-      return { text: 'text-red-500', bg: 'bg-red-400', lightBg: 'bg-red-50', ring: 'ring-red-400/20', label: 'Faible', trackBg: 'bg-red-100' };
-    };
+    const scoreHueOf = (score: number) => getScoreHue(score, isGerant, accent);
 
     const criterionMeta: Record<string, { label: string; icon: any; weight: number }> = {
       location: { label: 'Localisation', icon: MapPin, weight: 20 },
@@ -766,26 +676,37 @@ export const BuyerDetailTabs = ({ client: initialClient, adminId, agentId, highl
     if (loadingCroisement) {
       return (
         <div className="flex flex-col items-center justify-center py-20">
-          <div className="relative w-14 h-14 mb-4">
-            <div className={`absolute inset-0 rounded-full border-2 ${isGerant ? 'border-[#905D5D]/20' : 'border-accent/20'}`} />
-            <div className={`absolute inset-0 rounded-full border-2 border-transparent ${isGerant ? 'border-t-[#905D5D]' : 'border-t-accent'} animate-spin`} />
-            <div className={`absolute inset-2 rounded-full border-2 border-transparent ${isGerant ? 'border-t-[#905D5D]/60' : 'border-t-accent/60'} animate-spin`} style={{ animationDirection: 'reverse', animationDuration: '1.5s' }} />
-            <BarChart2 size={16} className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 ${isGerant ? 'text-[#905D5D]' : 'text-accent'}`} />
+          <div className="relative mb-4 h-14 w-14">
+            <div className="absolute inset-0 rounded-full border-2" style={{ borderColor: `${accent.a}30` }} />
+            <div className="absolute inset-0 animate-spin rounded-full border-2 border-transparent" style={{ borderTopColor: accent.a }} />
+            <div className="absolute inset-2 animate-spin rounded-full border-2 border-transparent" style={{ borderTopColor: `${accent.a}99`, animationDirection: 'reverse', animationDuration: '1.5s' }} />
+            <BarChart2 size={16} className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2" style={{ color: ink }} />
           </div>
-          <p className="text-sm font-medium text-text">Analyse en cours...</p>
-          <p className="text-xs text-text-secondary/60 mt-1">Comparaison des critères avec la base de données</p>
+          <p className={`text-sm font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>Analyse en cours...</p>
+          <p className={`mt-1 text-xs ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>Comparaison des critères avec la base de données</p>
         </div>
       );
     }
 
     if (croisementError) {
       return (
-        <div className="flex flex-col items-center justify-center py-16">
-          <div className="w-12 h-12 rounded-full bg-red-50 flex items-center justify-center mb-3">
-            <AlertCircle size={20} className="text-red-400" />
+        <div className="flex flex-col items-center justify-center py-16 text-center">
+          <div
+            className="mb-3 flex h-14 w-14 items-center justify-center rounded-2xl border backdrop-blur-sm"
+            style={isDark
+              ? { background: 'rgba(248,113,113,0.10)', borderColor: 'rgba(248,113,113,0.30)', color: '#F87171' }
+              : { background: 'rgba(248,113,113,0.08)', borderColor: 'rgba(248,113,113,0.30)', color: '#DC2626' }}
+          >
+            <AlertCircle size={22} />
           </div>
-          <p className="text-sm text-red-500 font-medium">{croisementError}</p>
-          <Button variant="outline" size="sm" icon={<RefreshCw size={14} />} onClick={fetchCroisements} className="mt-3">Réessayer</Button>
+          <p className={`text-sm font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>{croisementError}</p>
+          <button
+            type="button"
+            onClick={fetchCroisements}
+            className={`mt-3 inline-flex items-center gap-2 rounded-xl border px-4 py-2 text-xs font-bold backdrop-blur-md transition-all duration-200 hover:scale-[1.02] active:scale-95 ${isDark ? 'border-white/10 bg-white/[0.04] text-slate-300 hover:bg-white/10 hover:text-white' : 'border-slate-200/80 bg-white text-slate-600 shadow-sm hover:bg-white hover:text-slate-900'}`}
+          >
+            <RefreshCw size={14} /> Réessayer
+          </button>
         </div>
       );
     }
@@ -794,87 +715,149 @@ export const BuyerDetailTabs = ({ client: initialClient, adminId, agentId, highl
     const sorted = [...filtered].sort((a, b) => sortBy === 'price' ? a.prix - b.prix : sortBy === 'surface' ? b.surface - a.surface : b.score - a.score);
     const avgScore = filtered.length > 0 ? Math.round(filtered.reduce((s, m) => s + m.score, 0) / filtered.length) : 0;
     const excellentCount = filtered.filter(m => m.score >= 80).length;
-    const sm = scoreMeta(avgScore);
+    const avgHue = scoreHueOf(avgScore);
 
     return (
-      <div className="space-y-6">
-        {/* Hero Header */}
-        <div className={`relative overflow-hidden rounded-2xl bg-gradient-to-br ${isGerant ? 'from-[#905D5D]/5 via-[#905D5D]/[0.02] to-transparent border-[#905D5D]/10' : 'from-accent/5 via-accent/[0.02] to-transparent border-accent/10'} p-5`}>
-          <div className={`absolute top-3 right-3 w-24 h-24 rounded-full ${isGerant ? 'bg-[#905D5D]/5' : 'bg-accent/5'} blur-2xl`} />
-          <div className="relative flex items-start justify-between gap-4">
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 mb-1">
-                <div className={`w-7 h-7 rounded-lg ${isGerant ? 'bg-[#905D5D]/10' : 'bg-accent/10'} flex items-center justify-center`}>
-                  <BarChart2 size={14} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />
+      <div className="space-y-5">
+        {/* Hero Header — staged */}
+        <div
+          className={`relative overflow-hidden rounded-2xl border p-4 backdrop-blur-sm sm:p-5 ${isDark ? 'border-white/[0.07] bg-white/[0.03]' : 'border-slate-200/70 bg-white/70 shadow-sm'}`}
+        >
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-0"
+            style={{ background: `radial-gradient(80% 120% at 100% 0%, ${accent.a}1F, transparent 60%)` }}
+          />
+          <div className="relative flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div className="flex min-w-0 flex-1 items-start gap-3">
+              <span
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border"
+                style={isDark
+                  ? { background: `${accent.a}14`, borderColor: `${accent.a}30`, color: accent.a }
+                  : { background: `${accent.a}12`, borderColor: `${accent.a}30`, color: ink }}
+              >
+                <BarChart2 size={17} />
+              </span>
+              <div className="min-w-0 flex-1">
+                <h3 className={`text-sm font-extrabold tracking-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>Croisements</h3>
+                <p className={`mt-0.5 truncate text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                  <span className={`font-bold ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>{client.name}</span>
+                  <span className="mx-1.5 opacity-40">—</span>
+                  {filtered.length} bien{filtered.length > 1 ? 's' : ''} correspondant{filtered.length > 1 ? 's' : ''}
+                </p>
+                <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
+                  <span
+                    className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-extrabold tabular-nums backdrop-blur-md ${isDark ? 'border-white/10 bg-white/[0.04]' : 'border-slate-200/80 bg-white/70'}`}
+                    style={{ color: isDark ? avgHue.a : avgHue.b }}
+                  >
+                    <span className="h-1.5 w-1.5 rounded-full" style={{ background: avgHue.line, boxShadow: `0 0 6px ${avgHue.glow}` }} />
+                    {avgScore}%
+                    <span className={`text-[10px] font-semibold ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>score moyen</span>
+                  </span>
+                  {excellentCount > 0 && (
+                    <span
+                      className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-bold backdrop-blur-md"
+                      style={isDark
+                        ? { background: 'rgba(52,211,153,0.12)', color: '#6EE7B7', border: '1px solid rgba(52,211,153,0.30)' }
+                        : { background: 'rgba(5,150,105,0.08)', color: '#047857', border: '1px solid rgba(5,150,105,0.28)' }}
+                    >
+                      <CheckCircle size={12} />
+                      {excellentCount}
+                      <span className="text-[10px] font-semibold opacity-70">excellent{excellentCount > 1 ? 's' : ''}</span>
+                    </span>
+                  )}
                 </div>
-                <h3 className="text-sm font-semibold text-text tracking-tight">Croisements</h3>
-              </div>
-              <p className="text-xs text-text-secondary">
-                <span className="font-semibold text-text">{client.name}</span>
-                <span className="mx-1.5 text-text-secondary/30">—</span>
-                {filtered.length} bien{filtered.length > 1 ? 's' : ''} correspondant{filtered.length > 1 ? 's' : ''}
-              </p>
-              <div className="flex items-center gap-3 mt-3">
-                <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-card border border-border/50">
-                  <span className={`text-lg font-bold ${sm.text}`}>{avgScore}%</span>
-                  <span className="text-[10px] text-text-secondary">score moyen</span>
-                </div>
-                {excellentCount > 0 && (
-                  <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50 border border-emerald-100">
-                    <CheckCircle size={12} className="text-emerald-500" />
-                    <span className="text-xs font-semibold text-emerald-600">{excellentCount}</span>
-                    <span className="text-[10px] text-emerald-600/70">excellent{excellentCount > 1 ? 's' : ''}</span>
-                  </div>
-                )}
               </div>
             </div>
-            <div className="flex gap-2 shrink-0">
-              <Button variant="outline" size="sm" icon={<RefreshCw size={14} />} onClick={fetchCroisements}>Relancer</Button>
+            <div className="flex shrink-0 gap-2">
+              <button
+                type="button"
+                onClick={fetchCroisements}
+                className={`inline-flex items-center gap-2 rounded-xl border px-3.5 py-2 text-xs font-bold backdrop-blur-md transition-all duration-200 hover:scale-[1.02] active:scale-95 ${isDark ? 'border-white/10 bg-white/[0.04] text-slate-300 hover:bg-white/10 hover:text-white' : 'border-slate-200/80 bg-white text-slate-600 shadow-sm hover:bg-white hover:text-slate-900'}`}
+              >
+                <RefreshCw size={14} /> Relancer
+              </button>
               {selectedProposals.length > 0 && (
-                <Button variant="default" size="sm" icon={<Mail size={14} />}>Envoyer ({selectedProposals.length})</Button>
+                <button
+                  type="button"
+                  className="inline-flex items-center gap-2 rounded-xl border border-white/20 px-3.5 py-2 text-xs font-bold text-white shadow-lg transition-all hover:scale-[1.02] active:scale-95"
+style={isGerant
+  ? { backgroundImage: `linear-gradient(145deg, ${accent.a} 0%, ${accent.b} 100%)`, boxShadow: `inset 0 1px 0 rgba(255,255,255,0.4), 0 10px 26px -10px ${accent.glow}` }
+  : isDark
+                      ? { backgroundImage: 'linear-gradient(145deg, #8B7CFF 0%, #6C5ECF 60%, #5646C9 100%)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.4), 0 10px 26px -8px rgba(124,92,255,0.65)' }
+                      : { backgroundImage: 'linear-gradient(145deg, #2DD4BF 0%, #14B8A6 60%, #0D9488 100%)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.5), 0 10px 26px -10px rgba(13,148,136,0.6)' }}
+                >
+                  <Mail size={14} /> Envoyer ({selectedProposals.length})
+                </button>
               )}
             </div>
           </div>
         </div>
 
-        {/* Filter Bar */}
-        <div className="flex flex-wrap items-center gap-3 px-1">
-          <div className="flex items-center gap-1.5 mr-2">
-            <Filter size={12} className="text-text-secondary/50" />
-            <span className="text-[10px] font-medium text-text-secondary/60 uppercase tracking-wider">Filtres</span>
+        {/* Filter Bar — staged segments */}
+        <div className="flex flex-wrap items-center gap-2.5 px-0.5">
+          <div className="mr-1 flex items-center gap-1.5">
+            <Filter size={12} className={isDark ? 'text-slate-500' : 'text-slate-400'} />
+            <span className={`text-[10px] font-bold uppercase tracking-[0.14em] ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>Filtres</span>
           </div>
-          <div className="flex items-center gap-1 bg-background rounded-lg border border-border/50 p-0.5">
-            {[0, 50, 60, 70, 80].map(val => (
-              <button key={val} onClick={() => setCroisementScoreFilter(val)}
-                className={`px-2.5 py-1 text-[11px] font-medium rounded-md transition-all ${croisementScoreFilter === val ? (isGerant ? 'bg-[#905D5D] text-white shadow-sm' : 'bg-accent text-white shadow-sm') : 'text-text-secondary hover:text-text'}`}>
-                {val === 0 ? 'Tous' : `${val}%+`}
-              </button>
-            ))}
+          <div className={`flex items-center gap-1 rounded-xl border p-1 backdrop-blur-sm ${isDark ? 'border-white/[0.07] bg-white/[0.03]' : 'border-slate-200/70 bg-white/70 shadow-sm'}`}>
+            {[0, 50, 60, 70, 80].map(val => {
+              const on = croisementScoreFilter === val;
+              return (
+                <button
+                  key={val}
+                  type="button"
+                  onClick={() => setCroisementScoreFilter(val)}
+                  className={`rounded-lg px-2.5 py-1 text-[11px] font-bold transition-all duration-200 ${on ? 'text-white shadow-sm' : isDark ? 'text-slate-400 hover:bg-white/[0.06] hover:text-white' : 'text-slate-500 hover:bg-slate-900/[0.04] hover:text-slate-900'}`}
+style={on ? (isGerant
+  ? { background: `linear-gradient(145deg, ${accent.a}, ${accent.b})` }
+  : isDark
+    ? { background: 'linear-gradient(145deg, #8B7CFF, #6C5ECF)' }
+    : { background: 'linear-gradient(145deg, #2DD4BF, #0D9488)' }) : undefined}
+                >
+                  {val === 0 ? 'Tous' : `${val}%+`}
+                </button>
+              );
+            })}
           </div>
-          <div className="h-4 w-px bg-border/50" />
-          <div className="flex items-center gap-1 bg-background rounded-lg border border-border/50 p-0.5">
-            {([['score', 'Meilleur', TrendingUp], ['price', 'Prix', DollarSign], ['surface', 'Surface', Maximize2]] as const).map(([val, label, Icon]) => (
-              <button key={val} onClick={() => setSortBy(val)}
-                className={`flex items-center gap-1 px-2.5 py-1 text-[11px] font-medium rounded-md transition-all ${sortBy === val ? (isGerant ? 'bg-[#905D5D] text-white shadow-sm' : 'bg-accent text-white shadow-sm') : 'text-text-secondary hover:text-text'}`}>
-                <Icon size={10} />{label}
-              </button>
-            ))}
+          <div className={`h-4 w-px ${isDark ? 'bg-white/10' : 'bg-slate-200'}`} />
+          <div className={`flex items-center gap-1 rounded-xl border p-1 backdrop-blur-sm ${isDark ? 'border-white/[0.07] bg-white/[0.03]' : 'border-slate-200/70 bg-white/70 shadow-sm'}`}>
+            {([['score', 'Meilleur', TrendingUp], ['price', 'Prix', DollarSign], ['surface', 'Surface', Maximize2]] as const).map(([val, label, Icon]) => {
+              const on = sortBy === val;
+              return (
+                <button
+                  key={val}
+                  type="button"
+                  onClick={() => setSortBy(val)}
+                  className={`flex items-center gap-1 rounded-lg px-2.5 py-1 text-[11px] font-bold transition-all duration-200 ${on ? 'text-white shadow-sm' : isDark ? 'text-slate-400 hover:bg-white/[0.06] hover:text-white' : 'text-slate-500 hover:bg-slate-900/[0.04] hover:text-slate-900'}`}
+style={on ? (isGerant
+  ? { background: `linear-gradient(145deg, ${accent.a}, ${accent.b})` }
+  : isDark
+    ? { background: 'linear-gradient(145deg, #8B7CFF, #6C5ECF)' }
+    : { background: 'linear-gradient(145deg, #2DD4BF, #0D9488)' }) : undefined}
+                >
+                  <Icon size={10} />{label}
+                </button>
+              );
+            })}
           </div>
         </div>
 
         {/* Property Cards */}
         {sorted.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-16">
-            <div className="w-14 h-14 rounded-2xl bg-background flex items-center justify-center mb-3 border border-border/50">
-              <Home size={22} className="text-text-secondary/30" />
+          <div className="flex flex-col items-center justify-center py-16 text-center">
+            <div
+              className={`mb-3 flex h-14 w-14 items-center justify-center rounded-2xl border backdrop-blur-sm ${isDark ? 'border-white/10 bg-white/[0.04] text-slate-500' : 'border-slate-200/70 bg-white/70 text-slate-400 shadow-sm'}`}
+            >
+              <Home size={22} />
             </div>
-            <p className="text-sm font-medium text-text-secondary">Aucun bien trouvé</p>
-            <p className="text-xs text-text-secondary/50 mt-1">Essayez d'abaisser le score minimum</p>
+            <p className={`text-sm font-bold ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>Aucun bien trouvé</p>
+            <p className={`mt-1 text-xs ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>Essayez d'abaisser le score minimum</p>
           </div>
         ) : (
           <div className="space-y-4">
             {sorted.map((match) => {
-              const sc = scoreMeta(match.score);
+              const scoreHue = scoreHueOf(match.score);
               const criteria = buildCriteria(match.details);
               const isExpanded = expandedCards.has(match.id);
               const hasImage = match.images && match.images.length > 0 && match.images[0];
@@ -882,74 +865,83 @@ export const BuyerDetailTabs = ({ client: initialClient, adminId, agentId, highl
               const typeLabel = match.propertyType || 'Bien';
 
               return (
-                <div key={match.id} className="group bg-card rounded-2xl border border-border/40 shadow-card hover:shadow-lg hover:border-border/60 transition-all duration-300 overflow-hidden">
+                <div
+                  key={match.id}
+                  className={`group overflow-hidden rounded-2xl border backdrop-blur-sm transition-all duration-300 hover:-translate-y-0.5 ${isDark ? 'border-white/[0.07] bg-white/[0.03] hover:border-white/[0.14] hover:shadow-[0_20px_50px_-20px_rgba(0,0,0,0.7)]' : 'border-slate-200/70 bg-white/75 shadow-[0_1px_2px_rgba(15,23,42,0.05)] hover:shadow-[0_18px_44px_-20px_rgba(13,148,136,0.35)]'}`}
+                >
 
                   {/* Top: Image + Info + Score Ring */}
                   <div className="flex gap-4 p-4">
                     {/* Image */}
-                    <div className="w-24 h-24 rounded-xl bg-background border border-border/40 flex items-center justify-center shrink-0 overflow-hidden">
+                    <div className={`flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-xl border ${isDark ? 'border-white/[0.07] bg-white/[0.04]' : 'border-slate-200/70 bg-slate-100/70'}`}>
                       {hasImage ? (
-                        <img src={match.images![0]} alt="" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                        <img src={match.images![0]} alt="" className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105" />
                       ) : (
                         <div className="flex flex-col items-center gap-0.5">
-                          <Home size={20} className="text-text-secondary/20" />
-                          <span className="text-[8px] text-text-secondary/30 font-medium uppercase">{typeLabel}</span>
+                          <Home size={20} className={isDark ? 'text-slate-600' : 'text-slate-300'} />
+                          <span className={`text-[8px] font-bold uppercase ${isDark ? 'text-slate-600' : 'text-slate-400'}`}>{typeLabel}</span>
                         </div>
                       )}
                     </div>
 
                     {/* Info */}
-                    <div className="flex-1 min-w-0">
+                    <div className="min-w-0 flex-1">
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
                           <div className="flex items-center gap-2">
-                            <h4 className="font-semibold text-[13px] text-text truncate leading-tight">{match.produit}</h4>
-                            <span className={`shrink-0 px-1.5 py-0.5 rounded text-[8px] font-bold uppercase tracking-wider ${isGerant ? 'bg-[#905D5D]/10 text-[#905D5D] border border-[#905D5D]/20' : 'bg-accent/10 text-accent border border-accent/20'}`}>{typeLabel}</span>
+                            <h4 className={`truncate text-[13px] font-extrabold leading-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>{match.produit}</h4>
+                            <span
+                              className="shrink-0 rounded-full px-1.5 py-0.5 text-[8px] font-extrabold uppercase tracking-wider"
+                              style={isDark
+                                ? { background: `${accent.a}1E`, color: accent.a, border: `1px solid ${accent.a}36` }
+                                : { background: `${accent.a}14`, color: ink, border: `1px solid ${accent.a}36` }}
+                            >
+                              {typeLabel}
+                            </span>
                           </div>
-                          <div className="flex items-center gap-1.5 mt-1">
+                          <div className="mt-1 flex items-center gap-1.5">
                             {location && (
-                              <span className="inline-flex items-center gap-1 text-[11px] text-text-secondary">
-                                <MapPin size={10} className="shrink-0 text-text-secondary/50" />
+                              <span className={`inline-flex items-center gap-1 text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                                <MapPin size={10} className="shrink-0 opacity-60" />
                                 {location}
                               </span>
                             )}
                           </div>
                         </div>
-                        {/* Score circle */}
-                        <div className="shrink-0 flex flex-col items-center">
-                          <div className={`relative w-12 h-12 rounded-full ${sc.lightBg} flex items-center justify-center ring-2 ${sc.ring}`}>
-                            <span className={`text-sm font-bold ${sc.text}`}>{match.score}</span>
-                            <span className={`text-[7px] font-medium ${sc.text} -mt-0.5`}>%</span>
-                          </div>
-                          <span className={`text-[8px] font-semibold ${sc.text} mt-0.5 uppercase tracking-wide`}>{sc.label}</span>
+                        {/* Score ring */}
+                        <div className="flex shrink-0 flex-col items-center gap-1">
+                          <ScoreRing score={match.score} size={52} isGerant={isGerant} isDark={isDark} accent={accent} />
+                          <span className="text-[8px] font-extrabold uppercase tracking-wider" style={{ color: isDark ? scoreHue.a : scoreHue.b }}>
+                            {scoreLabel(match.score)}
+                          </span>
                         </div>
                       </div>
 
                       {/* Property stats */}
-                      <div className="flex items-center gap-1.5 mt-2 flex-wrap">
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-background text-[10px] font-medium text-text-secondary border border-border/40">
-                          <DollarSign size={9} className="text-text-secondary/50" />
+                      <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                        <span className={`inline-flex items-center gap-1 rounded-lg border px-2 py-0.5 text-[10px] font-semibold ${isDark ? 'border-white/[0.07] bg-white/[0.04] text-slate-300' : 'border-slate-200/70 bg-white/70 text-slate-600'}`}>
+                          <DollarSign size={9} className="opacity-60" />
                           {match.prix > 0 ? `${match.prix.toLocaleString()} MAD` : 'Prix NC'}
                         </span>
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-background text-[10px] font-medium text-text-secondary border border-border/40">
-                          <Maximize2 size={9} className="text-text-secondary/50" />
+                        <span className={`inline-flex items-center gap-1 rounded-lg border px-2 py-0.5 text-[10px] font-semibold ${isDark ? 'border-white/[0.07] bg-white/[0.04] text-slate-300' : 'border-slate-200/70 bg-white/70 text-slate-600'}`}>
+                          <Maximize2 size={9} className="opacity-60" />
                           {match.surface > 0 ? `${match.surface} m²` : '—'}
                         </span>
                         {match.pieces ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-background text-[10px] font-medium text-text-secondary border border-border/40">
-                            <Grid size={9} className="text-text-secondary/50" />
+                          <span className={`inline-flex items-center gap-1 rounded-lg border px-2 py-0.5 text-[10px] font-semibold ${isDark ? 'border-white/[0.07] bg-white/[0.04] text-slate-300' : 'border-slate-200/70 bg-white/70 text-slate-600'}`}>
+                            <Grid size={9} className="opacity-60" />
                             {match.pieces} p.
                           </span>
                         ) : null}
                         {match.chambres ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-background text-[10px] font-medium text-text-secondary border border-border/40">
-                            <Home size={9} className="text-text-secondary/50" />
+                          <span className={`inline-flex items-center gap-1 rounded-lg border px-2 py-0.5 text-[10px] font-semibold ${isDark ? 'border-white/[0.07] bg-white/[0.04] text-slate-300' : 'border-slate-200/70 bg-white/70 text-slate-600'}`}>
+                            <Home size={9} className="opacity-60" />
                             {match.chambres} ch.
                           </span>
                         ) : null}
                         {match.sallesDeBain ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-background text-[10px] font-medium text-text-secondary border border-border/40">
-                            <Droplet size={9} className="text-text-secondary/50" />
+                          <span className={`inline-flex items-center gap-1 rounded-lg border px-2 py-0.5 text-[10px] font-semibold ${isDark ? 'border-white/[0.07] bg-white/[0.04] text-slate-300' : 'border-slate-200/70 bg-white/70 text-slate-600'}`}>
+                            <Droplet size={9} className="opacity-60" />
                             {match.sallesDeBain} sdb
                           </span>
                         ) : null}
@@ -960,18 +952,25 @@ export const BuyerDetailTabs = ({ client: initialClient, adminId, agentId, highl
                   {/* Description snippet */}
                   {match.description && (
                     <div className="px-4 pb-3">
-                      <p className="text-[11px] text-text-secondary/60 leading-relaxed line-clamp-2">{match.description}</p>
+                      <p className={`line-clamp-2 text-[11px] leading-relaxed ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>{match.description}</p>
                     </div>
                   )}
 
                   {/* Features chips */}
                   {match.features && match.features.length > 0 && (
-                    <div className="px-4 pb-3 flex flex-wrap gap-1">
+                    <div className="flex flex-wrap gap-1 px-4 pb-3">
                       {match.features.slice(0, 6).map((f, i) => (
-                        <span key={i} className="px-2 py-0.5 rounded-md bg-background text-[9px] font-medium text-text-secondary/70 border border-border/30">{f}</span>
+                        <span key={i} className={`rounded-md border px-2 py-0.5 text-[9px] font-semibold ${isDark ? 'border-white/10 bg-white/[0.04] text-slate-400' : 'border-slate-200/70 bg-white/60 text-slate-500'}`}>{f}</span>
                       ))}
                       {match.features.length > 6 && (
-                        <span className={`px-2 py-0.5 rounded-md ${isGerant ? 'bg-[#905D5D]/5 text-[9px] font-medium text-[#905D5D]/60' : 'bg-accent/5 text-[9px] font-medium text-accent/60'}`}>+{match.features.length - 6}</span>
+                        <span
+                          className="rounded-md border px-2 py-0.5 text-[9px] font-bold"
+                          style={isDark
+                            ? { background: `${accent.a}14`, color: accent.a, border: `1px solid ${accent.a}30` }
+                            : { background: `${accent.a}12`, color: ink, border: `1px solid ${accent.a}30` }}
+                        >
+                          +{match.features.length - 6}
+                        </span>
                       )}
                     </div>
                   )}
@@ -980,24 +979,26 @@ export const BuyerDetailTabs = ({ client: initialClient, adminId, agentId, highl
                   {criteria.length > 0 && (
                     <div className="px-4 pb-4">
                       {/* Score bar */}
-                      <div className={`h-1.5 rounded-full ${sc.trackBg} overflow-hidden mb-3`}>
-                        <div className={`h-full rounded-full ${sc.bg} transition-all duration-700 ease-out`} style={{ width: `${match.score}%` }} />
+                      <div className={`h-1.5 overflow-hidden rounded-full ${isDark ? 'bg-white/[0.07]' : 'bg-slate-900/[0.07]'}`}>
+                        <div
+                          className="h-full rounded-full transition-all duration-700 ease-out"
+                          style={{ width: `${match.score}%`, background: `linear-gradient(90deg, ${scoreHue.b}, ${scoreHue.a})`, boxShadow: `0 0 10px ${scoreHue.glow}` }}
+                        />
                       </div>
 
                       {/* Criteria grid */}
                       <div className="flex flex-wrap gap-x-4 gap-y-1">
                         {criteria.map(({ key, label, icon: CIcon, ratio }) => {
                           const pct = Math.round(ratio * 100);
-                          const cText = pct >= 80 ? 'text-emerald-600' : pct >= 50 ? (isGerant ? 'text-[#905D5D]' : 'text-amber-600') : 'text-red-400';
-                          const cBg = pct >= 80 ? 'bg-emerald-500' : pct >= 50 ? (isGerant ? 'bg-[#905D5D]' : 'bg-amber-500') : 'bg-red-400';
+                          const cHue = getScoreHue(pct, isGerant, accent);
                           return (
-                            <div key={key} className="flex items-center gap-1.5 text-[11px] py-0.5">
-                              <CIcon size={10} className={pct >= 80 ? 'text-emerald-400' : pct >= 50 ? (isGerant ? 'text-[#905D5D]' : 'text-amber-400') : 'text-red-300'} />
-                              <span className="text-text-secondary/70">{label}</span>
-                              <span className={`font-semibold ${cText}`}>{pct}%</span>
+                            <div key={key} className="flex items-center gap-1.5 py-0.5 text-[11px]">
+                              <CIcon size={10} style={{ color: cHue.line }} />
+                              <span className={isDark ? 'text-slate-500' : 'text-slate-400'}>{label}</span>
+                              <span className="font-bold tabular-nums" style={{ color: isDark ? cHue.a : cHue.b }}>{pct}%</span>
                               {isExpanded && (
-                                <div className="w-12 h-1 rounded-full bg-border/30 overflow-hidden">
-                                  <div className={`h-full rounded-full ${cBg}`} style={{ width: `${pct}%` }} />
+                                <div className={`h-1 w-12 overflow-hidden rounded-full ${isDark ? 'bg-white/[0.07]' : 'bg-slate-900/[0.07]'}`}>
+                                  <div className="h-full rounded-full" style={{ width: `${pct}%`, background: cHue.line }} />
                                 </div>
                               )}
                             </div>
@@ -1006,8 +1007,12 @@ export const BuyerDetailTabs = ({ client: initialClient, adminId, agentId, highl
                       </div>
 
                       {/* Expand toggle */}
-                      <button onClick={() => toggleExpand(match.id)}
-                        className={`flex items-center gap-1 mt-2 text-[10px] font-medium ${isGerant ? 'text-[#905D5D]/70 hover:text-[#905D5D]' : 'text-accent/70 hover:text-accent'} transition-colors`}>
+                      <button
+                        type="button"
+                        onClick={() => toggleExpand(match.id)}
+                        className="mt-2 flex items-center gap-1 text-[10px] font-bold transition-all hover:gap-1.5"
+                        style={{ color: ink }}
+                      >
                         {isExpanded ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
                         {isExpanded ? 'Masquer les détails' : 'Voir le détail du calcul'}
                       </button>
@@ -1017,35 +1022,46 @@ export const BuyerDetailTabs = ({ client: initialClient, adminId, agentId, highl
                   {/* Expanded details */}
                   {isExpanded && (
                     <div className="px-4 pb-4">
-                      <div className="rounded-xl bg-background/60 border border-border/30 p-3.5 space-y-1.5">
-                        <p className="text-[9px] font-bold text-text-secondary/40 uppercase tracking-widest mb-2">Détails du score</p>
+                      <div className={`space-y-1.5 rounded-xl border p-3.5 backdrop-blur-sm ${isDark ? 'border-white/[0.07] bg-white/[0.03]' : 'border-slate-200/70 bg-white/60'}`}>
+                        <p className={`mb-2 text-[9px] font-extrabold uppercase tracking-[0.16em] ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>Détails du score</p>
                         {criteria.map(({ key, label, icon: CIcon, ratio, weight }) => {
                           const pct = Math.round(ratio * 100);
                           const pts = Math.round(ratio * weight);
+                          const cHue = getScoreHue(pct, isGerant, accent);
                           return (
-                            <div key={key} className="flex items-center justify-between py-1 border-b border-border/20 last:border-0">
+                            <div key={key} className={`flex items-center justify-between py-1 ${isDark ? 'border-white/[0.06]' : 'border-slate-200/60'} border-b last:border-0`}>
                               <div className="flex items-center gap-2 text-[11px]">
-                                <div className="w-5 h-5 rounded flex items-center justify-center bg-card border border-border/30">
-                                  <CIcon size={10} className="text-text-secondary/50" />
+                                <div
+                                  className="flex h-5 w-5 items-center justify-center rounded-md border"
+                                  style={isDark
+                                    ? { background: `${accent.a}10`, borderColor: `${accent.a}26` }
+                                    : { background: `${accent.a}0D`, borderColor: `${accent.a}26` }}
+                                >
+                                  <CIcon size={10} className={isDark ? 'text-slate-500' : 'text-slate-400'} />
                                 </div>
-                                <span className="text-text-secondary">{label}</span>
+                                <span className={isDark ? 'text-slate-300' : 'text-slate-600'}>{label}</span>
                               </div>
                               <div className="flex items-center gap-2 text-[11px]">
-                                <span className="text-text-secondary/40">{pts}/{weight} pts</span>
-                                <span className={`font-semibold min-w-[32px] text-right ${pct >= 80 ? 'text-emerald-600' : pct >= 50 ? (isGerant ? 'text-[#905D5D]' : 'text-amber-600') : 'text-red-400'}`}>{pct}%</span>
+                                <span className={isDark ? 'text-slate-600' : 'text-slate-400'}>{pts}/{weight} pts</span>
+                                <span className="min-w-[32px] text-right font-bold tabular-nums" style={{ color: isDark ? cHue.a : cHue.b }}>{pct}%</span>
                               </div>
                             </div>
                           );
                         })}
                         {match.details?.prestations !== undefined && (
-                          <div className="flex items-center justify-between py-1 border-t border-border/20">
+                          <div className={`flex items-center justify-between py-1 ${isDark ? 'border-white/[0.06]' : 'border-slate-200/60'} border-t`}>
                             <div className="flex items-center gap-2 text-[11px]">
-                              <div className={`w-5 h-5 rounded flex items-center justify-center ${isGerant ? 'bg-[#905D5D]/10 border border-[#905D5D]/20' : 'bg-accent/10 border border-accent/20'}`}>
-                                <Star size={10} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />
+                              <div
+                                className="flex h-5 w-5 items-center justify-center rounded-md border"
+                                style={isDark
+                                  ? { background: `${accent.a}14`, borderColor: `${accent.a}30`, color: accent.a }
+                                  : { background: `${accent.a}12`, borderColor: `${accent.a}30`, color: ink }}
+                              >
+                                <Star size={10} />
                               </div>
-                              <span className={`${isGerant ? 'text-[#905D5D]' : 'text-accent'} font-medium`}>Prestations (bonus)</span>
+                              <span className="font-semibold" style={{ color: ink }}>Prestations (bonus)</span>
                             </div>
-                            <span className={`${isGerant ? 'text-[#905D5D]' : 'text-accent'} font-semibold text-[11px]`}>+{Math.round(match.details.prestations * 5)} pts</span>
+                            <span className="text-[11px] font-bold" style={{ color: ink }}>+{Math.round(match.details.prestations * 5)} pts</span>
                           </div>
                         )}
                       </div>
@@ -1053,22 +1069,40 @@ export const BuyerDetailTabs = ({ client: initialClient, adminId, agentId, highl
                   )}
 
                   {/* Footer Actions */}
-                  <div className="px-4 py-2.5 border-t border-border/30 flex items-center justify-between bg-background/20">
-                    <label className="flex items-center gap-2 cursor-pointer group/check" onClick={(e) => { e.preventDefault(); e.stopPropagation(); toggleProposal(match.id); }}>
-                      <div className={`w-4 h-4 rounded border-2 flex items-center justify-center transition-all ${selectedProposals.includes(match.id) ? (isGerant ? 'bg-[#905D5D] border-[#905D5D]' : 'bg-accent border-accent') : (isGerant ? 'border-border group-hover/check:border-[#905D5D]/50' : 'border-border group-hover/check:border-accent/50')}`}>
+                  <div className={`flex items-center justify-between gap-2 border-t px-4 py-2.5 backdrop-blur-sm ${isDark ? 'border-white/[0.06] bg-white/[0.02]' : 'border-slate-200/60 bg-white/50'}`}>
+                    <label className="flex cursor-pointer items-center gap-2" onClick={(e) => { e.preventDefault(); e.stopPropagation(); toggleProposal(match.id); }}>
+                      <div
+                        className="flex h-4 w-4 items-center justify-center rounded border-2 transition-all"
+                        style={selectedProposals.includes(match.id)
+                          ? { background: `linear-gradient(145deg, ${accent.a}, ${accent.b})`, borderColor: accent.a, boxShadow: `0 2px 8px ${accent.glow}` }
+                          : { borderColor: isDark ? 'rgba(255,255,255,0.2)' : 'rgba(15,23,42,0.2)', background: 'transparent' }}
+                      >
                         {selectedProposals.includes(match.id) && <CheckSquare size={10} className="text-white" />}
                       </div>
-                      <span className="text-[10px] text-text-secondary/60">Sélectionner</span>
+                      <span className={`text-[10px] font-semibold ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>Sélectionner</span>
                     </label>
                     <div className="flex items-center gap-1">
-                      <button onClick={() => navigate(`${basePath}/properties/${match.propertyId}`)}
-                        className={`flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-medium text-text-secondary ${isGerant ? 'hover:text-[#905D5D] hover:bg-[#905D5D]/5' : 'hover:text-accent hover:bg-accent/5'} rounded-lg transition-all`}>
+                      <button
+                        type="button"
+                        onClick={() => navigate(`${basePath}/properties/${match.propertyId}`)}
+                        className={`flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[11px] font-bold transition-all ${isDark ? 'text-slate-400 hover:bg-white/[0.06] hover:text-white' : 'text-slate-500 hover:bg-slate-900/[0.04] hover:text-slate-900'}`}
+                      >
                         <Eye size={11} /> Voir
                       </button>
-                      <button onClick={() => openProposal(match)} className="flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-medium text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all">
+                      <button
+                        type="button"
+                        onClick={() => openProposal(match)}
+                        className="flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[11px] font-bold transition-all hover:brightness-110"
+                        style={isDark
+                          ? { background: 'rgba(52,211,153,0.12)', color: '#6EE7B7' }
+                          : { background: 'rgba(5,150,105,0.08)', color: '#047857' }}
+                      >
                         <TrendingUp size={11} /> Proposer
                       </button>
-                      <button className="flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-medium text-red-400 hover:bg-red-50 rounded-lg transition-all">
+                      <button
+                        type="button"
+                        className={`flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[11px] font-bold transition-all ${isDark ? 'text-rose-300/70 hover:bg-rose-500/10 hover:text-rose-200' : 'text-rose-500 hover:bg-rose-50'}`}
+                      >
                         <X size={11} /> Refuser
                       </button>
                     </div>
@@ -1081,19 +1115,36 @@ export const BuyerDetailTabs = ({ client: initialClient, adminId, agentId, highl
 
         {/* Stats Footer */}
         {matches.length > 0 && (
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
             {[
-              { label: 'Biens analysés', value: matches.length, icon: Home, color: 'text-text-secondary' },
-              { label: 'Score moyen', value: `${avgScore}%`, icon: BarChart2, color: sm.text },
-              { label: 'Excellent match', value: excellentCount, icon: CheckCircle, color: 'text-emerald-600' },
-              { label: 'Sélectionnés', value: selectedProposals.length, icon: Square, color: isGerant ? 'text-[#905D5D]' : 'text-accent' },
-            ].map(stat => (
-              <div key={stat.label} className="p-3 rounded-xl bg-background border border-border/40 text-center">
-                <stat.icon size={14} className={`${stat.color} mx-auto mb-1.5`} />
-                <p className={`text-lg font-bold ${stat.color}`}>{stat.value}</p>
-                <p className="text-[9px] text-text-secondary/50 font-medium uppercase tracking-wider">{stat.label}</p>
-              </div>
-            ))}
+              { label: 'Biens analysés', value: matches.length, icon: Home, hue: null as null | typeof accent },
+              { label: 'Score moyen', value: `${avgScore}%`, icon: BarChart2, hue: avgHue },
+              { label: 'Excellent match', value: excellentCount, icon: CheckCircle, hue: null as null | typeof accent, forceEmerald: true },
+              { label: 'Sélectionnés', value: selectedProposals.length, icon: Square, hue: accent },
+            ].map(stat => {
+              const emerald = { a: '#34D399', b: '#059669', glow: 'rgba(52,211,153,0.45)', line: '#34D399' };
+              const c = (stat as { forceEmerald?: boolean }).forceEmerald ? emerald : stat.hue;
+              const tone = c ? (isDark ? c.a : c.b) : undefined;
+              return (
+                <div
+                  key={stat.label}
+                  className={`rounded-2xl border p-3 text-center backdrop-blur-sm ${isDark ? 'border-white/[0.07] bg-white/[0.03]' : 'border-slate-200/70 bg-white/70 shadow-sm'}`}
+                >
+                  <stat.icon
+                    size={14}
+                    className="mx-auto mb-1.5"
+                    style={c ? { color: isDark ? c.a : c.b } : { color: isDark ? '#94A3B8' : '#64748B' }}
+                  />
+                  <p
+                    className="text-lg font-extrabold tabular-nums"
+                    style={c ? { color: isDark ? c.a : c.b } : undefined}
+                  >
+                    <span className={c ? '' : (isDark ? 'text-white' : 'text-slate-900')}>{stat.value}</span>
+                  </p>
+                  <p className={`mt-0.5 text-[9px] font-bold uppercase tracking-[0.12em] ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>{stat.label}</p>
+                </div>
+              );
+            })}
           </div>
         )}
 
@@ -1105,38 +1156,45 @@ export const BuyerDetailTabs = ({ client: initialClient, adminId, agentId, highl
             return (
             <div className="flex flex-col max-h-[70vh]">
               {/* Scrollable content */}
-              <div className="flex-1 overflow-y-auto min-h-0 pr-1 space-y-5 -mx-1 px-1">
+              <div className="flex-1 min-h-0 space-y-5 overflow-y-auto px-1 pr-1">
                 {/* Property preview with image */}
-                <div className={`flex items-start gap-4 p-4 rounded-xl bg-gradient-to-br ${isGerant ? 'from-[#905D5D]/5 to-transparent border-[#905D5D]/10' : 'from-accent/5 to-transparent border-accent/10'}`}>
+                <div
+                  className={`flex items-start gap-4 rounded-2xl border p-4 backdrop-blur-sm ${isDark ? 'border-white/[0.07] bg-white/[0.03]' : 'border-slate-200/70 bg-white/70 shadow-sm'}`}
+                >
+                  <div
+                    aria-hidden="true"
+                    className="pointer-events-none absolute inset-0 rounded-2xl"
+                    style={{ background: `radial-gradient(80% 120% at 100% 0%, ${accent.a}14, transparent 60%)` }}
+                  />
                   {m.images && m.images[0] && (
-                    <img src={m.images[0]} alt="" className="w-16 h-16 rounded-lg object-cover shrink-0 border border-border/30" />
+                    <img src={m.images[0]} alt="" className="relative w-16 shrink-0 rounded-xl border border-white/10 object-cover" style={{ height: 64 }} />
                   )}
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-semibold text-text truncate">{m.produit}</p>
-                    <div className="flex items-center gap-2 mt-1 flex-wrap">
-                      <span className={`text-xs font-bold ${m.score >= 70 ? 'text-emerald-600' : (isGerant ? 'text-[#905D5D]' : 'text-amber-600')}`}>
+                  <div className="relative min-w-0 flex-1">
+                    <p className={`truncate text-sm font-extrabold ${isDark ? 'text-white' : 'text-slate-900'}`}>{m.produit}</p>
+                    <div className="mt-1 flex flex-wrap items-center gap-2">
+                      <span className="text-xs font-extrabold tabular-nums" style={{ color: m.score >= 70 ? (isDark ? '#6EE7B7' : '#047857') : (isDark ? accent.a : ink) }}>
                         {m.score}% compatibilité
                       </span>
-                      <span className="text-text-secondary/30">·</span>
-                      <span className="text-xs text-text-secondary">
+                      <span className={isDark ? 'text-slate-600' : 'text-slate-300'}>·</span>
+                      <span className={`text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
                         {m.prix > 0 ? m.prix.toLocaleString() + ' MAD' : 'Prix NC'}
                       </span>
                       {m.surface > 0 && (
                         <>
-                          <span className="text-text-secondary/30">·</span>
-                          <span className="text-xs text-text-secondary">{m.surface} m²</span>
+                          <span className={isDark ? 'text-slate-600' : 'text-slate-300'}>·</span>
+                          <span className={`text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{m.surface} m²</span>
                         </>
                       )}
                       {m.chambres && (
                         <>
-                          <span className="text-text-secondary/30">·</span>
-                          <span className="text-xs text-text-secondary">{m.chambres} ch.</span>
+                          <span className={isDark ? 'text-slate-600' : 'text-slate-300'}>·</span>
+                          <span className={`text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{m.chambres} ch.</span>
                         </>
                       )}
                       {m.city && (
                         <>
-                          <span className="text-text-secondary/30">·</span>
-                          <span className="text-xs text-text-secondary">{m.city}</span>
+                          <span className={isDark ? 'text-slate-600' : 'text-slate-300'}>·</span>
+                          <span className={`text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{m.city}</span>
                         </>
                       )}
                     </div>
@@ -1145,21 +1203,20 @@ export const BuyerDetailTabs = ({ client: initialClient, adminId, agentId, highl
 
                 {/* Matching breakdown */}
                 {mCriteria.length > 0 && (
-                  <div className="p-4 rounded-xl bg-background/60 border border-border/30">
-                    <p className="text-[10px] font-bold text-text-secondary/40 uppercase tracking-widest mb-3">Analyse de compatibilité</p>
+                  <div className={`rounded-2xl border p-4 backdrop-blur-sm ${isDark ? 'border-white/[0.07] bg-white/[0.03]' : 'border-slate-200/70 bg-white/70 shadow-sm'}`}>
+                    <p className={`mb-3 text-[10px] font-extrabold uppercase tracking-[0.16em] ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>Analyse de compatibilité</p>
                     <div className="space-y-2">
                       {mCriteria.map(({ key, label, icon: CIcon, ratio, weight }) => {
                         const p = Math.round(ratio * 100);
-                        const cText = p >= 80 ? 'text-emerald-600' : p >= 50 ? (isGerant ? 'text-[#905D5D]' : 'text-amber-600') : 'text-red-400';
-                        const cBg = p >= 80 ? 'bg-emerald-500' : p >= 50 ? (isGerant ? 'bg-[#905D5D]' : 'bg-amber-500') : 'bg-red-400';
+                        const cHue = getScoreHue(p, isGerant, accent);
                         return (
                           <div key={key} className="flex items-center gap-2">
-                            <CIcon size={11} className={p >= 80 ? 'text-emerald-400' : p >= 50 ? (isGerant ? 'text-[#905D5D]' : 'text-amber-400') : 'text-red-300'} />
-                            <span className="text-[11px] text-text-secondary min-w-[80px]">{label}</span>
-                            <div className="flex-1 h-1.5 rounded-full bg-border/30 overflow-hidden">
-                              <div className={`h-full rounded-full ${cBg} transition-all`} style={{ width: `${p}%` }} />
+                            <CIcon size={11} style={{ color: cHue.line }} className="shrink-0" />
+                            <span className={`min-w-[80px] text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{label}</span>
+                            <div className={`h-1.5 flex-1 overflow-hidden rounded-full ${isDark ? 'bg-white/[0.07]' : 'bg-slate-900/[0.07]'}`}>
+                              <div className="h-full rounded-full transition-all" style={{ width: `${p}%`, background: `linear-gradient(90deg, ${cHue.b}, ${cHue.a})` }} />
                             </div>
-                            <span className={`text-[11px] font-semibold min-w-[36px] text-right ${cText}`}>{p}%</span>
+                            <span className="min-w-[36px] text-right text-[11px] font-extrabold tabular-nums" style={{ color: isDark ? cHue.a : cHue.b }}>{p}%</span>
                           </div>
                         );
                       })}
@@ -1168,43 +1225,50 @@ export const BuyerDetailTabs = ({ client: initialClient, adminId, agentId, highl
                 )}
 
                 <div>
-                  <label className="block text-xs font-medium text-text-secondary mb-1.5">Email du client</label>
+                  <label className={`mb-1.5 block text-[10px] font-bold uppercase tracking-[0.12em] ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>Email du client</label>
                   <input
                     type="email"
                     value={proposalEmail}
                     onChange={(e) => setProposalEmail(e.target.value)}
                     placeholder="email@exemple.com"
-                    className={`w-full px-3.5 py-2.5 rounded-lg bg-background border border-border/60 text-sm text-text placeholder:text-text-secondary/40 focus:outline-none focus:ring-2 ${isGerant ? 'focus:ring-[#905D5D]/30 focus:border-[#905D5D]/50' : 'focus:ring-accent/30 focus:border-accent/50'} transition-all`}
+                    className={`h-10 w-full rounded-xl border px-3.5 text-sm backdrop-blur-sm transition-all focus:outline-none focus:ring-2 ${isDark ? 'border-white/10 bg-white/[0.04] text-white placeholder:text-slate-500' : 'border-slate-200/70 bg-white/75 text-slate-900 placeholder:text-slate-400 shadow-sm'} ${isDark ? 'focus:border-violet-400/40 focus:ring-violet-400/20' : 'focus:border-teal-500/40 focus:ring-teal-500/20'}`}
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-medium text-text-secondary mb-1.5">Message</label>
+                  <label className={`mb-1.5 block text-[10px] font-bold uppercase tracking-[0.12em] ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>Message</label>
                   <textarea
                     value={proposalMessage}
                     onChange={(e) => setProposalMessage(e.target.value)}
                     rows={12}
-                    className={`w-full px-3.5 py-2.5 rounded-lg bg-background border border-border/60 text-sm text-text placeholder:text-text-secondary/40 focus:outline-none focus:ring-2 ${isGerant ? 'focus:ring-[#905D5D]/30 focus:border-[#905D5D]/50' : 'focus:ring-accent/30 focus:border-accent/50'} transition-all resize-none leading-relaxed font-mono`}
+                    className={`w-full resize-none rounded-xl border px-3.5 py-2.5 font-mono text-xs leading-relaxed backdrop-blur-sm transition-all focus:outline-none focus:ring-2 ${isDark ? 'border-white/10 bg-white/[0.04] text-slate-200' : 'border-slate-200/70 bg-white/75 text-slate-800 shadow-sm'} ${isDark ? 'focus:border-violet-400/40 focus:ring-violet-400/20' : 'focus:border-teal-500/40 focus:ring-teal-500/20'}`}
                   />
                 </div>
               </div>
 
               {/* Pinned submit buttons */}
-              <div className="flex items-center justify-end gap-3 pt-4 mt-4 border-t border-border/30 shrink-0">
+              <div className={`flex shrink-0 items-center justify-end gap-2 border-t px-1 pt-4 ${isDark ? 'border-white/[0.07]' : 'border-slate-200/70'}`}>
                 <button
+                  type="button"
                   onClick={() => setProposalModal({ open: false, match: null })}
-                  className="px-4 py-2 text-sm font-medium text-text-secondary hover:text-text rounded-lg hover:bg-background transition-all"
+                  className={`rounded-xl px-4 py-2 text-sm font-bold transition-all ${isDark ? 'text-slate-400 hover:bg-white/[0.06] hover:text-white' : 'text-slate-500 hover:bg-slate-900/[0.04] hover:text-slate-900'}`}
                 >
                   Annuler
                 </button>
                 <button
+                  type="button"
                   onClick={submitProposal}
                   disabled={proposalSending || !proposalEmail}
-                  className={`flex items-center gap-2 px-5 py-2.5 text-sm font-semibold text-white bg-gradient-to-r ${isGerant ? 'from-[#905D5D] to-[#7D5050] hover:from-[#905D5D]/90 hover:to-[#7D5050]/70' : 'from-accent to-accent/80 hover:from-accent/90 hover:to-accent/70'} rounded-lg shadow-sm disabled:opacity-50 disabled:cursor-not-allowed transition-all`}
+                  className="flex items-center gap-2 rounded-xl border border-white/20 px-5 py-2.5 text-sm font-bold text-white shadow-lg transition-all hover:scale-[1.02] active:scale-95 disabled:pointer-events-none disabled:opacity-50"
+style={isGerant
+  ? { backgroundImage: `linear-gradient(145deg, ${accent.a} 0%, ${accent.b} 100%)` }
+  : isDark
+                      ? { backgroundImage: 'linear-gradient(145deg, #8B7CFF 0%, #6C5ECF 60%, #5646C9 100%)' }
+                      : { backgroundImage: 'linear-gradient(145deg, #2DD4BF 0%, #14B8A6 60%, #0D9488 100%)' }}
                 >
                   {proposalSending ? (
                     <>
-                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
                       Envoi en cours...
                     </>
                   ) : (
@@ -1225,70 +1289,37 @@ export const BuyerDetailTabs = ({ client: initialClient, adminId, agentId, highl
 
   const renderDocuments = () => {
     const docs = client.documents || [];
+    const findMatched = (matchTerms: string[]) =>
+      docs.find(d => matchTerms.some(t => d.name.toLowerCase().includes(t)));
     const requiredDocs = [
       { label: "Pièce d'identité (passeport ou CIN)", required: true, matchTerms: ['cin', 'identité', 'passeport', 'carte'], url: (client as any).docIdentiteUrl },
       { label: 'Justificatif de domicile', required: true, matchTerms: ['justificatif de domicile', 'domicile'], url: (client as any).docDomicileUrl },
       { label: "Avis d'imposition ou justificatif de revenus", required: true, matchTerms: ['avis', 'imposition', 'revenus'], url: (client as any).docRevenusUrl },
       { label: 'Attestation de financement ou de prêt', required: true, matchTerms: ['attestation', 'financement', 'prêt', 'pret'], url: (client as any).docFinancementUrl },
       { label: 'Relevés bancaires (3 derniers mois)', required: false, matchTerms: ['relevé', 'bancaire', 'relevés'], url: (client as any).docBancaireUrl },
-    ];
-    const mandatUploaded = !!client.mandatPdfUrl;
+    ].map(d => {
+      const matched = findMatched(d.matchTerms);
+      return {
+        label: d.label,
+        required: d.required,
+        url: d.url || matched?.url || null,
+        name: matched?.name || null,
+      };
+    });
 
     return (
-      <div className="space-y-5">
-        {/* Documents justificatifs */}
-        <div className="rounded-xl border border-border/50 bg-background/50 p-4 space-y-3">
-          <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider">Documents justificatifs</p>
-          {requiredDocs.map((doc, i) => {
-            const matchedDoc = docs.find(d => doc.matchTerms.some(t => d.name.toLowerCase().includes(t)));
-            const uploaded = !!doc.url || !!matchedDoc;
-            const fileUrl = doc.url || matchedDoc?.url;
-            const fileName = matchedDoc?.name;
-            return (
-              <div key={i} className="flex items-center gap-3 p-3 rounded-lg border border-border bg-card/50">
-                <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 transition-colors ${uploaded ? 'bg-emerald-500 border-emerald-500' : 'bg-background border-border'}`}>
-                  {uploaded && (
-                    <svg width="12" height="10" viewBox="0 0 10 8" fill="none">
-                      <path d="M1 4L3.5 6.5L9 1" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
-                  )}
-                </div>
-                <span className={`text-sm flex-1 ${uploaded ? 'text-text-secondary' : 'text-text'}`}>{doc.label}</span>
-                {fileName && <span className="text-[10px] text-text-secondary truncate max-w-[140px]">{fileName}</span>}
-                {doc.required ? (
-                  <span className="text-[10px] font-medium text-error uppercase">Obligatoire</span>
-                ) : (
-                  <span className={`text-[10px] font-medium ${isGerant ? 'text-[#905D5D]' : 'text-accent'} uppercase`}>Recommandé</span>
-                )}
-                {uploaded && fileUrl ? (
-                  <button type="button" onClick={() => openViewer(fileUrl, doc.label)} className={`text-xs px-2.5 py-1 rounded-lg ${isGerant ? 'bg-[#905D5D]/10 text-[#905D5D] border border-[#905D5D]/20 hover:bg-[#905D5D]/20' : 'bg-accent/10 text-accent border border-accent/20 hover:bg-accent/20'} transition-all flex items-center gap-1`}>
-                    <Eye size={12} /> Voir
-                  </button>
-                ) : null}
-              </div>
-            );
-          })}
-        </div>
-
-        {/* Fichier du mandat signé */}
-        <div className="rounded-xl border border-border/50 bg-background/50 p-4 space-y-3">
-          <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider">Fichier du mandat signé</p>
-          <div className="flex items-center gap-3 p-3 rounded-lg border border-border bg-card/50">
-            <FileText size={16} className={mandatUploaded ? 'text-emerald-500' : 'text-text-secondary'} />
-            <span className="text-sm text-text flex-1">Mandat signé (PDF)</span>
-            {mandatUploaded ? (
-              <>
-                <span className="text-[10px] font-medium text-emerald-600 uppercase bg-emerald-50 px-2 py-0.5 rounded">Uploadé</span>
-                <button type="button" onClick={() => client.mandatPdfUrl && openViewer(client.mandatPdfUrl, 'Mandat signé')} className={`text-xs px-3 py-1.5 rounded-lg ${isGerant ? 'bg-[#905D5D]/10 text-[#905D5D] border border-[#905D5D]/20 hover:bg-[#905D5D]/20' : 'bg-accent/10 text-accent border border-accent/20 hover:bg-accent/20'} transition-all flex items-center gap-1.5`}>
-                  <Eye size={12} /> Voir
-                </button>
-              </>
-            ) : (
-              <span className="text-[10px] font-medium text-text-secondary uppercase bg-background px-2 py-0.5 rounded">Non uploadé</span>
-            )}
-          </div>
-        </div>
-      </div>
+      <StageDocumentsTab
+        items={requiredDocs}
+        clientName={client.name}
+        mandatTitle="Mandat signé"
+        mandatUrl={client.mandatPdfUrl}
+        mandatName={(client as any).mandatPdfName || 'Mandat signé (PDF)'}
+        accent={accent}
+        ink={ink}
+        isDark={isDark}
+        isGerant={isGerant}
+        onOpen={openViewer}
+      />
     );
   };
 
@@ -1299,7 +1330,7 @@ export const BuyerDetailTabs = ({ client: initialClient, adminId, agentId, highl
   const renderContrats = () => {
     if (!canReadContracts) return null;
     return (
-      <ClientContractsTab clientId={client.id} clientName={client.name} isGerant={isGerant} />
+      <ClientContractsTab clientId={client.id} clientName={client.name} clientType={client.type} isGerant={isGerant} />
     );
   };
 
@@ -1322,23 +1353,16 @@ export const BuyerDetailTabs = ({ client: initialClient, adminId, agentId, highl
   };
 
   return (
-    <div className="bg-card rounded-xl border border-border/50 shadow-card mt-4">
-      <div className="px-6 border-b border-border/30 flex gap-1 overflow-x-auto rounded-t-xl">
-        {visibleTabs.map((t) => (
-          <button
-            key={t.id}
-            onClick={() => setActiveTab(t.id)}
-            className={`px-3 py-3 text-xs font-medium border-b-2 transition-all whitespace-nowrap ${
-              activeTab === t.id ? (isGerant ? 'text-[#905D5D] border-[#905D5D]' : 'text-accent border-accent') : 'text-text-secondary border-transparent hover:text-text'
-            }`}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
-      <div className="p-5">
+    <>
+      <ClientTabsShell
+        tabs={visibleTabs}
+        activeTab={activeTab}
+        onChange={setActiveTab}
+        clientType={client.type}
+        isGerant={isGerant}
+      >
         {renderTabContent()}
-      </div>
+      </ClientTabsShell>
 
       {/* Document Viewer Modal */}
       {viewerUrl && (
@@ -1358,6 +1382,6 @@ export const BuyerDetailTabs = ({ client: initialClient, adminId, agentId, highl
           </div>
         </div>
       )}
-    </div>
+    </>
   );
 };

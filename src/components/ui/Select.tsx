@@ -4,6 +4,7 @@ import { ChevronDown } from 'react-feather'
 import { cn } from '../../lib/utils'
 import { portalWithTheme } from './dropdownTheme'
 import { useStageChrome } from '../modules/calendar/useStageChrome'
+import { useStageScope } from '../dashboard/Stage'
 
 interface SelectOption {
   value: string
@@ -40,6 +41,7 @@ export const Select = ({
   ...props
 }: SelectProps & { [key: string]: any }) => {
   const { staged, dark } = useStageChrome()
+  const isAdmin = useStageScope() === 'admin'
   const [isOpen, setIsOpen] = useState(false)
   const [selectedValue, setSelectedValue] = useState(defaultValue || controlledValue || '')
   const buttonRef = useRef<HTMLButtonElement>(null)
@@ -67,14 +69,37 @@ export const Select = ({
     }
   }, [options.length])
 
+  const justOpenedRef = useRef(false)
+
+  const openPanel = () => {
+    setDropdownStyle(computePosition())
+    setIsOpen(true)
+    justOpenedRef.current = true
+    window.setTimeout(() => { justOpenedRef.current = false }, 400)
+  }
+
+  /* Opening on pointerdown instead of click makes the trigger immune to
+     swallowed clicks (node swaps / focus scroll between down and up). */
+  const handlePointerDown = () => {
+    if (disabled || isOpen) return
+    openPanel()
+  }
+
   const handleToggle = () => {
     if (disabled) return
     if (isOpen) {
       setIsOpen(false)
     } else {
-      setDropdownStyle(computePosition())
-      setIsOpen(true)
+      openPanel()
     }
+  }
+
+  const handleClick = () => {
+    if (justOpenedRef.current) {
+      justOpenedRef.current = false
+      return
+    }
+    handleToggle()
   }
 
   const handleSelect = (val: string) => {
@@ -107,15 +132,40 @@ export const Select = ({
     }
   }, [isOpen, computePosition])
 
+  /* Re-measure while a host modal's entry spring is still moving the panel:
+     keeps the dropdown glued to its trigger instead of trusting a single
+     first measure taken mid-animation. */
+  useEffect(() => {
+    if (!isOpen) return
+    let raf = 0
+    const start = performance.now()
+    const track = () => {
+      setDropdownStyle((prev) => {
+        const next = computePosition()
+        const same =
+          Object.keys(next).length === Object.keys(prev).length &&
+          Object.entries(next).every(([k, v]) => (prev as Record<string, unknown>)[k] === v)
+        return same ? prev : next
+      })
+      if (performance.now() - start < 700) raf = requestAnimationFrame(track)
+    }
+    raf = requestAnimationFrame(track)
+    return () => cancelAnimationFrame(raf)
+  }, [isOpen, computePosition])
+
   const stagedButtonClass = staged
     ? dark
-      ? 'w-full h-9 flex items-center justify-between px-3 text-sm rounded-xl border border-white/10 bg-gradient-to-b from-white/[0.08] to-white/[0.02] [background-color:transparent] text-slate-100 outline-none transition-all duration-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.14),inset_0_-8px_16px_-12px_rgba(0,0,0,0.7),0_6px_18px_-8px_rgba(3,5,14,0.9)] hover:border-white/15 focus:border-violet-400/70 focus:shadow-[inset_0_1px_0_rgba(255,255,255,0.22),inset_0_-8px_16px_-12px_rgba(0,0,0,0.6),0_0_0_3px_rgba(124,92,255,0.28),0_10px_30px_-8px_rgba(124,92,255,0.55)]'
-      : 'w-full h-9 flex items-center justify-between px-3 text-sm rounded-xl border border-teal-900/15 bg-gradient-to-b from-white to-teal-50/70 [background-color:transparent] text-teal-950 outline-none transition-all duration-200 shadow-[inset_0_1px_0_rgba(255,255,255,1),inset_0_-6px_14px_-10px_rgba(13,148,136,0.35),0_6px_18px_-10px_rgba(13,148,136,0.45)] hover:border-teal-900/20 focus:border-teal-500/70 focus:shadow-[inset_0_1px_0_rgba(255,255,255,1),inset_0_-6px_14px_-10px_rgba(13,148,136,0.4),0_0_0_3px_rgba(20,184,166,0.25),0_10px_28px_-10px_rgba(13,148,136,0.6)]'
+      ? isAdmin
+        ? 'w-full h-9 flex items-center justify-between px-3 text-sm rounded-xl border border-white/10 bg-gradient-to-b from-white/[0.08] to-white/[0.02] [background-color:transparent] text-slate-100 outline-none transition-all duration-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.14),inset_0_-8px_16px_-12px_rgba(0,0,0,0.7),0_6px_18px_-8px_rgba(3,5,14,0.9)] hover:border-white/15 focus:border-rose-400/70 focus:shadow-[inset_0_1px_0_rgba(255,255,255,0.22),inset_0_-8px_16px_-12px_rgba(0,0,0,0.6),0_0_0_3px_rgba(244,63,94,0.28),0_10px_30px_-8px_rgba(244,63,94,0.55)]'
+        : 'w-full h-9 flex items-center justify-between px-3 text-sm rounded-xl border border-white/10 bg-gradient-to-b from-white/[0.08] to-white/[0.02] [background-color:transparent] text-slate-100 outline-none transition-all duration-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.14),inset_0_-8px_16px_-12px_rgba(0,0,0,0.7),0_6px_18px_-8px_rgba(3,5,14,0.9)] hover:border-white/15 focus:border-violet-400/70 focus:shadow-[inset_0_1px_0_rgba(255,255,255,0.22),inset_0_-8px_16px_-12px_rgba(0,0,0,0.6),0_0_0_3px_rgba(124,92,255,0.28),0_10px_30px_-8px_rgba(124,92,255,0.55)]'
+      : isAdmin
+        ? 'w-full h-9 flex items-center justify-between px-3 text-sm rounded-xl border border-orange-900/20 bg-gradient-to-b from-white to-orange-50/80 [background-color:transparent] text-slate-900 outline-none transition-all duration-200 hover:border-orange-900/30 focus:border-orange-500 shadow-[inset_0_1px_0_rgba(255,255,255,1),0_4px_16px_-8px_rgba(41,37,36,0.16)] focus:shadow-[inset_0_1px_0_rgba(255,255,255,1),0_0_0_3px_rgba(249,115,22,0.22)]'
+        : 'w-full h-9 flex items-center justify-between px-3 text-sm rounded-xl border border-teal-900/15 bg-gradient-to-b from-white to-teal-50/70 [background-color:transparent] text-teal-950 outline-none transition-all duration-200 shadow-[inset_0_1px_0_rgba(255,255,255,1),inset_0_-6px_14px_-10px_rgba(13,148,136,0.35),0_6px_18px_-10px_rgba(13,148,136,0.45)] hover:border-teal-900/20 focus:border-teal-500/70 focus:shadow-[inset_0_1px_0_rgba(255,255,255,1),inset_0_-6px_14px_-10px_rgba(13,148,136,0.4),0_0_0_3px_rgba(20,184,166,0.25),0_10px_28px_-10px_rgba(13,148,136,0.6)]'
     : null
   return (
     <div ref={containerRef}>
       {label && (
-        <label className={cn('block mb-1.5', staged ? (dark ? 'text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400/85' : 'text-[11px] font-bold uppercase tracking-[0.14em] text-teal-900/55') : 'text-sm font-medium text-text')}>
+        <label className={cn('block mb-1.5', staged ? (dark ? 'text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400/85' : isAdmin ? 'text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500' : 'text-[11px] font-bold uppercase tracking-[0.14em] text-teal-900/55') : 'text-sm font-medium text-text')}>
           {label}
           {required && <span className="text-error ml-0.5">*</span>}
         </label>
@@ -125,7 +175,8 @@ export const Select = ({
           ref={buttonRef}
           type="button"
           disabled={disabled}
-          onClick={handleToggle}
+          onPointerDown={handlePointerDown}
+          onClick={handleClick}
           className={cn(
             stagedButtonClass
               ? stagedButtonClass
@@ -172,8 +223,12 @@ export const Select = ({
                 'py-1 max-h-64 overflow-y-auto scrollbar-thin rounded-2xl border',
                 staged
                   ? dark
-                    ? 'border-violet-500/20 bg-[#0F0A1E] shadow-[0_24px_60px_-20px_rgba(124,92,255,0.35),inset_0_1px_0_rgba(255,255,255,0.08)]'
-                    : 'border-white/70 bg-white/92 backdrop-blur-xl shadow-[0_24px_60px_-28px_rgba(13,148,136,0.35),inset_0_1px_0_rgba(255,255,255,0.9)]'
+                    ? isAdmin
+                      ? 'border-rose-500/20 bg-[#180F1E] shadow-[0_24px_60px_-20px_rgba(244,63,94,0.35),inset_0_1px_0_rgba(255,255,255,0.08)]'
+                      : 'border-violet-500/20 bg-[#0F0A1E] shadow-[0_24px_60px_-20px_rgba(124,92,255,0.35),inset_0_1px_0_rgba(255,255,255,0.08)]'
+                    : isAdmin
+                      ? 'border-white/70 bg-white/92 backdrop-blur-xl shadow-[0_24px_60px_-28px_rgba(41,37,36,0.28),inset_0_1px_0_rgba(255,255,255,0.9)]'
+                      : 'border-white/70 bg-white/92 backdrop-blur-xl shadow-[0_24px_60px_-28px_rgba(13,148,136,0.35),inset_0_1px_0_rgba(255,255,255,0.9)]'
                   : 'bg-card rounded-lg border-border/50 shadow-dropdown'
               )}
             >
@@ -191,11 +246,17 @@ export const Select = ({
                   staged
                     ? active
                       ? dark
-                        ? 'bg-gradient-to-r from-violet-500/25 to-indigo-600/25 text-white border border-violet-400/30 shadow-[0_0_16px_-4px_rgba(124,92,255,0.7),inset_0_1px_0_rgba(255,255,255,0.12)] font-medium'
-                        : 'bg-teal-500/14 text-teal-900 border border-teal-500/25 font-medium shadow-[0_0_12px_-4px_rgba(20,184,166,0.5)]'
+                        ? isAdmin
+                          ? 'bg-gradient-to-r from-rose-500/25 to-violet-600/25 text-white border border-rose-400/30 shadow-[0_0_16px_-4px_rgba(244,63,94,0.7),inset_0_1px_0_rgba(255,255,255,0.12)] font-medium'
+                          : 'bg-gradient-to-r from-violet-500/25 to-indigo-600/25 text-white border border-violet-400/30 shadow-[0_0_16px_-4px_rgba(124,92,255,0.7),inset_0_1px_0_rgba(255,255,255,0.12)] font-medium'
+                        : isAdmin
+                          ? 'bg-orange-500/14 text-orange-900 border border-orange-500/25 font-medium shadow-[0_0_12px_-4px_rgba(249,115,22,0.5)]'
+                          : 'bg-teal-500/14 text-teal-900 border border-teal-500/25 font-medium shadow-[0_0_12px_-4px_rgba(20,184,166,0.5)]'
                       : dark
                         ? 'text-slate-200 border border-transparent hover:bg-white/[0.06] hover:text-white hover:border-white/10'
-                        : 'text-teal-900/70 border border-transparent hover:bg-teal-900/[0.04] hover:text-teal-900'
+                        : isAdmin
+                          ? 'text-slate-600 border border-transparent hover:bg-slate-900/[0.04] hover:text-slate-900'
+                          : 'text-teal-900/70 border border-transparent hover:bg-teal-900/[0.04] hover:text-teal-900'
                     : active
                       ? 'bg-accent-light text-accent font-medium mx-0 rounded-none'
                       : 'text-text-secondary hover:text-text hover:bg-background mx-0 rounded-none'
@@ -206,17 +267,17 @@ export const Select = ({
                   <motion.span
                     initial={{ scale: 0 }}
                     animate={{ scale: 1 }}
-                    className={cn('w-1.5 h-1.5 rounded-full shrink-0', staged ? (dark ? 'bg-violet-400 shadow-[0_0_8px_rgba(139,124,255,0.8)]' : 'bg-teal-500 shadow-[0_0_8px_rgba(20,184,166,0.7)]') : 'bg-accent')}
+                    className={cn('w-1.5 h-1.5 rounded-full shrink-0', staged ? (dark ? (isAdmin ? 'bg-rose-400 shadow-[0_0_8px_rgba(244,63,94,0.8)]' : 'bg-violet-400 shadow-[0_0_8px_rgba(139,124,255,0.8)]') : (isAdmin ? 'bg-orange-500 shadow-[0_0_8px_rgba(249,115,22,0.7)]' : 'bg-teal-500 shadow-[0_0_8px_rgba(20,184,166,0.7)]')) : 'bg-accent')}
                   />
                 )}
                 <span className={cn('flex items-center gap-2', !active && staged && 'ml-[14px]', !active && !staged && 'ml-[18px]')}>
-                  {option.icon && <option.icon size={14} className={cn('shrink-0', staged ? (dark ? 'text-slate-400' : 'text-teal-700/60') : 'text-text-secondary')} />}
+                  {option.icon && <option.icon size={14} className={cn('shrink-0', staged ? (dark ? 'text-slate-400' : isAdmin ? 'text-slate-400' : 'text-teal-700/60') : 'text-text-secondary')} />}
                   {option.label}
                 </span>
               </motion.button>
             )})}
             {options.length === 0 && (
-              <div className={cn('px-3 py-4 text-center text-xs', staged ? (dark ? 'text-slate-500' : 'text-teal-900/45') : 'text-text-secondary/60')}>
+              <div className={cn('px-3 py-4 text-center text-xs', staged ? (dark ? 'text-slate-500' : isAdmin ? 'text-slate-400' : 'text-teal-900/45') : 'text-text-secondary/60')}>
                 Aucune option disponible
               </div>
             )}

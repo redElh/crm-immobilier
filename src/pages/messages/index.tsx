@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Pin, Check, CheckCheck } from 'lucide-react'
@@ -18,10 +18,37 @@ import { GroupMembersModal } from '../../components/modules/messages/GroupMember
 import { Select } from '../../components/ui/Select'
 import { useToast } from '../../components/ui/Toast'
 import {
+  StageBadge,
+  StageButton,
+  OrbIcon,
+  STAGE_HUES,
+  GERANT_MAUVE_HUE,
+  useStageAccent,
+  useStageTheme,
+  type StageHue,
+} from '../../components/dashboard/Stage'
+import StageModal, { useStageModalButtons } from '../../components/modules/calendar/StageModal'
+import { stagePillStyle } from '../../components/modules/prospects/ProspectDetailStage'
+import {
   fetchCurrentUser, fetchConversations, fetchMessages, sendMessage,
   markConversationRead, deleteConversation, clearConversation, fetchMessageUsers, currentUserToParticipant,
-  toggleReaction, deleteMessages, uploadAttachment,
+  toggleReaction, deleteMessages, uploadAttachment, uploadVoice,
 } from '../../services/messageService'
+import {
+  ensureE2EEIdentity,
+  sealForConversation,
+  prepareSealedMedia,
+  normalizeMessage,
+  normalizeMessages,
+  cacheOwnSealed,
+  checkContactIdentity,
+  trustContactIdentity,
+  storeFor,
+  keyServer,
+  withDecryptedPreview,
+  innerKindOf,
+  myIdFromToken,
+} from '../../services/e2ee/conversation'
 import {
   subscribeRealtime, sendTyping, sendRecording, setActiveConversation, setConversationRead, sendPresence,
 } from '../../services/realtime'
@@ -34,6 +61,13 @@ function isAdminRoute() {
 
 const EMPTY_PARTICIPANT: MessageParticipant = {
   id: '', name: '', type: 'agent', role: '', email: '', presence: 'offline',
+}
+
+const DANGER_HUE: StageHue = {
+  a: '#FB7185',
+  b: '#E11D48',
+  glow: 'rgba(244,63,94,0.45)',
+  line: '#F43F5E',
 }
 
 type ListFilter = 'all' | 'unread' | 'starred' | 'attachments'
@@ -67,23 +101,24 @@ function dateSeparator(iso: string): string {
 }
 
 function realtimePreview(msg: Message): string {
+  if (msg.kind === 'sealed' && !msg.sealedOk) return 'Message illisible'
   if (msg.kind === 'audio') return 'Message vocal'
   if (msg.attachments.length > 0) return msg.attachments[0].name
   return msg.body || 'Nouveau message'
 }
 
-function TypingBubble() {
+function TypingBubble({ isDark }: { isDark: boolean }) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       className="flex justify-start"
     >
-      <div className="bg-card border border-border/60 shadow-sm rounded-2xl rounded-bl-md px-4 py-3 flex items-center gap-1">
+      <div className={cn('rounded-2xl rounded-bl-md px-4 py-3 flex items-center gap-1 border backdrop-blur-md', isDark ? 'bg-white/[0.06] border-white/10' : 'bg-white/80 border-[color:var(--msg-hairline)]')}>
         {[0, 1, 2].map(i => (
           <motion.span
             key={i}
-            className="w-1.5 h-1.5 rounded-full bg-text-secondary/50"
+            className="w-1.5 h-1.5 rounded-full bg-[var(--msg-accent-line)]"
             animate={{ y: [0, -4, 0], opacity: [0.4, 1, 0.4] }}
             transition={{ duration: 0.9, repeat: Infinity, delay: i * 0.15 }}
           />
@@ -93,16 +128,16 @@ function TypingBubble() {
   )
 }
 
-function RecordingBubble() {
+function RecordingBubble({ isDark }: { isDark: boolean }) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       className="flex justify-start"
     >
-      <div className="bg-card border border-border/60 shadow-sm rounded-2xl rounded-bl-md px-4 py-3 flex items-center gap-2">
+      <div className={cn('rounded-2xl rounded-bl-md px-4 py-3 flex items-center gap-2 border backdrop-blur-md', isDark ? 'bg-white/[0.06] border-white/10' : 'bg-white/80 border-[color:var(--msg-hairline)]')}>
         <span className="w-2 h-2 rounded-full bg-error animate-pulse" />
-        <span className="text-xs text-text-secondary">enregistre un message vocal...</span>
+        <span className={cn('text-xs', isDark ? 'text-slate-300' : 'text-slate-500')}>enregistre un message vocal...</span>
       </div>
     </motion.div>
   )
@@ -115,6 +150,7 @@ export default function MessagesPage() {
   const [searchParams] = useSearchParams()
 
   const [currentUser, setCurrentUser] = useState<MessageParticipant>(EMPTY_PARTICIPANT)
+  const [currentRole, setCurrentRole] = useState('')
   const [agentReady, setAgentReady] = useState(false)
 
   const [conversations, setConversations] = useState<Conversation[]>([])
@@ -123,7 +159,20 @@ export default function MessagesPage() {
   const [activeFilter, setActiveFilter] = useState<ListFilter>('all')
   const [searchTerm, setSearchTerm] = useState('')
   const [agentFilter, setAgentFilter] = useState('')
-  const [selectedId, setSelectedId] = useState<string | null>(null)
+  // Open conversation — restored from the previous visit in this tab.
+  const [selectedId, setSelectedId] = useState<string | null>(() => {
+    try {
+      const raw = sessionStorage.getItem('msg:selected')
+      if (!raw) return null
+      const sep = raw.indexOf(':')
+      if (sep < 0) return null
+      const uid = raw.slice(0, sep)
+      const cid = raw.slice(sep + 1)
+      return uid && cid && uid === myIdFromToken() ? cid : null
+    } catch {
+      return null
+    }
+  })
   const [chatSearchOpen, setChatSearchOpen] = useState(false)
   const [chatSearch, setChatSearch] = useState('')
   const [moreMenu, setMoreMenu] = useState<'chat' | null>(null)
@@ -135,12 +184,42 @@ export default function MessagesPage() {
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
   const [deleteTargets, setDeleteTargets] = useState<number[] | null>(null)
   const [viewerMessage, setViewerMessage] = useState<Message | null>(null)
+  const [identityAlert, setIdentityAlert] = useState<{ contactId: string; contactName: string } | null>(null)
+  const [trusting, setTrusting] = useState(false)
   const [presence, setPresence] = useState<'typing' | 'recording' | null>(null)
   const scrollAnchorRef = useRef<HTMLDivElement>(null)
   const selectedIdRef = useRef<string | null>(null)
   const currentUserIdRef = useRef<string>('')
   const presenceTimerRef = useRef<number | null>(null)
   const conversationsRef = useRef<Conversation[]>([])
+  const chatMenuRef = useRef<HTMLDivElement>(null)
+  const listMenuRef = useRef<HTMLDivElement>(null)
+
+  // Collapse floating menus on outside click (independent of CSS containing blocks)
+  useEffect(() => {
+    if (moreMenu !== 'chat' && !listMenu) return
+    const onPointerDown = (e: MouseEvent) => {
+      const t = e.target as Element
+      if (
+        moreMenu === 'chat' &&
+        chatMenuRef.current &&
+        !chatMenuRef.current.contains(t) &&
+        !(t.closest && t.closest('[data-chat-menu-toggle]'))
+      ) {
+        setMoreMenu(null)
+      }
+      if (
+        listMenu &&
+        listMenuRef.current &&
+        !listMenuRef.current.contains(t) &&
+        !(t.closest && t.closest('[data-conv-menu-toggle]'))
+      ) {
+        setListMenu(null)
+      }
+    }
+    document.addEventListener('mousedown', onPointerDown)
+    return () => document.removeEventListener('mousedown', onPointerDown)
+  }, [moreMenu, listMenu])
 
   const showPresence = (p: 'typing' | 'recording' | null) => {
     setPresence(p)
@@ -164,14 +243,39 @@ export default function MessagesPage() {
         const me = await fetchCurrentUser()
         if (cancelled) return
         currentUserIdRef.current = String(me.id)
+        setCurrentRole(me.role)
         setCurrentUser(currentUserToParticipant(me))
         const [convs, dir] = await Promise.all([
           fetchConversations(),
           admin ? fetchMessageUsers() : Promise.resolve([]),
         ])
         if (cancelled) return
-        setConversations(convs)
+        setConversations(convs.map(c => withDecryptedPreview(c, currentUserIdRef.current)))
         if (admin) setUsers(dir)
+        // Decrypt last messages for list previews (cached ones already applied above).
+        void (async () => {
+          const myId = currentUserIdRef.current
+          const updates = await Promise.all(convs.map(async c => {
+            const last = [...(c.messages || [])].reverse().find(m => !m.deleted)
+            if (!last || last.kind !== 'sealed' || last.sealedOk) return null
+            try {
+              const norm = await normalizeMessage(myId, last)
+              return { convId: c.id, msg: norm }
+            } catch {
+              return null
+            }
+          }))
+          if (!cancelled && updates.some(Boolean)) {
+            setConversations(prev => prev.map(c => {
+              const u = updates.find(x => x && x.convId === c.id)
+              if (!u) return c
+              const messages = c.messages.some(m => m.id === u.msg.id)
+                ? c.messages.map(m => (m.id === u.msg.id ? u.msg : m))
+                : [...c.messages, u.msg].sort((a, b) => a.sentAt.localeCompare(b.sentAt))
+              return withDecryptedPreview({ ...c, messages }, myId)
+            }))
+          }
+        })()
       } catch {
         if (!cancelled) toast('error', "Impossible de charger vos conversations. Vérifiez votre connexion.")
       } finally {
@@ -181,6 +285,11 @@ export default function MessagesPage() {
     load()
     return () => { cancelled = true }
   }, [admin, toast])
+
+  // E2EE identity: generate + publish once the user is known (never throws).
+  useEffect(() => {
+    if (currentUser.id) ensureE2EEIdentity(currentUser.id)
+  }, [currentUser.id])
 
   // Auto-open conversation from ?id= (after compose)
   useEffect(() => {
@@ -211,25 +320,29 @@ export default function MessagesPage() {
   const reloadConversations = useCallback(async () => {
     try {
       const convs = await fetchConversations()
+      const myId = currentUserIdRef.current
       setConversations(prev => {
         const freshIds = new Set(convs.map(c => c.id))
         const removed = prev.filter(c => !freshIds.has(c.id))
         const merged = convs.map(fresh => {
           const old = prev.find(c => c.id === fresh.id)
-          if (!old || old.messages.length === 0) return fresh
+          if (!old || old.messages.length === 0) return withDecryptedPreview(fresh, myId)
           const seen = new Set(fresh.messages.map(m => m.id))
           const leftovers = old.messages.filter(m => !seen.has(m.id))
           const messages = [...fresh.messages, ...leftovers]
             .sort((a, b) => a.sentAt.localeCompare(b.sentAt))
-          return { ...fresh, messages }
+          // Re-apply cached plaintext: fresh envelopes must not clobber
+          // already-decrypted content between polls.
+          return withDecryptedPreview({ ...fresh, messages }, myId)
         })
         return [...removed, ...merged]
       })
       const id = selectedIdRef.current
       if (id) {
         const msgs = await fetchMessages(id)
+        const norm = await normalizeMessages(currentUserIdRef.current, msgs)
         setConversations(prev => prev.map(c =>
-          c.id === id ? { ...c, messages: msgs, unreadCount: 0 } : c
+          c.id === id ? { ...c, messages: norm, unreadCount: 0 } : c
         ))
       }
     } catch {
@@ -249,22 +362,25 @@ export default function MessagesPage() {
     sendPresence('online')
     const unsubscribe = subscribeRealtime(event => {
       if (event.type === 'message:new') {
-        setConversations(prev => {
-          const existing = prev.find(c => c.id === event.conversationId)
-          if (!existing) return prev
-          if (existing.messages.some(m => m.id === event.message.id)) return prev
-          const isOpen = event.conversationId === selectedIdRef.current
-          if (isOpen) {
-            markConversationRead(event.conversationId).catch(() => {})
-          }
-          const updated = {
-            ...existing,
-            messages: [...existing.messages, event.message],
-            lastActivityAt: event.message.sentAt,
-            preview: realtimePreview(event.message),
-            unreadCount: isOpen ? 0 : existing.unreadCount + 1,
-          }
-          return prev.map(c => (c.id === event.conversationId ? updated : c))
+        // Decrypt off the state path (async), then merge with a dedupe check.
+        normalizeMessage(currentUserIdRef.current, event.message).then(nmsg => {
+          setConversations(prev => {
+            const existing = prev.find(c => c.id === event.conversationId)
+            if (!existing) return prev
+            if (existing.messages.some(m => m.id === nmsg.id)) return prev
+            const isOpen = event.conversationId === selectedIdRef.current
+            if (isOpen) {
+              markConversationRead(event.conversationId).catch(() => {})
+            }
+            const updated = {
+              ...existing,
+              messages: [...existing.messages, nmsg],
+              lastActivityAt: nmsg.sentAt,
+              preview: realtimePreview(nmsg),
+              unreadCount: isOpen ? 0 : existing.unreadCount + 1,
+            }
+            return prev.map(c => (c.id === event.conversationId ? updated : c))
+          })
         })
       } else if (event.type === 'conversation:new') {
         reloadConversations()
@@ -335,7 +451,8 @@ export default function MessagesPage() {
     if (activeFilter === 'starred') list = list.filter(c => c.isStarred)
     if (activeFilter === 'attachments') {
       list = list.filter(c => c.messages.some(m =>
-        m.attachments.length > 0 || ['image', 'video', 'audio', 'file'].includes(m.kind ?? '')
+        m.attachments.length > 0 || ['image', 'video', 'audio', 'file'].includes(m.kind ?? '') ||
+        (m.kind === 'sealed' && !!m.sealedMedia)
       ))
     }
     if (searchTerm) {
@@ -418,24 +535,72 @@ export default function MessagesPage() {
   const handleSendText = async (text: string) => {
     if (!selectedConv) return
     try {
-      const msg = await sendMessage(selectedConv.id, { body: text })
+      const myId = currentUser.id
+      const attempt = await sealForConversation({ myId, participants: selectedConv.participants, text })
+      const msg = await sendMessage(
+        selectedConv.id,
+        attempt.sealed ? { body: attempt.body, kind: 'sealed' } : { body: text }
+      )
+      if (attempt.sealed && attempt.payload) cacheOwnSealed(myId, msg.id, attempt.payload)
+      const finalMsg = await normalizeMessage(myId, msg)
       const now = new Date().toISOString()
       updateConv(selectedConv.id, c => ({
-        ...c, messages: [...c.messages, msg], lastActivityAt: now, preview: text, unreadCount: 0,
+        ...c, messages: [...c.messages, finalMsg], lastActivityAt: now,
+        preview: text, unreadCount: 0,
       }))
     } catch {
       toast('error', "Impossible d'envoyer le message.")
     }
   }
 
-  const handleSendVoice = async (duration: string, audioUrl?: string, audioSize?: string) => {
+  const handleSendVoice = async (duration: string, audioUrl?: string, audioSize?: string, blob?: Blob | null) => {
     if (!selectedConv) return
     try {
+      const myId = currentUser.id
+      if (blob) {
+        const prepared = await prepareSealedMedia({
+          myId,
+          participants: selectedConv.participants,
+          file: blob,
+          filename: 'note-vocale.webm',
+          mime: blob.type || 'audio/webm',
+          upload: b => uploadVoice(b),
+        })
+        if (prepared.sealed && prepared.meta) {
+          const attempt = await sealForConversation({
+            myId, participants: selectedConv.participants, text: '', media: prepared.meta,
+          })
+          if (attempt.sealed && attempt.payload) {
+            const msg = await sendMessage(selectedConv.id, {
+              body: attempt.body, kind: 'sealed', duration,
+              attachmentName: prepared.name, attachmentSize: prepared.size, attachmentUrl: prepared.url,
+            })
+            cacheOwnSealed(myId, msg.id, attempt.payload)
+            const finalMsg = await normalizeMessage(myId, msg)
+            const now = new Date().toISOString()
+            updateConv(selectedConv.id, c => ({
+              ...c, messages: [...c.messages, finalMsg], lastActivityAt: now, preview: 'Message vocal', unreadCount: 0,
+            }))
+            return
+          }
+        }
+        // Plaintext fallback (single upload, right here).
+        const plain = await uploadVoice(blob)
+        const msg = await sendMessage(selectedConv.id, {
+          kind: 'audio', duration, audioUrl: plain.url,
+        })
+        const now = new Date().toISOString()
+        updateConv(selectedConv.id, c => ({
+          ...c, messages: [...c.messages, msg], lastActivityAt: now, preview: 'Message vocal', unreadCount: 0,
+        }))
+        return
+      }
+      // Legacy path (no blob handed over).
       const msg = await sendMessage(selectedConv.id, {
         kind: 'audio', duration,
         ...(audioUrl
           ? { audioUrl }
-          : { attachmentName: 'note_audio.m4a', attachmentSize: '0.6 Mo' }),
+          : { attachmentName: 'note_audio.m4a', attachmentSize: audioSize || '0.6 Mo' }),
       })
       const now = new Date().toISOString()
       updateConv(selectedConv.id, c => ({
@@ -449,6 +614,37 @@ export default function MessagesPage() {
   const handleAttach = async (kind: 'image' | 'video' | 'document' | 'audio', file: File): Promise<boolean> => {
     if (!selectedConv) return false
     const msgKind: MessageKind = kind === 'document' ? 'file' : kind
+    const myId = currentUser.id
+    try {
+      const prepared = await prepareSealedMedia({
+        myId,
+        participants: selectedConv.participants,
+        file,
+        filename: file.name,
+        mime: file.type || 'application/octet-stream',
+        upload: b => uploadAttachment(b as File).then(u => ({ url: u.url, size: u.size })),
+      })
+      if (prepared.sealed && prepared.meta) {
+        const attempt = await sealForConversation({
+          myId, participants: selectedConv.participants, text: '', media: prepared.meta,
+        })
+        if (attempt.sealed && attempt.payload) {
+          const msg = await sendMessage(selectedConv.id, {
+            body: attempt.body, kind: 'sealed',
+            attachmentName: prepared.name, attachmentSize: prepared.size, attachmentUrl: prepared.url,
+          })
+          cacheOwnSealed(myId, msg.id, attempt.payload)
+          const finalMsg = await normalizeMessage(myId, msg)
+          updateConv(selectedConv.id, c => ({
+            ...c, messages: [...c.messages, finalMsg], lastActivityAt: new Date().toISOString(), preview: prepared.name, unreadCount: 0,
+          }))
+          return true
+        }
+      }
+    } catch {
+      toast('error', "Impossible de chiffrer la pièce jointe.")
+      return false
+    }
     let uploaded: { url: string; name: string; size: string }
     try {
       uploaded = await uploadAttachment(file)
@@ -551,11 +747,83 @@ export default function MessagesPage() {
     }
   }
 
+  // Safety number: warn when a DM contact publishes a new identity
+  // (new device / cleared storage). Non-consuming check — burns no prekeys.
+  useEffect(() => {
+    setIdentityAlert(null)
+    if (!selectedConv || selectedConv.isGroup || !currentUser.id) return
+    const others = selectedConv.participants.filter(p => p.type !== 'group' && p.id !== currentUser.id)
+    if (others.length !== 1) return
+    const contact = others[0]
+    const myId = currentUser.id
+    let cancelled = false
+    checkContactIdentity(storeFor(myId), keyServer, String(contact.id))
+      .then(res => {
+        if (!cancelled && res.changed) {
+          setIdentityAlert({ contactId: String(contact.id), contactName: contact.name })
+        }
+      })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [selectedConv?.id, currentUser.id])
+
+  const handleTrustContact = async () => {
+    if (!identityAlert || !currentUser.id) return
+    setTrusting(true)
+    try {
+      const ok = await trustContactIdentity(storeFor(currentUser.id), keyServer, identityAlert.contactId)
+      if (ok) {
+        toast('success', `Clé de ${identityAlert.contactName} vérifiée — messages chiffrés réactivés.`)
+        setIdentityAlert(null)
+      } else {
+        toast('error', 'Impossible de vérifier la clé pour le moment.')
+      }
+    } finally {
+      setTrusting(false)
+    }
+  }
+
   // Leave selection mode whenever the conversation changes
   useEffect(() => {
     setSelectionMode(false)
     setSelectedIds(new Set())
   }, [selectedId])
+
+  // Memorize the open conversation for this tab (restored on return).
+  useEffect(() => {
+    try {
+      const uid = myIdFromToken()
+      if (selectedId && uid) sessionStorage.setItem('msg:selected', `${uid}:${selectedId}`)
+      else sessionStorage.removeItem('msg:selected')
+    } catch {
+      // private mode: memorization simply stays off
+    }
+  }, [selectedId])
+
+  // Drop the memorized id when it no longer belongs to this user.
+  useEffect(() => {
+    if (!agentReady || !selectedId) return
+    const visible = admin
+      ? conversations
+      : conversations.filter(c => c.participants.some(p => p.id === currentUser.id))
+    if (!visible.some(c => c.id === selectedId)) setSelectedId(null)
+  }, [agentReady, conversations, selectedId, admin, currentUser.id])
+
+  // Delete key closes the open conversation back to the empty state.
+  // Ignored while typing, selecting messages, or when a dialog is open.
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'Delete') return
+      const el = document.activeElement as HTMLElement | null
+      if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable)) return
+      if (!selectedId) return
+      if (selectionMode || viewerMessage || moreMenu || listMenu || deleteTargets || clearTarget || membersModal || assignTarget) return
+      e.preventDefault()
+      setSelectedId(null)
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [selectedId, selectionMode, viewerMessage, moreMenu, listMenu, deleteTargets, clearTarget, membersModal, assignTarget])
 
   const clearFilters = () => {
     setActiveFilter('all')
@@ -568,54 +836,103 @@ export default function MessagesPage() {
   const basePath = admin ? getAdminBasePath() : ''
   const appearance = useMessagingAppearance()
   const zoomStyle = messageZoomStyle(appearance.messageSize)
+  const theme = useStageTheme()
+  const isDark = theme === 'dark'
+  const stageAccent = useStageAccent()
+  const isGerant = admin && currentRole === 'gerant'
+  const interfaceHue = isGerant ? GERANT_MAUVE_HUE : stageAccent
+  const btns = useStageModalButtons()
+  const ghostBtn = cn(
+    btns.ghost,
+    isDark
+      ? ''
+      : isGerant
+        ? '!border-[#905D5D]/15 !text-[#7D5050]/70 hover:!bg-white hover:!text-[#7D5050]'
+        : '',
+  )
+  const msgVars = {
+    '--msg-accent-a': interfaceHue.a,
+    '--msg-accent-b': interfaceHue.b,
+    '--msg-accent-line': interfaceHue.line,
+    '--msg-accent-glow': interfaceHue.glow,
+    '--msg-accent-soft': `${interfaceHue.a}18`,
+    '--msg-accent-border': `${interfaceHue.a}42`,
+    '--msg-hairline': isDark ? 'rgba(255,255,255,0.10)' : `${interfaceHue.line}1F`,
+    '--msg-hairline-soft': isDark ? 'rgba(255,255,255,0.05)' : `${interfaceHue.line}12`,
+    '--msg-ink': isDark ? '#E2E8F0' : interfaceHue.line,
+    '--msg-ink-soft': isDark ? 'rgba(148,163,184,0.8)' : `${interfaceHue.line}B3`,
+  } as CSSProperties
+  const gradientTitle = isDark
+    ? (admin ? 'from-[#F43F5E] via-[#FB7185] to-[#8B7CFF]' : 'from-white via-indigo-100 to-indigo-300')
+    : (isGerant
+        ? 'from-[#905D5D] via-[#A56E6E] to-[#C89292]'
+        : admin ? 'from-[#EA580C] via-[#F97316] to-[#FBBF24]' : 'from-teal-900 via-teal-700 to-emerald-600')
+  const lightInk = isDark ? 'text-slate-400' : isGerant ? 'text-[#905D5D]/65' : admin ? 'text-orange-900/60' : 'text-teal-900/60'
+  const stageInput = isDark
+    ? 'bg-white/[0.05] border-white/10 text-white placeholder:text-slate-500 focus:bg-white/[0.07] focus:border-[color:var(--msg-accent-line)] focus:ring-2 focus:ring-[var(--msg-accent-soft)]'
+    : 'bg-white border-[color:var(--msg-hairline)] text-slate-900 placeholder:text-slate-400 focus:border-[color:var(--msg-accent-line)] focus:ring-2 focus:ring-[var(--msg-accent-soft)]'
+  const chatWallpaper = {
+    backgroundImage: `radial-gradient(${isDark ? `${interfaceHue.line}24` : `${interfaceHue.line}1F`} 1px, transparent 1.4px)`,
+    backgroundSize: '18px 18px',
+  }
 
   return (
-    <div className={cn('flex flex-col h-full w-full', appearance.theme === 'dark' && 'dark bg-background')} style={zoomStyle}>
-      {/* Header */}
-      <div className="flex items-center justify-between gap-3 shrink-0 pb-3">
+    <div className={cn('flex flex-col h-full w-full animate-fade-in', appearance.theme === 'dark' && 'dark bg-background')} style={{ ...zoomStyle, ...msgVars }}>
+      {/* Hero */}
+      <div className="relative z-10 flex flex-wrap items-end justify-between gap-4 shrink-0 pb-5">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-accent/10 flex items-center justify-center">
-            <MessageSquare size={20} className="text-accent" />
-          </div>
+          <OrbIcon icon={MessageSquare} hue={interfaceHue} size={48} radius={14} />
           <div>
-            <h1 className="text-xl font-bold leading-tight">Messagerie</h1>
-            <p className="text-xs text-text-secondary">Communications en temps réel</p>
+            <div className="flex items-center gap-2">
+              <span className="relative flex h-2 w-2">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60" />
+                <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.9)]" />
+              </span>
+              <p className={`text-[10px] font-bold uppercase tracking-[0.24em] ${isDark ? 'text-slate-400/80' : lightInk}`}>
+                Square Immo · Messagerie · Temps réel
+              </p>
+            </div>
+            <h1 className={`mt-1 bg-gradient-to-r bg-clip-text text-4xl font-black tracking-[-1.5px] text-transparent ${gradientTitle}`}>
+              Messagerie
+            </h1>
+            <p className={`mt-0.5 text-sm ${lightInk}`}>
+              Communications en temps réel{stats.unread > 0 ? ` · ${stats.unread} non lu${stats.unread > 1 ? 's' : ''}` : ''}
+            </p>
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <button
+          <StageButton
+            variant="glass"
+            icon={<Settings size={14} />}
             onClick={() => navigate(`${basePath}/messages/settings`)}
-            className="hidden sm:flex items-center gap-2 px-3 py-2 text-sm font-medium text-text-secondary hover:text-text hover:bg-card border border-border/60 rounded-lg transition-colors"
+            className="hidden sm:inline-flex"
           >
-            <Settings size={15} />
             Paramètres
-          </button>
-          <button
+          </StageButton>
+          <StageButton
+            variant="primary"
+            icon={<Plus size={14} />}
             onClick={() => navigate(`${basePath}/messages/compose`)}
-            className="flex items-center gap-2 px-4 py-2 bg-accent text-white rounded-lg text-sm font-medium hover:bg-accent-hover active:scale-[0.98] shadow-sm transition-all"
           >
-            <Plus size={15} />
             Nouvelle conversation
-          </button>
+          </StageButton>
         </div>
       </div>
 
       {/* Admin stats */}
       {admin && (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 shrink-0 pb-3">
+        <div className="relative z-10 grid grid-cols-2 lg:grid-cols-4 gap-3 shrink-0 pb-1">
           {[
-            { label: 'Conversations', value: stats.total, sub: "dans l'agence" },
-            { label: 'Non lus', value: stats.unread, sub: 'messages en attente' },
-            { label: 'Messages envoyés', value: stats.sentThisMonth, sub: 'ce mois-ci' },
-            { label: 'Favoris', value: stats.starred, sub: 'conversations suivies' },
+            { label: 'Conversations', value: stats.total, sub: "dans l'agence", hue: interfaceHue },
+            { label: 'Non lus', value: stats.unread, sub: 'messages en attente', hue: STAGE_HUES.sky },
+            { label: 'Messages envoyés', value: stats.sentThisMonth, sub: 'ce mois-ci', hue: STAGE_HUES.emerald },
+            { label: 'Favoris', value: stats.starred, sub: 'conversations suivies', hue: STAGE_HUES.amber },
           ].map(stat => (
-            <div key={stat.label} className="bg-card rounded-xl border border-border/50 shadow-card px-4 py-3 flex items-center gap-3">
-              <div className="w-9 h-9 rounded-lg bg-accent/10 flex items-center justify-center shrink-0">
-                <MessageSquare size={16} className="text-accent" />
-              </div>
+            <div key={stat.label} className="stage-glass px-4 py-3 flex items-center gap-3">
+              <OrbIcon icon={MessageSquare} hue={stat.hue} size={38} radius={12} />
               <div className="min-w-0">
-                <p className="text-lg font-semibold leading-tight">{stat.value}</p>
-                <p className="text-[11px] text-text-secondary truncate">{stat.label} · {stat.sub}</p>
+                <p className={`text-lg font-extrabold leading-tight tracking-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>{stat.value}</p>
+                <p className={`text-[11px] truncate ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{stat.label} · {stat.sub}</p>
               </div>
             </div>
           ))}
@@ -623,24 +940,36 @@ export default function MessagesPage() {
       )}
 
       {/* Chat layout */}
-      <div className="flex-1 min-h-0 flex rounded-2xl overflow-hidden border border-border/60 bg-card shadow-card">
+      <div className="relative z-10 flex-1 min-h-0 flex stage-glass overflow-hidden">
+        {moreMenu === 'chat' && (
+          <div
+            aria-hidden="true"
+            onClick={() => setMoreMenu(null)}
+            className="absolute inset-0 z-[5] backdrop-blur-[2px]"
+            style={{ background: isDark ? 'rgba(5,9,20,0.45)' : 'rgba(13,60,60,0.10)' }}
+          />
+        )}
         {/* Conversation list */}
-        <aside className="w-[330px] shrink-0 border-r border-border/50 flex flex-col min-h-0 bg-card">
-          <div className="p-3 border-b border-border/40 space-y-2.5">
+        <aside className={cn('w-[330px] shrink-0 border-r flex flex-col min-h-0', isDark ? 'border-white/10' : 'border-[color:var(--msg-hairline)]')}>
+          <div className={cn('p-3 border-b space-y-2.5', isDark ? 'border-white/10' : 'border-[color:var(--msg-hairline)]')}>
             <div className="flex items-center gap-2">
               <div className="relative flex-1">
-                <Search size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-text-secondary/50" />
+                <Search size={15} className={cn('absolute left-3.5 top-1/2 -translate-y-1/2', isDark ? 'text-slate-500' : 'text-slate-400')} />
                 <input
                   type="text"
                   value={searchTerm}
                   onChange={e => setSearchTerm(e.target.value)}
                   placeholder="Rechercher une conversation..."
-                  className="w-full h-9 pl-9 pr-3 text-sm rounded-full bg-background border border-transparent focus:bg-card focus:border-accent/50 focus:ring-2 focus:ring-accent/10 text-text placeholder:text-text-secondary/40 focus:outline-none transition-all"
+                  className={cn('w-full h-9 pl-9 pr-3 text-sm rounded-full border focus:outline-none transition-all', stageInput)}
                 />
               </div>
               <button
                 onClick={() => navigate(`${basePath}/messages/compose`)}
-                className="w-9 h-9 rounded-full bg-accent text-white flex items-center justify-center hover:bg-accent-hover active:scale-95 shadow-sm transition-all"
+                className="w-9 h-9 rounded-full text-white flex items-center justify-center active:scale-95 transition-all"
+                style={{
+                  backgroundImage: 'linear-gradient(145deg, var(--msg-accent-a) 0%, var(--msg-accent-b) 100%)',
+                  boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.4), 0 8px 20px -6px var(--msg-accent-glow)',
+                }}
                 title="Nouvelle conversation"
               >
                 <Plus size={17} />
@@ -648,20 +977,29 @@ export default function MessagesPage() {
             </div>
 
             <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-thin -mx-1 px-1">
-              {FILTERS.map(filter => (
-                <button
-                  key={filter.id}
-                  onClick={() => setActiveFilter(filter.id)}
-                  className={cn(
-                    'px-3 py-1.5 text-xs font-medium rounded-full border transition-all whitespace-nowrap',
-                    activeFilter === filter.id
-                      ? 'bg-accent/10 text-accent border-accent/20'
-                      : 'bg-background text-text-secondary border-border/60 hover:text-text hover:border-border'
-                  )}
-                >
-                  {filter.label}
-                </button>
-              ))}
+              {FILTERS.map(filter => {
+                const isActive = activeFilter === filter.id
+                return (
+                  <button
+                    key={filter.id}
+                    onClick={() => setActiveFilter(filter.id)}
+                    className={cn(
+                      'px-3 py-1.5 text-xs font-semibold rounded-full border transition-all whitespace-nowrap',
+                      isActive
+                        ? 'text-white border-transparent'
+                        : isDark
+                          ? 'text-slate-400 border-white/10 hover:text-white hover:border-white/25 hover:bg-white/5'
+                          : 'text-slate-500 border-[color:var(--msg-hairline)] bg-white/60 hover:text-[color:var(--msg-ink)] hover:border-[color:var(--msg-accent-border)]'
+                    )}
+                    style={isActive ? {
+                      backgroundImage: 'linear-gradient(135deg, var(--msg-accent-a) 0%, var(--msg-accent-b) 100%)',
+                      boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.4), 0 6px 16px -6px var(--msg-accent-glow)',
+                    } : undefined}
+                  >
+                    {filter.label}
+                  </button>
+                )
+              })}
             </div>
 
             {admin && (
@@ -712,49 +1050,77 @@ export default function MessagesPage() {
                 const hasUnread = conv.unreadCount > 0
                 const lastMsg = conv.messages[conv.messages.length - 1]
                 const lastKind = lastMsg?.kind
+                // Decrypted sealed content displays like any message.
+                const lastDecrypted = lastKind === 'sealed' && !!lastMsg?.sealedOk
+                const lastDisplayKind = lastDecrypted ? innerKindOf(lastMsg) : lastKind
                 const senderName = conv.isGroup && lastMsg ? lastMsg.sender.name.split(' ')[0] + ' : ' : ''
                 return (
                   <div
                     key={conv.id}
-                    onClick={() => { setSelectedId(conv.id); setChatSearchOpen(false); setChatSearch(''); setMoreMenu(null) }}
+                    onClick={() => {
+                      // Second click on the open conversation closes it.
+                      setSelectedId(selectedId === conv.id ? null : conv.id)
+                      setChatSearchOpen(false); setChatSearch(''); setMoreMenu(null)
+                    }}
                     className={cn(
-                      'relative flex items-center gap-3 px-3 py-3 border-b border-border/20 cursor-pointer transition-colors group',
-                      isSelected ? 'bg-accent-light/30' : 'hover:bg-background/70'
+                      'relative flex items-center gap-3 px-3 py-3 border-b cursor-pointer transition-colors group',
+                      isDark ? 'border-white/5' : 'border-[color:var(--msg-hairline-soft)]',
+                      isSelected
+                        ? 'bg-[var(--msg-accent-soft)]'
+                        : isDark ? 'hover:bg-white/[0.04]' : 'hover:bg-white/60'
                     )}
                   >
+                    {isSelected && (
+                      <span
+                        className="absolute left-0 top-2 bottom-2 w-[3px] rounded-full"
+                        style={{
+                          backgroundImage: 'linear-gradient(180deg, var(--msg-accent-a), var(--msg-accent-b))',
+                          boxShadow: '0 0 12px var(--msg-accent-glow)',
+                        }}
+                      />
+                    )}
                     <Avatar participant={other} showPresence size="sm" />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between gap-2">
-                        <span className={cn('flex items-center gap-1.5 text-sm truncate', hasUnread ? 'font-bold text-text' : 'font-semibold text-text')}>
+                        <span className={cn('flex items-center gap-1.5 text-sm truncate', hasUnread ? 'font-bold' : 'font-semibold', isDark ? 'text-white' : 'text-slate-900')}>
                           {other.name}
                           {other.type !== 'client' && other.type !== 'group' && (
-                            <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-md bg-accent/10 text-accent uppercase tracking-wide shrink-0">
+                            <span
+                              className="text-[9px] font-bold px-1.5 py-0.5 rounded-md uppercase tracking-wide shrink-0 border"
+                              style={stagePillStyle(interfaceHue, isDark)}
+                            >
                               {other.type === 'admin' ? 'Admin' : 'Agent'}
                             </span>
                           )}
                         </span>
-                        <span className="text-[10px] text-text-secondary/60 whitespace-nowrap shrink-0">
+                        <span className={cn('text-[10px] whitespace-nowrap shrink-0', isDark ? 'text-slate-500' : 'text-slate-400')}>
                           {formatListDate(conv.lastActivityAt)}
                         </span>
                       </div>
                       <div className="flex items-center justify-between gap-2 mt-0.5">
-                        <span className={cn('flex items-center gap-1 text-xs truncate', hasUnread ? 'font-medium text-text' : 'text-text-secondary/80')}>
+                        <span className={cn('flex items-center gap-1 text-xs truncate', hasUnread ? 'font-medium' : '', isDark ? (hasUnread ? 'text-slate-200' : 'text-slate-500') : (hasUnread ? 'text-slate-700' : 'text-slate-500'))}>
                           {conv.previewReaction ? (
                             <span className="truncate">
                               {conv.previewReaction.name} a réagi {conv.previewReaction.emoji} à « {conv.previewReaction.message} »
                             </span>
                           ) : (
                             <>
-                              {previewIcon(lastKind)}
-                              <span className="truncate">{senderName}{hasUnread && lastKind === 'text' && lastMsg ? lastMsg.body : conv.preview}</span>
+                              {previewIcon(lastDisplayKind)}
+                              <span className="truncate">{senderName}{hasUnread && lastMsg && (lastKind === 'text' || lastDecrypted) ? (lastMsg.body || conv.preview) : conv.preview}</span>
                             </>
                           )}
                         </span>
                         <div className="flex items-center gap-1 shrink-0">
-                          {conv.isPinned && <Pin size={11} className="text-text-secondary/40" />}
+                          {conv.isPinned && <Pin size={11} className={isDark ? 'text-slate-500' : 'text-slate-400'} />}
                           {conv.isStarred && <Star size={11} className="text-amber-500 fill-amber-500" />}
                           {hasUnread && (
-                            <span className="px-1.5 py-0.5 text-[9px] font-bold rounded-full bg-accent text-white leading-none min-w-[18px] text-center">
+                            <span
+                              className="px-1.5 py-0.5 text-[9px] font-bold rounded-full text-white leading-none min-w-[18px] text-center"
+                              style={{
+                                backgroundImage: 'linear-gradient(135deg, var(--msg-accent-a) 0%, var(--msg-accent-b) 100%)',
+                                boxShadow: '0 0 10px var(--msg-accent-glow)',
+                              }}
+                            >
                               {conv.unreadCount}
                             </span>
                           )}
@@ -763,6 +1129,7 @@ export default function MessagesPage() {
                     </div>
                     {admin && (
                       <button
+                        data-conv-menu-toggle
                         onClick={e => {
                           e.stopPropagation()
                           const rect = (e.currentTarget as HTMLElement).getBoundingClientRect()
@@ -772,7 +1139,7 @@ export default function MessagesPage() {
                               : { convId: conv.id, x: rect.right - 184, y: rect.bottom + 4 }
                           )
                         }}
-                        className="p-1.5 rounded-lg text-text-secondary/50 hover:text-text hover:bg-background transition-colors opacity-0 group-hover:opacity-100 shrink-0"
+                        className={cn('p-1.5 rounded-lg transition-colors opacity-0 group-hover:opacity-100 shrink-0', isDark ? 'text-slate-500 hover:text-white hover:bg-white/5' : 'text-slate-400 hover:text-[color:var(--msg-ink)] hover:bg-[var(--msg-accent-soft)]')}
                         title="Actions"
                       >
                         <MoreVertical size={15} />
@@ -786,14 +1153,15 @@ export default function MessagesPage() {
         </aside>
 
         {/* Chat view */}
-        <section className="flex-1 min-w-0 flex flex-col bg-gradient-to-br from-background/40 via-card to-accent-light/20">
+        <section className={cn('flex-1 min-w-0 flex flex-col', isDark ? 'bg-white/[0.015]' : 'bg-white/40')}>
           {selectedConv ? (
             <>
               {/* Chat header */}
-              <div className="relative flex items-center gap-3 px-4 py-3 border-b border-border/40 bg-card/90 backdrop-blur-sm shrink-0 z-10">
+              <div className={cn('relative flex items-center gap-3 px-4 py-3 border-b backdrop-blur-md shrink-0 z-10', isDark ? 'border-white/10 bg-white/[0.02]' : 'border-[color:var(--msg-hairline)] bg-white/60')}>
+                <span aria-hidden="true" className="pointer-events-none absolute inset-x-8 bottom-0 h-px" style={{ background: 'linear-gradient(90deg, transparent, var(--msg-accent-line), transparent)' }} />
                 <button
                   onClick={() => setSelectedId(null)}
-                  className="lg:hidden p-1.5 rounded-lg text-text-secondary hover:text-text hover:bg-background transition-colors"
+                  className={cn('lg:hidden p-1.5 rounded-lg transition-colors', isDark ? 'text-slate-400 hover:text-white hover:bg-white/5' : 'text-slate-500 hover:text-[color:var(--msg-ink)] hover:bg-[var(--msg-accent-soft)]')}
                   title="Retour"
                 >
                   <ArrowLeft size={18} />
@@ -801,14 +1169,17 @@ export default function MessagesPage() {
                 <Avatar participant={otherParticipant(selectedConv)} showPresence={!selectedConv.isGroup} />
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    <h3 className="text-sm font-semibold text-text truncate">{otherParticipant(selectedConv).name}</h3>
+                    <h3 className={cn('text-sm font-bold tracking-tight truncate', isDark ? 'text-white' : 'text-slate-900')}>{otherParticipant(selectedConv).name}</h3>
                     {selectedConv.isGroup && (
-                      <span className="flex items-center gap-1 text-[9px] font-semibold px-1.5 py-0.5 rounded-md bg-accent/10 text-accent">
+                      <span
+                        className="flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded-md border"
+                        style={stagePillStyle(interfaceHue, isDark)}
+                      >
                         <Users size={9} /> Groupe
                       </span>
                     )}
                   </div>
-                  <p className={cn('text-[11px] flex items-center gap-1.5 truncate', presence ? 'text-accent font-medium' : 'text-text-secondary')}>
+                  <p className={cn('text-[11px] flex items-center gap-1.5 truncate', presence ? 'font-semibold text-[color:var(--msg-accent-line)]' : isDark ? 'text-slate-400' : 'text-slate-500')}>
                     {presence === 'recording' ? (
                       <>
                         <span className="w-1.5 h-1.5 rounded-full bg-error animate-pulse" />
@@ -824,7 +1195,7 @@ export default function MessagesPage() {
                         en train d'écrire...
                       </>
                     ) : selectedConv.isGroup ? (
-                      <span className="text-text-secondary">{selectedConv.participants.filter(p => p.type !== 'group').length} membres</span>
+                      <span>{selectedConv.participants.filter(p => p.type !== 'group').length} membres</span>
                     ) : (
                       <PresenceIndicator participant={otherParticipant(selectedConv)} />
                     )}
@@ -834,7 +1205,7 @@ export default function MessagesPage() {
                 {selectedConv.relatedPropertyTitle && (
                   <button
                     onClick={() => navigate(`${basePath}/properties/${selectedConv.relatedPropertyId}`)}
-                    className="hidden md:flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-accent bg-accent/10 hover:bg-accent/20 rounded-lg transition-colors shrink-0"
+                    className="hidden md:flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold rounded-xl border backdrop-blur-md transition-colors shrink-0 text-[color:var(--msg-accent-line)] bg-[var(--msg-accent-soft)] hover:bg-[var(--msg-accent-border)] border-[color:var(--msg-accent-border)]"
                   >
                     <Home size={12} />
                     {selectedConv.relatedPropertyTitle}
@@ -844,14 +1215,19 @@ export default function MessagesPage() {
                 <div className="flex items-center gap-1 shrink-0">
                   <button
                     onClick={() => setChatSearchOpen(o => !o)}
-                    className={cn('p-2 rounded-lg transition-colors', chatSearchOpen ? 'text-accent bg-accent/10' : 'text-text-secondary hover:text-text hover:bg-background')}
+                    className={cn('p-2 rounded-xl border transition-colors', chatSearchOpen
+                      ? 'text-[color:var(--msg-accent-line)] bg-[var(--msg-accent-soft)] border-[color:var(--msg-accent-border)]'
+                      : isDark ? 'text-slate-400 border-transparent hover:text-white hover:bg-white/5 hover:border-white/10' : 'text-slate-500 border-transparent hover:text-[color:var(--msg-ink)] hover:bg-[var(--msg-accent-soft)] hover:border-[color:var(--msg-hairline)]')}
                     title="Rechercher dans la conversation"
                   >
                     <Search size={17} />
                   </button>
                   <button
+                    data-chat-menu-toggle
                     onClick={() => setMoreMenu(moreMenu === 'chat' ? null : 'chat')}
-                    className={cn('p-2 rounded-lg transition-colors', moreMenu === 'chat' ? 'text-accent bg-accent/10' : 'text-text-secondary hover:text-text hover:bg-background')}
+                    className={cn('p-2 rounded-xl border transition-colors', moreMenu === 'chat'
+                      ? 'text-[color:var(--msg-accent-line)] bg-[var(--msg-accent-soft)] border-[color:var(--msg-accent-border)]'
+                      : isDark ? 'text-slate-400 border-transparent hover:text-white hover:bg-white/5 hover:border-white/10' : 'text-slate-500 border-transparent hover:text-[color:var(--msg-ink)] hover:bg-[var(--msg-accent-soft)] hover:border-[color:var(--msg-hairline)]')}
                     title="Plus d'options"
                   >
                     <MoreVertical size={17} />
@@ -860,14 +1236,13 @@ export default function MessagesPage() {
 
                 <AnimatePresence>
                   {moreMenu === 'chat' && (
-                    <>
-                      <div className="fixed inset-0 z-20" onClick={() => setMoreMenu(null)} />
-                      <motion.div
+                    <motion.div
+                      ref={chatMenuRef}
                         initial={{ opacity: 0, y: -6, scale: 0.97 }}
                         animate={{ opacity: 1, y: 0, scale: 1 }}
                         exit={{ opacity: 0, y: -6, scale: 0.97 }}
                         transition={{ duration: 0.14 }}
-                        className="absolute right-3 top-14 z-30 w-56 bg-card border border-border/60 rounded-xl shadow-modal p-1.5"
+                        className="!absolute right-3 top-14 z-30 w-56 stage-glass rounded-2xl p-1.5"
                       >
                         {[
                           ...(selectedConv.isGroup && selectedConv.createdBy === currentUser.id
@@ -886,15 +1261,16 @@ export default function MessagesPage() {
                             key={item.label}
                             onClick={item.action}
                             className={cn(
-                              'w-full flex items-center gap-2.5 px-3 py-2 text-sm rounded-lg transition-colors',
-                              (item as any).danger ? 'text-error hover:bg-error/5' : 'text-text hover:bg-background'
+                              'w-full flex items-center gap-2.5 px-3 py-2 text-sm rounded-xl transition-colors',
+                              (item as any).danger
+                                ? 'text-error hover:bg-error/5'
+                                : isDark ? 'text-slate-200 hover:bg-white/5' : 'text-slate-700 hover:bg-[var(--msg-accent-soft)]'
                             )}
                           >
                             {item.icon} {item.label}
                           </button>
                         ))}
                       </motion.div>
-                    </>
                   )}
                 </AnimatePresence>
               </div>
@@ -907,18 +1283,18 @@ export default function MessagesPage() {
                     animate={{ height: 'auto', opacity: 1 }}
                     exit={{ height: 0, opacity: 0 }}
                     transition={{ duration: 0.15 }}
-                    className="overflow-hidden border-b border-border/40 bg-card"
+                    className={cn('overflow-hidden border-b', isDark ? 'border-white/10 bg-white/[0.02]' : 'border-[color:var(--msg-hairline)] bg-white/60')}
                   >
                     <div className="px-4 py-2 flex items-center gap-2">
                       <div className="relative flex-1">
-                        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary/50" />
+                        <Search size={14} className={cn('absolute left-3 top-1/2 -translate-y-1/2', isDark ? 'text-slate-500' : 'text-slate-400')} />
                         <input
                           type="text"
                           value={chatSearch}
                           onChange={e => setChatSearch(e.target.value)}
                           placeholder="Rechercher dans cette conversation..."
                           autoFocus
-                          className="w-full h-8 pl-9 pr-3 text-sm rounded-full bg-background border border-transparent focus:border-accent/50 text-text placeholder:text-text-secondary/40 focus:outline-none transition-colors"
+                          className={cn('w-full h-8 pl-9 pr-3 text-sm rounded-full border focus:outline-none transition-colors', stageInput)}
                         />
                       </div>
                       <button
@@ -932,8 +1308,47 @@ export default function MessagesPage() {
                 )}
               </AnimatePresence>
 
+              {/* Safety-number change: contact re-registered elsewhere */}
+              <AnimatePresence>
+                {identityAlert && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: 'auto', opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.18 }}
+                    className={cn('overflow-hidden border-b shrink-0', isDark ? 'border-amber-400/20 bg-amber-400/[0.05]' : 'border-amber-500/20 bg-amber-50/80')}
+                  >
+                    <div className="px-4 py-2.5 flex items-center gap-2.5">
+                      <Shield size={15} className="text-amber-500 shrink-0" />
+                      <p className={cn('flex-1 min-w-0 text-xs leading-snug', isDark ? 'text-amber-200/90' : 'text-amber-800')}>
+                        La clé de sécurité de <span className="font-bold">{identityAlert.contactName}</span> a changé
+                        (nouvel appareil&nbsp;?). Vérifiez son identité avant de continuer à échanger.
+                      </p>
+                      <button
+                        onClick={handleTrustContact}
+                        disabled={trusting}
+                        className="px-3 py-1.5 text-xs font-bold rounded-lg transition-all shrink-0 disabled:opacity-50 text-white"
+                        style={{
+                          backgroundImage: 'linear-gradient(180deg, var(--msg-accent-a), var(--msg-accent-b))',
+                          boxShadow: '0 0 12px var(--msg-accent-glow)',
+                        }}
+                      >
+                        {trusting ? 'Vérification…' : 'Faire confiance'}
+                      </button>
+                      <button
+                        onClick={() => setIdentityAlert(null)}
+                        className={cn('p-1.5 rounded-lg transition-colors shrink-0', isDark ? 'text-slate-500 hover:text-white hover:bg-white/10' : 'text-slate-400 hover:text-slate-700 hover:bg-black/5')}
+                        title="Ignorer pour cette conversation"
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+
               {/* Messages */}
-              <div className="flex-1 overflow-y-auto scrollbar-thin px-4 sm:px-6 py-4 relative">
+              <div className="flex-1 overflow-y-auto scrollbar-thin px-4 sm:px-6 py-4 relative" style={chatWallpaper}>
                 <div className="space-y-1.5 max-w-4xl mx-auto">
                   {(() => {
                     const messages = chatSearch
@@ -960,9 +1375,7 @@ export default function MessagesPage() {
                         <div key={msg.id}>
                           {showDate && (
                             <div className="flex items-center justify-center my-4">
-                              <span className="px-3 py-1 text-[10px] font-medium text-text-secondary bg-card border border-border/50 rounded-full shadow-sm">
-                                {dateSeparator(msg.sentAt)}
-                              </span>
+                              <StageBadge variant="neutral">{dateSeparator(msg.sentAt)}</StageBadge>
                             </div>
                           )}
                           <MessageBubble
@@ -989,15 +1402,9 @@ export default function MessagesPage() {
                     })
                   })()}
 
-                  {presence === 'typing' && <TypingBubble />}
-                  {presence === 'recording' && <RecordingBubble />}
+                  {presence === 'typing' && <TypingBubble isDark={isDark} />}
+                  {presence === 'recording' && <RecordingBubble isDark={isDark} />}
 
-                  <div className="flex items-center justify-center gap-1.5 py-3">
-                    <Shield size={11} className="text-text-secondary/40" />
-                    <span className="text-[10px] text-text-secondary/40">
-                      Messages chiffrés de bout en bout · Square Meter CRM
-                    </span>
-                  </div>
                   <div ref={scrollAnchorRef} />
                 </div>
               </div>
@@ -1007,7 +1414,7 @@ export default function MessagesPage() {
                 <motion.div
                   initial={{ opacity: 0, y: 8 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className="mx-4 sm:mx-6 mb-3 flex items-center justify-between gap-2 px-3 py-2 rounded-xl bg-card border border-border/60 shadow-sm shrink-0"
+                  className="mx-4 sm:mx-6 mb-3 flex items-center justify-between gap-2 px-3 py-2 rounded-2xl stage-glass shrink-0"
                 >
                   <span className="text-xs text-text-secondary truncate">
                     {selectedIds.size > 0
@@ -1017,7 +1424,7 @@ export default function MessagesPage() {
                   <div className="flex items-center gap-1 shrink-0">
                     <button
                       onClick={() => setSelectionMode(false)}
-                      className="px-3 py-1.5 text-xs font-medium text-text-secondary hover:text-text hover:bg-background rounded-lg transition-colors"
+                      className={cn('px-3 py-1.5 text-xs font-medium rounded-lg transition-colors', isDark ? 'text-slate-400 hover:text-white hover:bg-white/5' : 'text-slate-500 hover:text-[color:var(--msg-ink)] hover:bg-[var(--msg-accent-soft)]')}
                     >
                       Annuler
                     </button>
@@ -1045,6 +1452,7 @@ export default function MessagesPage() {
                 onAttach={handleAttach}
                 onCapture={handleCapture}
                 showEmojis={appearance.showEmojis}
+                deferUpload
                 onTypingChange={active => {
                   if (selectedConv) sendTyping(selectedConv.id, active)
                 }}
@@ -1059,21 +1467,23 @@ export default function MessagesPage() {
                 initial={{ opacity: 0, scale: 0.9 }}
                 animate={{ opacity: 1, scale: 1 }}
                 transition={{ duration: 0.25 }}
-                className="w-24 h-24 rounded-3xl bg-accent/10 flex items-center justify-center mb-5"
+                className="mb-5"
               >
-                <MessageSquare size={42} className="text-accent/60" />
+                <OrbIcon icon={MessageSquare} hue={interfaceHue} size={88} radius={24} />
               </motion.div>
-              <h2 className="text-lg font-semibold text-text">Sélectionnez une conversation</h2>
-              <p className="text-sm text-text-secondary max-w-sm mt-2">
+              <h2 className={`bg-gradient-to-r bg-clip-text text-xl font-black tracking-tight text-transparent ${gradientTitle}`}>Sélectionnez une conversation</h2>
+              <p className={`text-sm max-w-sm mt-2 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
                 Choisissez une discussion dans la liste pour consulter vos échanges et envoyer des messages en temps réel.
               </p>
-              <button
+              <StageButton
+                variant="primary"
+                size="md"
+                icon={<Plus size={15} />}
                 onClick={() => navigate(`${basePath}/messages/compose`)}
-                className="mt-6 flex items-center gap-2 px-5 py-2.5 bg-accent text-white rounded-xl text-sm font-medium hover:bg-accent-hover active:scale-[0.98] shadow-sm transition-all"
+                className="mt-6"
               >
-                <Plus size={15} />
                 Nouvelle conversation
-              </button>
+              </StageButton>
             </div>
           )}
         </section>
@@ -1093,132 +1503,148 @@ export default function MessagesPage() {
           { icon: <Trash2 size={14} />, label: 'Supprimer', danger: true, action: () => handleDeleteConversation(conv.id) },
         ]
         return (
-          <>
-            <div className="fixed inset-0 z-40" onClick={() => setListMenu(null)} />
             <motion.div
+              ref={listMenuRef}
               initial={{ opacity: 0, scale: 0.95, y: -4 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               transition={{ duration: 0.14 }}
               style={{ position: 'fixed', left: listMenu.x, top: listMenu.y }}
-              className="z-50 w-52 bg-card border border-border/60 rounded-xl shadow-modal p-1.5"
+              className="z-50 w-52 stage-glass rounded-2xl p-1.5"
             >
               {listActions.map(item => (
                 <button
                   key={item.label}
                   onClick={item.action}
                   className={cn(
-                    'w-full flex items-center gap-2.5 px-3 py-2 text-sm rounded-lg transition-colors',
-                    (item as any).danger ? 'text-error hover:bg-error/5' : 'text-text hover:bg-background'
+                    'w-full flex items-center gap-2.5 px-3 py-2 text-sm rounded-xl transition-colors',
+                    (item as any).danger
+                      ? 'text-error hover:bg-error/5'
+                      : isDark ? 'text-slate-200 hover:bg-white/5' : 'text-slate-700 hover:bg-[var(--msg-accent-soft)]'
                   )}
                 >
                   {item.icon} {item.label}
                 </button>
               ))}
             </motion.div>
-          </>
         )
       })()}
 
       {/* Assign modal */}
-      {admin && assignTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div className="absolute inset-0 bg-black/40" onClick={() => setAssignTarget(null)} />
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95, y: 10 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            transition={{ duration: 0.16 }}
-            className="relative bg-card border border-border/60 rounded-2xl shadow-modal p-5 w-80"
-          >
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-sm font-semibold">Affecter la conversation</h3>
-              <button onClick={() => setAssignTarget(null)} className="p-1.5 rounded-lg text-text-secondary hover:text-text hover:bg-background transition-colors">
-                <X size={15} />
-              </button>
-            </div>
-            <div className="space-y-1">
-              {users.filter(d => d.type !== 'admin').map(a => (
-                <button
-                  key={a.id}
-                  onClick={() => setAssignTarget(null)}
-                  className="w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-background transition-colors"
-                >
-                  <Avatar participant={{ id: a.id, name: a.name, type: a.type, role: a.role }} />
-                  <div className="text-left">
-                    <p className="text-sm font-medium text-text">{a.name}</p>
-                    <p className="text-[11px] text-text-secondary">{a.role}</p>
-                  </div>
-                </button>
-              ))}
-            </div>
-          </motion.div>
+      <StageModal
+        open={admin && !!assignTarget}
+        onClose={() => setAssignTarget(null)}
+        centered
+        maxWidth="max-w-md"
+        title="Affecter la conversation"
+        eyebrow="Messagerie"
+        subtitle="Choisissez le collaborateur qui suivra cette conversation."
+        icon={Users}
+        hue={interfaceHue}
+        accent={interfaceHue.line}
+        footer={
+          <button type="button" className={ghostBtn} onClick={() => setAssignTarget(null)}>
+            Fermer
+          </button>
+        }
+      >
+        <div className="space-y-1" style={msgVars}>
+          {users.filter(d => d.type !== 'admin').map(a => (
+            <button
+              key={a.id}
+              type="button"
+              onClick={() => setAssignTarget(null)}
+              className={cn(
+                'w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border border-transparent transition-colors',
+                isDark ? 'hover:border-white/10 hover:bg-white/5' : 'hover:border-[color:var(--msg-hairline)] hover:bg-[var(--msg-accent-soft)]',
+              )}
+            >
+              <Avatar participant={{ id: a.id, name: a.name, type: a.type, role: a.role }} />
+              <div className="text-left min-w-0">
+                <p className={cn('text-sm font-semibold truncate', isDark ? 'text-white' : 'text-slate-900')}>{a.name}</p>
+                <p className={cn('text-[11px] truncate', isDark ? 'text-slate-400' : 'text-slate-500')}>{a.role}</p>
+              </div>
+            </button>
+          ))}
         </div>
-      )}
+      </StageModal>
 
       {/* Clear conversation confirmation */}
-      {clearTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div className="absolute inset-0 bg-black/40" onClick={() => setClearTarget(null)} />
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95, y: 10 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            transition={{ duration: 0.16 }}
-            className="relative bg-card border border-border/60 rounded-2xl shadow-modal p-6 w-full max-w-sm"
-          >
-            <h3 className="text-base font-semibold text-text mb-2">Vider la conversation ?</h3>
-            <p className="text-sm text-text-secondary leading-relaxed mb-5">
-              Les messages seront supprimés de votre vue uniquement. L'autre participant continuera de les voir.
-            </p>
-            <div className="flex items-center justify-end gap-2">
-              <button
-                onClick={() => setClearTarget(null)}
-                className="px-4 py-2 text-sm font-medium rounded-xl text-text hover:bg-background transition-colors"
-              >
-                Annuler
-              </button>
-              <button
-                onClick={() => handleClearConversation(clearTarget)}
-                className="px-4 py-2 text-sm font-medium rounded-xl bg-error text-white hover:bg-error/90 transition-colors"
-              >
-                Vider
-              </button>
-            </div>
-          </motion.div>
+      <StageModal
+        open={!!clearTarget}
+        onClose={() => setClearTarget(null)}
+        centered
+        maxWidth="max-w-md"
+        title="Vider la conversation ?"
+        eyebrow="Messagerie"
+        subtitle="Les messages seront supprimés de votre vue uniquement."
+        icon={Delete}
+        hue={DANGER_HUE}
+        accent={DANGER_HUE.a}
+        footer={
+          <>
+            <button type="button" className={ghostBtn} onClick={() => setClearTarget(null)}>
+              Annuler
+            </button>
+            <button
+              type="button"
+              onClick={() => clearTarget && handleClearConversation(clearTarget)}
+              className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-white/25 px-4 text-sm font-semibold text-white transition-all duration-200 hover:brightness-110 active:scale-[0.97]"
+              style={{
+                backgroundImage: `linear-gradient(145deg, ${DANGER_HUE.a}, ${DANGER_HUE.b})`,
+                boxShadow: `0 8px 20px -8px ${DANGER_HUE.glow}, inset 0 1px 0 rgba(255,255,255,0.3)`,
+              }}
+            >
+              Vider
+            </button>
+          </>
+        }
+      >
+        <div
+          className="rounded-2xl border p-4 text-sm leading-relaxed"
+          style={{ borderColor: `${DANGER_HUE.a}30`, background: `${DANGER_HUE.a}12` }}
+        >
+          L'autre participant continuera de voir les messages de son côté.
         </div>
-      )}
+      </StageModal>
 
       {/* Delete selected messages confirmation */}
-      {deleteTargets && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div className="absolute inset-0 bg-black/40" onClick={() => setDeleteTargets(null)} />
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95, y: 10 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            transition={{ duration: 0.16 }}
-            className="relative bg-card border border-border/60 rounded-2xl shadow-modal p-6 w-full max-w-sm"
-          >
-            <h3 className="text-base font-semibold text-text mb-2">
-              Supprimer {deleteTargets.length} message{deleteTargets.length > 1 ? 's' : ''} ?
-            </h3>
-            <p className="text-sm text-text-secondary leading-relaxed mb-5">
-              Les messages seront supprimés pour tout le monde et remplacés par « Ce message a été supprimé ».
-            </p>
-            <div className="flex items-center justify-end gap-2">
-              <button
-                onClick={() => setDeleteTargets(null)}
-                className="px-4 py-2 text-sm font-medium rounded-xl text-text hover:bg-background transition-colors"
-              >
-                Annuler
-              </button>
-              <button
-                onClick={() => handleDeleteMessages(deleteTargets)}
-                className="px-4 py-2 text-sm font-medium rounded-xl bg-error text-white hover:bg-error/90 transition-colors"
-              >
-                Supprimer
-              </button>
-            </div>
-          </motion.div>
+      <StageModal
+        open={!!deleteTargets}
+        onClose={() => setDeleteTargets(null)}
+        centered
+        maxWidth="max-w-md"
+        title={`Supprimer ${deleteTargets?.length ?? 0} message${(deleteTargets?.length ?? 0) > 1 ? 's' : ''} ?`}
+        eyebrow="Messagerie"
+        subtitle="Cette action est définitive pour tous les participants."
+        icon={Trash2}
+        hue={DANGER_HUE}
+        accent={DANGER_HUE.a}
+        footer={
+          <>
+            <button type="button" className={ghostBtn} onClick={() => setDeleteTargets(null)}>
+              Annuler
+            </button>
+            <button
+              type="button"
+              onClick={() => deleteTargets && handleDeleteMessages(deleteTargets)}
+              className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-white/25 px-4 text-sm font-semibold text-white transition-all duration-200 hover:brightness-110 active:scale-[0.97]"
+              style={{
+                backgroundImage: `linear-gradient(145deg, ${DANGER_HUE.a}, ${DANGER_HUE.b})`,
+                boxShadow: `0 8px 20px -8px ${DANGER_HUE.glow}, inset 0 1px 0 rgba(255,255,255,0.3)`,
+              }}
+            >
+              Supprimer
+            </button>
+          </>
+        }
+      >
+        <div
+          className="rounded-2xl border p-4 text-sm leading-relaxed"
+          style={{ borderColor: `${DANGER_HUE.a}30`, background: `${DANGER_HUE.a}12` }}
+        >
+          Les messages seront remplacés par « Ce message a été supprimé ».
         </div>
-      )}
+      </StageModal>
 
       {/* Members management */}
       {membersModal && selectedConv && (

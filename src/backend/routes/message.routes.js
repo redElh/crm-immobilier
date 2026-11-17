@@ -21,6 +21,10 @@ import {
   removeGroupMembers,
   getMessagingSettingsController,
   updateMessagingSettingsController,
+  publishSignalKeys,
+  getSignalBundle,
+  getSignalIdentity,
+  countSignalPreKeys,
 } from '../controllers/message.controller.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -48,6 +52,10 @@ const router = express.Router();
 
 router.get('/settings', verifyToken, getMessagingSettingsController);
 router.put('/settings', verifyToken, updateMessagingSettingsController);
+router.put('/keys/identity', verifyToken, publishSignalKeys);
+router.get('/keys/prekeys/count', verifyToken, countSignalPreKeys);
+router.get('/keys/identity/:userId', verifyToken, getSignalIdentity);
+router.get('/keys/bundle/:userId', verifyToken, getSignalBundle);
 router.get('/users', verifyToken, listMessageUsers);
 router.post('/voice/upload', verifyToken, uploadVoiceFile.single('audio'), uploadVoice);
 router.post('/attachments/upload', verifyToken, uploadAttachmentFile.single('file'), uploadAttachment);

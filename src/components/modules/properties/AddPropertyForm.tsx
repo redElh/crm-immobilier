@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, useCallback } from 'react';
+import { useEffect, useState, useRef, useCallback, useId } from 'react';
 import { useForm } from 'react-hook-form';
 import { useNavigate, useSearchParams, useParams } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -6,6 +6,7 @@ import { Button } from '../../../components/ui/Button';
 import { Tabs, TabsList, TabsTrigger } from '../../../components/ui/Tabs/Tabs';
 import { Icon } from '../../../components/ui/Icon';
 import { BackLink } from '../../../components/ui/BackLink';
+import { cn } from '../../../lib/utils';
 import { GeneralTab } from './AddPropertyForm/GeneralTab';
 import { OwnerTab } from './AddPropertyForm/OwnerTab';
 import { PropertyTab } from './AddPropertyForm/PropertyTab';
@@ -46,7 +47,11 @@ import {
   mandatSaisonnierHasContent,
 } from '../../../services/mandatSaisonnierePdf'
 import { useStageChrome } from '../../../components/modules/calendar/useStageChrome'
-import { useStageTheme, STAGE_HUES, OrbIcon, ShimmerProgress, StageBadge } from '../../../components/dashboard/Stage'
+import {
+  useStageTheme, useStageScope, useStageAccent, STAGE_HUES,
+  ShimmerProgress, StageBadge, GERANT_MAUVE_HUE,
+} from '../../../components/dashboard/Stage'
+import { PropertyThemeProvider, formAccentVars, alphaHex } from './AddPropertyForm/stage'
 import { useStageModalButtons } from '../../../components/modules/calendar/StageModal'
 import { ArrowLeft, Home, Check, Save, ArrowRight, Star } from 'react-feather'
 import {
@@ -127,6 +132,36 @@ const getTabs = (type: string, furnishing?: string, constructionType?: string): 
     icon: TAB_ICONS[tab.id] || 'info',
     show: () => true,
   }));
+
+function CompletionRing({ pct, hue, isDark }: { pct: number; hue: { a: string; b: string; line: string }; isDark: boolean }) {
+  const id = useId();
+  const r = 27;
+  const c = 2 * Math.PI * r;
+  const clamped = Math.max(0, Math.min(100, pct));
+  const off = c * (1 - clamped / 100);
+  return (
+    <div className="relative h-[76px] w-[76px] shrink-0">
+      <svg viewBox="0 0 64 64" className="h-full w-full -rotate-90">
+        <defs>
+          <linearGradient id={`pf-ring-${id}`} x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stopColor={hue.a} />
+            <stop offset="100%" stopColor={hue.b} />
+          </linearGradient>
+        </defs>
+        <circle cx="32" cy="32" r={r} fill="none" strokeWidth="6" stroke={isDark ? 'rgba(255,255,255,0.09)' : 'rgba(15,23,42,0.08)'} />
+        <motion.circle
+          cx="32" cy="32" r={r} fill="none" strokeWidth="6" strokeLinecap="round"
+          stroke={`url(#pf-ring-${id})`} strokeDasharray={c}
+          initial={{ strokeDashoffset: c }} animate={{ strokeDashoffset: off }}
+          transition={{ duration: 1.1, ease: [0.22, 1, 0.36, 1] as any }}
+        />
+      </svg>
+      <div className="absolute inset-0 flex items-center justify-center">
+        <span className="text-base font-black leading-none tabular-nums" style={{ color: hue.line }}>{pct}%</span>
+      </div>
+    </div>
+  );
+}
 
 export default function AddPropertyForm() {
   const canWrite = usePermission('biens-ecriture')
@@ -595,11 +630,19 @@ export default function AddPropertyForm() {
         submitData.priceGrid = convertGridToSave(data.priceGrid);
         submitData.options = convertOptionsToSave(data.options);
       }
+      /* Explicit destinations: all add/edit routes are flat siblings, so a
+         relative '..' would land on the dashboard instead of the type list. */
+      const listPath = adminId
+        ? `/admin/${adminId}/properties/type/${type}`
+        : `/${agentId || userId}/properties/type/${type}`;
       if (editId) {
         await attachMandatSaisonnier(submitData, submitData?.reference)
         await updateProperty(editId, submitData)
         toast('success', 'Bien modifié avec succès')
-        navigate(`/${userId}/properties/type/${type}/${editId}`, { replace: true })
+        const detailPath = adminId
+          ? `/admin/${adminId}/properties/type/${type}/${editId}`
+          : `/${agentId || userId}/properties/type/${type}/${editId}`;
+        navigate(detailPath, { replace: true })
       } else {
         const ref = await generateReference(type)
         submitData.reference = ref
@@ -610,7 +653,7 @@ export default function AddPropertyForm() {
         toast('success', assignedTo && assignedType
           ? `Bien attribué avec succès à ${assignedType === 'admin' ? "l'admin" : "l'agent"}`
           : 'Bien ajouté avec succès')
-        navigate('..', { replace: true })
+        navigate(listPath, { replace: true })
       }
     } catch (e: any) {
       toast('error', e.message || 'Erreur lors de la sauvegarde')
@@ -712,19 +755,47 @@ export default function AddPropertyForm() {
   // ── Stage chrome ──
   const { staged, dark } = useStageChrome();
   const theme = useStageTheme();
+  const scope = useStageScope();
+  const accent = useStageAccent();
   const isDark = staged ? dark : theme === 'dark';
   const btns = useStageModalButtons();
+  const ghostBtn = cn(
+    'inline-flex h-9 items-center gap-1.5 rounded-xl border px-4 text-sm font-semibold transition-all duration-200 active:scale-[0.97]',
+    isDark
+      ? 'border-white/12 bg-white/5 text-slate-300 hover:bg-white/10 hover:text-white'
+      : scope === 'admin'
+        ? 'border-slate-900/12 bg-white/70 text-slate-600 hover:bg-white hover:text-slate-900'
+        : 'border-teal-900/12 bg-white/70 text-teal-900/70 hover:bg-white hover:text-teal-900',
+  );
   const typeHue = TYPE_HUE_MAP[type] || STAGE_HUES.violet;
   // Exact mint from Save button (StageModal light primary: from-teal-400 #2DD4BF to emerald-600 #059669)
   const mintHue = { a: '#2DD4BF', b: '#059669', glow: 'rgba(20,184,166,0.50)', line: '#14B8A6' } as any;
-  const heroHue = isDark ? typeHue : mintHue;
+  // Admin/gérant interfaces wear the shared stage accent (rose dark / orange
+  // light) or the gérant mauve; agents keep their per-type identity hue.
+  const interfaceHue = isGerant ? GERANT_MAUVE_HUE : accent;
+  const heroHue = scope === 'admin' ? interfaceHue : (isDark ? typeHue : mintHue);
   const tabHue = heroHue;
   const pct = Math.round(score.overall ?? 0);
   const completionHue = pct >= 80 ? mintHue : pct >= 50 ? STAGE_HUES.amber : heroHue;
+  const CurrentTabIcon = TAB_FEATHER[currentTab] || Info;
+
+  // Header gradient — mirrors the Patrimoine/Clientèle 360 page titles
+  // (rose→violet dark / orange→amber light), mauve for gérant, teal for agent.
+  const gradientTitle = isGerant
+    ? isDark
+      ? 'bg-clip-text text-transparent bg-gradient-to-r from-[#D9A5A5] via-[#B48383] to-[#905D5D]'
+      : 'bg-clip-text text-transparent bg-gradient-to-r from-[#A56E6E] via-[#905D5D] to-[#7D5050]'
+    : scope === 'admin'
+      ? isDark
+        ? 'bg-clip-text text-transparent bg-gradient-to-r from-[#F43F5E] via-[#FB7185] to-[#8B7CFF]'
+        : 'bg-clip-text text-transparent bg-gradient-to-r from-[#EA580C] via-[#F97316] to-[#FBBF24]'
+      : isDark
+        ? 'bg-clip-text text-transparent bg-gradient-to-r from-white via-indigo-100 to-indigo-300'
+        : 'bg-clip-text text-transparent bg-gradient-to-r from-teal-400 via-teal-500 to-emerald-600';
 
   if (!canWrite) {
     return (
-      <div className="p-6 max-w-6xl mx-auto">
+      <div className="p-6 w-full">
         <div className="mb-6">
           <BackLink onClick={handleBackClick} />
         </div>
@@ -745,67 +816,77 @@ export default function AddPropertyForm() {
   // ── STAGED: premium hero + glass tabs + stage footer ──
   if (staged) {
     return (
-      <div className="max-w-6xl mx-auto space-y-6 animate-fade-in pb-8">
-        {/* Command bar */}
-        <div className="flex items-center justify-between flex-wrap gap-3">
-          <button
-            onClick={() => navigate(-1)}
-            className={`group inline-flex items-center gap-2 rounded-xl border px-3 py-1.5 text-xs font-semibold backdrop-blur-md transition-all ${isDark ? 'border-white/10 bg-white/[0.04] text-slate-400 hover:text-white hover:border-white/20' : 'border-teal-900/10 bg-white/60 text-teal-900/60 hover:text-teal-900 hover:border-teal-900/20'}`}
-          >
-            <ArrowLeft size={13} className="transition-transform duration-200 group-hover:-translate-x-0.5" />
-            Retour
-          </button>
-          <div className="flex items-center gap-2">
-            {savedDraftId ? (
-              <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-bold ${isDark ? 'border-emerald-400/25 bg-emerald-400/10 text-emerald-300' : 'border-emerald-500/25 bg-emerald-500/10 text-emerald-700'}`}>
-                <Check size={12} /> Auto-sauvegardé
-              </span>
-            ) : (
-              <button type="button" onClick={handleSaveDraft} className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-semibold transition-colors active:scale-95 ${isDark ? 'border-white/10 bg-white/5 text-slate-400 hover:bg-white/10 hover:text-white' : 'border-teal-900/10 bg-white/70 text-teal-700 hover:bg-white'}`}>
-                <Save size={13} /> Brouillon
+      <PropertyThemeProvider isGerant={isGerant}>
+      <div className="w-full space-y-6 animate-fade-in pb-8" style={formAccentVars(interfaceHue) as any}>
+        {/* Header — mirrors the Patrimoine / Clientèle 360 page headers */}
+        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] as any }}>
+          <div className="flex flex-wrap items-end justify-between gap-4">
+            <div className="min-w-0">
+              <p className={cn('flex items-center gap-2 text-[10px] font-extrabold uppercase tracking-[3px]', isDark ? 'text-slate-400' : scope === 'admin' ? 'text-slate-500' : 'text-teal-900/50')}>
+                <span className="live-dot inline-block h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                Square Immo · {editId ? 'Modification' : 'Nouveau dossier'} · {labelMap[type] || type}
+              </p>
+              <h1 className={cn('mt-2 text-4xl font-black tracking-[-2px] sm:text-5xl', gradientTitle)}>
+                {editId ? 'MODIFIER UN BIEN' : 'AJOUTER UN BIEN'}
+              </h1>
+              <p className={cn('mt-1.5 text-sm', isDark ? 'text-slate-400' : scope === 'admin' ? 'text-slate-500' : 'text-teal-900/60')}>
+                {editId ? 'Modifiez les informations du bien.' : 'Remplissez les informations du bien immobilier.'}
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                onClick={() => navigate(-1)}
+                className={cn('group inline-flex items-center gap-2 rounded-2xl border px-4 py-2.5 text-xs font-bold backdrop-blur-md transition-all', isDark ? 'border-white/10 bg-white/[0.04] text-slate-300 hover:border-white/20 hover:text-white' : scope === 'admin' ? 'border-slate-900/10 bg-white/60 text-slate-600 hover:border-slate-900/20 hover:text-slate-900' : 'border-teal-900/10 bg-white/60 text-teal-900/70 hover:border-teal-900/20 hover:text-teal-900')}
+              >
+                <ArrowLeft size={14} className="transition-transform duration-200 group-hover:-translate-x-0.5" />
+                Retour
               </button>
-            )}
+              {savedDraftId ? (
+                <span className={cn('inline-flex items-center gap-1.5 rounded-2xl border px-4 py-2.5 text-xs font-bold', isDark ? 'border-emerald-400/25 bg-emerald-400/10 text-emerald-300' : 'border-emerald-500/25 bg-emerald-500/10 text-emerald-700')}>
+                  <Check size={14} /> Auto-sauvegardé
+                </span>
+              ) : (
+                <button
+                  type="button"
+                  onClick={handleSaveDraft}
+                  className={cn('inline-flex items-center gap-1.5 rounded-2xl border px-4 py-2.5 text-xs font-bold transition-colors active:scale-95', isDark ? 'border-white/10 bg-white/5 text-slate-300 hover:bg-white/10 hover:text-white' : scope === 'admin' ? 'border-slate-900/10 bg-white/70 text-[color:var(--pf-line)] hover:bg-white' : 'border-teal-900/10 bg-white/70 text-teal-700 hover:bg-white')}
+                >
+                  <Save size={14} /> Brouillon
+                </button>
+              )}
+            </div>
           </div>
-        </div>
 
-        {/* Hero — pure mint in light (isDark ? typeHue : mint) */}
-        <div className="stage-glass relative overflow-hidden p-5 sm:p-6">
-          <div aria-hidden className="pointer-events-none absolute -right-16 -top-16 h-44 w-44 rounded-full" style={{ background: `radial-gradient(circle, ${heroHue.glow.replace(/[\d.]+\)$/, '0.18)')}, transparent 70%)` }} />
-          <div className="relative flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-            <div className="flex gap-4 min-w-0">
-              <OrbIcon icon={Home} hue={heroHue} size={52} radius={16} />
-              <div className="min-w-0">
-                <div className="flex items-center gap-2">
-                  <span className="relative flex h-2 w-2"><span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60" /><span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.9)]" /></span>
-                  <p className={`text-[10px] font-bold uppercase tracking-[0.22em] ${isDark ? 'text-slate-400/80' : 'text-teal-900/50'}`}>{editId ? 'Modification' : 'Nouveau dossier'} · {labelMap[type] || type}</p>
+          {/* Progress — premium completion card */}
+          <div className="stage-glass relative mt-5 overflow-hidden rounded-3xl px-5 py-4">
+            <div aria-hidden className="pointer-events-none absolute -right-12 -top-20 h-48 w-48 rounded-full" style={{ background: `radial-gradient(circle, ${alphaHex(completionHue.line, 0.20)}, transparent 70%)` }} />
+            <div className="relative flex flex-wrap items-center gap-x-6 gap-y-4">
+              <CompletionRing pct={pct} hue={completionHue} isDark={isDark} />
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className={cn('text-[10px] font-extrabold uppercase tracking-[0.22em]', isDark ? 'text-slate-400' : 'text-slate-500')}>Avancement du dossier</span>
+                  <StageBadge variant={pct >= 80 ? 'ok' : pct >= 50 ? 'warn' : 'neutral'}>{pct >= 80 ? 'Prêt' : pct >= 50 ? 'En cours' : 'À compléter'}</StageBadge>
                 </div>
-                <h1 className={`mt-1 text-[22px] font-extrabold leading-tight tracking-[-0.4px] ${isDark ? 'bg-gradient-to-r from-white via-indigo-100 to-indigo-300 bg-clip-text text-transparent' : 'bg-gradient-to-r from-teal-400 via-teal-500 to-emerald-600 bg-clip-text text-transparent'}`}>
-                  {editId ? 'Modifier un bien' : 'Ajouter un bien'} — {labelMap[type] || type}
-                </h1>
-                <p className={`mt-1 text-sm ${isDark ? 'text-slate-400' : 'text-teal-900/60'}`}>{editId ? 'Modifiez les informations du bien' : 'Remplissez les informations du bien immobilier'}</p>
-                <div className="mt-3 flex flex-wrap items-center gap-2">
-                  <StageBadge variant={pct >= 80 ? 'ok' : pct >= 50 ? 'warn' : 'violet'}>{pct}% complété</StageBadge>
-                  <span className={`text-xs ${isDark ? 'text-slate-500' : 'text-teal-900/45'}`}>{tabs.find(t=>t.id===currentTab)?.label}</span>
+                <p className={cn('mt-1.5 text-xs', isDark ? 'text-slate-400' : 'text-slate-500')}>
+                  {pct < 100 ? 'Complétez les onglets pour atteindre 100% et enregistrer le dossier.' : 'Dossier complet — prêt à être enregistré.'}
+                </p>
+                <div className="mt-3 max-w-[460px]">
+                  <ShimmerProgress pct={pct} colorFrom={completionHue.a} colorTo={completionHue.b} glow={completionHue.glow} height={8} />
                 </div>
               </div>
-            </div>
-            <div className="hidden sm:block min-w-[180px] max-w-[260px] w-full">
-              <div className="flex items-center justify-between mb-1.5">
-                <span className={`text-[10px] font-bold uppercase tracking-[0.16em] ${isDark ? 'text-slate-500' : 'text-teal-900/45'}`}>Avancement du dossier</span>
-                <span className="text-xs font-extrabold tabular-nums" style={{ color: completionHue.a }}>{pct}%</span>
+              <div className="hidden min-w-[150px] flex-col items-start gap-1.5 sm:flex">
+                <span className={cn('text-[10px] font-extrabold uppercase tracking-[0.18em]', isDark ? 'text-slate-500' : 'text-slate-400')}>Onglet actuel</span>
+                <span
+                  className="inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-bold"
+                  style={{ borderColor: alphaHex(completionHue.line, 0.35), background: alphaHex(completionHue.line, 0.12), color: completionHue.line }}
+                >
+                  <CurrentTabIcon size={12} />
+                  {tabs.find(t => t.id === currentTab)?.label}
+                </span>
               </div>
-              <ShimmerProgress pct={pct} colorFrom={completionHue.a} colorTo={completionHue.b} glow={completionHue.glow} height={7} />
-              <p className={`mt-1.5 text-[11px] ${isDark ? 'text-slate-500' : 'text-teal-900/45'}`}>{pct < 100 ? 'Complétez les onglets pour atteindre 100%.' : 'Dossier prêt à être enregistré.'}</p>
             </div>
           </div>
-          <div className="sm:hidden mt-4">
-            <div className="flex items-center justify-between mb-1.5">
-              <span className={`text-[10px] font-bold uppercase tracking-[0.16em] ${isDark ? 'text-slate-500' : 'text-teal-900/45'}`}>Avancement</span>
-              <span className="text-xs font-extrabold tabular-nums" style={{ color: completionHue.a }}>{pct}%</span>
-            </div>
-            <ShimmerProgress pct={pct} colorFrom={completionHue.a} colorTo={completionHue.b} glow={completionHue.glow} height={7} />
-          </div>
-        </div>
+        </motion.div>
 
         {/* Tabs — holographic rail */}
         <div className="stage-glass overflow-x-auto scrollbar-thin rounded-2xl p-1.5" style={{ WebkitOverflowScrolling: 'touch' as any }}>
@@ -818,12 +899,12 @@ export default function AddPropertyForm() {
                   key={tab.id}
                   type="button"
                   onClick={() => handleTabChange(tab.id)}
-                  className={`relative flex items-center gap-1.5 whitespace-nowrap rounded-xl px-3.5 py-2 text-[13px] font-semibold transition-colors duration-200 ${active ? 'text-white' : isDark ? 'text-slate-400 hover:text-slate-200' : 'text-slate-500 hover:text-teal-900'}`}
+                    className={`relative flex items-center gap-1.5 whitespace-nowrap rounded-xl px-3.5 py-2 text-[13px] font-semibold transition-colors duration-200 ${active ? 'text-white' : isDark ? 'text-slate-400 hover:text-slate-200' : scope === 'admin' ? 'text-slate-500 hover:text-slate-900' : 'text-slate-500 hover:text-teal-900'}`}
                 >
                   {active && (
                     <motion.span layoutId="addprop-tab-pill" className="absolute inset-0 rounded-xl border border-white/20" style={{ backgroundImage: `linear-gradient(145deg, ${tabHue.a}, ${tabHue.b})`, boxShadow: `inset 0 1px 0 rgba(255,255,255,0.4), 0 8px 22px -8px ${tabHue.glow}` }} transition={{ type: 'spring', stiffness: 380, damping: 32 }} />
                   )}
-                  {!active && <span className={`absolute inset-0 rounded-xl transition-colors ${isDark ? 'hover:bg-white/5' : 'hover:bg-teal-900/5'}`} />}
+                  {!active && <span className={`absolute inset-0 rounded-xl transition-colors ${isDark ? 'hover:bg-white/5' : scope === 'admin' ? 'hover:bg-slate-900/5' : 'hover:bg-teal-900/5'}`} />}
                   <IconComp size={14} className="relative z-10" />
                   <span className="relative z-10">{tab.label}</span>
                 </button>
@@ -843,7 +924,7 @@ export default function AddPropertyForm() {
                 exit={{ opacity: 0, y: -8, filter: 'blur(4px)' }}
                 transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] as any }}
               >
-                {tabComponents[currentTab] || <div className={`stage-glass p-8 text-center text-sm ${isDark ? 'text-slate-400' : 'text-teal-900/60'}`}>Section en cours de développement</div>}
+                {tabComponents[currentTab] || <div className={`stage-glass p-8 text-center text-sm ${isDark ? 'text-slate-400' : scope === 'admin' ? 'text-slate-500' : 'text-teal-900/60'}`}>Section en cours de développement</div>}
               </motion.div>
             </AnimatePresence>
           </div>
@@ -851,28 +932,29 @@ export default function AddPropertyForm() {
           {/* Footer — Stage glass bar */}
           <div className="stage-glass flex flex-wrap items-center justify-between gap-3 p-3 sm:p-4">
             <div className="flex items-center gap-2">
-              <button type="button" onClick={handleBackClick} className={btns.ghost}>Annuler</button>
-              {!savedDraftId && <button type="button" onClick={handleSaveDraft} className={btns.ghost}><Save size={14} /> Enregistrer comme brouillon</button>}
+              <button type="button" onClick={handleBackClick} className={ghostBtn}>Annuler</button>
+              {!savedDraftId && <button type="button" onClick={handleSaveDraft} className={ghostBtn}><Save size={14} /> Enregistrer comme brouillon</button>}
             </div>
             <div className="flex items-center gap-2">
               {currentTab !== 'general' && (
-                <button type="button" onClick={() => { const idx = tabs.findIndex(t => t.id === currentTab); if (idx > 0) handleTabChange(tabs[idx - 1].id); }} className={btns.ghost}><ArrowLeft size={14} /> Précédent</button>
+                <button type="button" onClick={() => { const idx = tabs.findIndex(t => t.id === currentTab); if (idx > 0) handleTabChange(tabs[idx - 1].id); }} className={ghostBtn}><ArrowLeft size={14} /> Précédent</button>
               )}
               {editId || currentTab === tabs[tabs.length - 1].id ? (
-                <button type="submit" className={btns.primary}><Star size={14} /> Enregistrer</button>
+                <button type="submit" className={`${btns.primary} ${isGerant ? 'btn-gerant-pill' : ''}`}><Star size={14} /> Enregistrer</button>
               ) : (
-                <button type="button" onClick={() => { const idx = tabs.findIndex(t => t.id === currentTab); if (idx < tabs.length - 1) handleTabChange(tabs[idx + 1].id); }} className={btns.primary}>Suivant <ArrowRight size={14} /></button>
+                <button type="button" onClick={() => { const idx = tabs.findIndex(t => t.id === currentTab); if (idx < tabs.length - 1) handleTabChange(tabs[idx + 1].id); }} className={`${btns.primary} ${isGerant ? 'btn-gerant-pill' : ''}`}>Suivant <ArrowRight size={14} /></button>
               )}
             </div>
           </div>
         </form>
       </div>
+      </PropertyThemeProvider>
     );
   }
 
   // ── ADMIN / fallback: original layout ──
   return (
-    <div className="p-6 max-w-6xl mx-auto">
+    <div className="p-6 w-full">
       <div className="mb-6">
         <BackLink onClick={handleBackClick} />
       </div>

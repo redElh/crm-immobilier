@@ -1,13 +1,16 @@
-import { useState, useEffect, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { X, Save, CheckCircle } from 'react-feather';
+import { useState, useEffect, useRef, useLayoutEffect } from 'react';
+import { motion } from 'framer-motion';
+import { Save, CheckCircle, UserPlus } from 'react-feather';
 import { Prospect } from '../../../types/prospect';
 import { Input } from '../../ui/Input';
 import { Select } from '../../ui/Select';
 import { Textarea } from '../../ui/Textarea';
-import { Button } from '../../ui/Button';
 import { DatePicker } from '../../ui/DatePicker';
 import { TimePicker } from '../../ui/TimePicker';
+import { cn } from '../../../lib/utils';
+import StageModal, { useStageFormClasses, useStageModalButtons } from '../calendar/StageModal';
+import { useStageChrome } from '../calendar/useStageChrome';
+import { STAGE_HUES, ShimmerProgress, StageTabSwap, type StageHue } from '../../dashboard/Stage';
 import { saveDraft, getDraft, deleteDraft } from '../../../services/prospectDraftStorage';
 import { calcProspectCompletion } from '../../../utils/prospectCompletion';
 
@@ -21,6 +24,14 @@ interface ProspectFormModalProps {
 }
 
 type FormData = Omit<Prospect, 'id' | 'createdAt' | 'updatedAt'>;
+
+/* Light-mode identity shared app-wide (sidebar, cards, modals): teal-emerald */
+const SIDEBAR_EMERALD: StageHue = {
+  a: '#2DD4BF',
+  b: '#0D9488',
+  glow: 'rgba(13,148,136,0.35)',
+  line: '#14B8A6',
+};
 
 const TYPES = [
   { value: 'Acheter', label: 'Acheter' },
@@ -181,7 +192,83 @@ const nowTime = new Date().toTimeString().slice(0, 5);
 
 export const ProspectFormModal = ({ onClose, onSubmit, prospect, draftId: initialDraftId, userId, onDraftChange }: ProspectFormModalProps) => {
   const [step, setStep] = useState(1);
+  const [dir, setDir] = useState(0);
+  const [ready, setReady] = useState(false);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const [contentH, setContentH] = useState(0);
   const [errors, setErrors] = useState<Partial<Record<keyof FormData, string>>>({});
+  const { staged, dark } = useStageChrome();
+  const { label } = useStageFormClasses();
+  const btns = useStageModalButtons();
+
+  const goTo = (n: number) => {
+    if (n === step) return;
+    setDir(n > step ? 1 : -1);
+    setStep(n);
+  };
+
+  /* Mount the fields only after the modal's entry spring has settled:
+     anchoring floating pickers mid-animation left first-mount overlays
+     broken until a tab switch remounted them. */
+  useEffect(() => {
+    const t = window.setTimeout(() => setReady(true), 320);
+    return () => window.clearTimeout(t);
+  }, []);
+
+  /* Measured content height → the modal body glides between tab sizes. */
+  useLayoutEffect(() => {
+    const el = contentRef.current;
+    if (el) setContentH(el.offsetHeight);
+  }, [ready, step]);
+
+  const steps = [
+    { id: 1, label: 'Général' },
+    { id: 2, label: 'Contact' },
+    { id: 3, label: 'Produit' },
+    { id: 4, label: 'Critères' },
+  ];
+
+  const sectionTitle = 'mb-2 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.2em] opacity-80';
+  const section = (hue: string, text: string) => (
+    <p className={cn(sectionTitle, hue)}>
+      <span className="h-px w-4 bg-gradient-to-r from-current to-transparent" />
+      {text}
+    </p>
+  );
+
+  const tabClass = (active: boolean) =>
+    cn(
+      'flex-1 rounded-lg px-3 py-1.5 text-xs font-semibold transition-all duration-200',
+      active
+        ? staged
+          ? dark
+            ? 'btn-stage-pill-dark border border-white/25 text-white'
+            : 'btn-stage-pill-light border border-white/25 text-white'
+          : 'border border-accent bg-accent text-white'
+        : staged
+          ? dark
+            ? 'border border-transparent text-slate-400 hover:bg-white/[0.06] hover:text-white'
+            : 'border border-transparent text-teal-900/60 hover:bg-white hover:text-teal-900'
+          : 'border border-transparent text-text-secondary hover:text-text',
+    );
+
+  const chipClass = (active: boolean) =>
+    cn(
+      'rounded-lg border px-2.5 py-1 text-[11px] font-semibold transition-all duration-200',
+      active
+        ? staged
+          ? dark
+            ? 'border-violet-400/50 bg-gradient-to-b from-violet-500/30 to-indigo-600/25 text-violet-100 shadow-[0_0_12px_-4px_rgba(124,92,255,0.9)]'
+            : 'border-teal-500/50 bg-teal-500/15 text-teal-800 shadow-[0_0_12px_-4px_rgba(13,148,136,0.8)]'
+          : 'border-accent/40 bg-accent-light text-text'
+        : staged
+          ? dark
+            ? 'border-white/10 bg-white/[0.04] text-slate-300 hover:bg-white/[0.08]'
+            : 'border-teal-900/10 bg-white/70 text-teal-900/65 hover:bg-white'
+          : 'border-border bg-card text-text-secondary hover:text-text',
+    );
+
+  const errClass = cn('text-xs', staged ? (dark ? 'text-rose-300' : 'text-rose-500') : 'text-error');
 
   const initialDate = prospect?.date ? String(prospect.date).split('T')[0] : today;
   const initialTime = prospect?.date ? String(prospect.date).split('T')[1]?.slice(0, 5) || nowTime : nowTime;
@@ -298,14 +385,14 @@ export const ProspectFormModal = ({ onClose, onSubmit, prospect, draftId: initia
   };
 
   const renderCheckboxGroup = (
-    label: string,
+    title: string,
     field: 'propertyTypes' | 'meansOfContact',
     options: { value: string; label: string }[],
     error?: string,
   ) => (
     <div className="space-y-2">
-      <p className="text-sm font-medium text-text">{label}</p>
-      <div className="flex flex-wrap gap-2">
+      <p className={label}>{title}</p>
+      <div className="flex flex-wrap gap-1.5">
         {options.map((opt) => {
           const isSelected = (formData[field] as string[]).includes(opt.value);
           return (
@@ -313,30 +400,26 @@ export const ProspectFormModal = ({ onClose, onSubmit, prospect, draftId: initia
               key={opt.value}
               type="button"
               onClick={() => handleCheckboxGroup(field, opt.value)}
-              className={`px-3 py-1.5 text-xs rounded-lg border transition-all ${
-                isSelected
-                  ? 'bg-accent text-white border-accent'
-                  : 'bg-card text-text-secondary border-border hover:border-accent/50'
-              }`}
+              className={chipClass(isSelected)}
             >
               {opt.label}
             </button>
           );
         })}
       </div>
-      {error && <p className="text-xs text-error">{error}</p>}
+      {error && <p className={errClass}>{error}</p>}
     </div>
   );
 
   const renderRadioGroup = (
-    label: string,
+    title: string,
     field: keyof FormData,
     options: { value: string; label: string }[],
     error?: string,
   ) => (
     <div className="space-y-2">
-      <p className="text-sm font-medium text-text">{label}</p>
-      <div className="flex flex-wrap gap-2">
+      <p className={label}>{title}</p>
+      <div className="flex flex-wrap gap-1.5">
         {options.map((opt) => {
           const isSelected = formData[field] === opt.value;
           return (
@@ -344,80 +427,117 @@ export const ProspectFormModal = ({ onClose, onSubmit, prospect, draftId: initia
               key={opt.value}
               type="button"
               onClick={() => handleChange(field, opt.value)}
-              className={`px-3 py-1.5 text-xs rounded-lg border transition-all ${
-                isSelected
-                  ? 'bg-accent text-white border-accent ring-2 ring-accent/30'
-                  : 'bg-card text-text-secondary border-border hover:border-accent/50'
-              }`}
+              className={chipClass(isSelected)}
             >
               {opt.label}
             </button>
           );
         })}
       </div>
-      {error && <p className="text-xs text-error">{error}</p>}
+      {error && <p className={errClass}>{error}</p>}
     </div>
   );
 
   const parsedPhone = parsePhone(formData.phone);
   const parsedMobile = parsePhone(formData.mobile || '');
   const completion = calcProspectCompletion(formData as Prospect);
+  const completionHue = completion >= 80
+    ? { a: '#34D399', b: '#059669', glow: 'rgba(52,211,153,0.45)' }
+    : completion >= 50
+      ? { a: '#FBBF24', b: '#B45309', glow: 'rgba(251,191,36,0.40)' }
+      : { a: '#F87171', b: '#B91C1C', glow: 'rgba(248,113,113,0.40)' };
 
   return (
-    <AnimatePresence>
-      <div className="fixed inset-0 z-50 flex items-start justify-center pt-10 pb-10">
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          className="absolute inset-0 bg-black/40 backdrop-blur-sm"
-          onClick={onClose}
-        />
-        <motion.div
-          initial={{ opacity: 0, scale: 0.95, y: 10 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.95, y: 10 }}
-          transition={{ duration: 0.2 }}
-          className="relative w-full max-w-2xl mx-4 bg-card rounded-xl border border-border/50 shadow-modal overflow-y-auto max-h-[calc(100vh-80px)]"
+    <StageModal
+      open
+      onClose={onClose}
+      eyebrow={prospect ? 'Modification' : 'Création'}
+      title={prospect ? 'Modifier le prospect' : 'Nouveau prospect'}
+      subtitle="Renseignez les informations puis validez pour suivre le prospect."
+      icon={UserPlus}
+      hue={dark ? STAGE_HUES.violet : SIDEBAR_EMERALD}
+      accent={dark ? '#8B7CFF' : '#14B8A6'}
+      badge={
+        <span
+          className="inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-bold tabular-nums"
+          style={{ color: dark ? completionHue.a : completionHue.b, borderColor: `${completionHue.a}55`, background: `${completionHue.a}1A` }}
         >
-          <div className="px-6 py-4 border-b border-border/40 sticky top-0 bg-card z-10">
-            <div className="flex items-center justify-between mb-2">
-              <h2 className="text-lg font-semibold">{prospect ? 'Modifier le prospect' : 'Nouveau prospect'}</h2>
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-medium text-text-secondary">{completion}%</span>
-                <button onClick={onClose} className="w-8 h-8 rounded-lg flex items-center justify-center text-text-secondary hover:text-text hover:bg-background transition-all">
-                  <X size={16} />
-                </button>
-              </div>
-            </div>
-            <div className="w-full h-1.5 bg-background rounded-full overflow-hidden">
-              <div
-                className="h-full rounded-full transition-all duration-500 ease-out"
-                style={{
-                  width: `${completion}%`,
-                  backgroundColor: completion === 100 ? '#10b981' : completion >= 60 ? '#6366f1' : '#f59e0b',
-                }}
-              />
-            </div>
-          </div>
-
-          <div className="px-6 py-1 border-b border-border/30 flex gap-1">
-            {[1, 2, 3, 4].map((s) => (
-              <button
-                key={s}
-                onClick={() => setStep(s)}
-                className={`px-3 py-2 text-xs font-medium border-b-2 transition-all ${
-                  step === s ? 'text-accent border-accent' : 'text-text-secondary border-transparent hover:text-text'
-                }`}
-              >
-                {s === 1 ? 'Général' : s === 2 ? 'Contact' : s === 3 ? 'Produit' : 'Critères'}
+          {completion}%
+        </span>
+      }
+      maxWidth="max-w-2xl"
+      centered
+      bodyClassName="max-h-[calc(100vh-280px)] min-h-[120px] overflow-y-auto scrollbar-thin space-y-4 pt-1"
+      footer={
+        <>
+          <div className="mr-auto">
+            {!savedDraftId ? (
+              <button type="button" onClick={handleSaveDraft} className={btns.ghost}>
+                <Save size={14} /> Brouillon
               </button>
-            ))}
+            ) : (
+              <span className={cn('flex items-center gap-1.5 text-[11px] font-medium', staged && dark ? 'text-emerald-300' : 'text-emerald-600')}>
+                <CheckCircle size={12} /> Auto-sauvegarde
+              </span>
+            )}
           </div>
+          {step > 1 && (
+            <button type="button" onClick={() => goTo(step - 1)} className={btns.ghost}>
+              Précédent
+            </button>
+          )}
+          <button type="button" onClick={onClose} className={btns.ghost}>
+            Annuler
+          </button>
+          {step < 4 ? (
+            <button type="button" onClick={() => goTo(step + 1)} className={btns.primary}>
+              Suivant
+            </button>
+          ) : (
+            <button type="submit" form="prospect-form" className={btns.primary}>
+              {prospect ? 'Enregistrer' : 'Créer le prospect'}
+            </button>
+          )}
+        </>
+      }
+    >
+      <div className={cn('flex gap-1 rounded-xl border p-1', staged ? (dark ? 'border-white/10 bg-white/[0.03]' : 'border-teal-900/10 bg-white/60') : 'border-border bg-background')}>
+        {steps.map((s) => (
+          <button key={s.id} type="button" onClick={() => goTo(s.id)} className={tabClass(step === s.id)}>
+            {s.label}
+          </button>
+        ))}
+      </div>
 
-          <form onSubmit={handleSubmit} className="p-6 space-y-6">
+      <div className="flex items-center gap-3">
+        <div className="flex-1">
+          <ShimmerProgress
+            pct={completion}
+            colorFrom={completionHue.a}
+            colorTo={completionHue.b}
+            glow={completionHue.glow}
+            height={5}
+            intense={staged && dark}
+          />
+        </div>
+        <span className="text-[11px] font-bold tabular-nums" style={{ color: dark ? completionHue.a : completionHue.b }}>
+          {completion}% complété
+        </span>
+      </div>
+
+      <form id="prospect-form" onSubmit={handleSubmit}>
+        <motion.div
+          initial={false}
+          animate={{ height: contentH }}
+          transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+          className="overflow-hidden"
+        >
+          <div ref={contentRef} className="pt-1">
+            {ready ? (
+              <StageTabSwap key={step} tabId={String(step)} duration={0.3} direction={dir}>
             {step === 1 && (
               <>
+                {section('text-violet-400', 'Informations générales')}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <Select label="Type" options={TYPES} value={formData.type} onValueChange={(v) => handleChange('type', v)} />
                   <Select label="Origine" options={ORIGINS} value={formData.origin} onValueChange={(v) => handleChange('origin', v)} />
@@ -446,6 +566,7 @@ export const ProspectFormModal = ({ onClose, onSubmit, prospect, draftId: initia
 
             {step === 2 && (
               <div className="space-y-4">
+                {section('text-sky-400', 'Identité & coordonnées')}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <Select label="Langue parlée" options={LANGUAGES} value={formData.spokenLanguage} onValueChange={(v) => handleChange('spokenLanguage', v)} />
                   <Select label="Civilité" options={CIVILITIES} value={formData.civility} onValueChange={(v) => handleChange('civility', v)} />
@@ -453,7 +574,7 @@ export const ProspectFormModal = ({ onClose, onSubmit, prospect, draftId: initia
                   <Input label="Nom" value={formData.lastName} onChange={(e) => handleChange('lastName', e.target.value)} error={errors.lastName} placeholder="Dupont" />
                   <Input label="Email" type="email" value={formData.email} onChange={(e) => handleChange('email', e.target.value)} error={errors.email} placeholder="jean@email.com" />
                   <div className="space-y-1.5">
-                    <p className="text-sm font-medium text-text">Téléphone</p>
+                    <label className={label}>Téléphone</label>
                     <div className="flex gap-2">
                       <div className="w-36 shrink-0">
                         <Select options={COUNTRY_CODES} value={parsedPhone.code} onValueChange={(code) => handlePhoneChange('phone', code, parsedPhone.number)} />
@@ -465,7 +586,7 @@ export const ProspectFormModal = ({ onClose, onSubmit, prospect, draftId: initia
                     {errors.phone && <p className="text-xs text-error">{errors.phone}</p>}
                   </div>
                   <div className="space-y-1.5">
-                    <p className="text-sm font-medium text-text">Mobile</p>
+                    <label className={label}>Mobile</label>
                     <div className="flex gap-2">
                       <div className="w-36 shrink-0">
                         <Select options={COUNTRY_CODES} value={parsedMobile.code} onValueChange={(code) => handlePhoneChange('mobile', code, parsedMobile.number)} />
@@ -482,6 +603,7 @@ export const ProspectFormModal = ({ onClose, onSubmit, prospect, draftId: initia
 
             {step === 3 && (
               <div className="space-y-6">
+                {section('text-amber-400', 'Catégories & biens')}
                 {renderRadioGroup('Catégories', 'categories', CATEGORIES, errors.categories)}
                 {renderCheckboxGroup('Types de bien', 'propertyTypes', PROPERTY_TYPES)}
               </div>
@@ -489,6 +611,7 @@ export const ProspectFormModal = ({ onClose, onSubmit, prospect, draftId: initia
 
             {step === 4 && (
               <div className="space-y-4">
+                {section('text-emerald-400', 'Critères de recherche')}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="sm:col-span-2">
                     <Input label="Localisation" value={formData.location} onChange={(e) => handleChange('location', e.target.value)} placeholder="Ville, quartier..." />
@@ -509,43 +632,13 @@ export const ProspectFormModal = ({ onClose, onSubmit, prospect, draftId: initia
                 </div>
               </div>
             )}
-
-            <div className="flex items-center justify-between pt-4 border-t border-border/30">
-              <div>
-                {!savedDraftId ? (
-                  <Button type="button" variant="ghost" size="sm" icon={<Save size={14} />} onClick={handleSaveDraft}>
-                    Brouillon
-                  </Button>
-                ) : (
-                  <span className="flex items-center gap-1.5 text-[11px] text-emerald-600 font-medium">
-                    <CheckCircle size={12} />
-                    Auto-sauvegarde
-                  </span>
-                )}
-              </div>
-              <div className="flex gap-2">
-                {step > 1 && (
-                  <Button type="button" variant="outline" onClick={() => setStep(step - 1)}>
-                    Précédent
-                  </Button>
-                )}
-                <Button type="button" variant="ghost" onClick={onClose}>
-                  Annuler
-                </Button>
-                {step < 4 ? (
-                  <Button type="button" variant="default" onClick={() => setStep(step + 1)}>
-                    Suivant
-                  </Button>
-                ) : (
-                  <Button type="submit" variant="default">
-                    {prospect ? 'Enregistrer' : 'Créer le prospect'}
-                  </Button>
-                )}
-              </div>
-            </div>
-          </form>
+              </StageTabSwap>
+            ) : (
+              <div className="h-[230px]" aria-hidden="true" />
+            )}
+          </div>
         </motion.div>
-      </div>
-    </AnimatePresence>
+      </form>
+    </StageModal>
   );
 };

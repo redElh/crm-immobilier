@@ -1,18 +1,20 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { Download, Upload, RefreshCw, FileText, Home, DollarSign, File, Database, ArrowLeft } from 'react-feather'
+import { Download, Upload, RefreshCw, FileText, Home, DollarSign, File, Database } from 'react-feather'
 import {
-  Stage,
   StageButton,
   OrbIcon,
   STAGE_HUES,
   useStageTheme,
 } from '../../../components/dashboard/Stage'
+import {
+  SettingsBackButton,
+  SettingsHero,
+  useSettingsChrome,
+} from '../../../components/settings/SettingsChrome'
 
 export default function DonneesPage() {
   const theme = useStageTheme()
-  const isDark = theme === 'dark'
-  const navigate = useNavigate()
+  const { isDark } = useSettingsChrome()
   const [exporting, setExporting] = useState<string | null>(null)
   const [importing, setImporting] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
@@ -21,18 +23,15 @@ export default function DonneesPage() {
   const handleSave = async () => { setSaving(true); await new Promise(r => setTimeout(r, 1200)); setSaving(false) }
 
   return (
-    <Stage theme={theme}>
+    
       <div className="space-y-6">
-        <button onClick={() => navigate(-1)} className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl border transition-colors w-fit ${isDark ? 'border-white/10 text-slate-300 hover:bg-white/5' : 'border-teal-900/10 text-slate-600 hover:bg-white'}`}><ArrowLeft size={13} /> Retour</button>
+        <SettingsBackButton />
 
-        <div>
-          <div className="flex items-center gap-2">
-            <span className="relative flex h-2 w-2"><span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60" /><span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.9)]" /></span>
-            <p className={`text-[10px] font-bold uppercase tracking-[0.24em] ${isDark ? 'text-slate-400/80' : 'text-teal-900/50'}`}>Paramètres · Données</p>
-          </div>
-          <h1 className={`mt-1 text-3xl font-extrabold tracking-tight ${isDark ? 'bg-gradient-to-r from-white via-indigo-100 to-indigo-300 bg-clip-text text-transparent' : 'bg-gradient-to-r from-teal-900 via-teal-700 to-emerald-600 bg-clip-text text-transparent'}`}>Import / Export</h1>
-          <p className={`mt-0.5 text-sm ${isDark ? 'text-slate-400' : 'text-teal-900/60'}`}>Gérez vos données — exportez, importez et sauvegardez</p>
-        </div>
+        <SettingsHero
+          eyebrow="Paramètres · Données"
+          title="Import / Export"
+          subtitle="Gérez vos données — exportez, importez et sauvegardez"
+        />
 
         <div className="stage-glass p-6">
           <div className="flex items-center gap-3 mb-5">
@@ -76,6 +75,6 @@ export default function DonneesPage() {
           <p className={`text-xs mt-3 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>La sauvegarde inclut toutes les données clients, biens, contrats et documents.</p>
         </div>
       </div>
-    </Stage>
+    
   )
 }

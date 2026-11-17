@@ -1,13 +1,14 @@
 import { useState, useEffect } from 'react'
 import {
   CalendarEvent, EventType, AGENTS, Agent,
-  EVENT_TYPE_OPTIONS, REMINDER_OPTIONS,
+  EVENT_TYPE_OPTIONS, REMINDER_OPTIONS, getEventTypeConfig,
   generateEventId, formatDateInput, formatTimeInput,
 } from '../../../types/calendar'
 import { Select } from '../../../components/ui/Select'
 import { DatePicker } from '../../../components/ui/DatePicker'
 import { TimePicker } from '../../../components/ui/TimePicker'
 import { Check } from 'react-feather'
+import { useStageAccent } from '../../dashboard/Stage'
 import StageModal, { useStageFormClasses, useStageModalButtons } from './StageModal'
 import SearchSelect from './SearchSelect'
 import { fetchContacts } from '../../../services/contactService'
@@ -73,6 +74,8 @@ export default function EventFormModal({ isOpen, onClose, onSave, editEvent, def
   const [selfAssign, setSelfAssign] = useState(false)
   const { input, label, staged, dark } = useStageFormClasses()
   const btns = useStageModalButtons()
+  const accent = useStageAccent()
+  const typeCfg = getEventTypeConfig(form.type)
   /* Glass skin shared by every form control so pickers match the Objet field */
   const ctrl = (extra?: string) => (staged ? input(extra) : undefined)
 
@@ -184,7 +187,9 @@ export default function EventFormModal({ isOpen, onClose, onSave, editEvent, def
       onClose={onClose}
       eyebrow={editEvent ? 'Modification' : 'Nouvelle entrée'}
       title={editEvent ? "Modifier l'événement" : 'Ajouter un événement'}
-      subtitle="Renseignez les informations puis validez pour planifier."
+      subtitle={`${typeCfg.label} · Renseignez les informations puis validez pour planifier.`}
+      icon={typeCfg.icon}
+      hue={accent}
       maxWidth="max-w-2xl"
       bodyClassName="max-h-[calc(100vh-300px)] min-h-[120px] overflow-y-auto scrollbar-thin space-y-5 pt-1"
       footer={

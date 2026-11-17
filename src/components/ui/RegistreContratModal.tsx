@@ -1,24 +1,26 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { Link, useLocation } from 'react-router-dom'
+import { AnimatePresence, motion } from 'framer-motion'
 import {
-  FileText, Users, Home, DollarSign, Calendar,
-  Download, Send, Edit3, Trash2, ArrowRightCircle,
-  RefreshCw, ExternalLink, Clipboard, MessageSquare,
-  Zap, Clock, MapPin
+  FileText, Users, Home, DollarSign, Calendar, Clock, Tag, User,
+  Download, Send, Edit3, Trash2, ArrowRightCircle, RefreshCw,
+  ExternalLink, Clipboard, MessageSquare, Zap, MapPin, Square, Mail, Phone,
+  Percent, Shield, Briefcase, Plus, Lock,
 } from 'react-feather'
 import { Dialog } from './Dialog'
-import { Badge } from './Badge'
-import { Button } from './Button'
 import { api } from '../../services/api'
 import { fetchRegistre } from '../../services/registreService'
+import { TRANSACTION_ETAPE_LABELS, type Transaction } from '../../types/transactions'
+import { useStageTheme, STAGE_HUES, SLATE_HUE } from '../dashboard/Stage'
+import type { StageHue } from '../dashboard/Stage'
+import { RED_HUE } from '../modules/prospects/ProspectCard'
 import {
-  MANDAT_TYPE_LABELS,
-  TRANSACTION_ETAPE_LABELS,
-  TRANSACTION_ETAPE_COLORS,
-  CLIENT_TYPE_LABELS,
-  CLIENT_TYPE_COLORS,
-} from '../../types/transactions'
-import type { Transaction, MandatType, TransactionEtape } from '../../types/transactions'
+  regTypeHue, regTypeLabel, regEtapeHue, HuePill, PartyAvatar,
+  RegistreModalHero, RegistreModalTabs, useRegistreAccent,
+} from '../modules/registre/RegistreStage'
+import {
+  StageField, StageSection, StageEmpty,
+} from '../modules/prospects/ProspectDetailStage'
 
 interface RegistreContratModalProps {
   isOpen: boolean
@@ -69,66 +71,7 @@ interface PropertyData {
   [key: string]: any
 }
 
-function Section({ icon: Icon, title, children }: { icon: any; title: string; children: React.ReactNode }) {
-  return (
-    <div className="rounded-xl border border-border/50 overflow-hidden">
-      <div className="flex items-center gap-2.5 px-4 py-3 bg-background/50 border-b border-border/40">
-        <Icon size={14} className="text-accent" />
-        <span className="text-xs font-semibold uppercase tracking-wider text-text-secondary">{title}</span>
-      </div>
-      <div className="px-4 py-3 space-y-2.5">
-        {children}
-      </div>
-    </div>
-  )
-}
-
-function Field({ label, value }: { label: string; value: React.ReactNode }) {
-  if (!value && value !== 0) return null
-  return (
-    <div className="flex items-start justify-between gap-4">
-      <span className="text-xs text-text-secondary shrink-0">{label}</span>
-      <span className="text-sm text-text text-right">{value}</span>
-    </div>
-  )
-}
-
-function ClientCard({ label, client, clientPath, onClose }: { label: string; client: ClientData | null; clientPath: string | null; onClose: () => void }) {
-  if (!client) {
-    return (
-      <div className="p-3 rounded-lg bg-background/50 border border-border/30">
-        <p className="text-xs text-text-secondary/60">{label} : Non renseigné</p>
-      </div>
-    )
-  }
-  return (
-    <div className="p-3 rounded-lg bg-background/50 border border-border/30 space-y-1.5">
-      <p className="text-[10px] font-semibold uppercase tracking-wider text-text-secondary/60">{label}</p>
-      <p className="text-sm font-medium text-text">{client.name}</p>
-      {client.email && (
-        <p className="text-xs text-text-secondary flex items-center gap-1.5">
-          <span className="text-text-secondary/40">•</span> {client.email}
-        </p>
-      )}
-      {client.phone && (
-        <p className="text-xs text-text-secondary flex items-center gap-1.5">
-          <span className="text-text-secondary/40">•</span> {client.phone}
-        </p>
-      )}
-      {clientPath && (
-        <Link
-          to={clientPath}
-          onClick={onClose}
-          className="inline-flex items-center gap-1 text-xs text-accent hover:text-accent/80 transition-colors mt-1"
-        >
-          Voir la fiche client <ExternalLink size={10} />
-        </Link>
-      )}
-    </div>
-  )
-}
-
-function formatDate(dateStr?: string) {
+function formatDate(dateStr?: string | null) {
   if (!dateStr) return null
   try {
     return new Date(dateStr).toLocaleDateString('fr-FR')
@@ -163,6 +106,24 @@ const ETAPE_STATUS_LABELS: Record<string, string> = {
   resilie: 'Résilié',
 }
 
+const CONTRACT_STATUS_LABELS: Record<string, string> = {
+  en_cours: 'En cours',
+  confirme_actif: 'Confirmé / Actif',
+  paye: 'Payé',
+  finalise_termine: 'Finalisé / Terminé',
+  annule: 'Annulé',
+  occupe: 'Occupé',
+}
+
+const CONTRACT_STATUS_HUES: Record<string, StageHue> = {
+  en_cours: STAGE_HUES.emerald,
+  confirme_actif: STAGE_HUES.emerald,
+  paye: STAGE_HUES.emerald,
+  finalise_termine: SLATE_HUE,
+  annule: RED_HUE,
+  occupe: STAGE_HUES.sky,
+}
+
 export function RegistreContratModal({ isOpen, onClose, transaction }: RegistreContratModalProps) {
   const location = useLocation()
   const [client, setClient] = useState<ClientData | null>(null)
@@ -170,6 +131,25 @@ export function RegistreContratModal({ isOpen, onClose, transaction }: RegistreC
   const [property, setProperty] = useState<PropertyData | null>(null)
   const [contract, setContract] = useState<any>(null)
   const [loading, setLoading] = useState(false)
+  const [activeTab, setActiveTab] = useState('infos')
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const theme = useStageTheme()
+  const isDark = theme === 'dark'
+  const { accent, ink, isAdmin: isRegistreAdmin } = useRegistreAccent()
+
+  const clientType = transaction?.clientType || ''
+  const isVente = clientType === 'Vendeur' || clientType === 'Acheteur'
+  const isVoyageur = clientType === 'Voyageur'
+
+  const tabs = useMemo(() => {
+    const arr: { id: string; label: string }[] = [{ id: 'infos', label: 'Informations' }]
+    if (clientType) arr.push({ id: 'parties', label: 'Parties' })
+    arr.push({ id: 'bien', label: 'Bien concerné' })
+    if (isVoyageur) arr.push({ id: 'sejour', label: 'Séjour' })
+    if (clientType) arr.push({ id: 'finances', label: 'Finances' })
+    arr.push({ id: 'documents', label: 'Documents' })
+    return arr
+  }, [clientType, isVoyageur])
 
   useEffect(() => {
     if (!isOpen || !transaction) return
@@ -178,15 +158,14 @@ export function RegistreContratModal({ isOpen, onClose, transaction }: RegistreC
     setCounterpartClient(null)
     setProperty(null)
     setContract(null)
+    setActiveTab('infos')
 
     const fetches: Promise<any>[] = []
 
     if (transaction.clientId) {
       fetches.push(
         api.get<ClientData>(`/clients/${transaction.clientId}`)
-          .then(c => {
-            setClient(c)
-          })
+          .then(c => setClient(c))
           .catch(() => {})
       )
     }
@@ -235,25 +214,31 @@ export function RegistreContratModal({ isOpen, onClose, transaction }: RegistreC
     Promise.all(fetches).finally(() => setLoading(false))
   }, [isOpen, transaction])
 
+  useEffect(() => {
+    if (activeTab && scrollRef.current) {
+      scrollRef.current.scrollTo({ top: 0, behavior: 'smooth' })
+    }
+  }, [activeTab, isOpen, transaction?.id])
+
   if (!transaction) return null
 
   const t = transaction
-  const clientType = t.clientType || ''
-  const isVente = clientType === 'Vendeur' || clientType === 'Acheteur'
-  const isLocation = clientType === 'Bailleur' || clientType === 'Locataire'
-  const isVoyageur = clientType === 'Voyageur'
-
+  const clientData = client as any
+  const propData = property as any
   const contractRef = contract?.reference || t.reference
 
-  const modalTitle = isVente
-    ? `Contrat de Vente - ${contractRef}`
+  const instanceLabel = isVente
+    ? 'Contrat de vente'
     : isVoyageur
-      ? `Contrat de Location Saisonnière - ${contractRef}`
-      : `Contrat de Location Classique - ${contractRef}`
+      ? 'Contrat de location saisonnière'
+      : 'Contrat de location classique'
 
-  const subtitle = t.propertyTitle || ''
-
-  const etapeLabel = ETAPE_STATUS_LABELS[t.etape] || TRANSACTION_ETAPE_LABELS[t.etape as TransactionEtape] || t.etape
+  const statutLabel = contract?.status
+    ? CONTRACT_STATUS_LABELS[contract.status as string] || contract.status
+    : ETAPE_STATUS_LABELS[t.etape] || TRANSACTION_ETAPE_LABELS[t.etape as keyof typeof TRANSACTION_ETAPE_LABELS] || t.etape
+  const statutHue = contract?.status
+    ? CONTRACT_STATUS_HUES[contract.status as string] || regEtapeHue(t.etape)
+    : regEtapeHue(t.etape)
 
   const getClientDetailPath = (c?: ClientData | null) => {
     const clientId = c?.id || t.clientId
@@ -277,377 +262,414 @@ export function RegistreContratModal({ isOpen, onClose, transaction }: RegistreC
     return '#'
   }
 
-  const clientData = client as any
-  const propData = property as any
+  const F = (icon: any, label: string, value: any, delay = 0) => {
+    if (value === null || value === undefined || value === '' || value === false) return null
+    return (
+      <StageField
+        key={label}
+        icon={icon}
+        label={label}
+        value={value}
+        accent={accent}
+        ink={ink}
+        isDark={isDark}
+        delay={delay}
+      />
+    )
+  }
+
+  const linkColor = isDark ? '#C4B5FD' : isRegistreAdmin ? '#C2410C' : '#0D9488'
+  const glassRowClass = `flex min-w-0 items-center justify-between gap-3 rounded-xl border px-3 py-2.5 transition-colors ${
+    isDark ? 'border-white/[0.07] bg-white/[0.03] hover:border-white/[0.16]' : 'border-slate-200/70 bg-white/70 hover:border-teal-500/30'
+  }`
+
+  const StagedPartyCard = ({ label, party, partyPath }: { label: string; party: ClientData | null; partyPath: string | null }) => (
+    <div
+      className={`md:col-span-2 flex items-start justify-between gap-3 rounded-2xl border p-3 backdrop-blur-sm ${
+        isDark ? 'border-white/[0.07] bg-white/[0.04]' : 'border-slate-200/70 bg-white/75 shadow-[0_1px_2px_rgba(15,23,42,0.05)]'
+      }`}
+    >
+      {party ? (
+        <>
+          <div className="flex min-w-0 items-start gap-3">
+            <PartyAvatar name={party.name} role={label} isDark={isDark} />
+            <div className="min-w-0">
+              <p className={`text-[10px] font-extrabold uppercase tracking-[0.16em] ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>{label}</p>
+              <p className={`truncate text-sm font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>{party.name}</p>
+              <div className={`mt-0.5 flex flex-wrap gap-x-3 text-[11px] font-medium ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                {party.email && <span className="inline-flex items-center gap-1"><Mail size={10} /> {party.email}</span>}
+                {party.phone && <span className="inline-flex items-center gap-1"><Phone size={10} /> {party.phone}</span>}
+              </div>
+            </div>
+          </div>
+          {partyPath && (
+            <Link
+              to={partyPath}
+              onClick={onClose}
+              className="inline-flex shrink-0 items-center gap-1 text-xs font-bold hover:underline"
+              style={{ color: linkColor }}
+            >
+              Voir la fiche <ExternalLink size={10} />
+            </Link>
+          )}
+        </>
+      ) : (
+        <>
+          <div className="flex min-w-0 items-center gap-3">
+            <span
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border text-[11px] font-extrabold"
+              style={isDark ? { background: 'rgba(255,255,255,0.06)', borderColor: 'rgba(255,255,255,0.10)', color: '#94A3B8' } : { background: 'rgba(15,23,42,0.04)', borderColor: 'rgba(148,163,184,0.35)', color: '#64748B' }}
+            >
+              ?
+            </span>
+            <div>
+              <p className={`text-[10px] font-extrabold uppercase tracking-[0.16em] ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>{label}</p>
+              <p className={`text-sm font-bold ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Non renseigné</p>
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  )
+
+  const docRow = (href: string, name: string, iconColor?: string) => (
+    <a
+      key={name}
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      className={glassRowClass}
+    >
+      <div className="flex min-w-0 items-center gap-2.5">
+        <FileText size={14} className="shrink-0" style={{ color: iconColor || linkColor }} />
+        <span className={`truncate text-sm font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>{name}</span>
+      </div>
+      <Download size={14} className="shrink-0" style={{ color: linkColor }} />
+    </a>
+  )
+
+  const kpiChips = [
+    { icon: FileText, label: 'Référence', value: contractRef, mono: true },
+    (contract?.createdAt || (t as any).createdAt) && { icon: Calendar, label: 'Créé le', value: formatDate(contract?.createdAt || String((t as any).createdAt)) || '—' },
+    (contract?.startDate || t.dateContrat) && { icon: Calendar, label: isVoyageur ? 'Réservé' : 'Signature', value: formatDate(contract?.startDate || t.dateContrat) || '—' },
+    (contract?.endDate || t.dateExpiration) && { icon: Clock, label: isVoyageur ? 'Départ' : 'Expire', value: formatDate(contract?.endDate || t.dateExpiration) || '—' },
+    t.agentName && { icon: User, label: 'Agent', value: t.agentName },
+  ].filter(Boolean) as { icon: any; label: string; value: string; mono?: boolean }[]
+
+  const renderTabContent = () => {
+    switch (activeTab) {
+      case 'infos':
+        return (
+          <StageSection icon={Clipboard} title="Informations générales" accent={accent} ink={ink} isDark={isDark}>
+            {F(FileText, 'Référence', <span className="font-mono">{contractRef}</span>, 0.05)}
+            {F(Tag, 'Type', contract?.contractType
+              ? ({ vente: 'Vente', location_classique: 'Location classique', location_saisonniere: 'Location saisonnière' } as Record<string, string>)[contract.contractType as string] || contract.contractType
+              : regTypeLabel(t.type), 0.08)}
+            {F(Zap, 'Statut', (
+              <span className="inline-flex items-center gap-1.5">
+                <span className="h-1.5 w-1.5 rounded-full" style={{ background: statutHue.line, boxShadow: `0 0 6px ${statutHue.glow}` }} />
+                {statutLabel}
+              </span>
+            ), 0.11)}
+            {(contract?.createdAt || (t as any).createdAt) &&
+              F(Calendar, 'Date de création', formatDate(contract?.createdAt || String((t as any).createdAt)), 0.14)}
+            {(contract?.startDate || t.dateContrat) &&
+              F(Calendar, 'Date de signature', formatDate(contract?.startDate || t.dateContrat), 0.17)}
+            {isVente && (clientData?.dateExpiration || contract?.endDate || t.dateExpiration) &&
+              F(Calendar, 'Exp. du mandat', formatDate(clientData?.dateExpiration || contract?.endDate || t.dateExpiration), 0.20)}
+            {isVoyageur && clientData?.dateDebut && F(Calendar, 'Date de début', formatDate(clientData.dateDebut || t.dateContrat), 0.20)}
+            {isVoyageur && clientData?.dateExpiration && F(Calendar, 'Date de fin', formatDate(clientData.dateExpiration), 0.23)}
+            {t.dateExpiration && !isVoyageur && !(clientType === 'Locataire') &&
+              F(Calendar, 'Date d\'expiration', formatDate(t.dateExpiration), 0.20)}
+            {F(User, 'Agent', t.agentName, 0.23)}
+          </StageSection>
+        )
+
+      case 'parties':
+        return (
+          <StageSection icon={Users} title="Parties" accent={accent} ink={ink} isDark={isDark}>
+            {isVente && (
+              <>
+                <StagedPartyCard
+                  label={clientType === 'Vendeur' ? 'Vendeur' : 'Acheteur'}
+                  party={client}
+                  partyPath={getClientDetailPath(client)}
+                />
+                <StagedPartyCard
+                  label={clientType === 'Vendeur' ? 'Acheteur' : 'Vendeur'}
+                  party={counterpartClient}
+                  partyPath={getClientDetailPath(counterpartClient)}
+                />
+              </>
+            )}
+            {(clientType === 'Bailleur' || clientType === 'Locataire') && (
+              <>
+                <StagedPartyCard
+                  label={clientType === 'Bailleur' ? 'Bailleur' : 'Locataire'}
+                  party={client}
+                  partyPath={getClientDetailPath(client)}
+                />
+                <StagedPartyCard
+                  label={clientType === 'Bailleur' ? 'Locataire' : 'Bailleur'}
+                  party={counterpartClient}
+                  partyPath={getClientDetailPath(counterpartClient)}
+                />
+              </>
+            )}
+            {isVoyageur && (
+              <>
+                <StagedPartyCard
+                  label="Bailleur"
+                  party={counterpartClient}
+                  partyPath={getClientDetailPath(counterpartClient)}
+                />
+                <StagedPartyCard
+                  label="Voyageur"
+                  party={client}
+                  partyPath={getClientDetailPath(client)}
+                />
+              </>
+            )}
+          </StageSection>
+        )
+
+      case 'bien':
+        return (
+          <StageSection icon={Home} title="Bien concerné" accent={accent} ink={ink} isDark={isDark}>
+            {property ? (
+              <>
+                {F(Home, 'Bien', property.title, 0.05)}
+                {F(FileText, 'Référence', property.reference ? <span className="font-mono">{property.reference}</span> : null, 0.08)}
+                {F(MapPin, 'Adresse', property.address, 0.11)}
+                {F(MapPin, 'Ville', property.city, 0.14)}
+                {F(Square, 'Surface', property.surface > 0 ? `${property.surface} m²` : null, 0.17)}
+                {F(Square, 'Terrain', property.landSize > 0 ? `${property.landSize} m²` : null, 0.20)}
+                {F(Square, 'Pièces', property.rooms > 0 ? String(property.rooms) : null, 0.23)}
+                {F(Tag, 'Chambres', property.bedrooms > 0 ? String(property.bedrooms) : null, 0.26)}
+                {F(Tag, 'SDB', property.bathrooms > 0 ? String(property.bathrooms) : null, 0.29)}
+                {isVoyageur && property.sleepingCapacity > 0 && F(Users, 'Couchages', String(property.sleepingCapacity), 0.32)}
+                {getDisplayPrice(property) > 0 &&
+                  F(DollarSign, isVoyageur ? 'Tarif' : 'Prix', `${Number(getDisplayPrice(property)).toLocaleString('fr-FR')} MAD`, 0.35)}
+                {getPropertyDetailPath() !== '#' && (
+                  <div className="md:col-span-2">
+                    <Link
+                      to={getPropertyDetailPath()}
+                      onClick={onClose}
+                      className={`flex items-center justify-center gap-1.5 rounded-xl border px-3 py-2.5 text-xs font-bold transition-colors ${
+                        isDark ? 'border-white/[0.10] bg-white/[0.04] text-slate-200 hover:bg-white/[0.08]' : 'border-teal-500/25 bg-white/70 text-teal-800 hover:bg-white'
+                      }`}
+                    >
+                      Voir la fiche bien <ExternalLink size={12} />
+                    </Link>
+                  </div>
+                )}
+              </>
+            ) : (t.propertyTitle || t.propertyRef) ? (
+              <>
+                {F(Home, 'Bien', t.propertyTitle, 0.05)}
+                {F(FileText, 'Référence', t.propertyRef ? <span className="font-mono">{t.propertyRef}</span> : null, 0.08)}
+              </>
+            ) : (
+              <div className="md:col-span-2">
+                <StageEmpty
+                  icon={Home}
+                  title="Aucun bien associé"
+                  hint="Le bien concerné n'est pas encore rattaché à ce contrat."
+                  accent={accent}
+                  ink={ink}
+                  isDark={isDark}
+                />
+              </div>
+            )}
+          </StageSection>
+        )
+
+      case 'sejour':
+        return (
+          <StageSection icon={Clock} title="Détails du séjour" accent={accent} ink={ink} isDark={isDark}>
+            {F(FileText, 'N° réservation', clientData?.numeroReservation ? <span className="font-mono">{clientData.numeroReservation}</span> : null, 0.05)}
+            {F(Calendar, 'Date d\'arrivée', formatDate(clientData?.dateArrivee), 0.08)}
+            {F(Calendar, 'Date de départ', formatDate(clientData?.dateDepart), 0.11)}
+            {F(Clock, 'Nombre de nuits', clientData?.nbNuits, 0.14)}
+            {F(User, 'Nombre d\'adultes', clientData?.nbAdultes, 0.17)}
+            {(clientData?.nbEnfants && clientData.nbEnfants > 0) && F(Users, 'Nombre d\'enfants', clientData.nbEnfants, 0.20)}
+            {F(Calendar, 'Date de réservation', formatDate(clientData?.dateReservation), 0.23)}
+          </StageSection>
+        )
+
+      case 'finances':
+        return isVente ? (
+          <StageSection icon={DollarSign} title="Informations financières" accent={accent} ink={ink} isDark={isDark}>
+            {F(DollarSign, 'Prix de vente FAI', clientData?.prixVenteFAI ? `${Number(clientData.prixVenteFAI).toLocaleString('fr-FR')} MAD` : null, 0.05)}
+            {(propData?.price > 0 && !clientData?.prixVenteFAI) &&
+              F(DollarSign, 'Prix de vente', `${Number(propData.price).toLocaleString('fr-FR')} MAD`, 0.08)}
+            {F(DollarSign, 'Prix net vendeur', clientData?.prixNetVendeur ? `${Number(clientData.prixNetVendeur).toLocaleString('fr-FR')} MAD` : null, 0.11)}
+            {F(Percent, 'Honoraires', clientData?.montantRemuneration
+              ? (clientData.remunerationIsPercentage
+                ? `${clientData.montantRemuneration}%`
+                : `${Number(clientData.montantRemuneration).toLocaleString('fr-FR')} MAD`)
+              : null, 0.14)}
+            {F(Tag, 'Type d\'honoraires', clientData?.typeRemuneration, 0.17)}
+            {(clientData?.sequestre !== undefined && clientData?.sequestre !== null && clientData?.sequestre !== '') &&
+              F(Shield, 'Séquestre', `${Number(clientData.sequestre || 0).toLocaleString('fr-FR')} MAD`, 0.20)}
+            {F(DollarSign, 'Montant transaction', t.montant, 0.23)}
+          </StageSection>
+        ) : isVoyageur ? (
+          <StageSection icon={DollarSign} title="Informations financières" accent={accent} ink={ink} isDark={isDark}>
+            {F(DollarSign, 'Tarif par nuit', clientData?.tarifNuit ? `${Number(clientData.tarifNuit).toLocaleString('fr-FR')} MAD` : null, 0.05)}
+            {F(Clock, 'Nombre de nuits', clientData?.nbNuits, 0.08)}
+            {F(Briefcase, 'Total (hors options)', clientData?.montantTotalHorsOptions ? `${Number(clientData.montantTotalHorsOptions).toLocaleString('fr-FR')} MAD` : null, 0.11)}
+            {(clientData?.optionsMontant && clientData.optionsMontant > 0) &&
+              F(Plus, 'Options', `${Number(clientData.optionsMontant).toLocaleString('fr-FR')} MAD`, 0.14)}
+            {F(DollarSign, 'Total (avec options)', clientData?.montantTotalAvecOptions ? `${Number(clientData.montantTotalAvecOptions).toLocaleString('fr-FR')} MAD` : null, 0.17)}
+            {F(Percent, 'Acompte versé', clientData?.acompteMontant ? `${Number(clientData.acompteMontant).toLocaleString('fr-FR')} MAD` : null, 0.20)}
+            {F(Shield, 'Solde restant', clientData?.soldeRestant ? `${Number(clientData.soldeRestant).toLocaleString('fr-FR')} MAD` : null, 0.23)}
+            {F(Lock, 'Caution', clientData?.cautionMontant ? `${Number(clientData.cautionMontant).toLocaleString('fr-FR')} MAD` : null, 0.26)}
+          </StageSection>
+        ) : (
+          <StageSection icon={DollarSign} title="Informations financières" accent={accent} ink={ink} isDark={isDark}>
+            {F(DollarSign, 'Loyer HC', clientData?.loyerHC ? `${Number(clientData.loyerHC).toLocaleString('fr-FR')} MAD / mois` : null, 0.05)}
+            {F(Briefcase, 'Charges', clientData?.charges ? `${Number(clientData.charges).toLocaleString('fr-FR')} MAD / mois` : null, 0.08)}
+            {(clientData?.loyerHC && clientData?.charges) &&
+              F(DollarSign, 'Loyer CC', `${Number(clientData.loyerHC + clientData.charges).toLocaleString('fr-FR')} MAD / mois`, 0.11)}
+            {F(Shield, 'Dépôt de garantie', clientData?.depotGarantie ? `${Number(clientData.depotGarantie).toLocaleString('fr-FR')} MAD` : null, 0.14)}
+            {F(Percent, 'Honoraires de location', clientData?.montantRemuneration
+              ? (clientData.remunerationIsPercentage
+                ? `${clientData.montantRemuneration}%`
+                : `${Number(clientData.montantRemuneration).toLocaleString('fr-FR')} MAD`)
+              : null, 0.17)}
+            {F(DollarSign, 'Frais mise en location', clientData?.fraisMiseEnLocation ? `${Number(clientData.fraisMiseEnLocation).toLocaleString('fr-FR')} MAD` : null, 0.20)}
+          </StageSection>
+        )
+
+      case 'documents':
+        return (
+          <StageSection icon={FileText} title="Documents liés" accent={accent} ink={ink} isDark={isDark}>
+            <div className="md:col-span-2 space-y-2">
+              {client?.mandatPdfUrl && docRow(client.mandatPdfUrl, client.mandatPdfName || 'Contrat signé')}
+              {client?.docIdentiteUrl && docRow(client.docIdentiteUrl, client.docIdentiteName || "Pièce d'identité", isDark ? '#94A3B8' : '#64748B')}
+              {client?.docDomicileUrl && docRow(client.docDomicileUrl, client.docDomicileName || 'Justificatif de domicile', isDark ? '#94A3B8' : '#64748B')}
+              {property?.documents?.fileTree?.map((d: any) => docRow(d.url, d.name, isDark ? '#94A3B8' : '#64748B'))}
+              {!client?.mandatPdfUrl && !client?.docIdentiteUrl && !client?.docDomicileUrl &&
+                (!property?.documents?.fileTree || property.documents.fileTree.length === 0) && (
+                <StageEmpty
+                  icon={FileText}
+                  title="Aucun document lié"
+                  hint="Les pièces du contrat apparaîtront ici."
+                  accent={accent}
+                  ink={ink}
+                  isDark={isDark}
+                />
+              )}
+            </div>
+          </StageSection>
+        )
+
+      default:
+        return null
+    }
+  }
 
   return (
     <Dialog
       isOpen={isOpen}
       onClose={onClose}
-      title={modalTitle}
+      title={instanceLabel}
       size="2xl"
     >
-      <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-1">
-        {/* Subtitle */}
-        {subtitle && (
-          <div className="flex items-center gap-2 text-sm text-text-secondary">
-            <FileText size={14} />
-            <span className="font-medium text-text">{subtitle}</span>
-            {t.propertyRef && (
-              <>
-                <span className="text-border">·</span>
-                <span className="font-mono text-xs">{t.propertyRef}</span>
-              </>
-            )}
+      <div ref={scrollRef} className="max-h-[70vh] space-y-4 overflow-y-auto scrollbar-thin pr-1" style={{ scrollBehavior: 'smooth' }}>
+        {loading ? (
+          <div className="flex items-center justify-center py-10">
+            <span
+              className="flex h-12 w-12 items-center justify-center rounded-2xl border"
+              style={{ background: isDark ? `${accent.a}14` : `${accent.a}12`, borderColor: `${accent.a}30` }}
+            >
+              <RefreshCw size={18} className="animate-spin" style={{ color: isDark ? accent.a : ink }} />
+            </span>
           </div>
-        )}
-
-        {loading && (
-          <div className="flex items-center justify-center py-8">
-            <RefreshCw size={20} className="text-text-secondary/30 animate-spin" />
-          </div>
-        )}
-
-        {!loading && (
+        ) : (
           <>
-            {/* ===== INFORMATIONS GÉNÉRALES ===== */}
-            <Section icon={Clipboard} title="Informations générales">
-              <Field label="Référence" value={
-                <span className="font-mono">{contract?.reference || t.reference}</span>
-              } />
-              <Field label="Type" value={
-                contract?.contractType
-                  ? ({ vente: 'Vente', location_classique: 'Location classique', location_saisonniere: 'Location saisonnière' } as Record<string, string>)[contract.contractType as string] || contract.contractType
-                  : (MANDAT_TYPE_LABELS[t.type as MandatType] || t.type)
-              } />
-              <Field label="Statut" value={
-                <Badge className={TRANSACTION_ETAPE_COLORS[t.etape as TransactionEtape]}>
-                  {contract?.status
-                    ? ({ en_cours: 'En cours', confirme_actif: 'Confirmé / Actif', paye: 'Payé', finalise_termine: 'Finalisé / Terminé', annule: 'Annulé', occupe: 'Occupé' } as Record<string, string>)[contract.status as string] || contract.status
-                    : etapeLabel
-                  }
-                </Badge>
-              } />
-              {(contract?.createdAt || (t as any).createdAt) && (
-                <Field label="Date de création" value={formatDate(contract?.createdAt || String((t as any).createdAt))} />
-              )}
-              {(contract?.startDate || t.dateContrat) && (
-                <Field label="Date de signature" value={formatDate(contract?.startDate || t.dateContrat)} />
-              )}
-              {isVente && (clientData?.dateExpiration || contract?.endDate || t.dateExpiration) && (
-                <Field label="Date d'expiration du mandat" value={formatDate(clientData?.dateExpiration || contract?.endDate || t.dateExpiration)} />
-              )}
-              {isLocation && clientData?.dateExpiration && (
+            <RegistreModalHero
+              t={t}
+              isDark={isDark}
+              icon={FileText}
+              instanceLabel={instanceLabel}
+              amountLabel="Montant transaction"
+              titleOverride={(t.propertyTitle || t.clientName) ?? undefined}
+              badges={
                 <>
-                  <Field label="Date de début" value={formatDate(clientData.dateDebut || t.dateContrat)} />
-                  <Field label="Date de fin" value={formatDate(clientData.dateExpiration)} />
+                  <HuePill hue={regTypeHue(t.type)} label={regTypeLabel(t.type)} isDark={isDark} />
+                  <HuePill hue={statutHue} label={statutLabel} isDark={isDark} />
                 </>
-              )}
-              {t.dateExpiration && !isLocation && (
-                <Field label="Date d'expiration" value={formatDate(t.dateExpiration)} />
-              )}
-              {t.agentName && <Field label="Agent" value={t.agentName} />}
-            </Section>
+              }
+              kpiChips={kpiChips}
+            />
 
-            {/* ===== PARTIES ===== */}
-            <Section icon={Users} title="Parties">
-              {isVente && (
-                <>
-                  <ClientCard
-                    label={clientType === 'Vendeur' ? 'Vendeur' : 'Acheteur'}
-                    client={client}
-                    clientPath={getClientDetailPath(client)}
-                    onClose={onClose}
-                  />
-                  <ClientCard
-                    label={clientType === 'Vendeur' ? 'Acheteur' : 'Vendeur'}
-                    client={counterpartClient}
-                    clientPath={getClientDetailPath(counterpartClient)}
-                    onClose={onClose}
-                  />
-                </>
-              )}
-              {isLocation && (
-                <>
-                  <ClientCard
-                    label={clientType === 'Bailleur' ? 'Bailleur' : 'Locataire'}
-                    client={client}
-                    clientPath={getClientDetailPath(client)}
-                    onClose={onClose}
-                  />
-                  <ClientCard
-                    label={clientType === 'Bailleur' ? 'Locataire' : 'Bailleur'}
-                    client={counterpartClient}
-                    clientPath={getClientDetailPath(counterpartClient)}
-                    onClose={onClose}
-                  />
-                </>
-              )}
-              {isVoyageur && (
-                <>
-                  <ClientCard
-                    label="Bailleur"
-                    client={counterpartClient}
-                    clientPath={getClientDetailPath(counterpartClient)}
-                    onClose={onClose}
-                  />
-                  <ClientCard
-                    label="Voyageur"
-                    client={client}
-                    clientPath={getClientDetailPath(client)}
-                    onClose={onClose}
-                  />
-                </>
-              )}
-            </Section>
-
-            {/* ===== BIEN CONCERNÉ ===== */}
-            <Section icon={Home} title="Bien concerné">
-              {property ? (
-                <>
-                  <Field label="Bien" value={property.title} />
-                  <Field label="Référence" value={<span className="font-mono">{property.reference}</span>} />
-                  {property.address && <Field label="Adresse" value={property.address} />}
-                  {property.city && <Field label="Ville" value={property.city} />}
-                  {property.surface > 0 && <Field label="Surface" value={`${property.surface} m²`} />}
-                  {property.landSize > 0 && <Field label="Terrain" value={`${property.landSize} m²`} />}
-                  {property.rooms > 0 && <Field label="Pièces" value={property.rooms} />}
-                  {property.bedrooms > 0 && <Field label="Chambres" value={property.bedrooms} />}
-                  {property.bathrooms > 0 && <Field label="SDB" value={property.bathrooms} />}
-                  {isVoyageur && property.sleepingCapacity > 0 && (
-                    <Field label="Couchages" value={property.sleepingCapacity} />
-                  )}
-                  <Link
-                    to={getPropertyDetailPath()}
-                    onClick={onClose}
-                    className="inline-flex items-center gap-1 text-xs text-accent hover:text-accent/80 transition-colors"
-                  >
-                    Voir la fiche bien <ExternalLink size={10} />
-                  </Link>
-                </>
-              ) : t.propertyTitle ? (
-                <>
-                  <Field label="Bien" value={t.propertyTitle} />
-                  {t.propertyRef && <Field label="Référence" value={<span className="font-mono">{t.propertyRef}</span>} />}
-                </>
-              ) : (
-                <p className="text-xs text-text-secondary/60 py-1">Aucun bien associé</p>
-              )}
-            </Section>
-
-            {/* ===== INFORMATIONS FINANCIÈRES - VENTE ===== */}
-            {isVente && (
-              <Section icon={DollarSign} title="Informations financières">
-                {clientData?.prixVenteFAI && (
-                  <Field label="Prix de vente FAI" value={`${Number(clientData.prixVenteFAI).toLocaleString('fr-FR')} MAD`} />
-                )}
-                {propData?.price > 0 && !clientData?.prixVenteFAI && (
-                  <Field label="Prix de vente" value={`${Number(propData.price).toLocaleString('fr-FR')} MAD`} />
-                )}
-                {clientData?.prixNetVendeur && (
-                  <Field label="Prix net vendeur" value={`${Number(clientData.prixNetVendeur).toLocaleString('fr-FR')} MAD`} />
-                )}
-                {clientData?.montantRemuneration && (
-                  <Field label="Honoraires" value={
-                    clientData.remunerationIsPercentage
-                      ? `${clientData.montantRemuneration}%`
-                      : `${Number(clientData.montantRemuneration).toLocaleString('fr-FR')} MAD`
-                  } />
-                )}
-                {clientData?.typeRemuneration && (
-                  <Field label="Type d'honoraires" value={clientData.typeRemuneration} />
-                )}
-                {clientData?.sequestre !== undefined && clientData?.sequestre !== null && clientData?.sequestre !== '' && (
-                  <Field label="Séquestre" value={`${Number(clientData.sequestre || 0).toLocaleString('fr-FR')} MAD`} />
-                )}
-                {t.montant && (
-                  <Field label="Montant transaction" value={t.montant} />
-                )}
-              </Section>
-            )}
-
-            {/* ===== INFORMATIONS FINANCIÈRES - LOCATION CLASSIQUE ===== */}
-            {isLocation && (
-              <Section icon={DollarSign} title="Informations financières">
-                {clientData?.loyerHC && (
-                  <Field label="Loyer HC" value={`${Number(clientData.loyerHC).toLocaleString('fr-FR')} MAD / mois`} />
-                )}
-                {clientData?.charges && (
-                  <Field label="Charges" value={`${Number(clientData.charges).toLocaleString('fr-FR')} MAD / mois`} />
-                )}
-                {clientData?.loyerHC && clientData?.charges && (
-                  <Field label="Loyer CC" value={`${Number(clientData.loyerHC + clientData.charges).toLocaleString('fr-FR')} MAD / mois`} />
-                )}
-                {clientData?.depotGarantie && (
-                  <Field label="Dépôt de garantie" value={`${Number(clientData.depotGarantie).toLocaleString('fr-FR')} MAD`} />
-                )}
-                {clientData?.montantRemuneration && (
-                  <Field label="Honoraires de location" value={
-                    clientData.remunerationIsPercentage
-                      ? `${clientData.montantRemuneration}%`
-                      : `${Number(clientData.montantRemuneration).toLocaleString('fr-FR')} MAD`
-                  } />
-                )}
-                {clientData?.fraisMiseEnLocation && (
-                  <Field label="Frais mise en location" value={`${Number(clientData.fraisMiseEnLocation).toLocaleString('fr-FR')} MAD`} />
-                )}
-              </Section>
-            )}
-
-            {/* ===== DÉTAILS DU SÉJOUR - VOYAGEUR ===== */}
-            {isVoyageur && (
-              <Section icon={Clock} title="Détails du séjour">
-                {clientData?.numeroReservation && (
-                  <Field label="Numéro de réservation" value={<span className="font-mono">{clientData.numeroReservation}</span>} />
-                )}
-                {clientData?.dateArrivee && <Field label="Date d'arrivée" value={formatDate(clientData.dateArrivee)} />}
-                {clientData?.dateDepart && <Field label="Date de départ" value={formatDate(clientData.dateDepart)} />}
-                {clientData?.nbNuits && <Field label="Nombre de nuits" value={clientData.nbNuits} />}
-                {clientData?.nbAdultes && <Field label="Nombre d'adultes" value={clientData.nbAdultes} />}
-                {clientData?.nbEnfants && clientData.nbEnfants > 0 && (
-                  <Field label="Nombre d'enfants" value={clientData.nbEnfants} />
-                )}
-                {clientData?.dateReservation && (
-                  <Field label="Date de réservation" value={formatDate(clientData.dateReservation)} />
-                )}
-              </Section>
-            )}
-
-            {/* ===== INFORMATIONS FINANCIÈRES - VOYAGEUR ===== */}
-            {isVoyageur && (
-              <Section icon={DollarSign} title="Informations financières">
-                {clientData?.tarifNuit && (
-                  <Field label="Tarif par nuit" value={`${Number(clientData.tarifNuit).toLocaleString('fr-FR')} MAD`} />
-                )}
-                {clientData?.nbNuits && (
-                  <Field label="Nombre de nuits" value={clientData.nbNuits} />
-                )}
-                {clientData?.montantTotalHorsOptions && (
-                  <Field label="Montant total (hors options)" value={`${Number(clientData.montantTotalHorsOptions).toLocaleString('fr-FR')} MAD`} />
-                )}
-                {clientData?.optionsMontant && clientData.optionsMontant > 0 && (
-                  <Field label="Options" value={`${Number(clientData.optionsMontant).toLocaleString('fr-FR')} MAD`} />
-                )}
-                {clientData?.montantTotalAvecOptions && (
-                  <Field label="Montant total (avec options)" value={`${Number(clientData.montantTotalAvecOptions).toLocaleString('fr-FR')} MAD`} />
-                )}
-                {clientData?.acompteMontant && (
-                  <Field label="Acompte versé" value={`${Number(clientData.acompteMontant).toLocaleString('fr-FR')} MAD`} />
-                )}
-                {clientData?.soldeRestant && (
-                  <Field label="Solde restant" value={`${Number(clientData.soldeRestant).toLocaleString('fr-FR')} MAD`} />
-                )}
-                {clientData?.cautionMontant && (
-                  <Field label="Caution" value={`${Number(clientData.cautionMontant).toLocaleString('fr-FR')} MAD`} />
-                )}
-              </Section>
-            )}
-
-            {/* ===== DOCUMENTS LIÉS ===== */}
-            <Section icon={FileText} title="Documents liés">
-              <div className="space-y-2">
-                {client?.mandatPdfUrl && (
-                  <a
-                    href={client.mandatPdfUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center justify-between p-2.5 rounded-lg bg-background/50 border border-border/30 hover:border-accent/30 transition-colors group"
-                  >
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      <FileText size={14} className="text-accent shrink-0" />
-                      <span className="text-sm text-text truncate">{client.mandatPdfName || 'Contrat signé'}</span>
-                    </div>
-                    <Download size={14} className="text-text-secondary group-hover:text-accent shrink-0 transition-colors" />
-                  </a>
-                )}
-                {client?.docIdentiteUrl && (
-                  <a
-                    href={client.docIdentiteUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center justify-between p-2.5 rounded-lg bg-background/50 border border-border/30 hover:border-accent/30 transition-colors group"
-                  >
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      <FileText size={14} className="text-text-secondary shrink-0" />
-                      <span className="text-sm text-text truncate">{client.docIdentiteName || "Pièce d'identité"}</span>
-                    </div>
-                    <Download size={14} className="text-text-secondary group-hover:text-accent shrink-0 transition-colors" />
-                  </a>
-                )}
-                {client?.docDomicileUrl && (
-                  <a
-                    href={client.docDomicileUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center justify-between p-2.5 rounded-lg bg-background/50 border border-border/30 hover:border-accent/30 transition-colors group"
-                  >
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      <FileText size={14} className="text-text-secondary shrink-0" />
-                      <span className="text-sm text-text truncate">{client.docDomicileName || 'Justificatif de domicile'}</span>
-                    </div>
-                    <Download size={14} className="text-text-secondary group-hover:text-accent shrink-0 transition-colors" />
-                  </a>
-                )}
-                {property?.documents?.fileTree?.map((doc: any, i: number) => (
-                  <a
-                    key={i}
-                    href={doc.url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center justify-between p-2.5 rounded-lg bg-background/50 border border-border/30 hover:border-accent/30 transition-colors group"
-                  >
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      <FileText size={14} className="text-text-secondary shrink-0" />
-                      <span className="text-sm text-text truncate">{doc.name}</span>
-                    </div>
-                    <Download size={14} className="text-text-secondary group-hover:text-accent shrink-0 transition-colors" />
-                  </a>
-                ))}
-                {!client?.mandatPdfUrl && !client?.docIdentiteUrl && !client?.docDomicileUrl &&
-                  (!property?.documents?.fileTree || property.documents.fileTree.length === 0) && (
-                  <p className="text-xs text-text-secondary/60 py-2">Aucun document lié</p>
-                )}
-              </div>
-            </Section>
-
-            {/* ===== NOTES ===== */}
             {(t.notes || client?.notes) && (
-              <Section icon={MessageSquare} title="Notes">
-                <p className="text-sm text-text-secondary leading-relaxed whitespace-pre-wrap">
+              <div
+                className={`rounded-2xl border p-3 backdrop-blur-sm ${
+                  isDark ? 'border-white/[0.07] bg-white/[0.04]' : 'border-slate-200/70 bg-white/75 shadow-[0_1px_2px_rgba(15,23,42,0.05)]'
+                }`}
+              >
+                <div className="mb-1 flex items-center gap-2">
+                  <MessageSquare size={12} style={{ color: isDark ? accent.a : ink }} />
+                  <span className={`text-[10px] font-extrabold uppercase tracking-[0.16em] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Notes</span>
+                </div>
+                <p className={`text-sm font-medium leading-relaxed whitespace-pre-wrap ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>
                   {t.notes || client?.notes}
                 </p>
-              </Section>
+              </div>
             )}
 
-            {/* ===== ACTIONS ===== */}
-            <Section icon={Zap} title="Actions">
-              <div className="flex flex-wrap gap-2">
-                <Button variant="default" size="sm" className="text-xs" onClick={() => {}}>
-                  <Download size={12} className="mr-1.5" />
-                  Télécharger le contrat
-                </Button>
-                <Button variant="default" size="sm" className="text-xs" onClick={() => {}}>
-                  <Send size={12} className="mr-1.5" />
-                  Envoyer au client
-                </Button>
-                <Button variant="default" size="sm" className="text-xs" onClick={() => {}}>
-                  <ExternalLink size={12} className="mr-1.5" />
-                  Exporter PDF
-                </Button>
-                <Button variant="default" size="sm" className="text-xs" onClick={() => {}}>
-                  <Edit3 size={12} className="mr-1.5" />
-                  Modifier
-                </Button>
-                <Button variant="default" size="sm" className="text-xs" onClick={() => {}}>
-                  <ArrowRightCircle size={12} className="mr-1.5" />
-                  Changer le statut
-                </Button>
-                <Button variant="danger" size="sm" className="text-xs" onClick={() => {}}>
-                  <Trash2 size={12} className="mr-1.5" />
+            <RegistreModalTabs tabs={tabs} activeId={activeTab} onChange={setActiveTab} />
+
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={activeTab}
+                initial={{ opacity: 0, y: 14, filter: 'blur(6px)' }}
+                animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+                exit={{ opacity: 0, y: -8, filter: 'blur(4px)' }}
+                transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+              >
+                {renderTabContent()}
+              </motion.div>
+            </AnimatePresence>
+
+            <StageSection icon={Zap} title="Actions" accent={accent} ink={ink} isDark={isDark}>
+              <div className="md:col-span-2 flex flex-wrap gap-2">
+                {[
+                  { icon: Download, label: 'Télécharger le contrat' },
+                  { icon: Send, label: 'Envoyer au client' },
+                  { icon: ExternalLink, label: 'Exporter PDF' },
+                  { icon: Edit3, label: 'Modifier' },
+                  { icon: ArrowRightCircle, label: 'Changer le statut' },
+                ].map(a => (
+                  <button
+                    key={a.label}
+                    type="button"
+                    onClick={() => {}}
+                    className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-bold transition-colors ${
+                      isDark
+                        ? 'border-white/[0.10] bg-white/[0.04] text-slate-200 hover:bg-white/[0.08]'
+                        : 'border-teal-900/10 bg-white/70 text-teal-900/80 hover:bg-white'
+                    }`}
+                  >
+                    <a.icon size={13} style={{ color: isDark ? accent.a : ink }} />
+                    {a.label}
+                  </button>
+                ))}
+                <button
+                  type="button"
+                  onClick={() => {}}
+                  className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-bold transition-colors ${
+                    isDark ? 'border-rose-400/25 bg-rose-500/10 text-rose-200 hover:bg-rose-500/20' : 'border-rose-300/50 bg-rose-50 text-rose-700 hover:bg-rose-100'
+                  }`}
+                >
+                  <Trash2 size={13} />
                   Supprimer
-                </Button>
+                </button>
               </div>
-            </Section>
+            </StageSection>
           </>
         )}
       </div>

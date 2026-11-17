@@ -8,6 +8,7 @@ import {
   eventMatchesSelectedAgents, readableChipText,
 } from '../../../types/calendar'
 import { cn } from '../../../lib/utils'
+import { useStageAccent, useStageScope } from '../../dashboard/Stage'
 import { useStageChrome } from './useStageChrome'
 
 interface WeekViewProps {
@@ -81,6 +82,8 @@ export default function WeekView({
   currentDate, events, selectedAgents, selectedEventTypes, overrideAgent, agents, canCreate = true, canEditEvent, onEventClick, onEventUpdate, onSlotClick, onDayNameClick,
 }: WeekViewProps) {
   const { staged, dark } = useStageChrome()
+  const accent = useStageAccent()
+  const isAdmin = useStageScope() === 'admin'
   const weekDays = useMemo(() => getWeekDays(currentDate), [currentDate])
   const weekEvents = useMemo(() => getEventsForWeek(events, currentDate), [events, currentDate])
   const filteredEvents = useMemo(() =>
@@ -329,11 +332,11 @@ export default function WeekView({
           ? 'stage-glass overflow-hidden'
           : 'stage-glass overflow-hidden',
         headBg: dark ? 'bg-white/[0.03]' : 'bg-white/40',
-        headBorder: dark ? 'border-white/[0.08]' : 'border-teal-900/[0.10]',
-        divide: dark ? 'divide-white/[0.06]' : 'divide-teal-900/[0.08]',
-        cellLine: dark ? 'border-white/[0.05]' : 'border-teal-900/[0.07]',
-        timeText: dark ? 'text-slate-500' : 'text-teal-900/35',
-        label: dark ? 'text-[9px] font-bold uppercase tracking-[0.22em] text-slate-500' : 'text-[9px] font-bold uppercase tracking-[0.22em] text-teal-900/35',
+        headBorder: dark ? 'border-white/[0.08]' : isAdmin ? 'border-orange-900/[0.10]' : 'border-teal-900/[0.10]',
+        divide: dark ? 'divide-white/[0.06]' : isAdmin ? 'divide-orange-900/[0.08]' : 'divide-teal-900/[0.08]',
+        cellLine: dark ? 'border-white/[0.05]' : isAdmin ? 'border-orange-900/[0.07]' : 'border-teal-900/[0.07]',
+        timeText: dark ? 'text-slate-500' : isAdmin ? 'text-orange-900/35' : 'text-teal-900/35',
+        label: dark ? 'text-[9px] font-bold uppercase tracking-[0.22em] text-slate-500' : isAdmin ? 'text-[9px] font-bold uppercase tracking-[0.22em] text-orange-900/35' : 'text-[9px] font-bold uppercase tracking-[0.22em] text-teal-900/35',
       }
     : {
         container: 'bg-card rounded-2xl border border-border/50 shadow-card overflow-hidden',
@@ -361,20 +364,25 @@ export default function WeekView({
                 return (
                   <div
                     key={i}
-                    className={`relative py-3 px-2 text-center cursor-pointer transition-colors ${today ? 'bg-accent/5' : ''} hover:bg-accent/10`}
+                    className={`relative py-3 px-2 text-center cursor-pointer transition-colors hover:bg-accent/10`}
+                    style={today ? { backgroundColor: dark ? `${accent.a}0D` : `${accent.b}0F` } : undefined}
                     onClick={() => onDayNameClick(day)}
                   >
-                    <p className={`text-[10px] font-bold uppercase tracking-[0.14em] ${today ? 'text-accent' : weekend ? (dark ? 'text-slate-600' : staged ? 'text-teal-900/30' : 'text-text-secondary/60') : dark ? 'text-slate-500' : staged ? 'text-teal-900/45' : 'text-text-secondary'}`}>
+                    <p
+                      className={`text-[10px] font-bold uppercase tracking-[0.14em] ${!today ? (weekend ? (dark ? 'text-slate-600' : staged ? (isAdmin ? 'text-orange-900/30' : 'text-teal-900/30') : 'text-text-secondary/60') : dark ? 'text-slate-500' : staged ? (isAdmin ? 'text-orange-900/45' : 'text-teal-900/45') : 'text-text-secondary') : ''}`}
+                      style={today ? { color: dark ? accent.a : accent.b } : undefined}
+                    >
                       {day.toLocaleDateString('fr-FR', { weekday: 'short' }).replace('.', '')}
                     </p>
                     {today ? (
                       <span
-                        className="cal-day-orb mx-auto mt-0.5 text-lg"
+                        className="cal-day-orb mx-auto mt-0.5 flex h-8 w-8 items-center justify-center rounded-full text-lg"
                         style={
-                          !dark
+                          staged
                             ? {
-                                backgroundImage: 'linear-gradient(145deg,#2DD4BF,#0D9488)',
-                                boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.5), 0 6px 18px -4px rgba(13,148,136,0.55)',
+                                color: '#fff',
+                                backgroundImage: `linear-gradient(145deg, ${accent.a}, ${accent.b})`,
+                                boxShadow: `inset 0 1px 0 rgba(255,255,255,0.5), 0 6px 18px -4px ${accent.glow}`,
                               }
                             : undefined
                         }
@@ -384,13 +392,13 @@ export default function WeekView({
                     ) : (
                       <p className={`text-xl font-extrabold mt-0.5 tabular-nums tracking-tight ${
                         weekend
-                          ? dark ? 'text-slate-600' : staged ? 'text-teal-900/30' : 'text-text-secondary/50'
-                          : dark ? 'text-slate-200' : staged ? 'text-teal-950' : 'text-text'
+                          ? dark ? 'text-slate-600' : staged ? (isAdmin ? 'text-orange-900/30' : 'text-teal-900/30') : 'text-text-secondary/50'
+                          : dark ? 'text-slate-200' : staged ? (isAdmin ? 'text-orange-950' : 'text-teal-950') : 'text-text'
                       }`}>
                         {day.getDate()}
                       </p>
                     )}
-                    <p className={`text-[9px] mt-0.5 font-mono uppercase tracking-wider ${dark ? 'text-slate-600' : staged ? 'text-teal-900/30' : 'text-text-secondary/60'}`}>
+                    <p className={`text-[9px] mt-0.5 font-mono uppercase tracking-wider ${dark ? 'text-slate-600' : staged ? (isAdmin ? 'text-orange-900/30' : 'text-teal-900/30') : 'text-text-secondary/60'}`}>
                       {formatFrenchShortDate(day)}
                     </p>
                   </div>
@@ -448,16 +456,17 @@ export default function WeekView({
                     {/* Today: gradient beam wash + glowing edge */}
                     {isToday(day) && (
                       <>
-                        <div className="cal-today-beam" />
+                        <div
+                          className="pointer-events-none absolute inset-0 z-0"
+                          style={{
+                            background: `radial-gradient(120% 80% at 50% 0%, ${withAlpha(accent.a, dark ? '17' : '14')} 0%, transparent 62%)`,
+                          }}
+                        />
                         <div
                           className="absolute left-0 top-0 bottom-0 w-[3px] z-20 rounded-r-full"
                           style={{
-                            background: dark
-                              ? 'linear-gradient(180deg, #8B7CFF, #5646C9)'
-                              : 'linear-gradient(180deg, #2DD4BF, #0D9488)',
-                            boxShadow: dark
-                              ? '0 0 12px rgba(124,92,255,0.7)'
-                              : '0 0 12px rgba(13,148,136,0.55)',
+                            background: `linear-gradient(180deg, ${accent.a}, ${accent.b})`,
+                            boxShadow: `0 0 12px ${accent.glow}`,
                           }}
                         />
                       </>
@@ -466,11 +475,24 @@ export default function WeekView({
                     {/* Live now-line sweeping today's column */}
                     {isToday(day) && showNowLine && (
                       <div
-                        className="cal-now-line"
+                        className="pointer-events-none absolute inset-x-0 z-30"
                         style={{ top: `${((nowMinutes - START_HOUR * 60) / (TOTAL_HOURS * 60)) * CELL_HEIGHT}px` }}
                       >
-                        <span className="cal-now-dot" style={{ left: -4, top: -3.5 }} />
-                        <span className="cal-now-chip">
+                        <div
+                          className="h-[2px]"
+                          style={{
+                            background: `linear-gradient(90deg, ${accent.a}, ${withAlpha(accent.a, '00')})`,
+                            boxShadow: `0 0 10px ${accent.glow}`,
+                          }}
+                        />
+                        <span
+                          className="absolute rounded-full"
+                          style={{ left: -4, top: -3, width: 8, height: 8, backgroundColor: accent.a, boxShadow: `0 0 10px ${accent.glow}` }}
+                        />
+                        <span
+                          className="absolute rounded-md px-1 py-0.5 text-[8px] font-bold tabular-nums text-white"
+                          style={{ left: 4, top: -18, backgroundColor: accent.a, boxShadow: `0 4px 12px -4px ${accent.glow}` }}
+                        >
                           {String(nowTs.getHours()).padStart(2, '0')}:{String(nowTs.getMinutes()).padStart(2, '0')}
                         </span>
                       </div>
@@ -600,7 +622,7 @@ export default function WeekView({
           stage-glass backdrop-filter / overflow ancestors can't clip or
           re-anchor its fixed positioning */}
       {popup && createPortal(
-        <div className={cn(staged && 'agent-theme', dark && 'dark', staged && !dark && 'stage-light', staged && 'cosmic-scope')}>
+        <div className={cn(staged && 'agent-theme', dark && 'dark', staged && !dark && 'stage-light', staged && 'cosmic-scope', isAdmin && 'admin-theme stage-admin')}>
           <div
             className="pop-glass fixed z-[60] w-80 max-h-[320px] overflow-y-auto scrollbar-thin p-2 space-y-1.5"
             style={{
@@ -611,12 +633,12 @@ export default function WeekView({
             onMouseLeave={scheduleClose}
           >
             <div className={`px-2 pt-1 pb-1.5 flex items-center justify-between border-b mb-1 ${
-              staged ? (dark ? 'border-white/10' : 'border-teal-900/10') : 'border-border'
+              staged ? (dark ? 'border-white/10' : isAdmin ? 'border-orange-900/10' : 'border-teal-900/10') : 'border-border'
             }`}>
               <span className="text-text-secondary text-[9px] font-bold uppercase tracking-[0.18em]">
                 Événements simultanés
               </span>
-              <span className="text-xs font-extrabold text-accent">{popup.events.length}</span>
+              <span className="text-xs font-extrabold" style={{ color: dark ? accent.a : accent.b }}>{popup.events.length}</span>
             </div>
             {popup.events.map(event => {
               const cfg = getEventTypeConfig(event.type)
@@ -630,7 +652,9 @@ export default function WeekView({
                     staged
                       ? dark
                         ? 'bg-white/[0.03] hover:bg-white/[0.07]'
-                        : 'bg-white/50 hover:bg-teal-500/10'
+                        : isAdmin
+                          ? 'bg-white/50 hover:bg-orange-500/10'
+                          : 'bg-white/50 hover:bg-teal-500/10'
                       : 'bg-background/40 hover:bg-background'
                   }`}
                   style={{ borderLeft: `3px solid ${color}` }}
@@ -668,7 +692,7 @@ export default function WeekView({
       )}
       {/* Right-click context menu: add another event in an occupied cell */}
       {ctxMenu && createPortal(
-        <div className={cn(staged && 'agent-theme', dark && 'dark', staged && !dark && 'stage-light', staged && 'cosmic-scope')}>
+        <div className={cn(staged && 'agent-theme', dark && 'dark', staged && !dark && 'stage-light', staged && 'cosmic-scope', isAdmin && 'admin-theme stage-admin')}>
           <div
             className="pop-glass fixed z-[60] w-56 p-1.5"
             style={{
@@ -683,10 +707,10 @@ export default function WeekView({
                 onSlotClick(ctxMenu.date)
               }}
               className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-text transition-colors ${
-                staged ? (dark ? 'hover:bg-white/[0.07]' : 'hover:bg-teal-900/[0.06]') : 'hover:bg-background'
+                staged ? (dark ? 'hover:bg-white/[0.07]' : isAdmin ? 'hover:bg-orange-900/[0.06]' : 'hover:bg-teal-900/[0.06]') : 'hover:bg-background'
               }`}
             >
-              <Plus size={15} className="text-accent" />
+              <Plus size={15} style={{ color: dark ? accent.a : accent.b }} />
               Ajouter un autre événement
             </button>
           </div>

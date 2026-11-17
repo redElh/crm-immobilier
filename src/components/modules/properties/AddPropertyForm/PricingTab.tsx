@@ -5,7 +5,7 @@ import { RadioGroupItem } from '../../../../components/ui/RadioGroup/RadioGroupI
 import { Checkbox } from '../../../../components/ui/Checkbox';
 import { Select } from '../../../../components/ui/Select';
 import { TrendingUp } from 'react-feather';
-import { SectionCard, Field, FieldGrid } from './stage';
+import { SectionCard, Field, FieldGrid, SubPanel } from './stage';
 
 interface PricingTabProps {
   register: any;
@@ -188,13 +188,13 @@ export function PricingTab({ register, control, watch, propertyType, isGerant = 
 
           <Field>
             <Controller name="honorairesType" control={control} render={({ field }) => (
-              <div className="p-3 rounded-lg bg-background/50 border border-border/30">
+              <SubPanel className="p-3">
                 <h4 className="font-medium text-sm text-text mb-2">Type d'honoraires</h4>
                 <RadioGroup value={field.value} onValueChange={field.onChange} className="flex gap-4">
                   <RadioGroupItem value="inclus" id="ht-inclus">Inclus dans prix</RadioGroupItem>
                   <RadioGroupItem value="en_sus" id="ht-sus">En sus du prix</RadioGroupItem>
                 </RadioGroup>
-              </div>
+              </SubPanel>
             )} />
           </Field>
 
@@ -214,14 +214,14 @@ export function PricingTab({ register, control, watch, propertyType, isGerant = 
           </Field>
 
           <Field className="md:col-span-2">
-            <div className="p-4 rounded-lg bg-background/50 border border-border/30">
+            <SubPanel className="p-4">
               <div className="flex items-center gap-4">
                 <Controller name="negociable" control={control} render={({ field }) => (
                   <Checkbox label="Prix négociable" checked={field.value} onChange={(c) => field.onChange(c)} />
                 )} />
                 <Input label={`Prix minimum (${devise})`} type="number" {...register('prixMinimum')} className="w-48" />
               </div>
-            </div>
+            </SubPanel>
           </Field>
 
           <Field>

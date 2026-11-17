@@ -1,24 +1,28 @@
 import { API_ORIGIN } from '../../../utils/config'
 import { useState, useEffect } from 'react'
-import { NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { Button } from '../../../components/ui/Button'
 import { Input } from '../../../components/ui/Input'
 import { Switch } from '../../../components/ui/Switch'
 import { Dialog } from '../../../components/ui/Dialog'
+import StageModal, { useStageModalButtons } from '../../../components/modules/calendar/StageModal'
 import { useToast } from '../../../components/ui/Toast'
 import { getAuthToken, getSessionId } from '../../../utils/auth'
 import TwoFactorSetup from '../../../components/auth/TwoFactorSetup'
 import { getDeviceInfo, getPublicIP } from '../../../utils/device'
-import { Shield, Smartphone, Monitor, AlertTriangle, User, Sun, Lock, Loader, LogOut, XCircle, Clock, Globe, Eye, EyeOff, ArrowLeft } from 'react-feather'
-import { motion } from 'framer-motion'
+import { Shield, Smartphone, Monitor, AlertTriangle, Lock, Loader, XCircle, Clock, Globe, Eye, EyeOff } from 'react-feather'
 import {
-  Stage,
   StageBadge,
   StageButton,
   OrbIcon,
   STAGE_HUES,
   useStageTheme,
 } from '../../../components/dashboard/Stage'
+import {
+  CompteSettingsTabs,
+  SettingsBackButton,
+  SettingsHero,
+  useSettingsChrome,
+} from '../../../components/settings/SettingsChrome'
 
 interface Session {
   id: number
@@ -31,35 +35,12 @@ interface Session {
   expires_at: string
 }
 
-function CompteTabs({ basePath }: { basePath: string }) {
-  const location = useLocation()
-  const theme = useStageTheme()
-  const isDark = theme === 'dark'
-  const tabs = [
-    { label: 'Profil', icon: User, to: `${basePath}/profil` },
-    { label: 'Sécurité', icon: Shield, to: `${basePath}/securite` },
-    { label: 'Préférences', icon: Sun, to: `${basePath}/preferences` },
-  ]
-  return (
-    <div className="stage-glass flex gap-1 p-1 w-fit rounded-2xl">
-      {tabs.map(tab => {
-        const TabIcon = tab.icon
-        const isActive = location.pathname === tab.to
-        return (
-          <NavLink key={tab.to} to={tab.to} className={`relative flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-xl transition-all duration-200 ${isActive ? 'text-white' : isDark ? 'text-slate-400 hover:text-slate-100' : 'text-slate-500 hover:text-teal-900'}`}>
-            {isActive && <motion.span layoutId="compte-tab-pill-sec" className="absolute inset-0 rounded-xl border border-white/20" style={{ backgroundImage: isDark ? 'linear-gradient(145deg, #8B7CFF 0%, #6C5ECF 60%, #5646C9 100%)' : 'linear-gradient(145deg, #2DD4BF 0%, #14B8A6 60%, #0D9488 100%)' }} transition={{ type: 'spring', stiffness: 380, damping: 32 } as any} />}
-            <TabIcon size={14} className="relative z-10" /><span className="relative z-10">{tab.label}</span>
-          </NavLink>
-        )
-      })}
-    </div>
-  )
-}
+
 
 export default function SecuriteSettingsPage() {
   const theme = useStageTheme()
-  const isDark = theme === 'dark'
-  const navigate = useNavigate()
+  const { isDark, isAdmin, accent } = useSettingsChrome()
+  const btns = useStageModalButtons()
   const [twoFAEnabled, setTwoFAEnabled] = useState(false)
   const [twoFALoading, setTwoFALoading] = useState(true)
   const [showPasswordModal, setShowPasswordModal] = useState(false)
@@ -163,31 +144,25 @@ export default function SecuriteSettingsPage() {
     setChanging(false)
   }
 
-  const location = useLocation()
-  const basePath = location.pathname.substring(0, location.pathname.lastIndexOf('/'))
-
   return (
-    <Stage theme={theme}>
+    
       <div className="space-y-6">
         <div className="flex items-center gap-2">
-          <button onClick={() => navigate(-1)} className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl border transition-colors ${isDark ? 'border-white/10 text-slate-300 hover:bg-white/5 hover:text-white' : 'border-teal-900/10 text-slate-600 hover:bg-white'}`}> <ArrowLeft size={13} /> Retour </button>
-          <CompteTabs basePath={basePath} />
+          <SettingsBackButton />
+          <CompteSettingsTabs />
         </div>
 
-        <div>
-          <div className="flex items-center gap-2">
-            <span className="relative flex h-2 w-2"><span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60" /><span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.9)]" /></span>
-            <p className={`text-[10px] font-bold uppercase tracking-[0.24em] ${isDark ? 'text-slate-400/80' : 'text-teal-900/50'}`}>Mon compte · Sécurité</p>
-          </div>
-          <h1 className={`mt-1 text-3xl font-extrabold tracking-tight ${isDark ? 'bg-gradient-to-r from-white via-indigo-100 to-indigo-300 bg-clip-text text-transparent' : 'bg-gradient-to-r from-teal-900 via-teal-700 to-emerald-600 bg-clip-text text-transparent'}`}>Sécurité</h1>
-          <p className={`mt-0.5 text-sm ${isDark ? 'text-slate-400' : 'text-teal-900/60'}`}>Protégez votre compte et surveillez vos sessions</p>
-        </div>
+        <SettingsHero
+          eyebrow="Mon compte · Sécurité"
+          title="Sécurité"
+          subtitle="Protégez votre compte et surveillez vos sessions"
+        />
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <div className="stage-glass p-5">
             <div className="flex items-start justify-between gap-4">
               <div className="flex items-start gap-3">
-                <OrbIcon icon={Shield} hue={STAGE_HUES.violet} size={40} radius={12} />
+                <OrbIcon icon={Shield} hue={accent} size={40} radius={12} />
                 <div>
                   <h3 className={`text-sm font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>Mot de passe</h3>
                   <p className={`text-xs mt-1 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>Dernière modification : il y a 45 jours</p>
@@ -240,13 +215,29 @@ export default function SecuriteSettingsPage() {
                 const status = getSessionStatus(session)
                 const isTerminated = !session.is_active || status.label === 'Expirée'
                 return (
-                  <div key={session.id} className={`flex flex-wrap items-start justify-between gap-3 p-3 rounded-2xl border transition-all ${isCurrent ? (isDark ? 'bg-violet-500/10 border-violet-400/20' : 'bg-teal-50 border-teal-500/20') : isDark ? 'border-white/5 hover:bg-white/[0.03]' : 'border-slate-100 hover:bg-slate-50'}`}>
+                  <div key={session.id} className={`flex flex-wrap items-start justify-between gap-3 p-3 rounded-2xl border transition-all ${isCurrent ? (isDark ? (isAdmin ? 'bg-rose-500/10 border-rose-400/20' : 'bg-violet-500/10 border-violet-400/20') : (isAdmin ? 'bg-orange-50 border-orange-500/20' : 'bg-teal-50 border-teal-500/20')) : isDark ? 'border-white/5 hover:bg-white/[0.03]' : 'border-slate-100 hover:bg-slate-50'}`}>
                     <div className="flex items-start gap-3 min-w-0">
-                      <div className={`p-2 rounded-xl mt-0.5 ${isTerminated ? (isDark ? 'bg-white/5 text-slate-500' : 'bg-slate-100 text-slate-400') : isCurrent ? (isDark ? 'bg-violet-500/20 text-violet-300' : 'bg-teal-100 text-teal-700') : isDark ? 'bg-white/5 text-slate-400' : 'bg-slate-100 text-slate-500'}`}><Monitor size={15} /></div>
+                      <div className={`p-2 rounded-xl mt-0.5 ${isTerminated ? (isDark ? 'bg-white/5 text-slate-500' : 'bg-slate-100 text-slate-400') : isCurrent ? (isDark ? (isAdmin ? 'bg-rose-500/20 text-rose-300' : 'bg-violet-500/20 text-violet-300') : (isAdmin ? 'bg-orange-100 text-orange-700' : 'bg-teal-100 text-teal-700')) : isDark ? 'bg-white/5 text-slate-400' : 'bg-slate-100 text-slate-500'}`}><Monitor size={15} /></div>
                       <div className="min-w-0">
                         <div className="flex items-center gap-1.5 flex-wrap">
                           <p className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-slate-900'}`}>{session.device_browser || 'Navigateur inconnu'}</p>
-                          {isCurrent && <StageBadge variant="violet" className="text-[10px]">Cette session</StageBadge>}
+                          {isCurrent && (
+                            <StageBadge
+                              variant="violet"
+                              className="text-[10px]"
+                              style={
+                                isAdmin
+                                  ? {
+                                      color: isDark ? '#FECDD3' : '#9A3412',
+                                      backgroundColor: isDark ? 'rgba(244,63,94,0.15)' : 'rgba(249,115,22,0.12)',
+                                      borderColor: isDark ? 'rgba(251,113,133,0.3)' : 'rgba(249,115,22,0.25)',
+                                    }
+                                  : undefined
+                              }
+                            >
+                              Cette session
+                            </StageBadge>
+                          )}
                           {isTerminated && <StageBadge variant="neutral" className="text-[10px]">Terminée</StageBadge>}
                           <StageBadge variant={status.label === 'Actif' ? 'ok' : status.label === 'Inactif' ? 'warn' : 'neutral'} className="text-[10px]">{status.label}</StageBadge>
                         </div>
@@ -274,7 +265,7 @@ export default function SecuriteSettingsPage() {
             </div>
             <div className={`flex rounded-xl border p-1 gap-1 ${isDark ? 'border-white/10 bg-white/[0.04]' : 'border-slate-200 bg-slate-50'}`}>
               {(['Toutes', 'Succès', 'Échec'] as const).map(f => (
-                <button key={f} onClick={() => { setHistoryFilter(f); setHistoryOffset(0) }} className={`px-3 py-1 text-xs font-bold rounded-lg transition-all ${historyFilter === f ? 'text-white shadow' : isDark ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-900'}`} style={historyFilter === f ? { backgroundImage: isDark ? 'linear-gradient(135deg, #8B7CFF, #6C5ECF)' : 'linear-gradient(135deg, #2DD4BF, #0D9488)' } : undefined}>{f}</button>
+                <button key={f} onClick={() => { setHistoryFilter(f); setHistoryOffset(0) }} className={`px-3 py-1 text-xs font-bold rounded-lg transition-all ${historyFilter === f ? 'text-white shadow' : isDark ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-900'}`} style={historyFilter === f ? { backgroundImage: `linear-gradient(135deg, ${accent.a}, ${accent.b})` } : undefined}>{f}</button>
               ))}
             </div>
           </div>
@@ -308,18 +299,52 @@ export default function SecuriteSettingsPage() {
         <Dialog isOpen={showRevokeAllConfirm} onClose={() => setShowRevokeAllConfirm(false)} title="Déconnecter toutes les sessions" size="sm">
           <div className="space-y-4"><div className="flex items-start gap-3 bg-error/5 border border-error/20 rounded-xl p-3"><AlertTriangle size={14} className="text-error mt-0.5" /><p className="text-xs text-error">Vous serez déconnecté de tous vos appareils.</p></div><div className="flex justify-end gap-3 pt-2"><Button variant="outline" onClick={() => setShowRevokeAllConfirm(false)}>Annuler</Button><Button variant="danger" onClick={handleRevokeAll} loading={actionLoading}>Tout déconnecter</Button></div></div>
         </Dialog>
-        <Dialog isOpen={showDisableDialog} onClose={() => { setShowDisableDialog(false); setDisablePassword(''); setDisableError('') }} title="Désactiver la 2FA" size="sm">
-          <div className="space-y-4"><p className="text-sm text-text-secondary">Confirmez votre mot de passe pour désactiver la 2FA.</p><Input label="Mot de passe" type="password" value={disablePassword} onChange={(e) => setDisablePassword(e.target.value)} icon={<Lock size={14} />} />{disableError && <p className="text-xs text-error">{disableError}</p>}<div className="flex justify-end gap-3 pt-2"><Button variant="outline" onClick={() => { setShowDisableDialog(false); setDisablePassword(''); setDisableError('') }}>Annuler</Button><Button variant="danger" onClick={handleDisable2FA} loading={disabling}>Désactiver</Button></div></div>
-        </Dialog>
-        <Dialog isOpen={showPasswordModal} onClose={() => { setShowPasswordModal(false); setPasswordError(''); setShowNewPassword(false); setShowConfirmPassword(false) }} title="Changer mon mot de passe" size="sm">
-          <div className="space-y-4">
-            <Input label="Nouveau mot de passe" type={showNewPassword ? 'text' : 'password'} value={newPassword} onChange={(e) => setNewPassword(e.target.value)} icon={<Lock size={14} />} suffix={<button type="button" onClick={() => setShowNewPassword(!showNewPassword)}>{showNewPassword ? <EyeOff size={16} /> : <Eye size={16} />}</button>} autoFocus />
-            <Input label="Confirmer le mot de passe" type={showConfirmPassword ? 'text' : 'password'} value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} icon={<Lock size={14} />} suffix={<button type="button" onClick={() => setShowConfirmPassword(!showConfirmPassword)}>{showConfirmPassword ? <EyeOff size={16} /> : <Eye size={16} />}</button>} />
-            {passwordError && <p className="text-xs text-error">{passwordError}</p>}
-            <div className="flex justify-end gap-3 pt-2"><Button variant="outline" onClick={() => { setShowPasswordModal(false); setPasswordError('') }}>Annuler</Button><Button variant="default" onClick={handleChangePassword} loading={changing}>Enregistrer</Button></div>
-          </div>
-        </Dialog>
+        <StageModal
+          open={showDisableDialog}
+          onClose={() => { setShowDisableDialog(false); setDisablePassword(''); setDisableError('') }}
+          eyebrow="Sécurité · 2FA"
+          title="Désactiver la 2FA"
+          subtitle="Confirmez votre mot de passe pour désactiver la double authentification"
+          icon={Shield}
+          hue={STAGE_HUES.amber}
+          accent={STAGE_HUES.amber.glow}
+          maxWidth="max-w-[420px]"
+          centered
+          bodyClassName="space-y-4"
+          footer={
+            <>
+              <button type="button" onClick={() => { setShowDisableDialog(false); setDisablePassword(''); setDisableError('') }} className={btns.ghost}>Annuler</button>
+              <button type="button" onClick={handleDisable2FA} disabled={disabling} className={btns.primary}>{disabling ? <Loader size={14} className="animate-spin" /> : <Shield size={14} />} {disabling ? 'Désactivation...' : 'Désactiver'}</button>
+            </>
+          }
+        >
+          <Input label="Mot de passe" type="password" value={disablePassword} onChange={(e) => setDisablePassword(e.target.value)} icon={<Lock size={14} />} />
+          {disableError && <p className="text-xs text-error">{disableError}</p>}
+        </StageModal>
+        <StageModal
+          open={showPasswordModal}
+          onClose={() => { setShowPasswordModal(false); setPasswordError(''); setShowNewPassword(false); setShowConfirmPassword(false) }}
+          eyebrow="Sécurité · Compte"
+          title="Changer mon mot de passe"
+          subtitle="Choisissez un mot de passe robuste et sécurisé"
+          icon={Lock}
+          hue={accent}
+          accent={accent.glow}
+          maxWidth="max-w-[460px]"
+          centered
+          bodyClassName="space-y-4"
+          footer={
+            <>
+              <button type="button" onClick={() => { setShowPasswordModal(false); setPasswordError(''); setShowNewPassword(false); setShowConfirmPassword(false) }} className={btns.ghost}>Annuler</button>
+              <button type="button" onClick={handleChangePassword} disabled={changing} className={btns.primary}>{changing ? <Loader size={14} className="animate-spin" /> : <Lock size={14} />} {changing ? 'Enregistrement...' : 'Enregistrer'}</button>
+            </>
+          }
+        >
+          <Input label="Nouveau mot de passe" type={showNewPassword ? 'text' : 'password'} value={newPassword} onChange={(e) => setNewPassword(e.target.value)} icon={<Lock size={14} />} suffix={<button type="button" onClick={() => setShowNewPassword(!showNewPassword)}>{showNewPassword ? <EyeOff size={16} /> : <Eye size={16} />}</button>} autoFocus />
+          <Input label="Confirmer le mot de passe" type={showConfirmPassword ? 'text' : 'password'} value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} icon={<Lock size={14} />} suffix={<button type="button" onClick={() => setShowConfirmPassword(!showConfirmPassword)}>{showConfirmPassword ? <EyeOff size={16} /> : <Eye size={16} />}</button>} />
+          {passwordError && <p className="text-xs text-error">{passwordError}</p>}
+        </StageModal>
       </div>
-    </Stage>
+    
   )
 }

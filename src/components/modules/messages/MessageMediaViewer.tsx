@@ -5,6 +5,8 @@ import type { Message } from '../../../types/messages'
 import { cn } from '../../../lib/utils'
 import { resolveMediaUrl, downloadMedia } from '../../../utils/mediaUrl'
 import { AudioPlayer } from './AudioPlayer'
+import { innerKindOf } from '../../../services/e2ee/conversation'
+import { useSealedMediaUrl } from './useSealedMedia'
 
 interface MessageMediaViewerProps {
   message: Message
@@ -12,14 +14,19 @@ interface MessageMediaViewerProps {
 }
 
 export function MessageMediaViewer({ message, onClose }: MessageMediaViewerProps) {
-  const kind = message.kind ?? (message.attachments.length > 0 ? 'file' : 'text')
+  const sealedActive = message.kind === 'sealed' && message.sealedOk === true && !!message.sealedMedia
+  const sealedUrl = useSealedMediaUrl(message)
+  const kind = message.kind === 'sealed'
+    ? (message.sealedOk ? innerKindOf(message) : 'sealed')
+    : (message.kind ?? (message.attachments.length > 0 ? 'file' : 'text'))
   const attachment = message.attachments[0]
   const name = attachment?.name || 'piece-jointe'
-  const url = resolveMediaUrl(
+  const plainUrl = resolveMediaUrl(
     message.audioUrl ||
       message.attachmentUrl ||
       (attachment && attachment.url && attachment.url !== '#' ? attachment.url : undefined)
   )
+  const url = sealedActive ? sealedUrl || undefined : plainUrl
   const isPdf = (attachment?.name || '').toLowerCase().endsWith('.pdf')
   const [scale, setScale] = useState(1)
   const [downloadError, setDownloadError] = useState(false)
@@ -82,7 +89,12 @@ export function MessageMediaViewer({ message, onClose }: MessageMediaViewerProps
 
         {/* Body */}
         <div className="flex-1 min-h-0 flex items-center justify-center" onClick={e => e.stopPropagation()}>
-          {kind === 'image' && url ? (
+          {sealedActive && !url ? (
+            <div className="flex flex-col items-center gap-3 text-center px-6">
+              <span className="w-6 h-6 rounded-full border-2 border-white/20 border-t-white/80 animate-spin" />
+              <p className="text-white/70 text-xs">Déchiffrement en cours…</p>
+            </div>
+          ) : kind === 'image' && url ? (
             <div className="w-full h-full overflow-auto flex items-center justify-center">
               <motion.img
                 src={url}

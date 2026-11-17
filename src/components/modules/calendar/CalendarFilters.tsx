@@ -1,6 +1,7 @@
 import { motion, AnimatePresence } from 'framer-motion'
-import { Check, RotateCcw, Users } from 'react-feather'
+import { Check, RotateCcw, Users, Sliders } from 'react-feather'
 import { AGENTS, EVENT_TYPE_CONFIG, EVENT_TYPE_COLORS, EventType, Agent, readableChipText } from '../../../types/calendar'
+import { OrbIcon, useStageAccent } from '../../dashboard/Stage'
 import { useStageChrome } from './useStageChrome'
 
 interface CalendarFiltersProps {
@@ -16,6 +17,7 @@ export default function CalendarFilters({
   selectedAgents, selectedEventTypes, onAgentsChange, onEventTypesChange, showAgents = true, agents,
 }: CalendarFiltersProps) {
   const { staged, dark } = useStageChrome()
+  const accent = useStageAccent()
   const agentList = agents && agents.length > 0 ? agents : AGENTS
 
   const allSelected = selectedEventTypes.length === Object.keys(EVENT_TYPE_CONFIG).length
@@ -141,8 +143,18 @@ export default function CalendarFilters({
   return (
     <div className="stage-glass rounded-2xl p-4">
       {/* Header */}
-      <div className="mb-3 flex items-center justify-between">
-        <p className={sectionLabel}>Filtrage</p>
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <div className="flex min-w-0 items-center gap-2.5">
+          <OrbIcon icon={Sliders} hue={accent} size={30} radius={10} />
+          <div className="min-w-0">
+            <p className={sectionLabel}>Filtrage</p>
+            <p className={`truncate text-[10px] font-medium ${dark ? 'text-slate-500' : 'text-teal-900/45'}`}>
+              {selectedAgents.length === 0 ? 'Toute l’équipe' : `${selectedAgents.length} agent${selectedAgents.length > 1 ? 's' : ''}`}
+              {' · '}
+              {selectedEventTypes.length}/{Object.keys(EVENT_TYPE_CONFIG).length} types
+            </p>
+          </div>
+        </div>
         <AnimatePresence>
           {isFiltered && (
             <motion.button
@@ -150,9 +162,8 @@ export default function CalendarFilters({
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.85 }}
               onClick={reset}
-              className={`flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider transition-colors ${
-                dark ? 'text-violet-300 hover:text-violet-200' : 'text-teal-700 hover:text-teal-600'
-              }`}
+              className="flex shrink-0 items-center gap-1 text-[10px] font-semibold uppercase tracking-wider transition-colors"
+              style={{ color: dark ? accent.a : accent.b }}
             >
               <RotateCcw size={10} />
               Réinitialiser
@@ -237,13 +248,16 @@ export default function CalendarFilters({
                 <span
                   className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-md border transition-all duration-200 ${
                     active
-                      ? dark
-                        ? 'border-violet-400/50 bg-gradient-to-br from-violet-400 to-indigo-600 shadow-[0_0_10px_-2px_rgba(124,92,255,0.8)]'
-                        : 'border-teal-500/60 bg-gradient-to-br from-teal-400 to-emerald-600 shadow-[0_0_10px_-2px_rgba(13,148,136,0.7)]'
+                      ? ''
                       : dark
                         ? 'border-white/15 group-hover:border-white/30'
                         : 'border-teal-900/20'
                   }`}
+                  style={active ? {
+                    borderColor: `${accent.a}99`,
+                    backgroundImage: `linear-gradient(145deg, ${accent.a}, ${accent.b})`,
+                    boxShadow: `0 0 10px -2px ${accent.glow}`,
+                  } : undefined}
                 >
                   {active && <Check size={10} strokeWidth={3.5} className="text-white" />}
                 </span>

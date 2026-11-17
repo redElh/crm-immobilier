@@ -8,13 +8,17 @@ import Topbar from '../../components/layout/Topbar'
 import {
   StageThemeProvider,
   StageThemeSetterProvider,
+  StageScopeProvider,
   useStageThemeState,
 } from '../../components/dashboard/Stage'
 import { getAuthToken } from '../../utils/auth'
 import { usePresenceReporter } from '../../services/presenceReporter'
+import { ensureE2EEIdentity } from '../../services/e2ee/session'
 import { useMessagingAppearance } from '../../services/messageAppearance'
 import { useToast } from '../../components/ui/Toast'
 import { cn } from '../../lib/utils'
+import { ScrollDebug } from '../../components/debug/ScrollDebug'
+import { useScrollMemory } from '../../hooks/useScrollMemory'
 
 export function AgentLayout() {
   const { agentId } = useParams<{ agentId: string }>()
@@ -30,6 +34,12 @@ export function AgentLayout() {
   const mainRef = useRef<HTMLElement>(null)
   usePresenceReporter()
 
+  /* E2EE keys: generate + publish at login so others can seal to this
+     device even before the messages module is ever opened. */
+  useEffect(() => {
+    if (agentId) ensureE2EEIdentity(agentId)
+  }, [agentId])
+
   /* Keep-alive cache — visited modules stay mounted so switching is instant */
   const outlet = useOutlet()
   const sectionCache = useRef<Map<string, ReactElement>>(new Map())
@@ -39,10 +49,6 @@ export function AgentLayout() {
   const sectionKey = restPath.split('/')[1] || 'dashboard'
   if (outlet) sectionCache.current.set(sectionKey, outlet)
 
-  /* Per-section scroll memory */
-  const scrollMem = useRef<Map<string, number>>(new Map())
-  const lastNav = useRef({ section: sectionKey, path: location.pathname })
-
   /* Keep the page backdrop in sync with the stage theme — no white flashes */
   useEffect(() => {
     const bg = dark ? '#0B1022' : '#DFF6F0'
@@ -50,19 +56,7 @@ export function AgentLayout() {
     document.documentElement.style.backgroundColor = bg
   }, [dark])
 
-  /* Scroll restore on module switch, scroll-to-top on inner navigation */
-  useEffect(() => {
-    const main = mainRef.current
-    if (!main) return
-    const prev = lastNav.current
-    if (prev.section !== sectionKey) {
-      scrollMem.current.set(prev.section, main.scrollTop)
-      main.scrollTop = scrollMem.current.get(sectionKey) ?? 0
-    } else if (prev.path !== location.pathname) {
-      main.scrollTo({ top: 0 })
-    }
-    lastNav.current = { section: sectionKey, path: location.pathname }
-  }, [location.pathname, sectionKey])
+  useScrollMemory(mainRef, authChecked)
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -116,12 +110,13 @@ export function AgentLayout() {
   return (
     <StageThemeProvider value={stageTheme}>
       <StageThemeSetterProvider value={setStageTheme}>
-        <div
-          className={cn(
-            'relative flex h-screen overflow-hidden agent-theme',
-            dark ? 'stage-dark shell-dark' : 'stage-light shell-light'
-          )}
-        >
+        <StageScopeProvider value="agent">
+          <div
+            className={cn(
+              'relative flex h-screen overflow-hidden agent-theme',
+              dark ? 'stage-dark shell-dark' : 'stage-light shell-light'
+            )}
+          >
           {/* Drifting aurora field behind everything */}
           <div aria-hidden="true" className="pointer-events-none absolute inset-0 z-0">
             <div
@@ -160,19 +155,24 @@ export function AgentLayout() {
                 isMessagesRoute && appearance.theme === 'dark' && 'dark bg-background'
               )}
             >
-              {Array.from(sectionCache.current.entries()).map(([key, element]) => (
-                <div
-                  key={key}
-                  aria-hidden={key !== sectionKey}
-                  className={cn(key === sectionKey && 'section-enter')}
-                  style={{ display: key === sectionKey ? 'block' : 'none' }}
-                >
-                  {element}
-                </div>
-              ))}
-            </main>
+            {Array.from(sectionCache.current.entries()).map(([key, element]) => (
+                  <div
+                    key={key}
+                    aria-hidden={key !== sectionKey}
+                    className={cn(key === sectionKey && 'section-enter', 'h-full')}
+                    style={{ display: key === sectionKey ? 'block' : 'none' }}
+                  >
+                    {element}
+                  </div>
+                ))}
+              </main>
+            </div>
           </div>
-        </div>
+          
+          {/* Scroll debug overlay - remove in production */}
+          {process.env.NODE_ENV === 'development' && <ScrollDebug />}
+          
+        </StageScopeProvider>
       </StageThemeSetterProvider>
     </StageThemeProvider>
   )

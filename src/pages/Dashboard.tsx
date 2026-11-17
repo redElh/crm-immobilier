@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useState, useCallback } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import {
   Users, Home, DollarSign, AlertTriangle, Clock, Edit3, Target, FileText,
@@ -654,7 +655,12 @@ function ActiviteTab() {
 /* --------------------------------------------------------------------- */
 
 export default function Dashboard() {
-  const [activeTab, setActiveTab] = useState('overview')
+  const [searchParams, setSearchParams] = useSearchParams()
+  const [activeTab, setActiveTabState] = useState(() => tabs.find(t => t.id === searchParams.get('tab'))?.id || 'overview')
+  const setActiveTab = useCallback((tabId: string) => {
+    setActiveTabState(tabId)
+    setSearchParams(prev => { prev.set('tab', tabId); return prev; }, { replace: true })
+  }, [tabs, setSearchParams])
   const [period, setPeriod] = useState<Period>('month')
   const theme = useStageTheme()
   const dark = theme === 'dark'

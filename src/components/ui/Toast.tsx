@@ -22,9 +22,12 @@ let toastId = 0
 function getStageDark(): boolean {
   // Mirrors useStageChrome but works outside Stage provider (toasts are portalled at body)
   if (typeof document === 'undefined') return false
+  // Only the mounted app shell counts: body-level dropdown portals can hold a
+  // stale snapshot of the previous theme's stage class.
+  const scope: ParentNode = document.getElementById('root') ?? document
   // Prefer explicit stage-dark; fallback to .dark (admin) or localStorage
-  if (document.querySelector('.stage-dark')) return true
-  if (document.querySelector('.stage-light')) return false
+  if (scope.querySelector('.stage-dark')) return true
+  if (scope.querySelector('.stage-light')) return false
   if (document.documentElement.classList.contains('dark') || document.body.classList.contains('dark')) return true
   try {
     return localStorage.getItem('stage-theme') === 'dark'
@@ -118,13 +121,23 @@ export function ToastProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const update = () => setDark(getStageDark())
+    const onThemeChange = (event: Event) => {
+      const theme = (event as CustomEvent).detail
+      if (theme === 'dark' || theme === 'light') {
+        setDark(theme === 'dark')
+        return
+      }
+      update()
+    }
     update()
     const obs = new MutationObserver(update)
     obs.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] })
     obs.observe(document.body, { attributes: true, attributeFilter: ['class'] })
+    window.addEventListener('stage-theme-change', onThemeChange)
     window.addEventListener('storage', update)
     return () => {
       obs.disconnect()
+      window.removeEventListener('stage-theme-change', onThemeChange)
       window.removeEventListener('storage', update)
     }
   }, [])

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { AnimatePresence } from 'framer-motion';
 import { Controller } from 'react-hook-form';
 import { Input } from '../../../../components/ui/Input';
 import { Select } from '../../../../components/ui/Select';
@@ -277,12 +278,14 @@ export function ContratTab({ register, control, watch, propertyType }: ContratTa
         </div>
       </SectionCard>
 
-      {showVoyageurModal && (
-        <VoyageurFormModal
-          onClose={() => setShowVoyageurModal(false)}
-          onSubmit={handleVoyageurCreated}
-        />
-      )}
+      <AnimatePresence>
+        {showVoyageurModal && (
+          <VoyageurFormModal
+            onClose={() => setShowVoyageurModal(false)}
+            onSubmit={handleVoyageurCreated}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { motion } from 'framer-motion'
 import { CalendarEvent, getEventTypeConfig, Agent, getEventUserColor, withAlpha, formatEventRange, readableChipText, getEventsForDay, getEventDayHours, isToday } from '../../../types/calendar'
+import { useStageAccent, useStageScope } from '../../dashboard/Stage'
 import { useStageChrome } from './useStageChrome'
 
 interface DayViewProps {
@@ -52,6 +53,8 @@ function layoutDayEvents(events: CalendarEvent[]): EventLayout[] {
 
 export default function DayView({ currentDate, events, agents, onEventClick, onSlotClick }: DayViewProps) {
   const { staged, dark } = useStageChrome()
+  const accent = useStageAccent()
+  const isAdmin = useStageScope() === 'admin'
   const dayEvents = useMemo(() => {
     return getEventsForDay(events, currentDate).sort((a, b) => a.start.getTime() - b.start.getTime())
   }, [events, currentDate])
@@ -73,9 +76,9 @@ export default function DayView({ currentDate, events, agents, onEventClick, onS
   const skin = staged
     ? {
         container: 'stage-glass overflow-hidden',
-        headBorder: dark ? 'border-white/[0.08]' : 'border-teal-900/[0.10]',
+        headBorder: dark ? 'border-white/[0.08]' : isAdmin ? 'border-orange-900/[0.10]' : 'border-teal-900/[0.10]',
         headBg: dark ? 'bg-white/[0.03]' : 'bg-white/40',
-        cellLine: dark ? 'border-white/[0.05]' : 'border-teal-900/[0.07]',
+        cellLine: dark ? 'border-white/[0.05]' : isAdmin ? 'border-orange-900/[0.07]' : 'border-teal-900/[0.07]',
         chip: dark ? 'bg-[#0d1228]' : 'bg-white/80',
       }
     : {
@@ -90,12 +93,21 @@ export default function DayView({ currentDate, events, agents, onEventClick, onS
     <div className={skin.container}>
       <div className={`flex items-center justify-center gap-2 border-b ${skin.headBorder} ${skin.headBg} py-3 backdrop-blur-xl`}>
         {isToday_ && (
-          <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.9)]" />
+          <span
+            className="h-1.5 w-1.5 rounded-full"
+            style={{ backgroundColor: accent.a, boxShadow: `0 0 8px ${accent.glow}` }}
+          />
         )}
-        <p className={`text-sm font-bold capitalize tracking-tight ${isToday_ ? 'text-accent' : 'text-text'}`}>
+        <p
+          className={`text-sm font-bold capitalize tracking-tight ${!isToday_ ? 'text-text' : ''}`}
+          style={isToday_ ? { color: dark ? accent.a : accent.b } : undefined}
+        >
           {currentDate.toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' })}
         </p>
-        <span className={`text-[10px] font-bold uppercase tracking-[0.18em] ${isToday_ ? 'text-accent/70' : 'text-text-secondary/50'}`}>
+        <span
+          className={`text-[10px] font-bold uppercase tracking-[0.18em] ${!isToday_ ? 'text-text-secondary/50' : ''}`}
+          style={isToday_ ? { color: dark ? `${accent.a}B3` : `${accent.b}B3` } : undefined}
+        >
           · {dayEvents.length} événement{dayEvents.length > 1 ? 's' : ''}
         </span>
       </div>
@@ -127,14 +139,25 @@ export default function DayView({ currentDate, events, agents, onEventClick, onS
           {/* Live now-line */}
           {showNowLine && (
             <div
-              className="cal-now-line"
-              style={{
-                top: `${(nowMinutes / (TOTAL_HOURS * 60)) * CONTAINER_HEIGHT}px`,
-                marginLeft: 56,
-              }}
+              className="pointer-events-none absolute inset-x-0 z-20"
+              style={{ top: `${(nowMinutes / (TOTAL_HOURS * 60)) * CONTAINER_HEIGHT}px` }}
             >
-              <span className="cal-now-dot" style={{ left: -4, top: -3.5 }} />
-              <span className="cal-now-chip" style={{ right: 'auto', left: 6 }}>
+              <span
+                className="absolute rounded-full"
+                style={{ left: 52, top: -3.5, width: 8, height: 8, backgroundColor: accent.a, boxShadow: `0 0 10px ${accent.glow}` }}
+              />
+              <div
+                className="h-[2px]"
+                style={{
+                  marginLeft: 56,
+                  background: `linear-gradient(90deg, ${accent.a}, ${withAlpha(accent.a, '00')})`,
+                  boxShadow: `0 0 10px ${accent.glow}`,
+                }}
+              />
+              <span
+                className="absolute rounded-md px-1.5 py-0.5 text-[9px] font-bold tabular-nums text-white"
+                style={{ left: 64, top: -8, backgroundColor: accent.a, boxShadow: `0 4px 12px -4px ${accent.glow}` }}
+              >
                 {String(nowTs.getHours()).padStart(2, '0')}:{String(nowTs.getMinutes()).padStart(2, '0')}
               </span>
             </div>

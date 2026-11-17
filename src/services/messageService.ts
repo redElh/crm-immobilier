@@ -55,6 +55,7 @@ export const createConversation = (body: {
   participantIds: number[]
   name?: string
   firstMessage?: string
+  kind?: string
 }) => api.post<Conversation>('/messages/conversations', body as unknown as Record<string, unknown>)
 
 export const sendMessage = (
@@ -87,7 +88,7 @@ export const uploadVoice = (blob: Blob) => {
       const err = await res.json().catch(() => ({ error: 'Erreur lors du téléchargement' }))
       throw new Error(err.error || 'Erreur lors du téléchargement')
     }
-    return res.json() as Promise<{ url: string; size: string }>
+    return res.json() as Promise<{ url: string; size: string; transcript?: string | null; transcriptError?: string }>
   })
 }
 
@@ -154,3 +155,49 @@ export const fetchMessagingSettings = () => api.get<MessagingSettings>('/message
 
 export const saveMessagingSettings = (settings: MessagingSettings) =>
   api.put<MessagingSettings>('/messages/settings', settings as unknown as Record<string, unknown>)
+
+// ---------------------------------------------------------------------------
+// E2EE public-key distribution (server stores PUBLIC keys only).
+// ---------------------------------------------------------------------------
+
+export interface SignalBundleDTO {
+  userId: string
+  identityKey: string
+  registrationId: number
+  signedPreKey: { keyId: number; publicKey: string; signature: string }
+  preKey: { keyId: number; publicKey: string } | null
+  remaining: number
+}
+
+export const publishSignalKeys = (bundle: {
+  identityKey: string
+  registrationId: number
+  signedPreKey: { keyId: number; publicKey: string; signature: string }
+  preKeys: { keyId: number; publicKey: string }[]
+}) => api.put<{ ok: boolean }>('/messages/keys/identity', bundle as unknown as Record<string, unknown>)
+
+export const fetchSignalBundle = async (userId: string): Promise<SignalBundleDTO | null> => {
+  try {
+    return await api.get<SignalBundleDTO>(`/messages/keys/bundle/${userId}`)
+  } catch {
+    // 404 = recipient has no keys yet (opportunistic plaintext fallback)
+    return null
+  }
+}
+
+export const countSignalPreKeys = async (): Promise<number> => {
+  try {
+    const r = await api.get<{ remaining: number }>('/messages/keys/prekeys/count')
+    return r.remaining
+  } catch {
+    return 99
+  }
+}
+
+export const fetchSignalIdentity = async (userId: string): Promise<{ userId: string; identityKey: string } | null> => {
+  try {
+    return await api.get<{ userId: string; identityKey: string }>(`/messages/keys/identity/${userId}`)
+  } catch {
+    return null
+  }
+}

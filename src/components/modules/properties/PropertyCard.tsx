@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { Badge } from '../../ui/Badge';
 import { PROPERTY_TYPE_LABELS, TRANSACTION_TYPE_LABELS, STATUS_LABELS, STATUS_COLORS } from '../../../types/property';
 import type { Property } from '../../../types/property';
@@ -14,6 +14,7 @@ interface PropertyCardProps {
 
 export const PropertyCard = ({ property }: PropertyCardProps) => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { agentId, adminId, type } = useParams<{ agentId?: string; adminId?: string; type?: string }>();
   const { revealed } = useOptionalConfidential();
   const restricted = useRestriction('biens-info-privees');
@@ -60,7 +61,15 @@ export const PropertyCard = ({ property }: PropertyCardProps) => {
         } else if (agentId) {
           navigate(`/${agentId}/properties/type/${propType}/${property.id}`);
         } else {
-          navigate(`/properties/${property.id}`);
+          // Fallback: try to extract agentId/adminId from current path
+          const pathMatch = location.pathname.match(/^\/(?:admin\/\d+|\d+)/);
+          const basePath = pathMatch ? pathMatch[0] : '';
+          if (basePath) {
+            navigate(`${basePath}/properties/type/${propType}/${property.id}`);
+          } else {
+            // Last resort: use legacy redirect (will be caught by RedirectToAgent)
+            navigate(`/properties/${property.id}`);
+          }
         }
       }}
     >

@@ -1,7 +1,7 @@
 import { CSSProperties, ReactNode, useRef, useMemo, useEffect, memo } from 'react'
 import { useLocation, Link } from 'react-router-dom'
 import { motion, useMotionValue, useSpring } from 'framer-motion'
-import { Shield, Home, Layers, Star, ArrowRight, Zap } from 'react-feather'
+import { Shield, Star, ArrowRight } from 'react-feather'
 
 interface AuthFormContainerProps {
   title: string
@@ -412,8 +412,7 @@ export function AuthFormContainer({ title, subtitle, children }: AuthFormContain
           <Link to="/" className="pointer-events-auto group flex items-center gap-3">
             <div className="relative flex h-10 w-10 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.06] backdrop-blur-xl shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
               <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-white/12 to-transparent" />
-              <Home size={16} className="relative text-white" />
-              <div className="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.9)] animate-pulse" />
+              <img src="/CRM_Square_Immo_App_Image_512.png" alt="CRM Square Immo" className="relative h-7 w-7 rounded-xl object-cover" />
             </div>
             <div>
               <p className="text-[13px] font-extrabold tracking-tight text-white">CRM SQUARE IMMO</p>
@@ -422,9 +421,7 @@ export function AuthFormContainer({ title, subtitle, children }: AuthFormContain
           </Link>
           <div className="hidden items-center gap-2 sm:flex">
             <div className="rounded-full border border-white/10 bg-white/[0.06] px-3.5 py-2 text-[11px] font-semibold tracking-wide text-white/70 backdrop-blur-xl">
-              <span className="inline-flex items-center gap-1.5">
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.9)] animate-pulse" /> Accès sécurisé
-              </span>
+              <span className="inline-flex items-center gap-1.5">Accès sécurisé</span>
             </div>
             <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/[0.06] backdrop-blur-xl">
               <Shield size={14} className="text-white/80" />
@@ -466,7 +463,6 @@ export function AuthFormContainer({ title, subtitle, children }: AuthFormContain
                   <span className="text-[11px] font-bold uppercase tracking-[0.16em] text-white/75">
                     {isAdmin ? 'Espace Administration' : 'Portail Agent Premium'}
                   </span>
-                  <span className="ml-1 hidden h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.9)] sm:block animate-pulse" />
                 </div>
 
                 <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, ease: EASE, delay: 0.22 }}>
@@ -486,15 +482,6 @@ export function AuthFormContainer({ title, subtitle, children }: AuthFormContain
 
                 <div className="auth-form-stage">{children}</div>
 
-                <div className="mt-6 flex items-center justify-between border-t border-white/8 pt-4">
-                  <div className="flex items-center gap-2 text-[11px] text-white/40">
-                    <Layers size={12} />
-                    <span>AES-256 · 2FA · RGPD</span>
-                  </div>
-                  <div className="hidden items-center gap-1.5 text-[11px] text-white/40 sm:flex">
-                    <Zap size={12} className="text-white/50" /> Temps réel
-                  </div>
-                </div>
               </div>
             </div>
             <motion.div

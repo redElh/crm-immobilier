@@ -11,7 +11,7 @@ import { PhoneInput } from '../../../../components/ui/PhoneInput';
 import { fetchClients } from '../../../../services/clientService';
 import { fetchContactById } from '../../../../services/contactService';
 import { useStageChrome } from '../../../../components/modules/calendar/useStageChrome';
-import { SectionCard, Field, FieldGrid } from './stage';
+import { SectionCard, Field, FieldGrid, useFormTheme, alphaHex } from './stage';
 import { StageBadge } from '../../../dashboard/Stage';
 import { cn } from '../../../../lib/utils';
 
@@ -32,6 +32,7 @@ const CLIENT_TYPE_LABEL: Record<string, string> = {
 
 export function OwnerTab({ control, register, watch, setValue, transactionType, isGerant = false }: OwnerTabProps) {
   const { staged, dark } = useStageChrome();
+  const { hue: formHue } = useFormTheme();
   // Stage glass (violet / teal) only when inside the stage shell; otherwise fall back to
   // the neutral card palette which adapts via CSS variables ( --card / --text / --border )
   // for admin/gerant dark modes ( html.dark + .admin-theme ). Using a global dark flag
@@ -126,7 +127,11 @@ export function OwnerTab({ control, register, watch, setValue, transactionType, 
         subtitle={`Transaction : ${transactionType === 'vente' ? 'Vente' : 'Location'} → Le propriétaire deviendra un ${clientType}`}
         badge={
           staged ? (
-            <StageBadge variant={clientType === 'Bailleur' ? 'ok' : 'violet'}>{clientType}</StageBadge>
+            <StageBadge
+              style={{ color: formHue.line, backgroundColor: alphaHex(formHue.line, 0.12), borderColor: alphaHex(formHue.line, 0.30) }}
+            >
+              {clientType}
+            </StageBadge>
           ) : (
             <span className={`inline-flex items-center px-2 py-0.5 text-[10px] font-semibold rounded-full uppercase tracking-wider ${isGerant ? 'bg-[#905D5D]/10 text-[#905D5D]' : 'bg-accent/10 text-accent'}`}>
               {clientType}
@@ -145,7 +150,7 @@ export function OwnerTab({ control, register, watch, setValue, transactionType, 
                   size={15}
                   className={cn(
                     'absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none',
-                    isDark ? 'text-violet-300/80' : staged ? 'text-teal-700/70' : 'text-text-secondary'
+                    isDark ? 'text-[color:var(--pf-line)]' : staged ? 'text-slate-400' : 'text-text-secondary'
                   )}
                 />
                 <input
@@ -154,9 +159,9 @@ export function OwnerTab({ control, register, watch, setValue, transactionType, 
                   className={cn(
                     'w-full h-9 pl-9 pr-10 text-sm rounded-xl border outline-none transition-all placeholder:text-sm shadow-sm',
                     isDark
-                      ? 'border-white/15 bg-gradient-to-b from-white/[0.12] to-white/[0.05] [background-color:transparent] text-white placeholder:text-slate-400 shadow-[inset_0_1px_0_rgba(255,255,255,0.14),0_8px_22px_-8px_rgba(0,0,0,0.6)] focus:border-violet-400/60 focus:shadow-[0_0_0_3px_rgba(124,92,255,0.30),0_10px_28px_-8px_rgba(124,92,255,0.45)]'
+                      ? 'border-white/15 bg-gradient-to-b from-white/[0.12] to-white/[0.05] [background-color:transparent] text-white placeholder:text-slate-400 shadow-[inset_0_1px_0_rgba(255,255,255,0.14),0_8px_22px_-8px_rgba(0,0,0,0.6)] focus:border-[color:var(--pf-line)] focus:shadow-[0_0_0_3px_var(--pf-ring),0_10px_28px_-8px_var(--pf-glow)]'
                       : staged
-                        ? 'border-teal-900/15 bg-gradient-to-b from-white to-teal-50/70 text-teal-950 placeholder:text-teal-900/40 shadow-[inset_0_1px_0_rgba(255,255,255,1),0_6px_18px_-10px_rgba(13,148,136,0.22)] focus:border-teal-500/50 focus:shadow-[0_0_0_3px_rgba(20,184,166,0.22),0_10px_28px_-10px_rgba(13,148,136,0.35)]'
+                        ? 'border-slate-900/20 bg-gradient-to-b from-white to-[color:var(--pf-soft)] text-slate-900 placeholder:text-slate-400 shadow-[inset_0_1px_0_rgba(255,255,255,1),0_4px_16px_-8px_rgba(41,37,36,0.16)] focus:border-[color:var(--pf-line)] focus:shadow-[0_0_0_3px_var(--pf-ring),0_10px_28px_-10px_var(--pf-glow)]'
                         : 'border-border bg-card text-text placeholder:text-text-secondary/50 focus:border-accent focus:ring-2 focus:ring-accent/15 dark:border-border dark:bg-card dark:text-text dark:placeholder:text-text-secondary/50 dark:focus:border-accent dark:focus:ring-accent/20',
                     isGerant && !staged ? 'focus:border-[#905D5D] focus:ring-[#905D5D]/20' : ''
                   )}
@@ -168,7 +173,7 @@ export function OwnerTab({ control, register, watch, setValue, transactionType, 
                 />
                 {searching && (
                   <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                    <div className={cn('w-3.5 h-3.5 border-2 border-t-transparent rounded-full animate-spin', isDark ? 'border-violet-400' : staged ? 'border-teal-600' : isGerant ? 'border-[#905D5D]' : 'border-accent')} />
+                    <div className={cn('w-3.5 h-3.5 border-2 border-t-transparent rounded-full animate-spin', isDark ? 'border-[color:var(--pf-line)]' : staged ? 'border-[color:var(--pf-line)]' : isGerant ? 'border-[#905D5D]' : 'border-accent')} />
                   </div>
                 )}
                 {searchResults.length > 0 && (
@@ -176,9 +181,9 @@ export function OwnerTab({ control, register, watch, setValue, transactionType, 
                     className={cn(
                       'absolute left-0 right-0 top-full mt-1 z-20 max-h-52 overflow-y-auto scrollbar-thin rounded-2xl border py-1',
                       isDark
-                        ? 'border-violet-500/20 bg-[#0F0A1E] shadow-[0_24px_60px_-20px_rgba(124,92,255,0.35),inset_0_1px_0_rgba(255,255,255,0.08)]'
+                        ? 'border-[color:var(--pf-soft-2)] bg-[#0F0A1E] shadow-[0_24px_60px_-20px_var(--pf-glow),inset_0_1px_0_rgba(255,255,255,0.08)]'
                         : staged
-                          ? 'border-white/70 bg-white/92 backdrop-blur-xl shadow-[0_24px_60px_-28px_rgba(13,148,136,0.35),inset_0_1px_0_rgba(255,255,255,0.9)]'
+                          ? 'border-white/70 bg-white/92 backdrop-blur-xl shadow-[0_24px_60px_-28px_var(--pf-glow),inset_0_1px_0_rgba(255,255,255,0.9)]'
                           : 'bg-card border-border/50 shadow-dropdown rounded-xl dark:bg-card dark:border-border/50'
                     )}
                   >
@@ -191,7 +196,7 @@ export function OwnerTab({ control, register, watch, setValue, transactionType, 
                           isDark
                             ? 'hover:bg-white/[0.06] text-slate-200'
                             : staged
-                              ? 'hover:bg-teal-900/[0.04] text-teal-900'
+                              ? 'hover:bg-slate-900/[0.04] text-slate-900'
                               : 'hover:bg-background/50 text-text dark:hover:bg-background/50 dark:text-text'
                         )}
                         onClick={() => handleSelectClient(c)}
@@ -200,9 +205,9 @@ export function OwnerTab({ control, register, watch, setValue, transactionType, 
                           className={cn(
                             'w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-bold shrink-0',
                             isDark
-                              ? 'bg-gradient-to-br from-[#8B7CFF] to-[#5646C9] text-white shadow-[0_0_10px_rgba(124,92,255,0.5)]'
+                              ? 'bg-gradient-to-br from-[color:var(--pf-a)] to-[color:var(--pf-b)] text-white shadow-[0_0_10px_var(--pf-glow)]'
                               : staged
-                                ? 'bg-teal-500/12 text-teal-700 border border-teal-500/15'
+                                ? 'bg-[color:var(--pf-soft)] text-[color:var(--pf-line)] border border-[color:var(--pf-soft-2)]'
                                 : isGerant
                                   ? 'bg-[#905D5D]/15 text-[#905D5D]'
                                   : 'bg-accent-light text-accent'
@@ -212,7 +217,7 @@ export function OwnerTab({ control, register, watch, setValue, transactionType, 
                         </div>
                         <div className="min-w-0 flex-1">
                           <p className={cn('text-sm font-medium truncate', isDark ? 'text-white' : staged ? 'text-slate-900' : 'text-text')}>{c.firstName} {c.lastName}</p>
-                          <p className={cn('text-[11px] truncate', isDark ? 'text-slate-400' : staged ? 'text-teal-900/45' : 'text-text-secondary/60')}>{c.email || c.phone}</p>
+                          <p className={cn('text-[11px] truncate', isDark ? 'text-slate-400' : staged ? 'text-slate-400' : 'text-text-secondary/60')}>{c.email || c.phone}</p>
                         </div>
                       </button>
                     ))}
@@ -259,7 +264,7 @@ export function OwnerTab({ control, register, watch, setValue, transactionType, 
         {!selectedClient && ownerType !== 'societe' && (
           <div className="relative py-1">
             <div className="absolute inset-0 flex items-center">
-              <div className={cn('w-full border-t', staged ? (dark ? 'border-white/10' : 'border-teal-900/10') : 'border-border/30')} />
+              <div className={cn('w-full border-t', staged ? (dark ? 'border-white/10' : 'border-slate-900/10') : 'border-border/30')} />
             </div>
             <div className="relative flex justify-center">
               <span
@@ -268,7 +273,7 @@ export function OwnerTab({ control, register, watch, setValue, transactionType, 
                   staged
                     ? dark
                       ? 'bg-[#0F0A1E] border-white/10 text-slate-400'
-                      : 'bg-white border-teal-900/10 text-teal-900/45'
+                      : 'bg-white border-slate-900/10 text-slate-400'
                     : 'bg-card text-text-secondary/50 border-transparent'
                 )}
               >

@@ -52,5 +52,5 @@ export function formatInactiveDuration(lastSeen?: string): string {
 export function presenceLabel(presence?: PresenceStatus, lastSeen?: string): { label: string; dot: string; text: string } {
   if (presence === 'online') return { label: 'En ligne', dot: 'bg-emerald-500', text: 'text-emerald-600' }
   if (presence === 'away') return { label: `Inactif (Pas connecté depuis ${formatInactiveDuration(lastSeen)})`, dot: 'bg-amber-400', text: 'text-amber-600' }
-  return { label: '⚪ Hors ligne (Déconnecté)', dot: 'bg-text-secondary/40', text: 'text-text-secondary' }
+  return { label: 'Hors ligne (Déconnecté)', dot: 'bg-text-secondary/40', text: 'text-text-secondary' }
 }

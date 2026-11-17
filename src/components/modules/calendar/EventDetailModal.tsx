@@ -3,6 +3,7 @@ import { Edit3, Trash2, Phone, Mail, MapPin, Key, Calendar, User } from 'react-f
 import {
   CalendarEvent, getEventTypeConfig, Agent, AGENTS, getEventUserColor, withAlpha, getAgentColor, getInitials, formatFrenchDate, formatTime,
 } from '../../../types/calendar'
+import { useStageScope } from '../../dashboard/Stage'
 import StageModal, { useStageFormClasses, useStageModalButtons } from './StageModal'
 
 interface EventDetailModalProps {
@@ -21,6 +22,7 @@ function InfoTile({
   children,
   staged,
   dark,
+  isAdmin,
 }: {
   icon: React.ComponentType<{ size?: number | string; className?: string; style?: React.CSSProperties }>
   tint: string
@@ -28,6 +30,7 @@ function InfoTile({
   children: React.ReactNode
   staged: boolean
   dark: boolean
+  isAdmin: boolean
 }) {
   return (
     <div
@@ -35,7 +38,9 @@ function InfoTile({
         staged
           ? dark
             ? 'border-white/[0.07] bg-white/[0.03]'
-            : 'border-teal-900/[0.08] bg-white/60'
+            : isAdmin
+              ? 'border-orange-900/[0.08] bg-white/60'
+              : 'border-teal-900/[0.08] bg-white/60'
           : 'border-border/70 bg-background'
       }`}
     >
@@ -50,7 +55,7 @@ function InfoTile({
         <Icon size={13} style={{ color: tint }} />
       </span>
       <div className="min-w-0 flex-1">
-        <p className={`text-[9px] font-bold uppercase tracking-[0.18em] ${staged ? (dark ? 'text-slate-500' : 'text-teal-900/40') : 'text-text-secondary/80'}`}>
+        <p className={`text-[9px] font-bold uppercase tracking-[0.18em] ${staged ? (dark ? 'text-slate-500' : isAdmin ? 'text-orange-900/40' : 'text-teal-900/40') : 'text-text-secondary/80'}`}>
           {label}
         </p>
         <div className="mt-0.5">{children}</div>
@@ -60,8 +65,9 @@ function InfoTile({
 }
 
 export default function EventDetailModal({ event, agents, onClose, onEdit, onDelete, canWrite = true }: EventDetailModalProps) {
-  const { staged, dark } = useStageFormClasses()
+  const { staged, dark, accent } = useStageFormClasses()
   const btns = useStageModalButtons()
+  const isAdmin = useStageScope() === 'admin'
   if (!event) return null
 
   const cfg = getEventTypeConfig(event.type)
@@ -69,10 +75,11 @@ export default function EventDetailModal({ event, agents, onClose, onEdit, onDel
   const catalog = agents && agents.length > 0 ? agents : AGENTS
   const chipColor = (name: string) => catalog.find(a => a.name.replace(/\s+/g, ' ').trim() === name.replace(/\s+/g, ' ').trim())?.color || getAgentColor(name)
 
-  const bodyText = staged ? (dark ? 'text-sm text-slate-200' : 'text-sm text-teal-950/85') : 'text-sm text-text'
-  const subText = staged ? (dark ? 'text-xs text-slate-400' : 'text-xs text-teal-900/55') : 'text-xs text-text-secondary'
-  /* Resolves to '' for admin mode so token classes below stay authoritative */
-  const tone = (darkCls: string, lightCls: string) => (staged ? (dark ? darkCls : lightCls) : '')
+  const bodyText = staged ? (dark ? 'text-sm text-slate-200' : isAdmin ? 'text-sm text-orange-950/85' : 'text-sm text-teal-950/85') : 'text-sm text-text'
+  const subText = staged ? (dark ? 'text-xs text-slate-400' : isAdmin ? 'text-xs text-orange-900/55' : 'text-xs text-teal-900/55') : 'text-xs text-text-secondary'
+  /* Resolves to '' for classic mode so token classes below stay authoritative */
+  const tone = (darkCls: string, lightCls: string, adminLightCls?: string) =>
+    staged ? (dark ? darkCls : isAdmin ? (adminLightCls ?? lightCls) : lightCls) : ''
 
   return (
     <StageModal
@@ -81,8 +88,10 @@ export default function EventDetailModal({ event, agents, onClose, onEdit, onDel
       eyebrow="Détail de l'événement"
       title={event.title}
       icon={cfg.icon}
-      accent={color}
+      hue={staged ? accent : undefined}
+      accent={staged ? (dark ? accent.a : accent.b) : color}
       maxWidth="max-w-lg"
+      centered
       badge={
         <span
           className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold"
@@ -114,7 +123,7 @@ export default function EventDetailModal({ event, agents, onClose, onEdit, onDel
             </button>
           </>
         ) : (
-          <div className={`w-full text-center text-xs py-1 ${tone('text-slate-500', 'text-teal-900/50') || 'text-text-secondary'}`}>
+          <div className={`w-full text-center text-xs py-1 ${tone('text-slate-500', 'text-teal-900/50', 'text-orange-900/50') || 'text-text-secondary'}`}>
             Lecture seule — vous ne pouvez pas modifier cet événement.
           </div>
         )
@@ -139,7 +148,7 @@ export default function EventDetailModal({ event, agents, onClose, onEdit, onDel
             <p className="font-mono text-lg font-extrabold leading-tight" style={{ color }}>
               {formatTime(event.start)}
             </p>
-            <p className={`text-[10px] ${tone('text-slate-400', 'text-teal-900/55') || 'text-text-secondary'}`}>
+            <p className={`text-[10px] ${tone('text-slate-400', 'text-teal-900/55', 'text-orange-900/55') || 'text-text-secondary'}`}>
               {formatFrenchDate(event.start)}
             </p>
           </div>
@@ -149,13 +158,13 @@ export default function EventDetailModal({ event, agents, onClose, onEdit, onDel
             <span className="h-1 w-1 rounded-full" style={{ backgroundColor: color }} />
           </div>
           <div className="text-center">
-            <p className={`font-mono text-[9px] font-bold uppercase tracking-[0.18em] ${tone('text-slate-500', 'text-teal-900/40') || 'text-text-secondary'}`}>
+            <p className={`font-mono text-[9px] font-bold uppercase tracking-[0.18em] ${tone('text-slate-500', 'text-teal-900/40', 'text-orange-900/40') || 'text-text-secondary'}`}>
               Fin
             </p>
-            <p className={`font-mono text-lg font-extrabold leading-tight ${staged ? (dark ? 'text-slate-100' : 'text-teal-950') : 'text-text'}`}>
+            <p className={`font-mono text-lg font-extrabold leading-tight ${staged ? (dark ? 'text-slate-100' : isAdmin ? 'text-orange-950' : 'text-teal-950') : 'text-text'}`}>
               {formatTime(event.end)}
             </p>
-            <p className={`text-[10px] ${tone('text-slate-400', 'text-teal-900/55') || 'text-text-secondary'}`}>
+            <p className={`text-[10px] ${tone('text-slate-400', 'text-teal-900/55', 'text-orange-900/55') || 'text-text-secondary'}`}>
               {formatFrenchDate(event.end)}
             </p>
           </div>
@@ -164,7 +173,7 @@ export default function EventDetailModal({ event, agents, onClose, onEdit, onDel
 
       {/* Author */}
       {event.createdBy && (
-        <InfoTile icon={User} tint="#38BDF8" label="Auteur d'événement" staged={staged} dark={dark}>
+        <InfoTile icon={User} tint="#38BDF8" label="Auteur d'événement" staged={staged} dark={dark} isAdmin={isAdmin}>
           <span
             className="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-semibold text-white"
             style={{ backgroundColor: chipColor(event.createdBy), boxShadow: `0 0 12px -4px ${chipColor(event.createdBy)}` }}
@@ -176,7 +185,7 @@ export default function EventDetailModal({ event, agents, onClose, onEdit, onDel
 
       {/* Client */}
       {event.clientName && (
-        <InfoTile icon={User} tint="#34D399" label="Client" staged={staged} dark={dark}>
+        <InfoTile icon={User} tint="#34D399" label="Client" staged={staged} dark={dark} isAdmin={isAdmin}>
           <p className={bodyText}>{event.clientName}</p>
           {event.clientPhone && (
             <p className={`${subText} mt-0.5 flex items-center gap-1`}>
@@ -193,7 +202,7 @@ export default function EventDetailModal({ event, agents, onClose, onEdit, onDel
 
       {/* Property */}
       {event.propertyName && (
-        <InfoTile icon={MapPin} tint="#FBBF24" label="Bien" staged={staged} dark={dark}>
+        <InfoTile icon={MapPin} tint="#FBBF24" label="Bien" staged={staged} dark={dark} isAdmin={isAdmin}>
           <p className={bodyText}>{event.propertyName}</p>
           {event.propertyRef && <p className={subText}>Réf {event.propertyRef}</p>}
         </InfoTile>
@@ -201,21 +210,21 @@ export default function EventDetailModal({ event, agents, onClose, onEdit, onDel
 
       {/* Location */}
       {event.location && (
-        <InfoTile icon={MapPin} tint="#E879F9" label="Adresse" staged={staged} dark={dark}>
+        <InfoTile icon={MapPin} tint="#E879F9" label="Adresse" staged={staged} dark={dark} isAdmin={isAdmin}>
           <p className={bodyText}>{event.location}</p>
         </InfoTile>
       )}
 
       {/* Keys */}
       {event.keysInfo && (
-        <InfoTile icon={Key} tint="#8B7CFF" label="Clés" staged={staged} dark={dark}>
+        <InfoTile icon={Key} tint="#8B7CFF" label="Clés" staged={staged} dark={dark} isAdmin={isAdmin}>
           <p className={bodyText}>{event.keysInfo}</p>
         </InfoTile>
       )}
 
       {/* Description */}
       {event.description && (
-        <InfoTile icon={Calendar} tint="#94A3B8" label="Description" staged={staged} dark={dark}>
+        <InfoTile icon={Calendar} tint="#94A3B8" label="Description" staged={staged} dark={dark} isAdmin={isAdmin}>
           <p className={`${subText} leading-relaxed`}>{event.description}</p>
         </InfoTile>
       )}
@@ -231,7 +240,9 @@ export default function EventDetailModal({ event, agents, onClose, onEdit, onDel
                   ? 'bg-emerald-500/15 text-emerald-400 shadow-[inset_0_0_0_1px_rgba(52,211,153,0.35)]'
                   : staged && dark
                     ? 'bg-white/[0.05] text-slate-400 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.09)]'
-                    : 'bg-background text-text-secondary border border-border'
+                    : staged && isAdmin
+                      ? 'border border-orange-900/10 bg-white/60 text-orange-900/55'
+                      : 'bg-background text-text-secondary border border-border'
               }`}
             >
               {r.label} {r.sent ? '(envoyé)' : ''}
@@ -241,7 +252,7 @@ export default function EventDetailModal({ event, agents, onClose, onEdit, onDel
       )}
 
       {/* History footer line */}
-      <p className={`pt-1 text-[11px] ${tone('text-slate-600', 'text-teal-900/45') || 'text-text-secondary/60'}`}>
+      <p className={`pt-1 text-[11px] ${tone('text-slate-600', 'text-teal-900/45', 'text-orange-900/45') || 'text-text-secondary/60'}`}>
         Créé par {event.createdBy || '—'} le {formatFrenchDate(event.createdAt)}
         {event.googleSync && ' · Google Agenda synchronisé'}
       </p>

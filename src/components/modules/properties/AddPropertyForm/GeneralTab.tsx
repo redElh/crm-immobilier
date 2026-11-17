@@ -10,7 +10,7 @@ import { ConstructionTypeSelect, ConstructionSubTypeSelect, hasConstructionSubTy
 import { Controller } from 'react-hook-form';
 import { MapPin, Info, Key, Wifi, Camera, Image, Grid, Shield } from 'react-feather';
 import { useStageChrome } from '../../../../components/modules/calendar/useStageChrome';
-import { SectionCard, SubPanel, Field, FieldGrid, MediaDrop } from './stage';
+import { SectionCard, SubPanel, Field, FieldGrid, MediaDrop, useFormTheme } from './stage';
 import { STAGE_HUES } from '../../../dashboard/Stage';
 import { RadioGroup } from '../../../../components/ui/RadioGroup/RadioGroup';
 import { RadioGroupItem } from '../../../../components/ui/RadioGroup/RadioGroupItem';
@@ -29,6 +29,7 @@ interface GeneralTabProps {
 
 export function GeneralTab({ register, control, watch, propertyType, setFormValue, isGerant = false }: GeneralTabProps) {
   const { staged, dark } = useStageChrome();
+  const { isAdmin, inkFaint, line } = useFormTheme();
   const isResidential = propertyType === 'residential';
   const isCommercial = propertyType === 'commercial';
   const isLand = propertyType === 'land';
@@ -173,13 +174,13 @@ export function GeneralTab({ register, control, watch, propertyType, setFormValu
   const stagedBtn = staged
     ? dark
       ? 'inline-flex items-center gap-2 h-8 px-3 rounded-xl text-xs font-semibold border border-white/12 bg-[linear-gradient(180deg,rgba(255,255,255,0.09),rgba(255,255,255,0.03))] text-slate-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.10)] hover:bg-white/10 hover:text-white transition-all duration-200 active:scale-[0.98] disabled:opacity-40'
-      : 'inline-flex items-center gap-2 h-8 px-3 rounded-xl text-xs font-semibold border border-teal-900/12 bg-[linear-gradient(180deg,rgba(255,255,255,0.92),rgba(255,255,255,0.55))] text-teal-800 shadow-[inset_0_1px_0_rgba(255,255,255,0.9)] hover:border-teal-900/20 hover:bg-white transition-all duration-200 active:scale-[0.98] disabled:opacity-40'
+      : isAdmin
+        ? 'inline-flex items-center gap-2 h-8 px-3 rounded-xl text-xs font-semibold border border-slate-900/12 bg-[linear-gradient(180deg,rgba(255,255,255,0.92),rgba(255,255,255,0.55))] text-slate-700 shadow-[inset_0_1px_0_rgba(255,255,255,0.9)] hover:border-slate-900/20 hover:bg-white transition-all duration-200 active:scale-[0.98] disabled:opacity-40'
+        : 'inline-flex items-center gap-2 h-8 px-3 rounded-xl text-xs font-semibold border border-teal-900/12 bg-[linear-gradient(180deg,rgba(255,255,255,0.92),rgba(255,255,255,0.55))] text-teal-800 shadow-[inset_0_1px_0_rgba(255,255,255,0.9)] hover:border-teal-900/20 hover:bg-white transition-all duration-200 active:scale-[0.98] disabled:opacity-40'
     : 'inline-flex items-center gap-2 h-8 px-3 rounded-xl text-xs font-semibold border border-border bg-card text-text hover:bg-background hover:border-text-secondary/30 transition-all duration-200 active:scale-[0.98] disabled:opacity-40';
 
   const stagedPrimaryBtn = staged
-    ? dark
-      ? 'inline-flex items-center gap-2 h-8 px-3 rounded-xl text-xs font-semibold border border-white/20 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.45),0_8px_20px_-6px_rgba(124,92,255,0.55)] hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.55),0_10px_28px_-6px_rgba(124,92,255,0.65)] transition-all active:scale-[0.97]'
-      : 'inline-flex items-center gap-2 h-8 px-3 rounded-xl text-xs font-semibold border border-white/60 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.5),0_8px_20px_-8px_rgba(13,148,136,0.55)] hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.6),0_10px_28px_-8px_rgba(13,148,136,0.65)] transition-all active:scale-[0.97]'
+    ? 'inline-flex items-center gap-2 h-8 px-3 rounded-xl text-xs font-semibold border border-white/25 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.5),0_8px_20px_-6px_var(--pf-glow)] hover:shadow-[inset_0_1px_0_rgba(255,255,255,0.6),0_10px_28px_-6px_var(--pf-glow)] transition-all active:scale-[0.97]'
     : 'inline-flex items-center gap-2 h-8 px-3 rounded-xl text-xs font-semibold bg-accent text-white hover:bg-accent-hover transition-all active:scale-[0.98]';
 
   // media counts for header badges (optional)
@@ -190,7 +191,9 @@ export function GeneralTab({ register, control, watch, propertyType, setFormValu
         staged
           ? dark
             ? 'border-white/15 bg-white/10 text-slate-200'
-            : 'border-teal-900/15 bg-teal-900/8 text-teal-800'
+            : isAdmin
+              ? 'border-slate-900/15 bg-slate-900/8 text-slate-700'
+              : 'border-teal-900/15 bg-teal-900/8 text-teal-800'
           : 'border-accent/20 bg-accent/10 text-accent',
       )}
     >
@@ -331,7 +334,7 @@ export function GeneralTab({ register, control, watch, propertyType, setFormValu
                         key={`${url}-${i}`}
                         className={cn(
                           'group relative aspect-square overflow-hidden rounded-xl border',
-                          staged ? (dark ? 'border-white/10 bg-white/[0.03]' : 'border-teal-900/10 bg-white') : 'border-border/50 bg-card',
+                          staged ? cn(line, dark ? 'bg-white/[0.03]' : 'bg-white') : 'border-border/50 bg-card',
                         )}
                       >
                         <img src={url} alt={`Photo ${i + 1}`} className="h-full w-full object-cover" />
@@ -347,7 +350,7 @@ export function GeneralTab({ register, control, watch, propertyType, setFormValu
                     ))}
                   </div>
                 ) : (
-                  <p className={cn('mt-2 text-xs', staged ? (dark ? 'text-slate-500' : 'text-teal-900/40') : 'text-text-secondary/60')}>
+                  <p className={cn('mt-2 text-xs', staged ? inkFaint : 'text-text-secondary/60')}>
                     Glissez-déposez ou cliquez pour téléverser. Les visuels s'afficheront ici.
                   </p>
                 )}
@@ -366,10 +369,10 @@ export function GeneralTab({ register, control, watch, propertyType, setFormValu
                         key={`${url}-${i}`}
                         className={cn(
                           'group relative flex aspect-square items-center justify-center overflow-hidden rounded-xl border',
-                          staged ? (dark ? 'border-white/10 bg-white/[0.03]' : 'border-teal-900/10 bg-white') : 'border-border/50 bg-black/5',
+                          staged ? cn(line, dark ? 'bg-white/[0.03]' : 'bg-white') : 'border-border/50 bg-black/5',
                         )}
                       >
-                        <Camera size={22} className={staged ? (dark ? 'text-slate-600' : 'text-teal-900/20') : 'text-text-secondary/40'} />
+                        <Camera size={22} className={staged ? (dark ? 'text-slate-600' : isAdmin ? 'text-slate-300' : 'text-teal-900/20') : 'text-text-secondary/40'} />
                         <button
                           type="button"
                           onClick={() => removeVideo(i)}
@@ -382,7 +385,7 @@ export function GeneralTab({ register, control, watch, propertyType, setFormValu
                     ))}
                   </div>
                 ) : (
-                  <p className={cn('mt-2 text-xs', staged ? (dark ? 'text-slate-500' : 'text-teal-900/40') : 'text-text-secondary/60')}>
+                  <p className={cn('mt-2 text-xs', staged ? inkFaint : 'text-text-secondary/60')}>
                     Ajoutez une visite filmée ou un teaser. Aperçu à venir.
                   </p>
                 )}
@@ -513,7 +516,7 @@ export function GeneralTab({ register, control, watch, propertyType, setFormValu
             <div
               className={cn(
                 'overflow-hidden rounded-2xl border',
-                staged ? (dark ? 'border-white/10 bg-white/[0.02]' : 'border-teal-900/10 bg-white/60') : 'border-border/40 bg-card',
+                staged ? cn(line, dark ? 'bg-white/[0.02]' : 'bg-white/60') : 'border-border/40 bg-card',
               )}
             >
               <div className="p-[1px]">
@@ -537,7 +540,7 @@ export function GeneralTab({ register, control, watch, propertyType, setFormValu
                 />
               </div>
             </div>
-            <p className={cn('mt-2 text-xs', staged ? (dark ? 'text-slate-500' : 'text-teal-900/45') : 'text-text-secondary')}>
+              <p className={cn('mt-2 text-xs', staged ? inkFaint : 'text-text-secondary')}>
               Cliquez sur la carte pour positionner précisément le bien.
             </p>
           </Field>
@@ -641,10 +644,10 @@ export function GeneralTab({ register, control, watch, propertyType, setFormValu
             <Field className="md:col-span-2">
               <SubPanel>
                 <div className="flex flex-wrap items-center justify-between gap-3">
-                  <p className={cn('text-xs leading-relaxed', staged ? (dark ? 'text-slate-400' : 'text-teal-900/60') : 'text-text-secondary')}>
+                  <p className={cn('text-xs leading-relaxed', staged ? (dark ? 'text-slate-400' : isAdmin ? 'text-slate-500' : 'text-teal-900/60') : 'text-text-secondary')}>
                     Générez un QR code WiFi à afficher dans le livret d'accueil.
                   </p>
-                  <button type="button" className={stagedPrimaryBtn} style={staged ? (dark ? { backgroundImage: 'linear-gradient(145deg,#8B7CFF 0%,#6C5ECF 55%,#5646C9 100%)' } as any : { backgroundImage: 'linear-gradient(145deg,#2DD4BF 0%,#14B8A6 55%,#0D9488 100%)' } as any) : undefined}>
+                  <button type="button" className={stagedPrimaryBtn} style={staged ? { backgroundImage: 'linear-gradient(145deg, var(--pf-a) 0%, var(--pf-b) 100%)' } as any : undefined}>
                     <Grid size={14} />
                     Générer QR code
                   </button>

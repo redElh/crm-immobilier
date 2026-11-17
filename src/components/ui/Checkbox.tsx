@@ -1,6 +1,7 @@
 import { forwardRef } from 'react';
 import { Check } from 'react-feather';
 import { useStageChrome } from '../modules/calendar/useStageChrome';
+import { useStageScope } from '../dashboard/Stage';
 import { cn } from '../../lib/utils';
 
 interface CheckboxProps extends Omit<React.InputHTMLAttributes<HTMLInputElement>, 'onChange'> {
@@ -12,6 +13,7 @@ interface CheckboxProps extends Omit<React.InputHTMLAttributes<HTMLInputElement>
 export const Checkbox = forwardRef<HTMLInputElement, CheckboxProps>(
   ({ label, error, className = '', onChange, ...props }, ref) => {
     const { staged, dark } = useStageChrome();
+    const isAdmin = useStageScope() === 'admin';
     const checked = Boolean(props.checked);
     const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
       onChange?.(e.target.checked, e);
@@ -27,23 +29,31 @@ export const Checkbox = forwardRef<HTMLInputElement, CheckboxProps>(
               className={cn(
                 'flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-md border transition-all duration-200',
                 checked
-                  ? 'border-violet-400/60 bg-gradient-to-br from-[#8B7CFF] to-[#5646C9] shadow-[0_0_12px_-2px_rgba(124,92,255,0.8)]'
+                  ? dark
+                    ? 'border-violet-400/60 bg-gradient-to-br from-[#8B7CFF] to-[#5646C9] shadow-[0_0_12px_-2px_rgba(124,92,255,0.8)]'
+                    : isAdmin
+                      ? 'border-orange-500/60 bg-gradient-to-br from-[#FDBA74] to-[#C2410C] shadow-[0_0_12px_-2px_rgba(249,115,22,0.8)]'
+                      : 'border-teal-500/60 bg-gradient-to-br from-teal-400 to-emerald-600 shadow-[0_0_12px_-2px_rgba(20,184,166,0.8)]'
                   : dark
                     ? 'border-white/15 bg-white/[0.04] group-hover:border-white/25 group-hover:bg-white/[0.08]'
-                    : 'border-teal-900/15 bg-white/70 group-hover:border-teal-900/25 group-hover:bg-white',
+                    : isAdmin
+                      ? 'border-slate-900/15 bg-white/70 group-hover:border-slate-900/28 group-hover:bg-white'
+                      : 'border-teal-900/15 bg-white/70 group-hover:border-teal-900/25 group-hover:bg-white',
               )}
               style={
                 checked
                   ? dark
                     ? { boxShadow: '0 0 14px -2px rgba(124,92,255,0.85), inset 0 1px 0 rgba(255,255,255,0.35)' }
-                    : { background: 'linear-gradient(145deg,#14B8A6,#0D9488)', borderColor: 'rgba(20,184,166,0.55)', boxShadow: '0 0 14px -2px rgba(20,184,166,0.7), inset 0 1px 0 rgba(255,255,255,0.45)' }
+                    : isAdmin
+                      ? { background: 'linear-gradient(145deg,#FDBA74,#C2410C)', borderColor: 'rgba(249,115,22,0.55)', boxShadow: '0 0 14px -2px rgba(249,115,22,0.7), inset 0 1px 0 rgba(255,255,255,0.45)' }
+                      : { background: 'linear-gradient(145deg,#14B8A6,#0D9488)', borderColor: 'rgba(20,184,166,0.55)', boxShadow: '0 0 14px -2px rgba(20,184,166,0.7), inset 0 1px 0 rgba(255,255,255,0.45)' }
                   : undefined
               }
             >
               {checked && <Check size={11} strokeWidth={3.5} className="text-white drop-shadow-sm" />}
             </span>
             {label && (
-              <span className={cn('text-sm leading-tight', dark ? 'text-slate-200 group-hover:text-white' : 'text-teal-950 group-hover:text-teal-900')}>
+              <span className={cn('text-sm leading-tight', dark ? 'text-slate-200 group-hover:text-white' : isAdmin ? 'text-slate-900 group-hover:text-slate-950' : 'text-teal-950 group-hover:text-teal-900')}>
                 {label}
               </span>
             )}

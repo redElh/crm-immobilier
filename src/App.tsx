@@ -8,6 +8,7 @@ import { ThemeProvider } from './contexts/ThemeContext'
 import { AnimatePresence } from 'framer-motion'
 import { Loader } from 'react-feather'
 import { AgentLayout } from './pages/agent/AgentLayout'
+import { CardinalBubble } from './cardinal/CardinalBubble'
 import Dashboard from './pages/Dashboard'
 import ProspectsPage from './pages/prospects/index'
 import ProspectPage from './pages/prospects/[id]'
@@ -431,6 +432,7 @@ export default function App() {
           <NotificationProvider>
             <AutomatorProvider>
               <AppRoutes />
+              <CardinalBubble />
             </AutomatorProvider>
           </NotificationProvider>
         </ToastProvider>

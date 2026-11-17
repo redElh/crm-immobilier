@@ -41,7 +41,7 @@ function buildHeader(title: string, ref: string, date: string) {
         <img src="${brandLogo()}" alt="CRM Immobilier" style="width:38px;height:38px;border-radius:8px;object-fit:cover;border:1px solid #e5e7eb" />
         <div>
           <h1 style="font-size:17px;font-weight:700;margin:0;color:#1a1a2e">CRM IMMOBILIER</h1>
-          <p style="font-size:11px;margin:0;color:#6b7280;letter-spacing:0.1em;text-transform:uppercase">Immobilier — Casablanca</p>
+          <p style="font-size:11px;margin:0;color:#6b7280;letter-spacing:0.1em;text-transform:uppercase">Immobilier â€” Casablanca</p>
         </div>
       </div>
       <div style="margin-top:12px;padding-top:12px;border-top:1px solid #e5e7eb;display:flex;justify-content:space-between;align-items:flex-end">
@@ -69,7 +69,7 @@ function buildHeaderVoyageur(title: string, ref: string, date: string) {
         <div style="text-align:right;font-size:12px;color:#6b7280">
           <div>Reference : <span style="font-family:monospace;font-weight:500;color:#1a1a2e">${ref}</span></div>
           <div>Date : ${date}</div>
-          <div>Version : 1.0 · Page : 1/2</div>
+          <div>Version : 1.0 Â· Page : 1/2</div>
         </div>
       </div>
     </div>`
@@ -126,7 +126,26 @@ function buildLegalMentions() {
     </div>`
 }
 
-function buildPageWrapper(content: string) {
+/** Scroll theme of the staged srcDoc preview: violet glass in the dark
+    cosmic stage, emerald in the light lagoon stage (auto-detected from
+    the page when not explicitly given). */
+export type PdfScrollTheme = 'dark' | 'light'
+
+function activeScrollTheme(theme?: PdfScrollTheme): 'dark' | 'light' {
+  if (theme) return theme
+  try {
+    return typeof document !== 'undefined' && document.querySelector('.stage-light') ? 'light' : 'dark'
+  } catch {
+    return 'dark'
+  }
+}
+
+function buildPageWrapper(content: string, scrollTheme?: PdfScrollTheme) {
+  const light = activeScrollTheme(scrollTheme) === 'light'
+  const base = light ? 'rgba(16,185,129,0.40)' : 'rgba(139,124,255,0.35)'
+  const hover = light ? 'rgba(52,211,153,0.60)' : 'rgba(139,124,255,0.55)'
+  const hoverGlow = light ? 'rgba(52,211,153,0.35)' : 'rgba(139,124,255,0.30)'
+  const active = light ? 'rgba(52,211,153,0.70)' : 'rgba(139,124,255,0.65)'
   return `<!DOCTYPE html>
 <html>
 <head>
@@ -136,6 +155,19 @@ function buildPageWrapper(content: string) {
     body { margin:0; padding:0; font-family:'Segoe UI',system-ui,-apple-system,sans-serif; color:#1a1a2e; background:#fff; }
     @page { margin:15mm; size:A4; }
     @media print { body { -webkit-print-color-adjust:exact; print-color-adjust:exact; } }
+    /* Premium smooth in-app scroll (srcDoc preview inside stage modals) */
+    html { scroll-behavior: smooth; scrollbar-width: thin; scrollbar-color: ${base} transparent; }
+    body { overscroll-behavior: contain; }
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb {
+      border-radius:999px; border:2px solid transparent; background-clip: padding-box;
+      background-color: ${base};
+      background-image: linear-gradient(180deg, rgba(255,255,255,0.30), rgba(255,255,255,0.05) 60%, rgba(255,255,255,0.20));
+      box-shadow: inset 0 0 1px rgba(255,255,255,0.25);
+    }
+    ::-webkit-scrollbar-thumb:hover { background-color: ${hover}; box-shadow: inset 0 0 2px rgba(255,255,255,0.4), 0 0 10px ${hoverGlow}; }
+    ::-webkit-scrollbar-thumb:active { background-color: ${active}; }
   </style>
 </head>
 <body>
@@ -146,7 +178,7 @@ function buildPageWrapper(content: string) {
 </html>`
 }
 
-function generateAcheteurPdf(data: PdfData) {
+function generateAcheteurPdf(data: PdfData, scrollTheme?: PdfScrollTheme) {
   const { transaction: t, client: c, property: p, contract: ctr } = data
   const now = new Date().toLocaleDateString('fr-FR')
   const ref = ctr?.reference || t.reference
@@ -187,10 +219,10 @@ function generateAcheteurPdf(data: PdfData) {
 
   html += buildLegalMentions()
 
-  return buildPageWrapper(html)
+  return buildPageWrapper(html, scrollTheme)
 }
 
-function generateVendeurPdf(data: PdfData) {
+function generateVendeurPdf(data: PdfData, scrollTheme?: PdfScrollTheme) {
   const { transaction: t, client: c, property: p, contract: ctr } = data
   const now = new Date().toLocaleDateString('fr-FR')
   const ref = ctr?.reference || t.reference
@@ -239,10 +271,10 @@ function generateVendeurPdf(data: PdfData) {
 
   html += buildLegalMentions()
 
-  return buildPageWrapper(html)
+  return buildPageWrapper(html, scrollTheme)
 }
 
-function generateBailleurPdf(data: PdfData) {
+function generateBailleurPdf(data: PdfData, scrollTheme?: PdfScrollTheme) {
   const { transaction: t, client: c, property: p, contract: ctr } = data
   const now = new Date().toLocaleDateString('fr-FR')
   const ref = ctr?.reference || t.reference
@@ -293,10 +325,10 @@ function generateBailleurPdf(data: PdfData) {
 
   html += buildLegalMentions()
 
-  return buildPageWrapper(html)
+  return buildPageWrapper(html, scrollTheme)
 }
 
-function generateLocatairePdf(data: PdfData) {
+function generateLocatairePdf(data: PdfData, scrollTheme?: PdfScrollTheme) {
   const { transaction: t, client: c, property: p, contract: ctr } = data
   const now = new Date().toLocaleDateString('fr-FR')
   const ref = ctr?.reference || t.reference
@@ -337,10 +369,10 @@ function generateLocatairePdf(data: PdfData) {
 
   html += buildLegalMentions()
 
-  return buildPageWrapper(html)
+  return buildPageWrapper(html, scrollTheme)
 }
 
-function generateVoyageurPdf(data: PdfData) {
+function generateVoyageurPdf(data: PdfData, scrollTheme?: PdfScrollTheme) {
   const { transaction: t, client: c, property: p, contract: ctr, counterpartClient: cc } = data
   const now = new Date().toLocaleDateString('fr-FR')
   const ref = ctr?.reference || t.reference
@@ -348,11 +380,11 @@ function generateVoyageurPdf(data: PdfData) {
   let html = buildHeaderVoyageur('CONTRAT DE LOCATION SAISONNIERE', ref, now)
 
   // Informations generales
-  let infoContent = '<div style="margin-bottom:12px;font-size:12px;color:#6b7280;font-style:italic">Contrat de location saisonnière</div>'
+  let infoContent = '<div style="margin-bottom:12px;font-size:12px;color:#6b7280;font-style:italic">Contrat de location saisonniÃ¨re</div>'
   infoContent += buildFieldRow('Voyageur', t.clientName)
   infoContent += buildFieldRow('Numero de reservation', c?.numeroReservation || '')
   infoContent += buildFieldRow('Date de reservation', formatDate(c?.dateReservation))
-  infoContent += buildFieldRow('Date d\'arrivee', formatDate(c?.dateArrivee) + (c?.heureArrivee ? ' à partir de ' + c.heureArrivee : ''))
+  infoContent += buildFieldRow('Date d\'arrivee', formatDate(c?.dateArrivee) + (c?.heureArrivee ? ' Ã  partir de ' + c.heureArrivee : ''))
   infoContent += buildFieldRow('Date de depart', formatDate(c?.dateDepart) + (c?.heureDepart ? ' avant ' + c.heureDepart : ''))
   infoContent += buildFieldRow('Nombre de nuits', c?.nbNuits || '')
   const nbVoyageurs = [c?.nbAdultes, c?.nbEnfants ? (c.nbEnfants + ' enfants') : ''].filter(Boolean).join(' + ')
@@ -369,7 +401,7 @@ function generateVoyageurPdf(data: PdfData) {
     p?.rooms ? `Pieces: ${p.rooms}` : '',
     p?.bedrooms ? `Chambres: ${p.bedrooms}` : '',
     p?.sleepingCapacity ? `Couchages: ${p.sleepingCapacity}` : ''
-  ].filter(Boolean).join(' · ')
+  ].filter(Boolean).join(' Â· ')
   if (piecesInfo) bienContent += buildFieldRow('', piecesInfo)
   html += buildSection('Informations du bien', bienContent)
 
@@ -383,7 +415,7 @@ function generateVoyageurPdf(data: PdfData) {
   if (c?.options && Array.isArray(c.options) && c.options.length > 0) {
     finContent += '<div style="padding:6px 0;border-bottom:1px solid #f3f4f6"><span style="width:180px;font-size:12px;color:#6b7280;display:inline-block">Options</span></div>'
     c.options.forEach((opt: any) => {
-      finContent += `<div style="padding:4px 0 4px 180px;font-size:13px;color:#1a1a2e">• ${opt.label || opt.nom}${opt.montant ? ` : ${Number(opt.montant).toLocaleString('fr-FR')} MAD` : ''}</div>`
+      finContent += `<div style="padding:4px 0 4px 180px;font-size:13px;color:#1a1a2e">â€¢ ${opt.label || opt.nom}${opt.montant ? ` : ${Number(opt.montant).toLocaleString('fr-FR')} MAD` : ''}</div>`
     })
   }
 
@@ -413,26 +445,27 @@ function generateVoyageurPdf(data: PdfData) {
 
   html += buildLegalMentions()
 
-  return buildPageWrapper(html)
+  return buildPageWrapper(html, scrollTheme)
 }
 
-export function generateContratHtml(data: PdfData): string {
+export function generateContratHtml(data: PdfData, options?: { scrollTheme?: PdfScrollTheme }): string {
+  const scrollTheme = options?.scrollTheme
   const { transaction: t } = data
   const clientType = t.clientType || ''
 
   switch (clientType) {
     case 'Acheteur':
-      return generateAcheteurPdf(data)
+      return generateAcheteurPdf(data, scrollTheme)
     case 'Vendeur':
-      return generateVendeurPdf(data)
+      return generateVendeurPdf(data, scrollTheme)
     case 'Bailleur':
-      return generateBailleurPdf(data)
+      return generateBailleurPdf(data, scrollTheme)
     case 'Locataire':
-      return generateLocatairePdf(data)
+      return generateLocatairePdf(data, scrollTheme)
     case 'Voyageur':
-      return generateVoyageurPdf(data)
+      return generateVoyageurPdf(data, scrollTheme)
     default:
-      return generateVendeurPdf(data)
+      return generateVendeurPdf(data, scrollTheme)
   }
 }
 

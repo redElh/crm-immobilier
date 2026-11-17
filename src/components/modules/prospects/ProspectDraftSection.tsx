@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { FileText, Clock, Trash2, ArrowRight, X, ShoppingCart, Key, Tag, Compass } from 'react-feather'
 import { getDrafts, deleteDraft, type ProspectDraft } from '../../../services/prospectDraftStorage'
 import { CompletionRing } from '../../ui/CompletionRing'
+import { FLOATING_SLOT_1, FLOATING_PANEL_1, FLOATING_PANEL_MAX_H, FLOATING_PANEL_LIST_H, FLOATING_SLOT_1_SHIFTED, FLOATING_PANEL_1_SHIFTED, FLOATING_PANEL_MAX_H_SHIFTED, FLOATING_PANEL_LIST_H_SHIFTED } from '../../../lib/floating'
 
 const PROSPECT_TYPE_CONFIG: Record<string, { gradient: string; icon: React.ReactNode; label: string }> = {
   Acheter: { gradient: 'from-blue-500/20 to-blue-600/10', icon: <ShoppingCart size={15} />, label: 'Acheter' },
@@ -30,13 +31,20 @@ interface ProspectDraftSectionProps {
   onResume: (draft: ProspectDraft) => void
   draftChange?: number
   onCountChange?: (count: number) => void
+  /** The pocket orb occupies slot 1: stack one slot higher. */
+  shiftUp?: boolean
 }
 
-export function ProspectDraftSection({ userId, onResume, draftChange, onCountChange }: ProspectDraftSectionProps) {
+export function ProspectDraftSection({ userId, onResume, draftChange, onCountChange, shiftUp = false }: ProspectDraftSectionProps) {
   const [drafts, setDrafts] = useState<ProspectDraft[]>([])
   const [open, setOpen] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
   const panelRef = useRef<HTMLDivElement>(null)
+
+  const slot = shiftUp ? FLOATING_SLOT_1_SHIFTED : FLOATING_SLOT_1
+  const panelSlot = shiftUp ? FLOATING_PANEL_1_SHIFTED : FLOATING_PANEL_1
+  const panelMaxH = shiftUp ? FLOATING_PANEL_MAX_H_SHIFTED : FLOATING_PANEL_MAX_H
+  const listMaxH = shiftUp ? FLOATING_PANEL_LIST_H_SHIFTED : FLOATING_PANEL_LIST_H
 
   const loadDrafts = () => {
     if (!userId) { setDrafts([]); return }
@@ -79,7 +87,7 @@ export function ProspectDraftSection({ userId, onResume, draftChange, onCountCha
     <>
       <motion.button
         onClick={() => setOpen(v => !v)}
-        className="fixed bottom-6 right-6 z-[9999] flex items-center gap-2.5 px-4 py-3 rounded-2xl bg-gradient-to-br from-amber-400 to-amber-500 text-white shadow-lg hover:shadow-xl hover:scale-105 transition-shadow"
+        className={`fixed ${slot} right-6 z-[9999] flex items-center gap-2.5 px-4 py-3 rounded-2xl bg-gradient-to-br from-amber-400 to-amber-500 text-white shadow-lg hover:shadow-xl hover:scale-105 transition-shadow`}
         whileTap={{ scale: 0.95 }}
         layoutId="prospect-draft-bubble"
       >
@@ -105,8 +113,8 @@ export function ProspectDraftSection({ userId, onResume, draftChange, onCountCha
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.85, y: 20, transition: { duration: 0.15 } }}
             transition={{ type: 'spring', damping: 22, stiffness: 300, mass: 0.8 }}
-            className="fixed bottom-24 right-6 z-[9999] w-[400px] max-w-[calc(100vw-32px)] bg-card rounded-2xl border border-border/50 shadow-2xl overflow-hidden"
-            style={{ maxHeight: 'calc(100vh - 160px)' }}
+            className={`fixed ${panelSlot} right-6 z-[9999] w-[400px] max-w-[calc(100vw-32px)] bg-card rounded-2xl border border-border/50 shadow-2xl overflow-hidden`}
+            style={{ maxHeight: panelMaxH }}
           >
             <div className="px-5 py-4 border-b border-border/30 flex items-center justify-between bg-gradient-to-r from-amber-50 to-amber-50/30">
               <div className="flex items-center gap-2.5">
@@ -126,7 +134,7 @@ export function ProspectDraftSection({ userId, onResume, draftChange, onCountCha
               </button>
             </div>
 
-            <div className="overflow-y-auto" style={{ maxHeight: 'calc(100vh - 260px)' }}>
+            <div className="overflow-y-auto" style={{ maxHeight: listMaxH }}>
               {drafts.map((draft) => {
                 const prospectType = draft.data.type as string
                 const config = PROSPECT_TYPE_CONFIG[prospectType] || DEFAULT_CONFIG

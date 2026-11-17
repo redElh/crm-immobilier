@@ -1,22 +1,21 @@
 import { useState, useEffect, useRef } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import { X, Plus, Save, Search, Home } from 'react-feather';
+import { AnimatePresence } from 'framer-motion';
+import { X, Plus, Search, Home } from 'react-feather';
 import { Client } from '../../../types/client';
 import { DatePicker } from '../../ui/DatePicker';
 import { Input } from '../../ui/Input';
 import { Select } from '../../ui/Select';
 import { Checkbox } from '../../ui/Checkbox';
 import { Textarea } from '../../ui/Textarea';
-import { Button } from '../../ui/Button';
 import { LocationMap } from '../properties/AddPropertyForm/LocationMap';
 import { saveDraft, getDraft, deleteDraft } from '../../../services/clientDraftStorage';
 import { uploadFiles } from '../../../services/uploadService';
-import { CompletionRing } from '../../ui/CompletionRing';
 import { api } from '../../../services/api';
 import { fetchContacts, createContact } from '../../../services/contactService';
 import { ContactFormModal } from '../contacts/ContactFormModal';
-
-const GERANT_BUTTON_CLASSES = 'bg-[#905D5D] hover:bg-[#7D5050] border-[#905D5D] hover:border-[#7D5050] text-white shadow-[0_10px_24px_rgba(144,93,93,0.35)]'
+import { StageClientFormShell } from './StageClientFormShell';
+import { useStageChrome } from '../calendar/useStageChrome';
+import { cn } from '../../../lib/utils';
 
 interface AssignmentInfo {
   assignedType: 'agent' | 'admin';
@@ -1377,15 +1376,37 @@ export const VoyageurFormModal = ({ onClose, onSubmit, assignmentInfo, draftId: 
     }
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    submitForm();
-  };
+  const { staged, dark } = useStageChrome();
+
+  const chipClass = (active: boolean) =>
+    cn(
+      'rounded-lg border px-2.5 py-1 text-[11px] font-semibold transition-all duration-200',
+      active
+        ? staged
+          ? dark
+            ? 'border-violet-400/50 bg-gradient-to-b from-violet-500/30 to-indigo-600/25 text-violet-100 shadow-[0_0_12px_-4px_rgba(124,92,255,0.9)]'
+            : 'border-teal-500/50 bg-teal-500/15 text-teal-800 shadow-[0_0_12px_-4px_rgba(13,148,136,0.8)]'
+          : 'border-accent/40 bg-accent-light text-text'
+        : staged
+          ? dark
+            ? 'border-white/10 bg-white/[0.04] text-slate-300 hover:bg-white/[0.08]'
+            : 'border-teal-900/10 bg-white/70 text-teal-900/65 hover:bg-white'
+          : 'border-border bg-card text-text-secondary hover:text-text',
+    );
 
   const renderSection = (title: string, children: React.ReactNode) => (
     <div className="mb-6">
-      <h3 className="text-sm font-semibold text-text flex items-center gap-2 mb-4">
-        <span className={`w-1 h-4 rounded-full ${isGerant ? 'bg-[#905D5D]' : 'bg-accent'}`} />
+      <h3
+        className={cn(
+          'mb-4 flex items-center gap-2',
+          staged
+            ? dark
+              ? 'text-[11px] font-bold uppercase tracking-[0.18em] text-slate-300/85'
+              : 'text-[11px] font-bold uppercase tracking-[0.18em] text-teal-900/70'
+            : 'text-sm font-semibold text-text',
+        )}
+      >
+        <span className={cn('h-4 w-1 rounded-full', staged ? (dark ? 'bg-[#8B7CFF]' : 'bg-[#14B8A6]') : 'bg-accent')} />
         {title}
       </h3>
       {children}
@@ -1408,11 +1429,7 @@ export const VoyageurFormModal = ({ onClose, onSubmit, assignmentInfo, draftId: 
               key={opt.value}
               type="button"
               onClick={() => handleChange(field, opt.value)}
-              className={`px-3 py-1.5 text-xs rounded-lg border transition-all ${
-                isSelected
-                  ? (isGerant ? 'bg-[#905D5D] text-white border-[#905D5D] ring-2 ring-[#905D5D]/30' : 'bg-accent text-white border-accent ring-2 ring-accent/30')
-                  : (isGerant ? 'bg-card text-text-secondary border-border hover:border-[#905D5D]/50' : 'bg-card text-text-secondary border-border hover:border-accent/50')
-              }`}
+              className={chipClass(isSelected)}
             >
               {opt.label}
             </button>
@@ -1439,11 +1456,7 @@ export const VoyageurFormModal = ({ onClose, onSubmit, assignmentInfo, draftId: 
               key={opt.value}
               type="button"
               onClick={() => onChange(opt.value)}
-              className={`px-3 py-1.5 text-xs rounded-lg border transition-all ${
-                isSelected
-                  ? (isGerant ? 'bg-[#905D5D] text-white border-[#905D5D]' : 'bg-accent text-white border-accent')
-                  : (isGerant ? 'bg-card text-text-secondary border-border hover:border-[#905D5D]/50' : 'bg-card text-text-secondary border-border hover:border-accent/50')
-              }`}
+              className={chipClass(isSelected)}
             >
               {opt.label}
             </button>
@@ -1470,11 +1483,7 @@ export const VoyageurFormModal = ({ onClose, onSubmit, assignmentInfo, draftId: 
                 key={opt.value}
                 type="button"
                 onClick={() => handleProximiteCategory(category, opt.value)}
-                className={`px-3 py-1.5 text-xs rounded-lg border transition-all ${
-                  isSelected
-                    ? (isGerant ? 'bg-[#905D5D] text-white border-[#905D5D]' : 'bg-accent text-white border-accent')
-                    : (isGerant ? 'bg-card text-text-secondary border-border hover:border-[#905D5D]/50' : 'bg-card text-text-secondary border-border hover:border-accent/50')
-                }`}
+                className={chipClass(isSelected)}
               >
                 {opt.label}
               </button>
@@ -1502,11 +1511,7 @@ export const VoyageurFormModal = ({ onClose, onSubmit, assignmentInfo, draftId: 
                 key={opt.value}
                 type="button"
                 onClick={() => handlePrestationGroup(category, opt.value)}
-                className={`px-3 py-1.5 text-xs rounded-lg border transition-all ${
-                  isSelected
-                    ? (isGerant ? 'bg-[#905D5D] text-white border-[#905D5D]' : 'bg-accent text-white border-accent')
-                    : (isGerant ? 'bg-card text-text-secondary border-border hover:border-[#905D5D]/50' : 'bg-card text-text-secondary border-border hover:border-accent/50')
-                }`}
+                className={chipClass(isSelected)}
               >
                 {opt.label}
               </button>
@@ -1547,7 +1552,7 @@ export const VoyageurFormModal = ({ onClose, onSubmit, assignmentInfo, draftId: 
                         error={errors.contactId}
                       />
                     </div>
-                    <button type="button" className={`h-9 w-9 rounded-lg border border-border bg-card flex items-center justify-center text-text-secondary ${isGerant ? 'hover:text-[#905D5D] hover:border-[#905D5D]' : 'hover:text-accent hover:border-accent'} transition-all shrink-0`} title="Créer un nouveau contact" onClick={() => setShowContactForm(true)}>
+                    <button type="button" className={`h-9 w-9 rounded-lg border border-border bg-card flex items-center justify-center text-text-secondary ${'hover:text-accent hover:border-accent'} transition-all shrink-0`} title="Créer un nouveau contact" onClick={() => setShowContactForm(true)}>
                       <Plus size={16} />
                     </button>
                   </div>
@@ -1692,11 +1697,7 @@ export const VoyageurFormModal = ({ onClose, onSubmit, assignmentInfo, draftId: 
                           key={opt.value}
                           type="button"
                           onClick={() => handleChange('attributPrincipal', opt.value)}
-                          className={`px-3 py-1.5 text-xs rounded-lg border transition-all ${
-                            isSelected
-                              ? (isGerant ? 'bg-[#905D5D] text-white border-[#905D5D] ring-2 ring-[#905D5D]/30' : 'bg-accent text-white border-accent ring-2 ring-accent/30')
-                              : (isGerant ? 'bg-card text-text-secondary border-border hover:border-[#905D5D]/50' : 'bg-card text-text-secondary border-border hover:border-accent/50')
-                          }`}
+                          className={chipClass(isSelected)}
                         >
                           {opt.label}
                         </button>
@@ -1718,11 +1719,7 @@ export const VoyageurFormModal = ({ onClose, onSubmit, assignmentInfo, draftId: 
                         key={opt.value}
                         type="button"
                         onClick={() => handleCheckboxGroup('criteres', opt.value)}
-                        className={`px-3 py-1.5 text-xs rounded-lg border transition-all ${
-                          isSelected
-                            ? (isGerant ? 'bg-[#905D5D] text-white border-[#905D5D]' : 'bg-accent text-white border-accent')
-                            : (isGerant ? 'bg-card text-text-secondary border-border hover:border-[#905D5D]/50' : 'bg-card text-text-secondary border-border hover:border-accent/50')
-                        }`}
+                        className={chipClass(isSelected)}
                       >
                         {opt.label}
                       </button>
@@ -1818,8 +1815,8 @@ export const VoyageurFormModal = ({ onClose, onSubmit, assignmentInfo, draftId: 
         return (
           <div>
             <div className="flex items-center gap-2 mb-6">
-              <span className={`w-1 h-6 rounded-full ${isGerant ? 'bg-[#905D5D]' : 'bg-accent'}`} />
-              <h2 className="text-base font-semibold text-text">CONTRAT DE LOCATION SAISONNIÈRE</h2>
+              <span className={cn('w-1 h-6 rounded-full', staged ? (dark ? 'bg-[#8B7CFF]' : 'bg-[#14B8A6]') : 'bg-accent')} />
+              <h2 className={cn('text-base font-semibold text-text', staged && 'text-[13px] font-bold tracking-[0.22em]')}>CONTRAT DE LOCATION SAISONNIÈRE</h2>
             </div>
 
             {renderSection('1. INFORMATIONS GÉNÉRALES DE LA RÉSERVATION', (
@@ -1837,10 +1834,10 @@ export const VoyageurFormModal = ({ onClose, onSubmit, assignmentInfo, draftId: 
                 <div>
                   <label className="block text-sm font-medium text-text mb-1.5">Bien réservé</label>
                   {selectedProperty ? (
-                    <div className={`p-3 rounded-lg ${isGerant ? 'border-[#905D5D]/20 bg-[#905D5D]/5' : 'border-accent/20 bg-accent/5'} flex items-center justify-between`}>
+                    <div className={`p-3 rounded-lg ${'border-accent/20 bg-accent/5'} flex items-center justify-between`}>
                       <div className="flex items-center gap-3 min-w-0">
-                        <div className={`w-8 h-8 rounded-lg ${isGerant ? 'bg-[#905D5D]/10' : 'bg-accent/10'} flex items-center justify-center shrink-0`}>
-                          <Home size={14} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />
+                        <div className={`w-8 h-8 rounded-lg ${'bg-accent/10'} flex items-center justify-center shrink-0`}>
+                          <Home size={14} className={'text-accent'} />
                         </div>
                         <div className="min-w-0">
                           <p className="text-sm font-medium truncate">{selectedProperty.title || selectedProperty.reference || `Bien #${selectedProperty.id}`}</p>
@@ -1850,7 +1847,7 @@ export const VoyageurFormModal = ({ onClose, onSubmit, assignmentInfo, draftId: 
                           </p>
                         </div>
                       </div>
-                      <button type="button" onClick={() => { setSelectedProperty(null); handleChange('bienReserve', ''); }} className={`p-1 rounded-md ${isGerant ? 'hover:bg-[#905D5D]/10' : 'hover:bg-accent/10'} transition-colors shrink-0`}>
+                      <button type="button" onClick={() => { setSelectedProperty(null); handleChange('bienReserve', ''); }} className={`p-1 rounded-md ${'hover:bg-accent/10'} transition-colors shrink-0`}>
                         <X size={14} className="text-text-secondary" />
                       </button>
                     </div>
@@ -1860,7 +1857,7 @@ export const VoyageurFormModal = ({ onClose, onSubmit, assignmentInfo, draftId: 
                       <input
                         type="text"
                         placeholder="Rechercher un bien de vacances..."
-                        className={`w-full h-9 pl-9 pr-3 text-sm rounded-lg border border-border bg-card placeholder:text-text-secondary/50 focus:outline-none focus:ring-2 ${isGerant ? 'focus:ring-[#905D5D]/20 focus:border-[#905D5D]' : 'focus:ring-accent/20 focus:border-accent'} transition-all`}
+                        className={`w-full h-9 pl-9 pr-3 text-sm rounded-lg border border-border bg-card placeholder:text-text-secondary/50 focus:outline-none focus:ring-2 ${'focus:ring-accent/20 focus:border-accent'} transition-all`}
                         value={propertySearchQuery}
                         onChange={(e) => {
                           setPropertySearchQuery(e.target.value);
@@ -1872,7 +1869,7 @@ export const VoyageurFormModal = ({ onClose, onSubmit, assignmentInfo, draftId: 
                       />
                       {propertySearching && (
                         <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                          <div className={`w-3.5 h-3.5 border-2 ${isGerant ? 'border-[#905D5D]' : 'border-accent'} border-t-transparent rounded-full animate-spin`} />
+                          <div className={`w-3.5 h-3.5 border-2 ${'border-accent'} border-t-transparent rounded-full animate-spin`} />
                         </div>
                       )}
                       {propertySearchResults.length > 0 && (
@@ -1889,8 +1886,8 @@ export const VoyageurFormModal = ({ onClose, onSubmit, assignmentInfo, draftId: 
                                 setPropertySearchResults([]);
                               }}
                             >
-                              <div className={`w-8 h-8 rounded-lg ${isGerant ? 'bg-[#905D5D]/10' : 'bg-accent/10'} flex items-center justify-center shrink-0`}>
-                                <Home size={14} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />
+                              <div className={`w-8 h-8 rounded-lg ${'bg-accent/10'} flex items-center justify-center shrink-0`}>
+                                <Home size={14} className={'text-accent'} />
                               </div>
                               <div className="min-w-0 flex-1">
                                 <p className="text-sm font-medium truncate">{p.title || p.reference || `Bien #${p.id}`}</p>
@@ -1915,9 +1912,9 @@ export const VoyageurFormModal = ({ onClose, onSubmit, assignmentInfo, draftId: 
                       <label className="block text-sm font-medium text-text mb-1.5">Options sélectionnées</label>
                       <div className="flex flex-wrap gap-2">
                         {formData.reservationOptions.map((opt, i) => (
-                          <span key={i} className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg ${isGerant ? 'bg-[#905D5D]/10 text-[#905D5D] border-[#905D5D]/20' : 'bg-accent/10 text-accent border-accent/20'} text-sm font-medium border`}>
+                          <span key={i} className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg ${'bg-accent/10 text-accent border-accent/20'} text-sm font-medium border`}>
                             {opt.name}
-                            <span className={`text-xs ${isGerant ? 'text-[#905D5D]/60' : 'text-accent/60'}`}>({opt.price.toLocaleString('fr-FR')} {formData.devise}/{opt.qty > 1 ? `${opt.qty}×` : opt.total > opt.price ? 'séjour' : 'unique'})</span>
+                            <span className={`text-xs ${'text-accent/60'}`}>({opt.price.toLocaleString('fr-FR')} {formData.devise}/{opt.qty > 1 ? `${opt.qty}×` : opt.total > opt.price ? 'séjour' : 'unique'})</span>
                           </span>
                         ))}
                       </div>
@@ -2002,7 +1999,7 @@ export const VoyageurFormModal = ({ onClose, onSubmit, assignmentInfo, draftId: 
                     </button>
                   </div>
                 ))}
-                <button type="button" className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg border border-dashed border-border bg-card text-text-secondary ${isGerant ? 'hover:text-[#905D5D] hover:border-[#905D5D]' : 'hover:text-accent hover:border-accent'} transition-all`} onClick={addGuideCheckinStep}>
+                <button type="button" className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg border border-dashed border-border bg-card text-text-secondary ${'hover:text-accent hover:border-accent'} transition-all`} onClick={addGuideCheckinStep}>
                   <Plus size={14} /> Ajouter une étape
                 </button>
               </div>
@@ -2023,7 +2020,7 @@ export const VoyageurFormModal = ({ onClose, onSubmit, assignmentInfo, draftId: 
                     </button>
                   </div>
                 ))}
-                <button type="button" className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg border border-dashed border-border bg-card text-text-secondary ${isGerant ? 'hover:text-[#905D5D] hover:border-[#905D5D]' : 'hover:text-accent hover:border-accent'} transition-all`} onClick={addChecklistDepartStep}>
+                <button type="button" className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg border border-dashed border-border bg-card text-text-secondary ${'hover:text-accent hover:border-accent'} transition-all`} onClick={addChecklistDepartStep}>
                   <Plus size={14} /> Ajouter une étape
                 </button>
                 <Textarea label="Message important" value={formData.checklistDepartMessage} onChange={(e) => handleChange('checklistDepartMessage', e.target.value)} rows={2} placeholder="Merci de confirmer votre départ via WhatsApp" />
@@ -2053,7 +2050,7 @@ export const VoyageurFormModal = ({ onClose, onSubmit, assignmentInfo, draftId: 
                     </button>
                   </div>
                 ))}
-                <button type="button" className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg border border-dashed border-border bg-card text-text-secondary ${isGerant ? 'hover:text-[#905D5D] hover:border-[#905D5D]' : 'hover:text-accent hover:border-accent'} transition-all`} onClick={addCartePrivilegePartenaire}>
+                <button type="button" className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg border border-dashed border-border bg-card text-text-secondary ${'hover:text-accent hover:border-accent'} transition-all`} onClick={addCartePrivilegePartenaire}>
                   <Plus size={14} /> Ajouter un partenaire
                 </button>
               </div>
@@ -2080,7 +2077,7 @@ export const VoyageurFormModal = ({ onClose, onSubmit, assignmentInfo, draftId: 
                         const file = e.target.files?.[0];
                         if (file) updateConciergerieActivite(i, 'image', file.name);
                       }} />
-                      <label htmlFor={`voy-activite-image-${i}`} className={`inline-flex items-center gap-2 px-3 py-1.5 text-xs font-medium rounded-lg border border-border bg-card text-text-secondary ${isGerant ? 'hover:text-[#905D5D] hover:border-[#905D5D]' : 'hover:text-accent hover:border-accent'} cursor-pointer transition-all`}>
+                      <label htmlFor={`voy-activite-image-${i}`} className={`inline-flex items-center gap-2 px-3 py-1.5 text-xs font-medium rounded-lg border border-border bg-card text-text-secondary ${'hover:text-accent hover:border-accent'} cursor-pointer transition-all`}>
                         Télécharger image
                       </label>
                       <button type="button" className="inline-flex items-center gap-2 text-xs font-medium text-red-500 hover:text-red-400 transition-colors" onClick={() => removeConciergerieActivite(i)}>
@@ -2089,7 +2086,7 @@ export const VoyageurFormModal = ({ onClose, onSubmit, assignmentInfo, draftId: 
                     </div>
                   </div>
                 ))}
-                <button type="button" className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg border border-dashed border-border bg-card text-text-secondary ${isGerant ? 'hover:text-[#905D5D] hover:border-[#905D5D]' : 'hover:text-accent hover:border-accent'} transition-all`} onClick={addConciergerieActivite}>
+                <button type="button" className={`inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg border border-dashed border-border bg-card text-text-secondary ${'hover:text-accent hover:border-accent'} transition-all`} onClick={addConciergerieActivite}>
                   <Plus size={14} /> Ajouter une activité
                 </button>
               </div>
@@ -2118,7 +2115,7 @@ export const VoyageurFormModal = ({ onClose, onSubmit, assignmentInfo, draftId: 
                     {doc.required ? (
                       <span className="text-xs px-2 py-0.5 rounded bg-error/10 text-error font-medium">Obligatoire</span>
                     ) : (
-                      <span className={`text-xs px-2 py-0.5 rounded ${isGerant ? 'bg-[#905D5D]/10 text-[#905D5D]' : 'bg-accent/10 text-accent'} font-medium`}>Recommandé</span>
+                      <span className={`text-xs px-2 py-0.5 rounded ${'bg-accent/10 text-accent'} font-medium`}>Recommandé</span>
                     )}
                     {doc.uploaded ? (
                       <span className="text-[10px] font-medium text-emerald-600 uppercase bg-emerald-50 px-2 py-0.5 rounded flex items-center gap-1">
@@ -2137,7 +2134,7 @@ export const VoyageurFormModal = ({ onClose, onSubmit, assignmentInfo, draftId: 
                           }
                         } catch { /* upload failed */ }
                       }} />
-                      <button type="button" onClick={() => document.getElementById(doc.inputId)?.click()} className={`text-xs px-3 py-1.5 rounded-lg border border-border bg-card text-text-secondary ${isGerant ? 'hover:text-[#905D5D] hover:border-[#905D5D]' : 'hover:text-accent hover:border-accent'} transition-all`}>{doc.uploaded ? 'Remplacer' : 'Parcourir...'}</button>
+                      <button type="button" onClick={() => document.getElementById(doc.inputId)?.click()} className={`text-xs px-3 py-1.5 rounded-lg border border-border bg-card text-text-secondary ${'hover:text-accent hover:border-accent'} transition-all`}>{doc.uploaded ? 'Remplacer' : 'Parcourir...'}</button>
                     </div>
                   </div>
                 ))}
@@ -2162,7 +2159,7 @@ export const VoyageurFormModal = ({ onClose, onSubmit, assignmentInfo, draftId: 
                     <p className="block text-sm font-medium text-text mb-1.5">Fichier du contrat signé</p>
                     <div className="h-9 flex items-center gap-3 px-3 rounded-lg border border-border bg-background/50">
                       <span className="text-sm text-text-secondary flex-1">{formData.contratPdfUrl || 'Upload PDF'}</span>
-                      <button type="button" onClick={() => document.getElementById('contrat-upload')?.click()} className={`text-xs px-3 py-1.5 rounded-lg border border-border bg-card text-text-secondary ${isGerant ? 'hover:text-[#905D5D] hover:border-[#905D5D]' : 'hover:text-accent hover:border-accent'} transition-all`}>Parcourir...</button>
+                      <button type="button" onClick={() => document.getElementById('contrat-upload')?.click()} className={`text-xs px-3 py-1.5 rounded-lg border border-border bg-card text-text-secondary ${'hover:text-accent hover:border-accent'} transition-all`}>Parcourir...</button>
                     </div>
                     <input id="contrat-upload" type="file" accept=".pdf,.jpg,.jpeg,.png" className="hidden" onChange={async (e) => { const file = e.target.files?.[0]; if (!file) return; try { const urls = await uploadFiles([file]); if (urls[0]) handleChange('contratPdfUrl', urls[0]); } catch { /* upload failed */ } }} />
                   </div>
@@ -2177,125 +2174,51 @@ export const VoyageurFormModal = ({ onClose, onSubmit, assignmentInfo, draftId: 
     }
   };
 
+  if (loadingDraft) return null;
+
   return (
     <>
-    <AnimatePresence>
-      {loadingDraft && null}
-      <div className="fixed inset-0 z-50 flex items-start justify-center pt-6 pb-6">
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          className="absolute inset-0 bg-black/40 backdrop-blur-sm"
-          onClick={onClose}
-        />
-        <motion.div
-          initial={{ opacity: 0, scale: 0.95, y: 10 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.95, y: 10 }}
-          transition={{ duration: 0.2 }}
-          className="relative w-full max-w-5xl mx-4 bg-card rounded-xl border border-border/50 shadow-modal flex flex-col max-h-[calc(100vh-48px)]"
-        >
-          <div className="flex items-center justify-between px-6 py-4 border-b border-border/40 bg-card z-10 shrink-0">
-            <h2 className="text-lg font-semibold">{editingClient ? 'Modifier le voyageur' : 'Nouveau voyageur'}</h2>
-            <div className="flex items-center gap-3">
-              {loadingDraft ? (
-                <span className="text-xs text-text-secondary">Chargement du brouillon...</span>
-              ) : savedDraftId ? (
-                <span className="flex items-center gap-1.5 px-3 py-1.5 text-xs text-emerald-600 bg-emerald-50 rounded-lg">
-                  Auto-sauvegardé
-                </span>
-              ) : !editingClient ? (
-                <button
-                  type="button"
-                  onClick={doSaveDraft}
-                  className="px-3 py-1.5 text-xs rounded-lg border border-border/60 hover:bg-border/20 transition-colors flex items-center gap-1.5"
-                >
-                  Brouillon
-                </button>
-              ) : null}
-              <CompletionRing percent={calcCompletion(formData)} size={32} strokeWidth={3} />
-              <button onClick={onClose} className="w-8 h-8 rounded-lg flex items-center justify-center text-text-secondary hover:text-text hover:bg-background transition-all">
-                <X size={16} />
-              </button>
-            </div>
-          </div>
-
-          {/* Tabs */}
-          <div className="px-6 py-1 border-b border-border/30 flex gap-1 overflow-x-auto bg-card z-10 shrink-0">
-            {TABS.map((t) => (
-              <button
-                key={t.id}
-                onClick={() => setStep(t.id)}
-                className={`px-3 py-2 text-xs font-medium border-b-2 transition-all whitespace-nowrap ${
-                  step === t.id ? (isGerant ? 'text-[#905D5D] border-[#905D5D]' : 'text-accent border-accent') : 'text-text-secondary border-transparent hover:text-text'
-                }`}
-              >
-                {t.label}
-              </button>
-            ))}
-          </div>
-
-          <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0 p-6">
-            <div className="flex-1 overflow-y-auto min-h-0">
-              {renderTabContent()}
-            </div>
-
-            {/* Footer */}
-            <div className="flex items-center justify-between pt-4 mt-6 border-t border-border/30 shrink-0">
-              <div className="flex items-center gap-2">
-                {step > 1 && (
-                  <Button type="button" variant="outline" onClick={() => setStep(step - 1)}>
-                    Précédent
-                  </Button>
-                )}
-                {!savedDraftId && !editingClient && (
-                  <Button type="button" variant="outline" onClick={doSaveDraft}>
-                    <Save size={14} className="inline mr-1" />
-                    Enregistrer comme brouillon
-                  </Button>
-                )}
-              </div>
-              <div className="flex gap-2">
-                <Button type="button" variant="ghost" onClick={onClose} disabled={isSubmitting}>
-                  Annuler
-                </Button>
-                {step < 8 ? (
-                  <Button type="button" variant="default" className={isGerant ? GERANT_BUTTON_CLASSES : ''} onClick={() => {
-                    if (step === 1 && !formData.contactId) {
-                      setErrors(prev => ({ ...prev, contactId: 'Veuillez sélectionner ou créer un contact' }));
-                      return;
-                    }
-                    setErrors(prev => ({ ...prev, contactId: undefined }));
-                    setStep(step + 1);
-                  }}>
-                    Suivant
-                  </Button>
-                ) : (
-                  <Button type="button" variant="default" className={isGerant ? GERANT_BUTTON_CLASSES : ''} onClick={submitForm} loading={isSubmitting}>
-                    {isSubmitting ? 'Enregistrement...' : editingClient ? 'Mettre à jour le voyageur' : 'Créer le voyageur'}
-                  </Button>
-                )}
-              </div>
-            </div>
-          </form>
-        </motion.div>
-      </div>
-    </AnimatePresence>
-    {showContactForm && (
-      <ContactFormModal
-        onClose={() => setShowContactForm(false)}
-        onSubmit={async (data) => {
-          try {
-            const created = await createContact(data);
-            refreshContacts();
-            setFormData(prev => ({ ...prev, contactId: String(created.id) }));
-            setShowContactForm(false);
-          } catch {
+      <StageClientFormShell
+        clientType="Voyageur"
+        editing={!!editingClient}
+        onClose={onClose}
+        tabs={TABS}
+        step={step}
+        onStepChange={setStep}
+        completion={calcCompletion(formData)}
+        onNext={() => {
+          if (step === 1 && !formData.contactId) {
+            setErrors(prev => ({ ...prev, contactId: 'Veuillez sélectionner ou créer un contact' }));
+            return false;
           }
+          setErrors(prev => ({ ...prev, contactId: undefined }));
+          return true;
         }}
-      />
-    )}
+        onSubmit={submitForm}
+        isSubmitting={isSubmitting}
+        savedDraftId={savedDraftId}
+        onSaveDraft={doSaveDraft}
+        isGerant={isGerant}
+        formId="voyageur-client-form"
+      >
+        {renderTabContent()}
+      </StageClientFormShell>
+    <AnimatePresence>
+      {showContactForm && (
+        <ContactFormModal
+          onClose={() => setShowContactForm(false)}
+          onSubmit={async (data) => {
+            try {
+              const created = await createContact(data);
+              refreshContacts();
+              setFormData(prev => ({ ...prev, contactId: String(created.id) }));
+              setShowContactForm(false);
+            } catch {
+            }
+          }}
+        />
+      )}
+    </AnimatePresence>
     </>
   );
 };

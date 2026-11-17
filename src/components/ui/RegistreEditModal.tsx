@@ -1,24 +1,24 @@
 import { useState, useEffect } from 'react'
 import {
-  User, Home, FileText, DollarSign, Calendar,
-  RefreshCw, Save
+  User, Home, FileText, DollarSign, Calendar, Key, Square, MapPin,
+  RefreshCw, Save, Clock, Tag, Moon, Edit3,
 } from 'react-feather'
 import { Dialog } from './Dialog'
-import { Badge } from './Badge'
 import { Input } from './Input'
 import { Select } from './Select'
 import { Button } from './Button'
 import { DatePicker } from './DatePicker'
 import { useToast } from './Toast'
 import { api } from '../../services/api'
+import { TRANSACTION_ETAPE_LABELS, type Transaction } from '../../types/transactions'
+import { useStageTheme, STAGE_HUES } from '../dashboard/Stage'
 import {
-  MANDAT_TYPE_LABELS,
-  TRANSACTION_ETAPE_LABELS,
-  TRANSACTION_ETAPE_COLORS,
-  CLIENT_TYPE_LABELS,
-  CLIENT_TYPE_COLORS,
-} from '../../types/transactions'
-import type { Transaction, MandatType, TransactionEtape } from '../../types/transactions'
+  regTypeHue, regTypeLabel, regEtapeHue, HuePill,
+  RegistreModalHero, useRegistreAccent,
+} from '../modules/registre/RegistreStage'
+import {
+  StageField, StageSection, StageEmpty, stagePillStyle,
+} from '../modules/prospects/ProspectDetailStage'
 
 const LOCALISATION_OPTIONS = [
   { value: 'Maroc', label: 'Maroc' },
@@ -120,28 +120,11 @@ interface PropertyData {
   [key: string]: any
 }
 
-function Section({ icon: Icon, title, children }: { icon: any; title: string; children: React.ReactNode }) {
-  return (
-    <div className="rounded-xl border border-border/50 overflow-hidden">
-      <div className="flex items-center gap-2.5 px-4 py-3 bg-background/50 border-b border-border/40">
-        <Icon size={14} className="text-accent" />
-        <span className="text-xs font-semibold uppercase tracking-wider text-text-secondary">{title}</span>
-      </div>
-      <div className="px-4 py-3 space-y-3">
-        {children}
-      </div>
-    </div>
-  )
-}
-
-function ROField({ label, value }: { label: string; value: React.ReactNode }) {
-  if (!value && value !== 0) return null
-  return (
-    <div className="flex items-start justify-between gap-4">
-      <span className="text-xs text-text-secondary shrink-0">{label}</span>
-      <span className="text-sm text-text text-right">{value}</span>
-    </div>
-  )
+interface RegistreEditModalProps {
+  isOpen: boolean
+  onClose: () => void
+  transaction: Transaction | null
+  onSaved?: () => void
 }
 
 function formatDate(dateStr?: string) {
@@ -166,6 +149,9 @@ export function RegistreEditModal({ isOpen, onClose, transaction, onSaved }: Reg
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const { toast } = useToast()
+  const theme = useStageTheme()
+  const isDark = theme === 'dark'
+  const { accent, ink } = useRegistreAccent()
 
   const [form, setForm] = useState<Record<string, any>>({})
 
@@ -252,21 +238,25 @@ export function RegistreEditModal({ isOpen, onClose, transaction, onSaved }: Reg
 
   const t = transaction
   const clientType = t.clientType || ''
-  const mandatLabel = MANDAT_TYPE_LABELS[t.type as MandatType] || t.type
-  const etapeLabel = TRANSACTION_ETAPE_LABELS[t.etape as TransactionEtape] || t.etape
-
-  const typeTitle: Record<string, string> = {
-    Acheteur: 'Recherche achat',
-    Vendeur: 'Vente',
-    Bailleur: 'Location gestion',
-    Locataire: 'Recherche location',
-    Voyageur: 'Location saisonnière',
-  }
+  const etapeLabel = TRANSACTION_ETAPE_LABELS[t.etape as keyof typeof TRANSACTION_ETAPE_LABELS] || t.etape
 
   const isVoyageur = clientType === 'Voyageur'
-  const modalTitle = isVoyageur
-    ? `Modifier le contrat - ${typeTitle[clientType] || mandatLabel}`
-    : `Modifier le mandat - ${typeTitle[clientType] || mandatLabel}`
+
+  const F = (icon: any, label: string, value: any, delay = 0) => {
+    if (value === null || value === undefined || value === '' || value === false) return null
+    return (
+      <StageField
+        key={label}
+        icon={icon}
+        label={label}
+        value={value}
+        accent={accent}
+        ink={ink}
+        isDark={isDark}
+        delay={delay}
+      />
+    )
+  }
 
   const updateField = (key: string, value: any) => {
     setForm(prev => ({ ...prev, [key]: value }))
@@ -373,241 +363,268 @@ export function RegistreEditModal({ isOpen, onClose, transaction, onSaved }: Reg
     <Dialog
       isOpen={isOpen}
       onClose={onClose}
-      title={modalTitle}
+      title={isVoyageur ? 'Modifier le contrat' : 'Modifier le mandat'}
       size="2xl"
     >
-      <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-1">
-        <div className="flex items-center gap-2 text-sm text-text-secondary">
-          <FileText size={14} />
-          <span className="font-mono">{t.reference}</span>
-          <span className="text-border">·</span>
-          <span className="font-medium text-text">{t.clientName}</span>
-        </div>
+      <div className="max-h-[70vh] space-y-4 overflow-y-auto scrollbar-thin pr-1">
+        <RegistreModalHero
+          t={t}
+          isDark={isDark}
+          icon={Edit3}
+          instanceLabel={isVoyageur ? 'Modifier le contrat' : 'Modifier le mandat'}
+          amountLabel="Montant"
+          badges={
+            <>
+              <HuePill hue={regTypeHue(t.type)} label={regTypeLabel(t.type)} isDark={isDark} />
+              <HuePill hue={regEtapeHue(t.etape)} label={etapeLabel} isDark={isDark} />
+            </>
+          }
+          kpiChips={[
+            { icon: FileText, label: 'Référence', value: t.reference, mono: true },
+            ...(t.agentName ? [{ icon: User, label: 'Agent', value: t.agentName }] : []),
+          ]}
+        />
 
-        {loading && (
-          <div className="flex items-center justify-center py-8">
-            <RefreshCw size={20} className="text-text-secondary/30 animate-spin" />
-          </div>
-        )}
-
-        {/* Client Info */}
-        <Section icon={User} title="Informations client">
-          <ROField label="Client" value={t.clientName} />
-          <ROField label="Type" value={
-            <span className={`inline-block px-2 py-0.5 text-[10px] font-medium rounded-lg border ${CLIENT_TYPE_COLORS[clientType] || ''}`}>
-              {CLIENT_TYPE_LABELS[clientType] || clientType}
+        {loading ? (
+          <div className="flex items-center justify-center py-10">
+            <span
+              className="flex h-12 w-12 items-center justify-center rounded-2xl border"
+              style={{ background: isDark ? `${accent.a}14` : `${accent.a}12`, borderColor: `${accent.a}30` }}
+            >
+              <RefreshCw size={18} className="animate-spin" style={{ color: isDark ? accent.a : ink }} />
             </span>
-          } />
-          <Input label="Email" value={form.email || ''} onChange={e => updateField('email', e.target.value)} type="email" />
-          <Input label="Téléphone" value={form.phone || ''} onChange={e => updateField('phone', e.target.value)} />
-          <Input label="Profession" value={form.profession || ''} onChange={e => updateField('profession', e.target.value)} />
-          <Input label="Adresse" value={form.address || ''} onChange={e => updateField('address', e.target.value)} />
-        </Section>
+          </div>
+        ) : (
+          <>
+            {/* Client Info */}
+            <StageSection icon={User} title="Informations client" accent={accent} ink={ink} isDark={isDark}>
+              {F(User, 'Nom', t.clientName, 0.05)}
+              {F(Tag, 'Rôle', (
+                <span className="inline-flex items-center gap-1.5">
+                  <span className="h-1.5 w-1.5 rounded-full" style={{ background: isDark ? accent.a : ink }} />
+                  {clientType || '—'}
+                </span>
+              ), 0.08)}
+              <Input label="Email" value={form.email || ''} onChange={e => updateField('email', e.target.value)} type="email" />
+              <Input label="Téléphone" value={form.phone || ''} onChange={e => updateField('phone', e.target.value)} />
+              <Input label="Profession" value={form.profession || ''} onChange={e => updateField('profession', e.target.value)} />
+              <Input label="Adresse" value={form.address || ''} onChange={e => updateField('address', e.target.value)} />
+            </StageSection>
 
-        {/* ACHETEUR - Search Criteria */}
-        {clientType === 'Acheteur' && (
-          <Section icon={Home} title="Critères de recherche">
-            <div className="grid grid-cols-2 gap-3">
-              <Input label="Budget min (MAD)" type="number" value={form.prixMin || ''} onChange={e => updateField('prixMin', e.target.value ? Number(e.target.value) : '')} />
-              <Input label="Budget max (MAD)" type="number" value={form.prixMax || ''} onChange={e => updateField('prixMax', e.target.value ? Number(e.target.value) : '')} />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <Input label="Surface min (m²)" type="number" value={form.surfaceMin || ''} onChange={e => updateField('surfaceMin', e.target.value ? Number(e.target.value) : '')} />
-              <Input label="Surface max (m²)" type="number" value={form.surfaceMax || ''} onChange={e => updateField('surfaceMax', e.target.value ? Number(e.target.value) : '')} />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <Input label="Pièces" type="number" value={form.pieces || ''} onChange={e => updateField('pieces', e.target.value ? Number(e.target.value) : '')} />
-              <Input label="Chambres" type="number" value={form.chambres || ''} onChange={e => updateField('chambres', e.target.value ? Number(e.target.value) : '')} />
-            </div>
-            <Select label="Localisation" options={LOCALISATION_OPTIONS} value={form.localisation || ''} onChange={v => updateField('localisation', v)} placeholder="Sélectionner..." />
-            <Select label="Secteur géographique" options={SECTEUR_OPTIONS} value={form.secteur || ''} onChange={v => updateField('secteur', v)} placeholder="Sélectionner..." />
-            <Select label="Type de bien" options={TYPE_BIEN_OPTIONS} value={form.typeBien || ''} onChange={v => updateField('typeBien', v)} placeholder="Sélectionner..." />
-          </Section>
-        )}
+            {/* ACHETEUR - Search Criteria */}
+            {clientType === 'Acheteur' && (
+              <StageSection icon={Home} title="Critères de recherche" accent={accent} ink={ink} isDark={isDark}>
+                <Input label="Budget min (MAD)" type="number" value={form.prixMin || ''} onChange={e => updateField('prixMin', e.target.value ? Number(e.target.value) : '')} />
+                <Input label="Budget max (MAD)" type="number" value={form.prixMax || ''} onChange={e => updateField('prixMax', e.target.value ? Number(e.target.value) : '')} />
+                <Input label="Surface min (m²)" type="number" value={form.surfaceMin || ''} onChange={e => updateField('surfaceMin', e.target.value ? Number(e.target.value) : '')} />
+                <Input label="Surface max (m²)" type="number" value={form.surfaceMax || ''} onChange={e => updateField('surfaceMax', e.target.value ? Number(e.target.value) : '')} />
+                <Input label="Pièces" type="number" value={form.pieces || ''} onChange={e => updateField('pieces', e.target.value ? Number(e.target.value) : '')} />
+                <Input label="Chambres" type="number" value={form.chambres || ''} onChange={e => updateField('chambres', e.target.value ? Number(e.target.value) : '')} />
+                <Select label="Localisation" options={LOCALISATION_OPTIONS} value={form.localisation || ''} onChange={v => updateField('localisation', v)} placeholder="Sélectionner..." />
+                <Select label="Secteur géographique" options={SECTEUR_OPTIONS} value={form.secteur || ''} onChange={v => updateField('secteur', v)} placeholder="Sélectionner..." />
+                <Select label="Type de bien" options={TYPE_BIEN_OPTIONS} value={form.typeBien || ''} onChange={v => updateField('typeBien', v)} placeholder="Sélectionner..." />
+              </StageSection>
+            )}
 
-        {/* LOCATAIRE - Search Criteria */}
-        {clientType === 'Locataire' && (
-          <Section icon={Home} title="Critères de recherche">
-            <Input label="Budget (MAD)" type="number" value={form.budget || ''} onChange={e => updateField('budget', e.target.value ? Number(e.target.value) : '')} />
-            <div className="grid grid-cols-2 gap-3">
-              <Input label="Surface min (m²)" type="number" value={form.surfaceMin || ''} onChange={e => updateField('surfaceMin', e.target.value ? Number(e.target.value) : '')} />
-              <Input label="Surface max (m²)" type="number" value={form.surfaceMax || ''} onChange={e => updateField('surfaceMax', e.target.value ? Number(e.target.value) : '')} />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <Input label="Pièces" type="number" value={form.pieces || ''} onChange={e => updateField('pieces', e.target.value ? Number(e.target.value) : '')} />
-              <Input label="Chambres" type="number" value={form.chambres || ''} onChange={e => updateField('chambres', e.target.value ? Number(e.target.value) : '')} />
-            </div>
-            <Select label="Localisation" options={LOCALISATION_OPTIONS} value={form.localisation || ''} onChange={v => updateField('localisation', v)} placeholder="Sélectionner..." />
-            <Select label="Secteur géographique" options={SECTEUR_OPTIONS} value={form.secteur || ''} onChange={v => updateField('secteur', v)} placeholder="Sélectionner..." />
-            <Select label="Type de bien" options={TYPE_BIEN_OPTIONS} value={form.typeBien || ''} onChange={v => updateField('typeBien', v)} placeholder="Sélectionner..." />
-          </Section>
-        )}
+            {/* LOCATAIRE - Search Criteria */}
+            {clientType === 'Locataire' && (
+              <StageSection icon={Home} title="Critères de recherche" accent={accent} ink={ink} isDark={isDark}>
+                <Input label="Budget (MAD)" type="number" value={form.budget || ''} onChange={e => updateField('budget', e.target.value ? Number(e.target.value) : '')} />
+                <Input label="Surface min (m²)" type="number" value={form.surfaceMin || ''} onChange={e => updateField('surfaceMin', e.target.value ? Number(e.target.value) : '')} />
+                <Input label="Surface max (m²)" type="number" value={form.surfaceMax || ''} onChange={e => updateField('surfaceMax', e.target.value ? Number(e.target.value) : '')} />
+                <Input label="Pièces" type="number" value={form.pieces || ''} onChange={e => updateField('pieces', e.target.value ? Number(e.target.value) : '')} />
+                <Input label="Chambres" type="number" value={form.chambres || ''} onChange={e => updateField('chambres', e.target.value ? Number(e.target.value) : '')} />
+                <Select label="Localisation" options={LOCALISATION_OPTIONS} value={form.localisation || ''} onChange={v => updateField('localisation', v)} placeholder="Sélectionner..." />
+                <Select label="Secteur géographique" options={SECTEUR_OPTIONS} value={form.secteur || ''} onChange={v => updateField('secteur', v)} placeholder="Sélectionner..." />
+                <Select label="Type de bien" options={TYPE_BIEN_OPTIONS} value={form.typeBien || ''} onChange={v => updateField('typeBien', v)} placeholder="Sélectionner..." />
+              </StageSection>
+            )}
 
-        {/* VENDEUR / BAILLEUR - Property Info (read-only) */}
-        {(clientType === 'Vendeur' || clientType === 'Bailleur') && (
-          <Section icon={Home} title="Informations du bien">
-            {property ? (
-              <>
-                <ROField label="Bien" value={property.title} />
-                <ROField label="Référence" value={<span className="font-mono">{property.reference}</span>} />
-                {property.address && <ROField label="Adresse" value={property.address} />}
-                {property.city && <ROField label="Ville" value={property.city} />}
-                {property.surface > 0 && <ROField label="Surface" value={`${property.surface} m²`} />}
-                {property.rooms > 0 && <ROField label="Pièces" value={property.rooms} />}
-                {property.bedrooms > 0 && <ROField label="Chambres" value={property.bedrooms} />}
-              </>
-            ) : (
-              <div className="space-y-1">
-                {t.propertyTitle ? (
+            {/* VENDEUR / BAILLEUR - Property Info (read-only) */}
+            {(clientType === 'Vendeur' || clientType === 'Bailleur') && (
+              <StageSection icon={Home} title="Informations du bien" accent={accent} ink={ink} isDark={isDark}>
+                {property ? (
                   <>
-                    <ROField label="Bien" value={t.propertyTitle} />
-                    {t.propertyRef && <ROField label="Référence" value={<span className="font-mono">{t.propertyRef}</span>} />}
+                    {F(Home, 'Bien', property.title, 0.05)}
+                    {F(FileText, 'Référence', property.reference ? <span className="font-mono">{property.reference}</span> : null, 0.08)}
+                    {F(MapPin, 'Adresse', property.address, 0.11)}
+                    {F(MapPin, 'Ville', property.city, 0.14)}
+                    {property.surface > 0 && F(Square, 'Surface', `${property.surface} m²`, 0.17)}
+                    {property.rooms > 0 && F(Square, 'Pièces', String(property.rooms), 0.20)}
+                    {property.bedrooms > 0 && F(Key, 'Chambres', String(property.bedrooms), 0.23)}
+                  </>
+                ) : (t.propertyTitle || t.propertyRef) ? (
+                  <>
+                    {F(Home, 'Bien', t.propertyTitle, 0.05)}
+                    {F(FileText, 'Référence', t.propertyRef ? <span className="font-mono">{t.propertyRef}</span> : null, 0.08)}
                   </>
                 ) : (
-                  <p className="text-xs text-text-secondary/60">Aucun bien associé</p>
+                  <div className="md:col-span-2">
+                    <StageEmpty
+                      icon={Home}
+                      title="Aucun bien associé"
+                      hint="Le bien concerné n'est pas encore rattaché à ce mandat."
+                      accent={accent}
+                      ink={ink}
+                      isDark={isDark}
+                    />
+                  </div>
                 )}
-              </div>
+              </StageSection>
             )}
-          </Section>
-        )}
 
-        {/* VOYAGEUR - Stay Info (read-only) */}
-        {clientType === 'Voyageur' && (
-          <Section icon={Home} title="Informations du séjour">
-            {property ? (
-              <>
-                <ROField label="Bien" value={property.title} />
-                <ROField label="Référence" value={<span className="font-mono">{property.reference}</span>} />
-                {property.address && <ROField label="Adresse" value={property.address} />}
-                {property.city && <ROField label="Ville" value={property.city} />}
-              </>
-            ) : (
-              <div className="space-y-1">
-                {t.propertyTitle ? (
+            {/* VOYAGEUR - Stay Info (read-only) */}
+            {isVoyageur && (
+              <StageSection icon={Home} title="Informations du séjour" accent={accent} ink={ink} isDark={isDark}>
+                {property ? (
                   <>
-                    <ROField label="Bien" value={t.propertyTitle} />
-                    {t.propertyRef && <ROField label="Référence" value={<span className="font-mono">{t.propertyRef}</span>} />}
+                    {F(Home, 'Bien', property.title, 0.05)}
+                    {F(FileText, 'Référence', property.reference ? <span className="font-mono">{property.reference}</span> : null, 0.08)}
+                    {F(MapPin, 'Adresse', property.address, 0.11)}
+                    {F(MapPin, 'Ville', property.city, 0.14)}
+                  </>
+                ) : (t.propertyTitle || t.propertyRef) ? (
+                  <>
+                    {F(Home, 'Bien', t.propertyTitle, 0.05)}
+                    {F(FileText, 'Référence', t.propertyRef ? <span className="font-mono">{t.propertyRef}</span> : null, 0.08)}
                   </>
                 ) : (
-                  <p className="text-xs text-text-secondary/60">Aucun bien associé</p>
+                  <div className="md:col-span-2">
+                    <StageEmpty
+                      icon={Home}
+                      title="Aucun bien associé"
+                      hint="Le bien du séjour n'est pas encore rattaché à cette réservation."
+                      accent={accent}
+                      ink={ink}
+                      isDark={isDark}
+                    />
+                  </div>
                 )}
-              </div>
+              </StageSection>
             )}
-          </Section>
-        )}
 
-        {/* VOYAGEUR - Reservation Details */}
-        {clientType === 'Voyageur' && (
-          <Section icon={Calendar} title="Détails de la réservation">
-            <ROField label="N° réservation" value={<span className="font-mono">{(client as any)?.numeroReservation || '—'}</span>} />
-            <div className="grid grid-cols-2 gap-3">
-              <DatePicker label="Date d'arrivée" value={form.dateArrivee || ''} onChange={e => updateField('dateArrivee', e.target.value)} />
-              <DatePicker label="Date de départ" value={form.dateDepart || ''} onChange={e => updateField('dateDepart', e.target.value)} />
+            {/* VOYAGEUR - Reservation Details */}
+            {isVoyageur && (
+              <StageSection icon={Calendar} title="Détails de la réservation" accent={accent} ink={ink} isDark={isDark}>
+                {(client as any)?.numeroReservation && F(FileText, 'N° réservation', <span className="font-mono">{(client as any).numeroReservation}</span>, 0.05)}
+                <DatePicker label="Date d'arrivée" value={form.dateArrivee || ''} onChange={e => updateField('dateArrivee', e.target.value)} />
+                <DatePicker label="Date de départ" value={form.dateDepart || ''} onChange={e => updateField('dateDepart', e.target.value)} />
+                <DatePicker label="Date de réservation" value={form.dateReservation || ''} onChange={e => updateField('dateReservation', e.target.value)} />
+                <Input label="Nombre de nuits" type="number" value={form.nbNuits || ''} onChange={e => updateField('nbNuits', e.target.value ? Number(e.target.value) : '')} />
+                <Input label="Nombre d'adultes" type="number" value={form.nbAdultes || ''} onChange={e => updateField('nbAdultes', e.target.value ? Number(e.target.value) : '')} />
+                <Input label="Nombre d'enfants" type="number" value={form.nbEnfants || ''} onChange={e => updateField('nbEnfants', e.target.value ? Number(e.target.value) : '')} />
+                {F(Clock, 'Statut', (client as any)?.statutReservation ? (
+                  <span
+                    className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-extrabold"
+                    style={stagePillStyle((client as any).statutReservation === 'Confirmée' ? STAGE_HUES.emerald : STAGE_HUES.amber, isDark)}
+                  >
+                    {(client as any).statutReservation}
+                  </span>
+                ) : '—', 0.26)}
+                {F(User, 'Agent', t.agentName, 0.29)}
+              </StageSection>
+            )}
+
+            {/* VOYAGEUR - Financial Info */}
+            {isVoyageur && (
+              <StageSection icon={DollarSign} title="Informations financières" accent={accent} ink={ink} isDark={isDark}>
+                <Input label="Tarif par nuit (MAD)" type="number" value={form.tarifNuit || ''} onChange={e => updateField('tarifNuit', e.target.value ? Number(e.target.value) : '')} />
+                <Input label="Montant total hors options (MAD)" type="number" value={form.montantTotalHorsOptions || ''} onChange={e => updateField('montantTotalHorsOptions', e.target.value ? Number(e.target.value) : '')} />
+                <Input label="Options (MAD)" type="number" value={form.optionsMontant || ''} onChange={e => updateField('optionsMontant', e.target.value ? Number(e.target.value) : '')} />
+                <Input label="Montant total (MAD)" type="number" value={form.montantTotalAvecOptions || ''} onChange={e => updateField('montantTotalAvecOptions', e.target.value ? Number(e.target.value) : '')} />
+                <Input label="Acompte (MAD)" type="number" value={form.acompteMontant || ''} onChange={e => updateField('acompteMontant', e.target.value ? Number(e.target.value) : '')} />
+                <Input label="Solde restant (MAD)" type="number" value={form.soldeRestant || ''} onChange={e => updateField('soldeRestant', e.target.value ? Number(e.target.value) : '')} />
+                <Input label="Caution (MAD)" type="number" value={form.cautionMontant || ''} onChange={e => updateField('cautionMontant', e.target.value ? Number(e.target.value) : '')} />
+              </StageSection>
+            )}
+
+            {/* VENDEUR - Financial Info */}
+            {clientType === 'Vendeur' && (
+              <StageSection icon={DollarSign} title="Informations financières" accent={accent} ink={ink} isDark={isDark}>
+                <Input label="Prix net vendeur (MAD)" type="number" value={form.prixNetVendeur || ''} onChange={e => updateField('prixNetVendeur', e.target.value ? Number(e.target.value) : '')} />
+                <div className="col-span-full space-y-1.5 w-full">
+                  <label className={`text-[11px] font-bold uppercase tracking-[0.14em] ${isDark ? 'text-slate-400' : 'text-teal-900/55'}`}>Honoraires</label>
+                  <div
+                    className="flex overflow-hidden rounded-xl border"
+                    style={{ borderColor: isDark ? 'rgba(255,255,255,0.10)' : 'rgba(13,148,136,0.20)' }}
+                  >
+                    <button
+                      type="button"
+                      className="flex-1 py-2 text-sm font-bold transition-all"
+                      style={!form.remunerationIsPercentage
+                        ? { backgroundImage: 'linear-gradient(145deg, rgba(255,255,255,0.25), rgba(255,255,255,0.05))', color: '#fff', background: isDark ? 'rgba(124,92,255,0.85)' : 'rgba(13,148,136,0.85)', boxShadow: isDark ? 'inset 0 1px 0 rgba(255,255,255,0.3)' : 'inset 0 1px 0 rgba(255,255,255,0.4)' }
+                        : { color: isDark ? '#94A3B8' : '#334155', background: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(15,23,42,0.03)' }}
+                      onClick={() => updateField('remunerationIsPercentage', false)}
+                    >
+                      MAD
+                    </button>
+                    <button
+                      type="button"
+                      className="flex-1 py-2 text-sm font-bold transition-all"
+                      style={form.remunerationIsPercentage
+                        ? { backgroundImage: 'linear-gradient(145deg, rgba(255,255,255,0.25), rgba(255,255,255,0.05))', color: '#fff', background: isDark ? 'rgba(124,92,255,0.85)' : 'rgba(13,148,136,0.85)', boxShadow: isDark ? 'inset 0 1px 0 rgba(255,255,255,0.3)' : 'inset 0 1px 0 rgba(255,255,255,0.4)' }
+                        : { color: isDark ? '#94A3B8' : '#334155', background: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(15,23,42,0.03)' }}
+                      onClick={() => updateField('remunerationIsPercentage', true)}
+                    >
+                      %
+                    </button>
+                  </div>
+                  <Input
+                    label=""
+                    type="number"
+                    suffix={<span className="text-xs">{form.remunerationIsPercentage ? '%' : 'MAD'}</span>}
+                    value={form.montantRemuneration || ''}
+                    onChange={e => updateField('montantRemuneration', e.target.value ? Number(e.target.value) : '')}
+                  />
+                </div>
+              </StageSection>
+            )}
+
+            {/* BAILLEUR - Financial Info */}
+            {clientType === 'Bailleur' && (
+              <StageSection icon={DollarSign} title="Informations financières" accent={accent} ink={ink} isDark={isDark}>
+                <Input label="Loyer mensuel (MAD)" type="number" value={form.loyerHC || ''} onChange={e => updateField('loyerHC', e.target.value ? Number(e.target.value) : '')} />
+                <Input label="Charges (MAD)" type="number" value={form.charges || ''} onChange={e => updateField('charges', e.target.value ? Number(e.target.value) : '')} />
+                <Input label="Dépôt garantie (MAD)" type="number" value={form.depotGarantie || ''} onChange={e => updateField('depotGarantie', e.target.value ? Number(e.target.value) : '')} />
+                <Input label="Frais mise en location (MAD)" type="number" value={form.fraisMiseEnLocation || ''} onChange={e => updateField('fraisMiseEnLocation', e.target.value ? Number(e.target.value) : '')} />
+              </StageSection>
+            )}
+
+            {/* Mandat Status - NOT Voyageur */}
+            {clientType !== 'Voyageur' && (
+              <StageSection icon={FileText} title="Statut du mandat" accent={accent} ink={ink} isDark={isDark}>
+                {F(FileText, 'Référence', <span className="font-mono">{(client as any)?.numeroMandat || t.reference}</span>, 0.05)}
+                {F(Tag, 'Type', regTypeLabel(t.type), 0.08)}
+                {F(Clock, 'Étape', (
+                  <span className="inline-flex items-center gap-1.5">
+                    <span className="h-1.5 w-1.5 rounded-full" style={{ background: regEtapeHue(t.etape).line, boxShadow: `0 0 6px ${regEtapeHue(t.etape).glow}` }} />
+                    {(client as any)?.statutMandat || etapeLabel}
+                  </span>
+                ), 0.11)}
+                <DatePicker label="Date signature" value={form.dateSignature || ''} onChange={e => updateField('dateSignature', e.target.value)} />
+                <DatePicker label="Date d'expiration" value={form.dateExpirationClient || ''} onChange={e => updateField('dateExpirationClient', e.target.value)} />
+              </StageSection>
+            )}
+
+            {/* Action buttons */}
+            <div
+              className="sticky bottom-0 -mx-1 flex items-center justify-end gap-3 rounded-b-2xl border-t px-3 pb-2 pt-3"
+              style={{
+                background: isDark ? 'rgba(10,12,24,0.88)' : 'rgba(255,255,255,0.88)',
+                backdropFilter: 'blur(12px)',
+                borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(148,163,184,0.25)',
+              }}
+            >
+              <Button variant="default" onClick={onClose} disabled={saving}>
+                Annuler
+              </Button>
+              <Button onClick={handleSave} disabled={saving || !isDirty} loading={saving}>
+                <Save size={14} className="mr-1.5" />
+                Enregistrer les modifications
+              </Button>
             </div>
-            <DatePicker label="Date de réservation" value={form.dateReservation || ''} onChange={e => updateField('dateReservation', e.target.value)} />
-            <div className="grid grid-cols-3 gap-3">
-              <Input label="Nombre de nuits" type="number" value={form.nbNuits || ''} onChange={e => updateField('nbNuits', e.target.value ? Number(e.target.value) : '')} />
-              <Input label="Nombre d'adultes" type="number" value={form.nbAdultes || ''} onChange={e => updateField('nbAdultes', e.target.value ? Number(e.target.value) : '')} />
-              <Input label="Nombre d'enfants" type="number" value={form.nbEnfants || ''} onChange={e => updateField('nbEnfants', e.target.value ? Number(e.target.value) : '')} />
-            </div>
-            <ROField label="Statut" value={
-              <Badge className={(client as any)?.statutReservation === 'Confirmée' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-amber-50 text-amber-700 border-amber-200'}>
-                {(client as any)?.statutReservation || '—'}
-              </Badge>
-            } />
-            <ROField label="Agent" value={t.agentName} />
-          </Section>
+          </>
         )}
-
-        {/* VOYAGEUR - Financial Info */}
-        {clientType === 'Voyageur' && (
-          <Section icon={DollarSign} title="Informations financières">
-            <Input label="Tarif par nuit (MAD)" type="number" value={form.tarifNuit || ''} onChange={e => updateField('tarifNuit', e.target.value ? Number(e.target.value) : '')} />
-            <Input label="Montant total hors options (MAD)" type="number" value={form.montantTotalHorsOptions || ''} onChange={e => updateField('montantTotalHorsOptions', e.target.value ? Number(e.target.value) : '')} />
-            <Input label="Options (MAD)" type="number" value={form.optionsMontant || ''} onChange={e => updateField('optionsMontant', e.target.value ? Number(e.target.value) : '')} />
-            <Input label="Montant total (MAD)" type="number" value={form.montantTotalAvecOptions || ''} onChange={e => updateField('montantTotalAvecOptions', e.target.value ? Number(e.target.value) : '')} />
-            <Input label="Acompte (MAD)" type="number" value={form.acompteMontant || ''} onChange={e => updateField('acompteMontant', e.target.value ? Number(e.target.value) : '')} />
-            <Input label="Solde restant (MAD)" type="number" value={form.soldeRestant || ''} onChange={e => updateField('soldeRestant', e.target.value ? Number(e.target.value) : '')} />
-            <Input label="Caution (MAD)" type="number" value={form.cautionMontant || ''} onChange={e => updateField('cautionMontant', e.target.value ? Number(e.target.value) : '')} />
-          </Section>
-        )}
-
-        {/* VENDEUR - Financial Info */}
-        {clientType === 'Vendeur' && (
-          <Section icon={DollarSign} title="Informations financières">
-            <Input label="Prix net vendeur (MAD)" type="number" value={form.prixNetVendeur || ''} onChange={e => updateField('prixNetVendeur', e.target.value ? Number(e.target.value) : '')} />
-            <div className="space-y-1.5 w-full">
-              <label className="text-sm font-medium text-text">Honoraires</label>
-              <div className="flex rounded-lg border border-border overflow-hidden">
-                <button
-                  type="button"
-                  className={`flex-1 h-9 text-sm font-medium transition-colors ${
-                    !form.remunerationIsPercentage
-                      ? 'bg-accent text-white'
-                      : 'bg-card text-text-secondary hover:text-text'
-                  }`}
-                  onClick={() => updateField('remunerationIsPercentage', false)}
-                >
-                  MAD
-                </button>
-                <button
-                  type="button"
-                  className={`flex-1 h-9 text-sm font-medium transition-colors ${
-                    form.remunerationIsPercentage
-                      ? 'bg-accent text-white'
-                      : 'bg-card text-text-secondary hover:text-text'
-                  }`}
-                  onClick={() => updateField('remunerationIsPercentage', true)}
-                >
-                  %
-                </button>
-              </div>
-              <Input
-                label=""
-                type="number"
-                suffix={<span className="text-xs">{form.remunerationIsPercentage ? '%' : 'MAD'}</span>}
-                value={form.montantRemuneration || ''}
-                onChange={e => updateField('montantRemuneration', e.target.value ? Number(e.target.value) : '')}
-              />
-            </div>
-          </Section>
-        )}
-
-        {/* BAILLEUR - Financial Info */}
-        {clientType === 'Bailleur' && (
-          <Section icon={DollarSign} title="Informations financières">
-            <Input label="Loyer mensuel (MAD)" type="number" value={form.loyerHC || ''} onChange={e => updateField('loyerHC', e.target.value ? Number(e.target.value) : '')} />
-            <Input label="Charges (MAD)" type="number" value={form.charges || ''} onChange={e => updateField('charges', e.target.value ? Number(e.target.value) : '')} />
-            <Input label="Dépôt garantie (MAD)" type="number" value={form.depotGarantie || ''} onChange={e => updateField('depotGarantie', e.target.value ? Number(e.target.value) : '')} />
-            <Input label="Frais mise en location (MAD)" type="number" value={form.fraisMiseEnLocation || ''} onChange={e => updateField('fraisMiseEnLocation', e.target.value ? Number(e.target.value) : '')} />
-          </Section>
-        )}
-
-        {/* Mandat Status - NOT Voyageur */}
-        {clientType !== 'Voyageur' && (
-          <Section icon={FileText} title="Statut du mandat">
-            <ROField label="Référence" value={<span className="font-mono">{(client as any)?.numeroMandat || t.reference}</span>} />
-            <ROField label="Type" value={mandatLabel} />
-            <ROField label="Étape" value={
-              <Badge className={TRANSACTION_ETAPE_COLORS[t.etape as TransactionEtape]}>
-                {(client as any)?.statutMandat || etapeLabel}
-              </Badge>
-            } />
-            <DatePicker label="Date signature" value={form.dateSignature || ''} onChange={e => updateField('dateSignature', e.target.value)} />
-            <DatePicker label="Date d'expiration" value={form.dateExpirationClient || ''} onChange={e => updateField('dateExpirationClient', e.target.value)} />
-          </Section>
-        )}
-
-        {/* Action buttons */}
-        <div className="sticky bottom-0 bg-card pt-3 pb-1 border-t border-border/30 flex items-center justify-end gap-3">
-          <Button variant="default" onClick={onClose} disabled={saving}>
-            Annuler
-          </Button>
-          <Button onClick={handleSave} disabled={saving || !isDirty} loading={saving}>
-            <Save size={14} className="mr-1.5" />
-            Enregistrer les modifications
-          </Button>
-        </div>
       </div>
     </Dialog>
   )

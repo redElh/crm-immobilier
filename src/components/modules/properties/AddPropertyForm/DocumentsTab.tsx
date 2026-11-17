@@ -3,7 +3,7 @@ import { useWatch } from 'react-hook-form'
 import { FileText, Folder, HardDrive, Upload, Shield, Info } from 'react-feather'
 import { FileTreeEditor, FileNode, cleanTree } from '../FileTreeEditor'
 import { uploadFiles } from '../../../../services/uploadService'
-import { SectionCard } from './stage'
+import { SectionCard, useFormTheme } from './stage'
 import { useStageChrome } from '../../calendar/useStageChrome'
 import { useStageTheme } from '../../../dashboard/Stage'
 
@@ -74,6 +74,7 @@ export function DocumentsTab({ control, setFormValue, isGerant = false }: Docume
   const { staged, dark } = useStageChrome()
   const theme = useStageTheme()
   const isDark = staged ? dark : theme === 'dark'
+  const { inkFaint } = useFormTheme()
 
   useEffect(() => {
     if (!initialLoaded.current && watchedTree !== undefined) {
@@ -123,16 +124,16 @@ export function DocumentsTab({ control, setFormValue, isGerant = false }: Docume
             style={{
               borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(15,23,42,0.07)',
               background: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.62)',
-              boxShadow: isDark ? 'inset 0 1px 0 rgba(255,255,255,0.05)' : 'inset 0 1px 0 rgba(255,255,255,0.85), 0 8px 22px -14px rgba(13,148,136,0.18)',
+              boxShadow: isDark ? 'inset 0 1px 0 rgba(255,255,255,0.05)' : 'inset 0 1px 0 rgba(255,255,255,0.85), 0 8px 22px -14px var(--pf-glow)',
             }}
           >
             <div className="flex flex-wrap items-center gap-2">
               <span
                 className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-bold tracking-wide"
                 style={{
-                  color: isDark ? '#A78BFA' : '#0D9488',
-                  borderColor: isDark ? 'rgba(167,139,250,0.30)' : 'rgba(13,148,136,0.20)',
-                  background: isDark ? 'rgba(167,139,250,0.12)' : 'rgba(20,184,166,0.10)',
+                  color: 'var(--pf-line)',
+                  borderColor: 'var(--pf-soft-2)',
+                  background: 'var(--pf-soft)',
                 }}
               >
                 <HardDrive size={11} />
@@ -150,7 +151,7 @@ export function DocumentsTab({ control, setFormValue, isGerant = false }: Docume
                 {stats.files} fichier{stats.files !== 1 ? 's' : ''} · {stats.folders} dossier{stats.folders !== 1 ? 's' : ''}
               </span>
             </div>
-            <span className={`hidden items-center gap-1.5 text-[11px] sm:flex ${isDark ? 'text-slate-500' : 'text-teal-900/40'}`}>
+            <span className={`hidden items-center gap-1.5 text-[11px] sm:flex ${inkFaint}`}>
               <Shield size={12} />
               Glissez-déposez • clic droit pour actions
             </span>
@@ -168,7 +169,7 @@ export function DocumentsTab({ control, setFormValue, isGerant = false }: Docume
               ? {
                   borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(15,23,42,0.07)',
                   background: isDark ? 'rgba(255,255,255,0.02)' : 'rgba(255,255,255,0.45)',
-                  boxShadow: isDark ? 'inset 0 1px 0 rgba(255,255,255,0.04)' : 'inset 0 1px 0 rgba(255,255,255,0.8), 0 12px 28px -18px rgba(13,148,136,0.16)',
+                  boxShadow: isDark ? 'inset 0 1px 0 rgba(255,255,255,0.04)' : 'inset 0 1px 0 rgba(255,255,255,0.8), 0 12px 28px -18px var(--pf-glow)',
                 }
               : undefined
           }
@@ -202,7 +203,7 @@ export function DocumentsTab({ control, setFormValue, isGerant = false }: Docume
                 color: isDark ? 'rgba(148,163,184,0.6)' : 'rgba(15,23,42,0.45)',
               }}
             >
-              <Info size={11} className={isDark ? 'text-violet-300/60' : 'text-teal-700/50'} />
+              <Info size={11} className="text-[color:var(--pf-line)] opacity-60" />
               Astuce : créez des dossiers par catégorie (Juridique, Technique, Photos) puis ajoutez vos fichiers
             </div>
           )}

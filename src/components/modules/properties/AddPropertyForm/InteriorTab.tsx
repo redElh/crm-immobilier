@@ -4,7 +4,7 @@ import { Checkbox } from '../../../../components/ui/Checkbox';
 import { Select } from '../../../../components/ui/Select';
 import { Textarea } from '../../../../components/ui/Textarea';
 import { Grid, Droplet, Coffee, Tv, Home, Box, Layers, Wind, Briefcase, Sun, Info, MapPin } from 'react-feather';
-import { SectionCard, SubPanel, SubLabel, Field, FieldGrid } from './stage';
+import { SectionCard, SubPanel, SubLabel, Field, FieldGrid, useFormTheme } from './stage';
 import { useStageChrome } from '../../calendar/useStageChrome';
 import { useStageTheme } from '../../../dashboard/Stage';
 
@@ -85,6 +85,7 @@ function InteriorSpacesTable({ control }: { control: any }) {
   const { staged, dark } = useStageChrome();
   const theme = useStageTheme();
   const isDark = staged ? dark : theme === 'dark';
+  const { inkFaint } = useFormTheme();
 
   if (staged) {
     return (
@@ -96,8 +97,8 @@ function InteriorSpacesTable({ control }: { control: any }) {
             ? 'linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02))'
             : 'linear-gradient(180deg, rgba(255,255,255,0.92), rgba(255,255,255,0.58))',
           boxShadow: isDark
-            ? 'inset 0 1px 0 rgba(255,255,255,0.08), 0 18px 50px -28px rgba(2,4,18,0.9), 0 0 40px -18px rgba(139,124,255,0.28)'
-            : 'inset 0 1px 0 rgba(255,255,255,0.9), 0 18px 50px -26px rgba(13,148,136,0.28), 0 0 36px -16px rgba(52,211,153,0.22)',
+            ? 'inset 0 1px 0 rgba(255,255,255,0.08), 0 18px 50px -28px rgba(2,4,18,0.9), 0 0 40px -18px var(--pf-glow)'
+            : 'inset 0 1px 0 rgba(255,255,255,0.9), 0 18px 50px -26px var(--pf-glow), 0 0 36px -16px var(--pf-glow)',
           backdropFilter: 'blur(16px)',
         }}
       >
@@ -112,9 +113,9 @@ function InteriorSpacesTable({ control }: { control: any }) {
             <span
               className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-bold tracking-wide"
               style={{
-                color: isDark ? '#A78BFA' : '#0D9488',
-                borderColor: isDark ? 'rgba(167,139,250,0.30)' : 'rgba(13,148,136,0.20)',
-                background: isDark ? 'rgba(167,139,250,0.12)' : 'rgba(20,184,166,0.10)',
+                color: 'var(--pf-line)',
+                borderColor: 'var(--pf-soft-2)',
+                background: 'var(--pf-soft)',
               }}
             >
               <Tv size={11} />
@@ -122,7 +123,7 @@ function InteriorSpacesTable({ control }: { control: any }) {
             </span>
             <InteriorSpacesStats control={control} isDark={isDark} />
           </div>
-          <span className={`hidden items-center gap-1.5 text-[11px] sm:flex ${isDark ? 'text-slate-500' : 'text-teal-900/40'}`}>
+          <span className={`hidden items-center gap-1.5 text-[11px] sm:flex ${inkFaint}`}>
             <Info size={12} />
             Inventaire détaillé par pièce
           </span>
@@ -302,7 +303,7 @@ function InteriorSpacesTable({ control }: { control: any }) {
             color: isDark ? 'rgba(148,163,184,0.75)' : 'rgba(15,23,42,0.45)',
           }}
         >
-          <Layers size={11} className={isDark ? 'text-violet-300/60' : 'text-teal-700/50'} />
+            <Layers size={11} className="text-[color:var(--pf-line)] opacity-60" />
           Accès ext. = accès extérieur · Placard = rangement intégré
         </div>
       </div>
@@ -459,6 +460,7 @@ export function InteriorTab({ control, register, watch, propertyType, isGerant =
   const { staged, dark } = useStageChrome();
   const theme = useStageTheme();
   const isDark = staged ? dark : theme === 'dark';
+  const { inkFaint } = useFormTheme();
 
   return (
     <div className="space-y-5">
@@ -480,12 +482,12 @@ export function InteriorTab({ control, register, watch, propertyType, isGerant =
                           <button
                             type="button"
                             onClick={() => field.onChange(!field.value)}
-                            className="group relative overflow-hidden rounded-2xl border text-left transition-all duration-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-400/40"
+                            className="group relative overflow-hidden rounded-2xl border text-left transition-all duration-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-[color:var(--pf-ring)]"
                             style={{
-                              borderColor: active ? (isDark ? 'rgba(167,139,250,0.55)' : 'rgba(20,184,166,0.45)') : isDark ? 'rgba(255,255,255,0.08)' : 'rgba(15,23,42,0.08)',
+                              borderColor: active ? 'var(--pf-line)' : isDark ? 'rgba(255,255,255,0.08)' : 'rgba(15,23,42,0.08)',
                               background: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.65)',
                               boxShadow: active
-                                ? isDark ? '0 0 28px -12px rgba(167,139,250,0.65), inset 0 1px 0 rgba(255,255,255,0.10)' : '0 12px 28px -14px rgba(13,148,136,0.35), inset 0 1px 0 rgba(255,255,255,0.9)'
+                                ? isDark ? '0 0 28px -12px var(--pf-glow), inset 0 1px 0 rgba(255,255,255,0.10)' : '0 12px 28px -14px var(--pf-glow), inset 0 1px 0 rgba(255,255,255,0.9)'
                                 : isDark ? 'inset 0 1px 0 rgba(255,255,255,0.04)' : 'inset 0 1px 0 rgba(255,255,255,0.9)',
                               transform: active ? 'translateY(-1px)' : undefined,
                             }}
@@ -497,9 +499,9 @@ export function InteriorTab({ control, register, watch, propertyType, isGerant =
                                 <span
                                   className="absolute right-2 top-2 flex h-7 w-7 items-center justify-center rounded-full border text-white shadow-lg"
                                   style={{
-                                    background: isDark ? 'linear-gradient(145deg, #8B7CFF, #5B4BD4)' : 'linear-gradient(145deg, #2DD4BF, #0D9488)',
+                                    background: 'linear-gradient(145deg, var(--pf-a), var(--pf-b))',
                                     borderColor: 'rgba(255,255,255,0.55)',
-                                    boxShadow: isDark ? '0 6px 16px -6px rgba(124,92,255,0.7)' : '0 6px 16px -6px rgba(13,148,136,0.6)',
+                                    boxShadow: '0 6px 16px -6px var(--pf-glow)',
                                   }}
                                 >
                                   <svg width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -521,15 +523,15 @@ export function InteriorTab({ control, register, watch, propertyType, isGerant =
                                 <span
                                   className="h-2 w-2 shrink-0 rounded-full"
                                   style={{
-                                    background: active ? (isDark ? '#A78BFA' : '#14B8A6') : 'rgba(255,255,255,0.55)',
-                                    boxShadow: active ? (isDark ? '0 0 10px rgba(167,139,250,0.7)' : '0 0 10px rgba(20,184,166,0.6)') : 'none',
+                                    background: active ? 'var(--pf-line)' : 'rgba(255,255,255,0.55)',
+                                    boxShadow: active ? '0 0 10px var(--pf-glow)' : 'none',
                                   }}
                                 />
                               </div>
                             </div>
                             <div className="flex items-center justify-between px-3 py-2.5">
                               <span className={`text-[13px] font-semibold tracking-[-0.1px] ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>{style.label}</span>
-                              <span className={`text-[11px] font-bold ${active ? (isDark ? 'text-violet-300' : 'text-teal-700') : (isDark ? 'text-slate-500' : 'text-slate-400')}`}>
+                              <span className={`text-[11px] font-bold ${active ? 'text-[color:var(--pf-line)]' : (isDark ? 'text-slate-500' : 'text-slate-400')}`}>
                                 {active ? 'Sélectionné' : 'Choisir'}
                               </span>
                             </div>

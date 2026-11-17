@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { FileText, Clock, Trash2, ArrowRight, X, Search, Home, Briefcase, Users, Sun } from 'react-feather'
 import { getDrafts, deleteDraft, type ClientDraft } from '../../../services/clientDraftStorage'
 import { CompletionRing } from '../../ui/CompletionRing'
+import { FLOATING_SLOT_1, FLOATING_PANEL_1, FLOATING_PANEL_MAX_H, FLOATING_PANEL_LIST_H } from '../../../lib/floating'
 
 const CLIENT_TYPE_CONFIG: Record<string, { gradient: string; icon: React.ReactNode; label: string }> = {
   Acheteur: { gradient: 'from-blue-500/20 to-blue-600/10', icon: <Search size={15} />, label: 'Acheteur' },
@@ -16,7 +17,7 @@ const DEFAULT_CONFIG = { gradient: 'from-gray-500/20 to-gray-600/10', icon: <Use
 
 const getClientConfig = (clientType: string, isGerant: boolean) => {
   const base = CLIENT_TYPE_CONFIG[clientType] || DEFAULT_CONFIG
-  if (isGerant && clientType === 'Locataire') return { ...base, gradient: 'from-[#905D5D]/20 to-[#7D5050]/10' }
+  if (isGerant && clientType === 'Locataire') return { ...base, gradient: 'from-accent/20 to-accent/10' }
   return base
 }
 
@@ -84,7 +85,7 @@ export function ClientDraftSection({ clientType, userId, onResume, isGerant = fa
     <>
       <motion.button
         onClick={() => setOpen(v => !v)}
-        className={`fixed bottom-6 right-6 z-[9999] flex items-center gap-2.5 px-4 py-3 rounded-2xl bg-gradient-to-br ${isGerant ? 'from-[#905D5D] to-[#7D5050]' : 'from-amber-400 to-amber-500'} text-white shadow-lg hover:shadow-xl hover:scale-105 transition-shadow`}
+        className={`fixed ${FLOATING_SLOT_1} right-6 z-[9999] flex items-center gap-2.5 px-4 py-3 rounded-2xl bg-gradient-to-br ${'from-accent to-accent'} text-white shadow-lg hover:shadow-xl hover:scale-105 transition-shadow`}
         whileTap={{ scale: 0.95 }}
         layoutId="client-draft-bubble"
       >
@@ -110,12 +111,12 @@ export function ClientDraftSection({ clientType, userId, onResume, isGerant = fa
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.85, y: 20, transition: { duration: 0.15 } }}
             transition={{ type: 'spring', damping: 22, stiffness: 300, mass: 0.8 }}
-            className="fixed bottom-24 right-6 z-[9999] w-[400px] max-w-[calc(100vw-32px)] bg-card rounded-2xl border border-border/50 shadow-2xl overflow-hidden"
-            style={{ maxHeight: 'calc(100vh - 160px)' }}
+            className={`fixed ${FLOATING_PANEL_1} right-6 z-[9999] w-[400px] max-w-[calc(100vw-32px)] bg-card rounded-2xl border border-border/50 shadow-2xl overflow-hidden`}
+            style={{ maxHeight: FLOATING_PANEL_MAX_H }}
           >
             <div className={`px-5 py-4 border-b border-border/30 flex items-center justify-between ${isGerant ? 'bg-gradient-to-r from-[#F0E2E2] to-[#F0E2E2]/30' : 'bg-gradient-to-r from-amber-50 to-amber-50/30'}`}>
               <div className="flex items-center gap-2.5">
-                <div className={`p-1.5 rounded-lg ${isGerant ? 'bg-[#E7D5D5] text-[#905D5D]' : 'bg-amber-100 text-amber-600'}`}>
+                <div className={`p-1.5 rounded-lg ${'bg-accent/10 text-accent'}`}>
                   <FileText size={15} />
                 </div>
                 <div>
@@ -131,7 +132,7 @@ export function ClientDraftSection({ clientType, userId, onResume, isGerant = fa
               </button>
             </div>
 
-            <div className="overflow-y-auto" style={{ maxHeight: 'calc(100vh - 260px)' }}>
+            <div className="overflow-y-auto" style={{ maxHeight: FLOATING_PANEL_LIST_H }}>
               {drafts.map((draft) => {
                 const config = getClientConfig(draft.clientType, isGerant)
                 const pct = draft.completion
@@ -147,14 +148,14 @@ export function ClientDraftSection({ clientType, userId, onResume, isGerant = fa
                     transition={{ duration: 0.2 }}
                     className="flex items-center gap-3 px-5 py-3 hover:bg-background/50 transition-colors border-b border-border/10 last:border-0"
                   >
-                    <div className={`w-9 h-9 rounded-xl bg-gradient-to-br ${config.gradient} flex items-center justify-center flex-shrink-0 ${isGerant ? 'text-[#905D5D]' : 'text-accent'}`}>
+                    <div className={`w-9 h-9 rounded-xl bg-gradient-to-br ${config.gradient} flex items-center justify-center flex-shrink-0 ${'text-accent'}`}>
                       {config.icon}
                     </div>
 
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-1.5">
                         <span className="text-sm font-medium text-text truncate">{draft.title || 'Sans titre'}</span>
-                        <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${isGerant ? 'bg-[#905D5D]/10 text-[#905D5D]' : 'bg-accent/10 text-accent'} flex-shrink-0`}>{config.label}</span>
+                        <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${'bg-accent/10 text-accent'} flex-shrink-0`}>{config.label}</span>
                       </div>
                       <div className="flex items-center gap-1.5 text-[10px] text-text-secondary/50 mt-0.5">
                         <span>Client</span>
@@ -168,7 +169,7 @@ export function ClientDraftSection({ clientType, userId, onResume, isGerant = fa
 
                     <div className="flex items-center gap-0.5">
                       <button onClick={() => handleResume(draft)}
-                        className={`p-1.5 rounded-lg ${isGerant ? 'text-[#905D5D] hover:bg-[#905D5D]/10' : 'text-accent hover:bg-accent/10'} transition-all`} title="Reprendre">
+                        className={`p-1.5 rounded-lg ${'text-accent hover:bg-accent/10'} transition-all`} title="Reprendre">
                         <ArrowRight size={13} />
                       </button>
                       <button onClick={() => handleDelete(draft.id)}
@@ -184,7 +185,7 @@ export function ClientDraftSection({ clientType, userId, onResume, isGerant = fa
             <div className="px-5 py-3 border-t border-border/20 bg-background/30 flex items-center justify-between">
               <span className="text-[10px] text-text-secondary/50">Brouillons sauvegardés automatiquement</span>
               <button onClick={() => setOpen(false)}
-                className={`text-[11px] font-medium ${isGerant ? 'text-[#905D5D] hover:text-[#905D5D]/80' : 'text-accent hover:text-accent/80'} transition-colors`}>
+                className={`text-[11px] font-medium ${'text-accent hover:text-accent/80'} transition-colors`}>
                 Fermer
               </button>
             </div>

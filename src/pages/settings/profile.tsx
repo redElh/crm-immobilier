@@ -6,7 +6,6 @@ import { Textarea } from '../../components/ui/Textarea'
 import { Switch } from '../../components/ui/Switch'
 import { User, Camera, ArrowLeft } from 'react-feather'
 import {
-  Stage,
   OrbIcon,
   StageButton,
   STAGE_HUES,
@@ -30,7 +29,7 @@ export default function ProfileSettingsPage() {
   const [isDarkMode, setIsDarkMode] = useState(false)
   const [isGoogleCalendarEnabled, setIsGoogleCalendarEnabled] = useState(false)
   return (
-    <Stage theme={theme}>
+    
       <div className="space-y-6">
         <button onClick={() => navigate(-1)} className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl border w-fit ${isDark ? 'border-white/10 text-slate-300 hover:bg-white/5' : 'border-teal-900/10 text-slate-600 hover:bg-white'}`}><ArrowLeft size={13} /> Retour</button>
         <div>
@@ -78,6 +77,6 @@ export default function ProfileSettingsPage() {
           <StageButton variant="primary">Enregistrer</StageButton>
         </div>
       </div>
-    </Stage>
+    
   )
 }

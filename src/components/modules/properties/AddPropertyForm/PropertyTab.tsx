@@ -8,7 +8,7 @@ import { Button } from '../../../../components/ui/Button';
 import { CheckCircle2, Info, Sparkles, Home } from 'lucide-react';
 import { generatePropertyDescription } from './generateDescription';
 import { useStageChrome } from '../../../../components/modules/calendar/useStageChrome';
-import { SectionCard, SubPanel, Field, FieldGrid } from './stage';
+import { SectionCard, SubPanel, Field, FieldGrid, useFormTheme } from './stage';
 import { cn } from '../../../../lib/utils';
 
 interface PropertyTabProps {
@@ -22,6 +22,7 @@ interface PropertyTabProps {
 
 export function PropertyTab({ control, register, propertyType, isGerant = false, watch, setValue }: PropertyTabProps) {
   const { staged, dark } = useStageChrome();
+  const { ink, inkFaint, line, accentText } = useFormTheme();
   const isLand = propertyType === 'land';
   const isCommercial = propertyType === 'commercial';
   const isLuxury = propertyType === 'luxury';
@@ -52,12 +53,12 @@ export function PropertyTab({ control, register, propertyType, isGerant = false,
 
   const descPanelClass = staged
     ? dark
-      ? 'mt-1.5 relative rounded-2xl border bg-gradient-to-b from-white/[0.06] to-white/[0.02] overflow-hidden transition-all duration-200 focus-within:border-violet-400/60 focus-within:shadow-[0_0_0_3px_rgba(124,92,255,0.2)]'
-      : 'mt-1.5 relative rounded-2xl border bg-gradient-to-b from-white to-teal-50/60 overflow-hidden transition-all duration-200 focus-within:border-teal-500/60 focus-within:shadow-[0_0_0_3px_rgba(20,184,166,0.18)]'
+      ? 'mt-1.5 relative rounded-2xl border bg-gradient-to-b from-white/[0.06] to-white/[0.02] overflow-hidden transition-all duration-200 focus-within:border-[color:var(--pf-line)] focus-within:shadow-[0_0_0_3px_var(--pf-ring)]'
+      : 'mt-1.5 relative rounded-2xl border bg-gradient-to-b from-white to-[color:var(--pf-soft)] overflow-hidden transition-all duration-200 focus-within:border-[color:var(--pf-line)] focus-within:shadow-[0_0_0_3px_var(--pf-ring)]'
     : 'mt-1.5 relative rounded-xl border bg-gradient-to-b from-background/60 via-card to-card overflow-hidden transition-all duration-200 focus-within:border-accent/60 focus-within:ring-2 focus-within:ring-accent/15';
   const descBorder = generated
     ? staged ? 'border-emerald-400/60' : 'border-emerald-300/70'
-    : staged ? (dark ? 'border-white/10' : 'border-teal-900/10') : 'border-border/60';
+    : staged ? line : 'border-border/60';
 
   return (
     <div className="space-y-5">
@@ -167,18 +168,18 @@ export function PropertyTab({ control, register, propertyType, isGerant = false,
           )}
 
           <Field className="md:col-span-2">
-            <label className={cn('flex items-center gap-1.5 text-sm font-medium', staged ? (dark ? 'text-slate-300' : 'text-teal-900') : 'text-text')}>
-              <Sparkles className={cn('w-3.5 h-3.5', staged ? (dark ? 'text-violet-300' : 'text-teal-600') : 'text-accent')} />
+            <label className={cn('flex items-center gap-1.5 text-sm font-medium', staged ? (dark ? 'text-slate-300' : ink) : 'text-text')}>
+              <Sparkles className={cn('w-3.5 h-3.5', staged ? accentText : 'text-accent')} />
               Description
             </label>
             <div className={cn(descPanelClass, descBorder)}>
-              <div className={cn('h-0.5 w-full', staged ? (dark ? 'bg-gradient-to-r from-violet-400 via-violet-400/50 to-transparent' : 'bg-gradient-to-r from-teal-500 via-teal-500/50 to-transparent') : 'bg-gradient-to-r from-accent via-accent/50 to-transparent')} />
+              <div className={cn('h-0.5 w-full', staged ? 'bg-gradient-to-r from-[color:var(--pf-a)] via-[color:var(--pf-soft-2)] to-transparent' : 'bg-gradient-to-r from-accent via-accent/50 to-transparent')} />
               <textarea
                 rows={5}
                 placeholder="Décrivez ce bien : surface, pièces, prestations, environnement, atouts…"
                 className={cn(
                   'w-full min-h-[150px] pl-4 pr-52 pt-2.5 pb-6 text-sm leading-6 resize-y overflow-y-auto bg-transparent focus:outline-none [scrollbar-width:thin] [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border [&::-webkit-scrollbar-track]:bg-transparent',
-                  staged ? (dark ? 'text-slate-100 placeholder:text-slate-500' : 'text-teal-950 placeholder:text-teal-900/35') : 'text-text placeholder:text-text-secondary/40',
+                  staged ? (dark ? 'text-slate-100 placeholder:text-slate-500' : 'text-slate-900 placeholder:text-slate-400') : 'text-text placeholder:text-text-secondary/40',
                 )}
                 ref={descriptionRef}
                 onChange={(e) => {
@@ -194,9 +195,9 @@ export function PropertyTab({ control, register, propertyType, isGerant = false,
                   variant="outline"
                   className={cn(
                     'backdrop-blur-sm shadow-sm',
-                    staged && (dark ? 'bg-white/10 border-white/15 text-slate-200 hover:bg-white/15 hover:text-white' : 'bg-white/70 border-teal-900/10 text-teal-900 hover:bg-white hover:text-teal-900'),
+                    staged && (dark ? 'bg-white/10 border-white/15 text-slate-200 hover:bg-white/15 hover:text-white' : 'bg-white/70 border-slate-900/10 text-slate-900 hover:bg-white hover:text-slate-900'),
                   )}
-                  icon={<Sparkles className={cn('w-3.5 h-3.5', staged && (dark ? 'text-violet-300' : 'text-teal-600'))} />}
+                  icon={<Sparkles className={cn('w-3.5 h-3.5', staged && accentText)} />}
                   onClick={handleGenerateDescription}
                 >
                   Générer la description
@@ -210,15 +211,15 @@ export function PropertyTab({ control, register, propertyType, isGerant = false,
                   Description générée avec succès
                 </span>
               ) : (
-                <span className={cn('text-xs', staged ? (dark ? 'text-slate-500' : 'text-teal-900/45') : 'text-text-secondary/50')}>
+                <span className={cn('text-xs', staged ? inkFaint : 'text-text-secondary/50')}>
                   Un clic suffit pour rédiger une description professionnelle à partir des informations du bien.
                 </span>
               )}
-              <span className={cn('text-[11px] tabular-nums shrink-0', staged ? (dark ? 'text-slate-500' : 'text-teal-900/45') : 'text-text-secondary/50')}>
+              <span className={cn('text-[11px] tabular-nums shrink-0', staged ? inkFaint : 'text-text-secondary/50')}>
                 {descriptionLength} caractère{descriptionLength > 1 ? 's' : ''}
               </span>
             </div>
-            <p className={cn('mt-1 flex items-start gap-1 px-1 text-[11px] leading-snug', staged ? (dark ? 'text-slate-500' : 'text-teal-900/40') : 'text-text-secondary/45')}>
+            <p className={cn('mt-1 flex items-start gap-1 px-1 text-[11px] leading-snug', staged ? inkFaint : 'text-text-secondary/45')}>
               <Info className="w-3 h-3 shrink-0 mt-0.5" />
               Pour une description précise et complète, renseignez l'ensemble des champs nécessaires du bien avant de la générer.
             </p>

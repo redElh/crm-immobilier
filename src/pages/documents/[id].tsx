@@ -33,7 +33,7 @@ export default function DocumentDetailPage() {
       <div className="space-y-6">
         {/* Top bar */}
         <div className="flex items-center justify-between flex-wrap gap-3">
-          <button onClick={() => navigate(-1)} className={`group inline-flex items-center gap-2 rounded-xl border px-3 py-1.5 text-xs font-semibold backdrop-blur-md transition-all ${isDark ? 'border-white/10 bg-white/[0.04] text-slate-400 hover:text-white hover:border-white/20' : 'border-teal-900/10 bg-white/60 text-teal-900/60 hover:text-teal-900'}`}>
+          <button onClick={() => navigate('/documents')} className={`group inline-flex items-center gap-2 rounded-xl border px-3 py-1.5 text-xs font-semibold backdrop-blur-md transition-all ${isDark ? 'border-white/10 bg-white/[0.04] text-slate-400 hover:text-white hover:border-white/20' : 'border-teal-900/10 bg-white/60 text-teal-900/60 hover:text-teal-900'}`}>
             <ArrowLeft size={13} className="group-hover:-translate-x-0.5 transition-transform" /> Retour
           </button>
           <div className="flex gap-2">

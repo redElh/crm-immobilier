@@ -4,7 +4,7 @@ export type PresenceStatus = 'online' | 'away' | 'offline'
 
 export type MessageStatus = 'sent' | 'delivered' | 'read'
 
-export type MessageKind = 'text' | 'image' | 'video' | 'audio' | 'file' | 'call' | 'system'
+export type MessageKind = 'text' | 'image' | 'video' | 'audio' | 'file' | 'call' | 'system' | 'sealed'
 
 export interface MessageParticipant {
   id: string
@@ -58,6 +58,15 @@ export interface Message {
   status?: MessageStatus
   readAt?: string
   reactions?: MessageReaction[]
+  /**
+   * End-to-end encryption overlay (client-side only, never from the server).
+   * `kind === 'sealed'` carries an opaque envelope in `body`; after a
+   * successful open, `body` holds the plaintext and `sealedMedia` the
+   * attachment metadata needed to fetch + decrypt the bytes.
+   */
+  isSealed?: boolean
+  sealedOk?: boolean
+  sealedMedia?: import('../services/e2ee/chat').SealedMediaMeta | null
 }
 
 export interface Conversation {

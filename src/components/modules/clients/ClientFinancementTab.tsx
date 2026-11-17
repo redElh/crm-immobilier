@@ -1,15 +1,19 @@
 import { useState } from 'react';
+import { motion } from 'framer-motion';
 import { Button } from '../../ui/Button';
 import { Dialog } from '../../ui/Dialog';
 import { Client } from '../../../types/client';
 import {
   DollarSign, TrendingUp, CreditCard, Briefcase, Calendar, Mail,
   RefreshCw, CheckCircle, Upload, FileText, Percent, AlertCircle, Download,
-  Send, Printer
+  Send, Printer, Clock, User
 } from 'react-feather';
 import { useToast } from '../../ui/Toast';
 import { Select } from '../../ui/Select';
 import { DatePicker } from '../../ui/DatePicker';
+import {
+  StageField, StageSection, StagePill, StageHeroAmount, useDetailAccent,
+} from './ClientInfos/ClientDetailStage';
 
 interface Props {
   client: Client;
@@ -21,7 +25,7 @@ const formatMontant = (v: number) => v.toLocaleString('fr-FR');
 const statutFinancementColor = (statut: string | undefined, isGerant: boolean) => {
   switch (statut) {
     case 'Accordé': case 'Accorde': return 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20';
-    case 'En cours': return isGerant ? 'bg-[#905D5D]/10 text-[#905D5D] border-[#905D5D]/20' : 'bg-amber-500/10 text-amber-500 border-amber-500/20';
+    case 'En cours': return 'bg-accent/10 text-accent border-accent/20';
     case 'Refusé': case 'Refuse': return 'bg-error/10 text-error border-error/20';
     default: return 'bg-text-secondary/10 text-text-secondary border-text-secondary/20';
   }
@@ -78,8 +82,11 @@ export default function ClientFinancementTab({ client, isGerant = false }: Props
   const [statutFinancement, setStatutFinancement] = useState(client.statutFinancement || '');
   const [dateObtention, setDateObtention] = useState(client.dateObtentionPret || '');
 
-  const inputClass = (isGerant: boolean) => `w-full h-9 px-3 text-sm rounded-lg border border-border bg-card text-text placeholder:text-text-secondary/50 focus:outline-none focus:ring-2 ${isGerant ? 'focus:ring-[#905D5D]/20 focus:border-[#905D5D]' : 'focus:ring-accent/20 focus:border-accent'}`;
-  const labelClass = "text-xs font-medium text-text-secondary";
+  /* Staged theme accents (Acheteur). */
+  const { isDark, accent, ink } = useDetailAccent(client.type, isGerant);
+
+  const inputClass = `h-10 w-full rounded-xl border px-3 text-sm backdrop-blur-sm transition-all focus:outline-none focus:ring-2 ${isDark ? 'border-white/10 bg-white/[0.04] text-white placeholder:text-slate-500' : 'border-slate-200/70 bg-white/75 text-slate-900 placeholder:text-slate-400 shadow-sm'} ${isDark ? 'focus:border-violet-400/40 focus:ring-violet-400/20' : 'focus:border-teal-500/40 focus:ring-teal-500/20'}`;
+  const labelClass = `mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] ${isDark ? 'text-slate-500' : 'text-slate-400'}`;
 
   const openEmailModal = () => {
     setEmailTo(client.email || '');
@@ -296,299 +303,225 @@ export default function ClientFinancementTab({ client, isGerant = false }: Props
   };
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h3 className="text-sm font-semibold flex items-center gap-2">
-          <DollarSign size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />
-          Financement - {client.name}
-        </h3>
-      </div>
-
-      <div className="flex items-center gap-2">
-        <span className="text-xs font-medium text-text-secondary">Type:</span>
-        <span className="px-2.5 py-1 text-xs font-medium rounded-lg bg-premium/10 text-premium border border-premium/20">
-          {c.typeFinancement || 'Non défini'}
+    <div className="space-y-5">
+      {/* header */}
+      <motion.div
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+        className="flex flex-wrap items-center gap-2"
+      >
+        <span
+          className="flex h-8 w-8 items-center justify-center rounded-xl border"
+          style={isDark
+            ? { background: `${accent.a}14`, borderColor: `${accent.a}30`, color: accent.a }
+            : { background: `${accent.a}12`, borderColor: `${accent.a}30`, color: ink }}
+        >
+          <DollarSign size={15} />
         </span>
-      </div>
+        <h3 className={`text-sm font-extrabold tracking-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>
+          Financement — {client.name}
+        </h3>
+        <StagePill label={c.typeFinancement || 'Non défini'} hue={accent} isDark={isDark} />
+      </motion.div>
 
       {isPretBancaire && (
-        <div className="p-4 rounded-xl bg-background border border-border/50">
-          <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-3 flex items-center gap-1.5">
-            <TrendingUp size={14} />
-            Revenus & Charges
-          </p>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <div>
-              <label className={labelClass}>Revenus mensuels nets</label>
-              <div className="relative">
-                <input type="text" value={`${formatMontant(revenusNets)} ${devise}`} readOnly className={`${inputClass(isGerant)} opacity-60 cursor-not-allowed`} />
-              </div>
-            </div>
-            <div>
-              <label className={labelClass}>Revenus supplémentaires</label>
-              <div className="relative">
-                <input type="text" value={`${formatMontant(client.revenusSupplementaires || 0)} ${devise}`} readOnly className={`${inputClass(isGerant)} opacity-60 cursor-not-allowed`} />
-              </div>
-            </div>
-            <div>
-              <label className={labelClass}>Charges de crédit en cours</label>
-              <div className="relative">
-                <input type="text" value={`${formatMontant(chargesCredit)} ${devise}`} readOnly className={`${inputClass(isGerant)} opacity-60 cursor-not-allowed`} />
-              </div>
-            </div>
-            <div>
-              <label className={labelClass}>Charges fixes</label>
-              <div className="relative">
-                <input type="text" value={`${formatMontant(client.chargesFixes || 0)} ${devise}`} readOnly className={`${inputClass(isGerant)} opacity-60 cursor-not-allowed`} />
-              </div>
-            </div>
-          </div>
-        </div>
+        <StageSection icon={TrendingUp} title="Revenus & Charges" accent={accent} ink={ink} isDark={isDark} delay={0.05}>
+          <StageField icon={DollarSign} label="Revenus mensuels nets" value={`${formatMontant(revenusNets)} ${devise}`} accent={accent} ink={ink} isDark={isDark} />
+          <StageField icon={DollarSign} label="Revenus supplémentaires" value={`${formatMontant(client.revenusSupplementaires || 0)} ${devise}`} accent={accent} ink={ink} isDark={isDark} />
+          <StageField icon={AlertCircle} label="Charges de crédit en cours" value={`${formatMontant(chargesCredit)} ${devise}`} accent={accent} ink={ink} isDark={isDark} />
+          <StageField icon={AlertCircle} label="Charges fixes" value={`${formatMontant(client.chargesFixes || 0)} ${devise}`} accent={accent} ink={ink} isDark={isDark} />
+        </StageSection>
       )}
 
-      <div className="p-4 rounded-xl bg-background border border-border/50">
-        <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-3 flex items-center gap-1.5">
-          <TrendingUp size={14} className="text-premium" />
-          {isPretBancaire ? 'Résultat du calcul' : 'Capacité'}
-        </p>
-        <div className="space-y-2">
-          {isPretBancaire && (
-            <>
-              <div className="flex justify-between text-sm">
-                <span className="text-text-secondary">Mensualité max (35% - charges)</span>
-                <span className="font-semibold">{formatMontant(mensualiteMax)} {devise}</span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-text-secondary">Montant empruntable</span>
-                <span className="font-semibold">{formatMontant(montantEmpruntable)} {devise}</span>
-              </div>
-            </>
-          )}
-          <div className="flex justify-between text-sm">
-            <span className="text-text-secondary">Apport personnel</span>
-            <span className="font-semibold">{formatMontant(apport)} {devise}</span>
-          </div>
-          <div className="flex justify-between text-sm border-t border-border/30 pt-2 mt-2">
-            <span className="flex items-center gap-1.5 font-medium">
-              <TrendingUp size={16} className="text-premium" />
-              Capacité d'emprunt estimée
-            </span>
-            <span className="font-semibold text-premium text-lg">{formatMontant(capaciteCalculee)} {devise}</span>
-          </div>
-        </div>
-
-        {client.prixMin && client.prixMax && (
-          <div className={`flex items-center gap-2 text-xs font-medium mt-3 px-3 py-2 rounded-lg ${isAboveBudget ? 'bg-emerald-500/10 text-emerald-500' : isGerant ? 'bg-[#905D5D]/10 text-[#905D5D]' : 'bg-amber-500/10 text-amber-500'}`}>
-            {isAboveBudget ? <CheckCircle size={14} /> : <AlertCircle size={14} />}
-            {isAboveBudget
-              ? 'Ce client peut acheter dans sa fourchette de budget'
-              : 'Ce client est en dessous de son budget cible'}
-          </div>
+      {/* Résultat du calcul */}
+      <StageSection icon={TrendingUp} title="Résultat du calcul" accent={accent} ink={ink} isDark={isDark} delay={0.1}>
+        {isPretBancaire && (
+          <StageField icon={Calendar} label="Mensualité max (35% − charges)" value={`${formatMontant(mensualiteMax)} ${devise}`} accent={accent} ink={ink} isDark={isDark} />
         )}
-      </div>
+        {isPretBancaire && (
+          <StageField icon={DollarSign} label="Montant empruntable" value={`${formatMontant(montantEmpruntable)} ${devise}`} accent={accent} ink={ink} isDark={isDark} />
+        )}
+        <StageField icon={CreditCard} label="Apport personnel" value={`${formatMontant(apport)} ${devise}`} accent={accent} ink={ink} isDark={isDark} />
+      </StageSection>
+
+      <StageHeroAmount
+        icon={TrendingUp}
+        label="Capacité d'emprunt estimée"
+        value={`${formatMontant(capaciteCalculee)} ${devise}`}
+        accent={accent}
+        ink={ink}
+        isDark={isDark}
+        delay={0.12}
+      />
+
+      {client.prixMin && client.prixMax && (
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.15, duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+          className={`flex items-center gap-2 rounded-2xl border px-3.5 py-2.5 text-xs font-bold backdrop-blur-sm ${
+            isAboveBudget
+              ? isDark ? 'border-emerald-400/25 bg-emerald-400/10 text-emerald-300' : 'border-emerald-300/60 bg-emerald-50 text-emerald-700'
+              : isDark ? 'border-accent/30 bg-accent/[0.08] text-accent' : 'border-accent/30 bg-accent/[0.08] text-accent'
+          }`}
+        >
+          {isAboveBudget ? <CheckCircle size={14} className="shrink-0" /> : <AlertCircle size={14} className="shrink-0" />}
+          {isAboveBudget
+            ? 'Ce client peut acheter dans sa fourchette de budget'
+            : 'Ce client est en dessous de son budget cible'}
+        </motion.div>
+      )}
 
       {isPretBancaire && (
-        <div className="p-4 rounded-xl bg-background border border-border/50">
-          <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-3 flex items-center gap-1.5">
-            <Percent size={14} />
-            Détails du prêt
-          </p>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <div>
-              <label className={labelClass}>Montant du prêt souhaité</label>
-              <input type="text" value={`${formatMontant(client.montantPretSouhaite || 0)} ${devise}`} readOnly className={`${inputClass(isGerant)} opacity-60 cursor-not-allowed`} />
-            </div>
-            <div>
-              <label className={labelClass}>Taux envisagé</label>
-              <div className="relative">
-                <input type="text" value={`${client.tauxEnvisage || 3.5} %`} readOnly className={`${inputClass(isGerant)} opacity-60 cursor-not-allowed`} />
-              </div>
-            </div>
-            <div>
-              <label className={labelClass}>Durée</label>
-              <input type="text" value={`${c.dureePret || 20} ans`} readOnly className={`${inputClass(isGerant)} opacity-60 cursor-not-allowed`} />
-            </div>
-            <div>
-              <label className={labelClass}>TAEG</label>
-              <div className="relative">
-                <input type="text" value={`${client.taeg || 0} %`} readOnly className={`${inputClass(isGerant)} opacity-60 cursor-not-allowed`} />
-              </div>
-            </div>
-            <div>
-              <label className={labelClass}>Assurance emprunteur (%)</label>
-              <div className="relative">
-                <input type="text" value={`${client.assuranceEmprunteur || 0} %`} readOnly className={`${inputClass(isGerant)} opacity-60 cursor-not-allowed`} />
-              </div>
-            </div>
-          </div>
-        </div>
+        <StageSection icon={Percent} title="Détails du prêt" accent={accent} ink={ink} isDark={isDark} delay={0.15}>
+          <StageField icon={DollarSign} label="Montant du prêt souhaité" value={`${formatMontant(client.montantPretSouhaite || 0)} ${devise}`} accent={accent} ink={ink} isDark={isDark} />
+          <StageField icon={TrendingUp} label="Taux envisagé" value={`${client.tauxEnvisage || 3.5} %`} accent={accent} ink={ink} isDark={isDark} />
+          <StageField icon={Calendar} label="Durée" value={`${c.dureePret || 20} ans`} accent={accent} ink={ink} isDark={isDark} />
+          <StageField icon={TrendingUp} label="TAEG" value={`${client.taeg || 0} %`} accent={accent} ink={ink} isDark={isDark} />
+          <StageField icon={CreditCard} label="Assurance emprunteur" value={`${client.assuranceEmprunteur || 0} %`} accent={accent} ink={ink} isDark={isDark} />
+        </StageSection>
       )}
 
       {isComptant && client.montantTotal !== undefined && client.montantTotal > 0 && (
-        <div className="p-4 rounded-xl bg-background border border-border/50">
-          <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-3">Paiement comptant</p>
-          <div>
-            <label className={labelClass}>Montant total</label>
-            <input type="text" value={`${formatMontant(client.montantTotal)} ${devise}`} readOnly className={`${inputClass(isGerant)} opacity-60 cursor-not-allowed`} />
-          </div>
-        </div>
+        <StageSection icon={DollarSign} title="Paiement comptant" accent={accent} ink={ink} isDark={isDark} delay={0.15}>
+          <StageField icon={DollarSign} label="Montant total" value={`${formatMontant(client.montantTotal)} ${devise}`} accent={accent} ink={ink} isDark={isDark} />
+        </StageSection>
       )}
 
       {isAutre && (
-        <div className="p-4 rounded-xl bg-background border border-border/50">
-          <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-3">Détails du financement</p>
+        <StageSection icon={FileText} title="Détails du financement" accent={accent} ink={ink} isDark={isDark} delay={0.15}>
           {c.descriptionAutreFinancement && (
-            <div className="mb-3">
-              <label className={labelClass}>Description</label>
-              <input type="text" value={c.descriptionAutreFinancement} readOnly className={`${inputClass(isGerant)} opacity-60 cursor-not-allowed`} />
-            </div>
+            <StageField icon={FileText} label="Description" value={c.descriptionAutreFinancement} accent={accent} ink={ink} isDark={isDark} />
           )}
           {client.montantTotal !== undefined && client.montantTotal > 0 && (
-            <div>
-              <label className={labelClass}>Montant</label>
-              <input type="text" value={`${formatMontant(client.montantTotal)} ${devise}`} readOnly className={`${inputClass(isGerant)} opacity-60 cursor-not-allowed`} />
-            </div>
+            <StageField icon={DollarSign} label="Montant" value={`${formatMontant(client.montantTotal)} ${devise}`} accent={accent} ink={ink} isDark={isDark} />
           )}
-        </div>
+        </StageSection>
       )}
 
       {(isPretBancaire || isAutre) && (
-        <div className="border-t border-border/30 pt-4">
-          <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-3 flex items-center gap-1.5">
-            <Briefcase size={14} />
-            Informations bancaires
-          </p>
-          <div className={`grid grid-cols-1 md:grid-cols-2 gap-3 ${isPretBancaire ? 'lg:grid-cols-4' : ''}`}>
-            <div>
-              <label className={labelClass}>Banque sollicitée</label>
-              <Select
-                value={banque}
-                onChange={(val: string) => setBanque(val)}
-                options={[{ value: '', label: 'Sélectionner...' }, ...BANQUE_OPTIONS]}
-              />
-            </div>
-            {isAutre && (
-              <div>
-                <label className={labelClass}>Attestation de prêt</label>
-                {client.attestationPretUrl ? (
-                  <div className="flex items-center gap-3 p-3 rounded-lg border border-border bg-background/50 mt-1">
-                    <FileText size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />
-                    <span className="text-sm text-text flex-1">attestation.pdf</span>
-                    <Button variant="outline" size="sm" icon={<Download size={14} />}>Télécharger</Button>
-                  </div>
-                ) : (
-                  <div className="mt-1">
-                    <Button variant="outline" size="sm" icon={<Upload size={14} />}>Upload</Button>
-                  </div>
-                )}
-              </div>
-            )}
-            {isPretBancaire && (
-              <>
-                <div>
-                  <label className={labelClass}>Taux obtenu</label>
-                  <div className="relative">
-                    <input type="number" step="0.1" value={tauxObtenu} onChange={e => setTauxObtenu(Number(e.target.value))} className={inputClass(isGerant)} />
-                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-text-secondary">%</span>
-                  </div>
-                </div>
-                <div>
-                  <label className={labelClass}>Statut du financement</label>
-                  <Select
-                    value={statutFinancement}
-                    onChange={(val: string) => setStatutFinancement(val)}
-                    options={[{ value: '', label: 'Non défini' }, ...STATUT_FINANCEMENT_OPTIONS]}
-                  />
-                </div>
-                <div>
-                  <label className={labelClass}>Date d'obtention</label>
-                  <DatePicker
-                    value={dateObtention}
-                    onChange={e => setDateObtention(e.target.value)}
-                  />
-                </div>
-              </>
-            )}
+        <StageSection icon={Briefcase} title="Informations bancaires" accent={accent} ink={ink} isDark={isDark} delay={0.2}>
+          <div>
+            <label className={labelClass}>Banque sollicitée</label>
+            <Select
+              value={banque}
+              onChange={(val: string) => setBanque(val)}
+              options={[{ value: '', label: 'Sélectionner...' }, ...BANQUE_OPTIONS]}
+            />
           </div>
-
-          {isPretBancaire && (
-            <div className="mt-4">
+          {isAutre && (
+            <div>
               <label className={labelClass}>Attestation de prêt</label>
               {client.attestationPretUrl ? (
-                <div className="flex items-center gap-3 p-3 rounded-lg border border-border bg-background/50 mt-1">
-                  <FileText size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />
-                  <span className="text-sm text-text flex-1">attestation.pdf</span>
+                <div className={`flex items-center gap-3 rounded-2xl border p-3 backdrop-blur-sm ${isDark ? 'border-white/[0.07] bg-white/[0.04]' : 'border-slate-200/70 bg-white/75 shadow-sm'}`}>
+                  <FileText size={15} style={{ color: ink }} className="shrink-0" />
+                  <span className={`flex-1 truncate text-sm font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>attestation.pdf</span>
                   <Button variant="outline" size="sm" icon={<Download size={14} />}>Télécharger</Button>
                 </div>
               ) : (
-                <div className="mt-1">
+                <div>
                   <Button variant="outline" size="sm" icon={<Upload size={14} />}>Upload</Button>
                 </div>
               )}
             </div>
           )}
-        </div>
+          {isPretBancaire && (
+            <div>
+              <label className={labelClass}>Taux obtenu</label>
+              <div className="relative">
+                <input type="number" step="0.1" value={tauxObtenu} onChange={e => setTauxObtenu(Number(e.target.value))} className={`${inputClass} pr-8`} />
+                <span className={`absolute right-3 top-1/2 -translate-y-1/2 text-xs ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>%</span>
+              </div>
+            </div>
+          )}
+          {isPretBancaire && (
+            <div>
+              <label className={labelClass}>Statut du financement</label>
+              <Select
+                value={statutFinancement}
+                onChange={(val: string) => setStatutFinancement(val)}
+                options={[{ value: '', label: 'Non défini' }, ...STATUT_FINANCEMENT_OPTIONS]}
+              />
+            </div>
+          )}
+          {isPretBancaire && (
+            <div>
+              <label className={labelClass}>Date d'obtention</label>
+              <DatePicker
+                value={dateObtention}
+                onChange={e => setDateObtention(e.target.value)}
+              />
+            </div>
+          )}
+          {isPretBancaire && (
+            <div>
+              <label className={labelClass}>Attestation de prêt</label>
+              {client.attestationPretUrl ? (
+                <div className={`flex items-center gap-3 rounded-2xl border p-3 backdrop-blur-sm ${isDark ? 'border-white/[0.07] bg-white/[0.04]' : 'border-slate-200/70 bg-white/75 shadow-sm'}`}>
+                  <FileText size={15} style={{ color: ink }} className="shrink-0" />
+                  <span className={`flex-1 truncate text-sm font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>attestation.pdf</span>
+                  <Button variant="outline" size="sm" icon={<Download size={14} />}>Télécharger</Button>
+                </div>
+              ) : (
+                <div>
+                  <Button variant="outline" size="sm" icon={<Upload size={14} />}>Upload</Button>
+                </div>
+              )}
+            </div>
+          )}
+        </StageSection>
       )}
 
       {(c.situationActuelle || c.urgence || c.dateEmmenagement || client.notes) && (
-        <div className="border border-border/50 rounded-2xl p-6 bg-card/30">
-          <h3 className="font-medium flex items-center gap-2 mb-4 text-sm">
-            <FileText size={18} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />
-            Notes & Informations complémentaires
-          </h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {c.situationActuelle && (
-              <div>
-                <label className={labelClass}>Situation actuelle</label>
-                <input type="text" value={c.situationActuelle} readOnly className={`${inputClass(isGerant)} opacity-60 cursor-not-allowed`} />
-              </div>
-            )}
-            {c.urgence && (
-              <div>
-                <label className={labelClass}>Urgence</label>
-                <input type="text" value={c.urgence} readOnly className={`${inputClass(isGerant)} opacity-60 cursor-not-allowed`} />
-              </div>
-            )}
-            {c.dateEmmenagement && (
-              <div>
-                <label className={labelClass}>Date souhaitée d'emménagement</label>
-                <input type="text" value={new Date(c.dateEmmenagement).toLocaleDateString('fr-FR')} readOnly className={`${inputClass(isGerant)} opacity-60 cursor-not-allowed`} />
-              </div>
-            )}
-          </div>
-          {client.notes && (
-            <div className="mt-3">
-              <label className={labelClass}>Notes complémentaires</label>
-              <textarea value={client.notes} readOnly rows={3} className={`${inputClass(isGerant)} opacity-60 cursor-not-allowed resize-none`} />
-            </div>
+        <StageSection icon={FileText} title="Notes & Informations complémentaires" accent={accent} ink={ink} isDark={isDark} delay={0.25}>
+          {c.situationActuelle && (
+            <StageField icon={User} label="Situation actuelle" value={c.situationActuelle} accent={accent} ink={ink} isDark={isDark} />
           )}
-        </div>
+          {c.urgence && (
+            <StageField icon={Clock} label="Urgence" value={c.urgence} accent={accent} ink={ink} isDark={isDark} />
+          )}
+          {c.dateEmmenagement && (
+            <StageField icon={Calendar} label="Date souhaitée d'emménagement" value={new Date(c.dateEmmenagement).toLocaleDateString('fr-FR')} accent={accent} ink={ink} isDark={isDark} />
+          )}
+          {client.notes && (
+            <StageField icon={FileText} label="Notes complémentaires" value={client.notes} accent={accent} ink={ink} isDark={isDark} />
+          )}
+        </StageSection>
       )}
 
-      <div className="p-5 rounded-xl border border-border/50 bg-card/30">
-        <h3 className="text-sm font-semibold flex items-center gap-2 mb-4">
-          <TrendingUp size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.28, duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+        className={`flex flex-wrap items-center gap-2 rounded-2xl border p-3 backdrop-blur-sm ${isDark ? 'border-white/[0.07] bg-white/[0.04]' : 'border-slate-200/70 bg-white/75 shadow-sm'}`}
+      >
+        <span className={`mr-auto text-[10px] font-bold uppercase tracking-[0.14em] ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
           Actions
-        </h3>
-        <div className="flex flex-wrap gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            icon={<Mail size={14} />}
-            onClick={openEmailModal}
-          >
-            Envoyer à l'acheteur
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            icon={<FileText size={14} />}
-            onClick={handleExportPdf}
-          >
-            Exporter PDF
-          </Button>
-        </div>
-      </div>
+        </span>
+        <motion.button
+          type="button"
+          whileTap={{ scale: 0.96 }}
+          onClick={openEmailModal}
+          className="inline-flex items-center gap-2 rounded-xl border border-white/20 px-4 py-2 text-xs font-bold text-white shadow-lg transition-all hover:scale-[1.02] active:scale-95"
+style={isGerant
+  ? { backgroundImage: `linear-gradient(145deg, ${accent.a} 0%, ${accent.b} 100%)`, boxShadow: `inset 0 1px 0 rgba(255,255,255,0.4), 0 10px 26px -10px ${accent.glow}` }
+  : isDark
+              ? { backgroundImage: 'linear-gradient(145deg, #8B7CFF 0%, #6C5ECF 60%, #5646C9 100%)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.4), 0 10px 26px -8px rgba(124,92,255,0.65)' }
+              : { backgroundImage: 'linear-gradient(145deg, #2DD4BF 0%, #14B8A6 60%, #0D9488 100%)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.5), 0 10px 26px -10px rgba(13,148,136,0.6)' }}
+        >
+          <Mail size={14} />
+          Envoyer à l'acheteur
+        </motion.button>
+        <button
+          type="button"
+          onClick={handleExportPdf}
+          className={`inline-flex items-center gap-2 rounded-xl border px-4 py-2 text-xs font-bold backdrop-blur-md transition-all duration-200 hover:scale-[1.02] active:scale-95 ${isDark ? 'border-white/10 bg-white/[0.04] text-slate-300 hover:bg-white/10 hover:text-white' : 'border-slate-200/80 bg-white text-slate-600 shadow-sm hover:bg-white hover:text-slate-900'}`}
+        >
+          <FileText size={14} />
+          Exporter PDF
+        </button>
+      </motion.div>
 
       <Dialog isOpen={showEmailModal} onClose={() => setShowEmailModal(false)} title="Envoyer le financement à l'acheteur" size="lg">
         <div className="space-y-4">
@@ -598,7 +531,7 @@ export default function ClientFinancementTab({ client, isGerant = false }: Props
               type="email"
               value={emailTo}
               onChange={e => setEmailTo(e.target.value)}
-              className={inputClass(isGerant)}
+              className={inputClass}
               placeholder="email@exemple.com"
             />
           </div>
@@ -608,7 +541,7 @@ export default function ClientFinancementTab({ client, isGerant = false }: Props
               type="text"
               value={emailSubject}
               onChange={e => setEmailSubject(e.target.value)}
-              className={inputClass(isGerant)}
+              className={inputClass}
             />
           </div>
           <div>
@@ -617,7 +550,7 @@ export default function ClientFinancementTab({ client, isGerant = false }: Props
               rows={18}
               value={emailMessage}
               onChange={e => setEmailMessage(e.target.value)}
-              className={`${inputClass(isGerant)} resize-y font-mono text-xs leading-relaxed`}
+              className={`${inputClass} resize-y font-mono text-xs leading-relaxed`}
             />
           </div>
           <div className="flex justify-end gap-2 pt-2">
