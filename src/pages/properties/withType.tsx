@@ -1,4 +1,4 @@
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { useState, useMemo, useEffect, memo } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -99,6 +99,7 @@ const getDisplayPrice = (p: any) => {
 
 function PropertyCardStage({ property, index }: { property: Property; index: number }) {
   const navigate = useNavigate();
+  const location = useLocation();
   const { agentId, adminId, type } = useParams<{ agentId?: string; adminId?: string; type?: string }>();
   const { revealed } = useOptionalConfidential();
   const restricted = useRestriction('biens-info-privees');
@@ -136,7 +137,17 @@ function PropertyCardStage({ property, index }: { property: Property; index: num
     const propType = type || property.propertyType || 'residential';
     if (adminId) navigate(`/admin/${adminId}/properties/type/${propType}/${property.id}`);
     else if (agentId) navigate(`/${agentId}/properties/type/${propType}/${property.id}`);
-    else navigate(`/properties/${property.id}`);
+    else {
+      // Fallback: try to extract agentId/adminId from current path
+      const pathMatch = location.pathname.match(/^\/(?:admin\/\d+|\d+)/);
+      const basePath = pathMatch ? pathMatch[0] : '';
+      if (basePath) {
+        navigate(`${basePath}/properties/type/${propType}/${property.id}`);
+      } else {
+        // Last resort: use legacy redirect (will be caught by RedirectToAgent)
+        navigate(`/properties/${property.id}`);
+      }
+    }
   };
 
   return (
@@ -382,6 +393,7 @@ function PropertyCardStage({ property, index }: { property: Property; index: num
 
 function PropertyRowStage({ property, index }: { property: Property; index: number }) {
   const navigate = useNavigate();
+  const location = useLocation();
   const { agentId, adminId, type } = useParams<{ agentId?: string; adminId?: string; type?: string }>();
   const { revealed } = useOptionalConfidential();
   const restricted = useRestriction('biens-info-privees');
@@ -402,7 +414,17 @@ function PropertyRowStage({ property, index }: { property: Property; index: numb
     const propType = type || property.propertyType || 'residential';
     if (adminId) navigate(`/admin/${adminId}/properties/type/${propType}/${property.id}`);
     else if (agentId) navigate(`/${agentId}/properties/type/${propType}/${property.id}`);
-    else navigate(`/properties/${property.id}`);
+    else {
+      // Fallback: try to extract agentId/adminId from current path
+      const pathMatch = location.pathname.match(/^\/(?:admin\/\d+|\d+)/);
+      const basePath = pathMatch ? pathMatch[0] : '';
+      if (basePath) {
+        navigate(`${basePath}/properties/type/${propType}/${property.id}`);
+      } else {
+        // Last resort: use legacy redirect (will be caught by RedirectToAgent)
+        navigate(`/properties/${property.id}`);
+      }
+    }
   };
 
   return (

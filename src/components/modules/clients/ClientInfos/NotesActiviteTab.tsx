@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { motion } from 'framer-motion';
 import { useReactToPrint } from 'react-to-print';
 import { Button } from '../../../ui/Button';
 import { Dialog } from '../../../ui/Dialog';
@@ -8,10 +9,10 @@ import { TimePicker } from '../../../ui/TimePicker';
 import { api } from '../../../../services/api';
 import {
   Phone, Mail, MapPin, Calendar, FileText, AlertTriangle, MoreHorizontal,
-  Plus, Search, Filter, RefreshCw, Clock, Edit3, Trash2, X, ChevronLeft,
+  Plus, Search, RefreshCw, Clock, Edit3, Trash2, X, ChevronLeft,
   ChevronRight, Bell, Star, ArrowUpRight, ArrowDownLeft, Eye,
-  Activity, Zap, Hash, Shield, User, AlertCircle, Lock, Home, Printer, Download,
-  CheckCircle, XCircle, Check,
+  MessageSquare, Zap, Shield, User, AlertCircle, Lock, Home, Printer, Download,
+  CheckCircle, XCircle, Check, Grid,
 } from 'react-feather';
 import type { Client } from '../../../../types/client';
 import type { ClientActivity } from '../../../../services/clientService';
@@ -22,6 +23,48 @@ import {
   deleteClientActivity,
 } from '../../../../services/clientService';
 import { useMyPermissions, permissionAllowed } from '../../../../hooks/useMyPermissions';
+import StageModal, { useStageModalButtons } from '../../calendar/StageModal';
+import { useStageFormClasses } from '../../calendar/StageModal';
+import {
+  useDetailAccent,
+  StagePill,
+  RED_STAGE_HUE,
+  SLATE_STAGE_HUE,
+} from './ClientDetailStage';
+import { STAGE_HUES, type StageHue } from '../../../dashboard/Stage';
+
+const activityTypeHue = (key: string): StageHue => {
+  switch (key) {
+    case 'appel':
+      return STAGE_HUES.emerald;
+    case 'email':
+      return STAGE_HUES.sky;
+    case 'visite':
+      return STAGE_HUES.violet;
+    case 'rendez_vous':
+      return STAGE_HUES.amber;
+    case 'alerte':
+      return RED_STAGE_HUE;
+    case 'note':
+    case 'autre':
+    default:
+      return SLATE_STAGE_HUE;
+  }
+};
+
+const rdvStatusHue = (status?: string): StageHue => {
+  switch (status) {
+    case 'confirme':
+      return STAGE_HUES.emerald;
+    case 'termine':
+      return STAGE_HUES.sky;
+    case 'annule':
+      return RED_STAGE_HUE;
+    case 'en_attente':
+    default:
+      return STAGE_HUES.amber;
+  }
+};
 
 const ACTIVITY_TYPES_BASE = [
   { key: 'appel', label: 'Appel', icon: Phone, color: 'text-emerald-600', bg: 'bg-emerald-50', border: 'border-emerald-200', ring: 'ring-emerald-500/20', gradient: 'from-emerald-500 to-emerald-600', glow: 'shadow-emerald-200' },
@@ -36,7 +79,7 @@ const ACTIVITY_TYPES_BASE = [
 const getActivityTypes = (isGerant: boolean) =>
   ACTIVITY_TYPES_BASE.map((t) =>
     t.key === 'rendez_vous' && isGerant
-      ? { ...t, color: 'text-[#905D5D]', bg: 'bg-[#E7D5D5]', border: 'border-[#E0C6C6]', ring: 'ring-[#905D5D]/20', gradient: 'from-[#905D5D] to-[#7D5050]', glow: 'shadow-[#905D5D]/25' }
+      ? { ...t, color: 'text-accent', bg: 'bg-accent/10', border: 'border-accent/20', ring: 'ring-accent/20', gradient: 'from-accent to-accent', glow: 'shadow-accent/25' }
       : t,
   );
 
@@ -53,6 +96,11 @@ export const NotesActiviteTab = ({ client, highlightActivityId, isGerant = false
   const perms = useMyPermissions();
   const canVisite = permissionAllowed(perms, 'clients-visite');
   const clientId = String(client.id);
+
+  /* Staged theme accents (same kit as Critères / Transactions / Contrats). */
+  const { isDark, accent, ink } = useDetailAccent(client.type, isGerant);
+  const { input: stageInput } = useStageFormClasses();
+  const stageBtns = useStageModalButtons();
 
   const [currentUser, setCurrentUser] = useState<{ id: number; name: string; role: string; email?: string; phone?: string; position?: string } | null>(null);
 
@@ -462,9 +510,9 @@ export const NotesActiviteTab = ({ client, highlightActivityId, isGerant = false
     if (el) {
       el.scrollIntoView({ behavior: 'smooth', block: 'center' });
       highlightedRef.current = el;
-      el.classList.add('ring-2', isGerant ? 'ring-[#905D5D]/40' : 'ring-accent/40', 'ring-offset-2', isGerant ? 'bg-[#905D5D]/[0.06]' : 'bg-accent/[0.06]');
+      el.classList.add('ring-2', 'ring-accent/40', 'ring-offset-2', 'bg-accent/[0.06]');
       setTimeout(() => {
-        el.classList.remove('ring-2', isGerant ? 'ring-[#905D5D]/40' : 'ring-accent/40', 'ring-offset-2', isGerant ? 'bg-[#905D5D]/[0.06]' : 'bg-accent/[0.06]');
+        el.classList.remove('ring-2', 'ring-accent/40', 'ring-offset-2', 'bg-accent/[0.06]');
       }, 3000);
     }
   }, []);
@@ -605,12 +653,12 @@ export const NotesActiviteTab = ({ client, highlightActivityId, isGerant = false
   const getTypeMeta = (key: string) => getActivityTypes(isGerant).find(t => t.key === key) || getActivityTypes(isGerant)[6];
 
   const STATUS_META: Record<string, { label: string; color: string; bg: string; border: string }> = {
-    en_attente: { label: 'En attente', color: isGerant ? 'text-[#905D5D]' : 'text-amber-600', bg: isGerant ? 'bg-[#E7D5D5]' : 'bg-amber-50', border: isGerant ? 'border-[#E0C6C6]' : 'border-amber-200' },
+    en_attente: { label: 'En attente', color: 'text-accent', bg: 'bg-accent/10', border: 'border-accent/20' },
     confirme:   { label: 'Confirmé',   color: 'text-emerald-600', bg: 'bg-emerald-50', border: 'border-emerald-200' },
     termine:    { label: 'Terminé',    color: 'text-blue-600', bg: 'bg-blue-50', border: 'border-blue-200' },
     annule:     { label: 'Annulé',     color: 'text-red-600', bg: 'bg-red-50', border: 'border-red-200' },
   };
-  const DEFAULT_STATUS = { label: 'En attente', color: isGerant ? 'text-[#905D5D]' : 'text-amber-600', bg: isGerant ? 'bg-[#E7D5D5]' : 'bg-amber-50', border: isGerant ? 'border-[#E0C6C6]' : 'border-amber-200' };
+  const DEFAULT_STATUS = { label: 'En attente', color: 'text-accent', bg: 'bg-accent/10', border: 'border-accent/20' };
 
   const handleStatusChange = async (activity: ClientActivity, newStatus: string) => {
     try {
@@ -663,118 +711,154 @@ export const NotesActiviteTab = ({ client, highlightActivityId, isGerant = false
       `}</style>
 
       <div className="space-y-5">
-        {/* Header */}
-        <div className="flex items-center justify-between animate-fade-in">
-          <div className="flex items-center gap-3">
-            <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${isGerant ? 'from-[#905D5D] to-[#7D5050]' : 'from-accent to-indigo-600'} flex items-center justify-center shadow-lg ${isGerant ? 'shadow-[#905D5D]/20' : 'shadow-accent/20'}`}>
-              <Activity size={20} className="text-white" />
-            </div>
-            <div>
-              <h3 className="text-sm font-bold text-text tracking-tight">Notes & Activites</h3>
-              <p className="text-[11px] text-text-secondary/70 mt-0.5">Journal de bord des interactions</p>
-            </div>
-          </div>
-          <button
-            onClick={() => { resetForm(); setEditActivity(null); setShowForm(true); }}
-            className={`group flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r ${isGerant ? 'from-[#905D5D] to-[#7D5050]' : 'from-accent to-indigo-600'} text-white text-xs font-semibold shadow-lg ${isGerant ? 'shadow-[#905D5D]/25' : 'shadow-accent/25'} hover:shadow-xl ${isGerant ? 'hover:shadow-[#905D5D]/30' : 'hover:shadow-accent/30'} hover:scale-[1.02] active:scale-[0.98] transition-all duration-200`}
-          >
-            <Plus size={15} className="group-hover:rotate-90 transition-transform duration-300" />
-            Nouvelle activite
-          </button>
-        </div>
-
-        {/* Stats */}
-        <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-7 gap-2.5">
-          {getActivityTypes(isGerant).map((t, i) => {
-            const Icon = t.icon;
-            const count = typeCounts[t.key] || 0;
-            return (
-              <div
-                key={t.key}
-                className={`animate-stagger group relative rounded-2xl border ${t.border} ${t.bg} p-3.5 cursor-default transition-all duration-300 hover:shadow-lg hover:${t.glow} hover:-translate-y-0.5`}
-                style={{ animationDelay: `${i * 50}ms` }}
+        {/* Hero Header — staged */}
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+          className={`relative overflow-hidden rounded-2xl border p-4 backdrop-blur-sm sm:p-5 ${isDark ? 'border-white/[0.07] bg-white/[0.03]' : 'border-slate-200/70 bg-white/70 shadow-sm'}`}
+        >
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-0"
+            style={{ background: `radial-gradient(80% 120% at 100% 0%, ${accent.a}1F, transparent 60%)` }}
+          />
+          <div className="relative flex flex-col gap-4 xl:flex-row xl:items-center xl:gap-6">
+            {/* Left — title + counts */}
+            <div className="flex min-w-0 items-start gap-3 xl:w-[290px] xl:shrink-0">
+              <span
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border"
+                style={isDark
+                  ? { background: `${accent.a}14`, borderColor: `${accent.a}30`, color: accent.a }
+                  : { background: `${accent.a}12`, borderColor: `${accent.a}30`, color: ink }}
               >
-                <div className="absolute inset-0 rounded-2xl bg-gradient-to-br opacity-0 group-hover:opacity-[0.03] transition-opacity duration-300" />
-                <div className="flex items-center justify-between mb-2">
-                  <div className={`w-7 h-7 rounded-lg bg-gradient-to-br ${t.gradient} flex items-center justify-center shadow-sm`}>
-                    <Icon size={13} className="text-white" />
-                  </div>
-                  {count > 0 && (
-                    <span className="animate-pop-in text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-white/80 backdrop-blur text-text/70 border border-white/50 shadow-sm">
-                      {count}
-                    </span>
+                <MessageSquare size={17} />
+              </span>
+              <div className="min-w-0 flex-1">
+                <h3 className={`text-sm font-extrabold tracking-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>Notes & Activité</h3>
+                <p className={`mt-0.5 truncate text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                  <span className={`font-bold ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>{client.name}</span>
+                  <span className="mx-1.5 opacity-40">—</span>
+                  Journal de bord des interactions
+                </p>
+                <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
+                  <span
+                    className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-extrabold tabular-nums backdrop-blur-md ${isDark ? 'border-white/10 bg-white/[0.04]' : 'border-slate-200/80 bg-white/70'}`}
+                    style={{ color: isDark ? accent.a : accent.b }}
+                  >
+                    <span className="h-1.5 w-1.5 rounded-full" style={{ background: accent.line, boxShadow: `0 0 6px ${accent.glow}` }} />
+                    {total}
+                    <span className={`text-[10px] font-semibold ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>activité{total > 1 ? 's' : ''}</span>
+                  </span>
+                  {activities.filter(a => a.is_important).length > 0 && (
+                    <StagePill label={`${activities.filter(a => a.is_important).length} important${activities.filter(a => a.is_important).length > 1 ? 's' : ''}`} hue={STAGE_HUES.amber} isDark={isDark} />
+                  )}
+                  {activities.filter(a => a.has_reminder).length > 0 && (
+                    <StagePill label={`${activities.filter(a => a.has_reminder).length} rappel${activities.filter(a => a.has_reminder).length > 1 ? 's' : ''}`} hue={STAGE_HUES.sky} isDark={isDark} />
                   )}
                 </div>
-                <p className="text-[11px] font-semibold text-text-secondary/80 uppercase tracking-wide">{t.label}</p>
-                <p className={`text-xl font-black ${t.color} mt-0.5 tabular-nums`}>{count}</p>
               </div>
-            );
-          })}
-        </div>
-
-        {/* Filters */}
-        <div className="animate-fade-in p-3.5 rounded-2xl bg-card border border-border/40 shadow-sm">
-          <div className="flex flex-wrap items-center gap-2.5">
-            <div className="flex items-center gap-1.5 mr-1">
-              <div className={`w-6 h-6 rounded-lg ${isGerant ? 'bg-[#905D5D]/10' : 'bg-accent/10'} flex items-center justify-center`}>
-                <Filter size={11} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />
+            </div>
+            {/* Divider */}
+            <div aria-hidden="true" className={`hidden w-px self-stretch xl:block ${isDark ? 'bg-white/10' : 'bg-slate-200'}`} />
+            {/* Center — search */}
+            <div className="min-w-0 flex-1">
+              <div className="relative min-w-0">
+                <Search size={13} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2" style={{ color: isDark ? '#8B7CFF' : '#0D9488' }} />
+                <input
+                  type="text"
+                  placeholder="Rechercher une activité..."
+                  value={filterSearch}
+                  onChange={e => { setFilterSearch(e.target.value); setPage(1); }}
+                  className={stageInput('h-9 pl-9 pr-9')}
+                />
+                {filterSearch && (
+                  <button
+                    type="button"
+                    onClick={() => { setFilterSearch(''); setPage(1); }}
+                    aria-label="Effacer la recherche"
+                    className={`absolute right-1.5 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-lg transition-colors ${isDark ? 'text-slate-400 hover:bg-white/10 hover:text-white' : 'text-teal-900/40 hover:bg-teal-900/5 hover:text-teal-900'}`}
+                  >
+                    <X size={13} />
+                  </button>
+                )}
               </div>
-              <span className="text-[10px] font-bold text-text-secondary/50 uppercase tracking-widest">Filtres</span>
             </div>
-            <div className="flex items-center gap-0.5 bg-background/80 rounded-xl border border-border/40 p-0.5">
+            {/* Divider */}
+            <div aria-hidden="true" className={`hidden w-px self-stretch xl:block ${isDark ? 'bg-white/10' : 'bg-slate-200'}`} />
+            {/* Right — actions */}
+            <div className="flex shrink-0 items-center gap-2 xl:ml-0">
               <button
-                onClick={() => { setFilterType('all'); setPage(1); }}
-                className={`px-3 py-1.5 text-[11px] font-semibold rounded-lg transition-all duration-200 ${
-                  filterType === 'all'
-                    ? `bg-gradient-to-r ${isGerant ? 'from-[#905D5D] to-[#7D5050]' : 'from-accent to-indigo-600'} text-white shadow-md ${isGerant ? 'shadow-[#905D5D]/20' : 'shadow-accent/20'}`
-                    : 'text-text-secondary hover:text-text hover:bg-white/50'
-                }`}
+                type="button"
+                onClick={() => setRefreshKey(k => k + 1)}
+                title="Rafraîchir"
+                className={`inline-flex items-center justify-center gap-2 rounded-xl border p-2.5 backdrop-blur-md transition-all duration-200 hover:scale-[1.02] active:scale-95 ${isDark ? 'border-white/10 bg-white/[0.04] text-slate-300 hover:bg-white/10 hover:text-white' : 'border-slate-200/80 bg-white text-slate-600 shadow-sm hover:text-slate-900'}`}
               >
-                Tous
+                <RefreshCw size={14} />
               </button>
-              {getActivityTypes(isGerant).slice(0, 5).map(t => (
-                <button
-                  key={t.key}
-                  onClick={() => { setFilterType(t.key); setPage(1); }}
-                  className={`px-3 py-1.5 text-[11px] font-semibold rounded-lg transition-all duration-200 ${
-                    filterType === t.key
-                      ? `bg-gradient-to-r ${isGerant ? 'from-[#905D5D] to-[#7D5050]' : 'from-accent to-indigo-600'} text-white shadow-md ${isGerant ? 'shadow-[#905D5D]/20' : 'shadow-accent/20'}`
-                      : 'text-text-secondary hover:text-text hover:bg-white/50'
-                  }`}
-                >
-                  {t.label}
-                </button>
-              ))}
-            </div>
-            <div className="relative">
-              <Search size={12} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary/30" />
-              <input
-                type="text"
-                placeholder="Rechercher..."
-                value={filterSearch}
-                onChange={e => { setFilterSearch(e.target.value); setPage(1); }}
-                className={`h-9 pl-8 pr-3 text-xs rounded-xl border border-border/50 bg-background/80 text-text placeholder:text-text-secondary/30 focus:outline-none focus:ring-2 ${isGerant ? 'focus:ring-[#905D5D]/20 focus:border-[#905D5D]/50' : 'focus:ring-accent/20 focus:border-accent/50'} focus:bg-white w-44 transition-all duration-200`}
-              />
-            </div>
-            {(filterType !== 'all' || filterSearch || filterFrom || filterTo || filterAuthor) && (
               <button
-                onClick={() => { setFilterType('all'); setFilterSearch(''); setFilterFrom(''); setFilterTo(''); setFilterAuthor(''); setDateError(''); setPage(1); }}
-                className="h-9 px-3 text-[11px] text-red-500 hover:text-white hover:bg-red-500 font-semibold rounded-xl border border-red-200 hover:border-red-500 transition-all duration-200 flex items-center gap-1"
+                type="button"
+                onClick={() => { resetForm(); setEditActivity(null); setShowForm(true); }}
+                className="group inline-flex flex-1 items-center justify-center gap-2 rounded-xl border border-white/20 px-3.5 py-2 text-xs font-bold text-white shadow-lg transition-all hover:scale-[1.02] active:scale-95 sm:flex-none"
+                style={isGerant
+                  ? { backgroundImage: `linear-gradient(145deg, ${accent.a} 0%, ${accent.b} 100%)`, boxShadow: `inset 0 1px 0 rgba(255,255,255,0.4), 0 10px 26px -10px ${accent.glow}` }
+                  : isDark
+                    ? { backgroundImage: 'linear-gradient(145deg, #8B7CFF 0%, #6C5ECF 60%, #5646C9 100%)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.4), 0 10px 26px -8px rgba(124,92,255,0.65)' }
+                    : { backgroundImage: 'linear-gradient(145deg, #2DD4BF 0%, #14B8A6 60%, #0D9488 100%)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.5), 0 10px 26px -10px rgba(13,148,136,0.6)' }}
               >
-                <X size={12} />
-                Reinitialiser
+                <Plus size={14} className="transition-transform duration-300 group-hover:rotate-90" />
+                Nouvelle activité
               </button>
-            )}
+            </div>
           </div>
-          {/* Date range row */}
-          <div className="flex items-end gap-3 mt-3 pt-3 border-t border-border/20">
-            <div className="flex items-center gap-2 text-[10px] text-text-secondary/50 font-medium uppercase tracking-wider pb-2">
-              <Calendar size={13} className={isGerant ? 'text-[#905D5D]/60' : 'text-accent/60'} />
-              Periode
+          {/* Filter row — type segments + period on one line, integrated in hero */}
+          <div
+            className="relative mt-4 flex flex-col gap-2.5 border-t pt-4 xl:flex-row xl:items-center"
+            style={{ borderColor: isDark ? 'rgba(255,255,255,0.07)' : 'rgba(13,148,136,0.12)' }}
+          >
+            <div className={`flex min-w-0 flex-1 items-center gap-1 overflow-x-auto rounded-xl border p-1 backdrop-blur-sm scrollbar-thin ${isDark ? 'border-white/[0.07] bg-white/[0.03]' : 'border-slate-200/70 bg-white/70 shadow-sm'}`}>
+              {[{ key: 'all' }, ...getActivityTypes(isGerant).slice(0, 5)].map(entry => {
+                const key = entry.key;
+                const on = filterType === key;
+                const label = key === 'all' ? 'Tous' : (entry as any)?.label;
+                const SegIcon = key === 'all' ? Grid : (entry as any)?.icon;
+                const segCount = key === 'all' ? total : (typeCounts[key] || 0);
+                return (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => { setFilterType(key); setPage(1); }}
+                    className={`flex shrink-0 items-center gap-1.5 rounded-lg px-3 py-1.5 text-[11px] font-bold transition-all duration-200 ${on ? 'text-white shadow-sm' : isDark ? 'text-slate-400 hover:bg-white/[0.06] hover:text-white' : 'text-slate-500 hover:bg-slate-900/[0.04] hover:text-slate-900'}`}
+style={on ? (isGerant
+  ? { background: `linear-gradient(145deg, ${accent.a}, ${accent.b})` }
+  : isDark
+                        ? { background: 'linear-gradient(145deg, #8B7CFF, #6C5ECF)' }
+                        : { background: 'linear-gradient(145deg, #2DD4BF, #0D9488)' }) : undefined}
+                  >
+                    {SegIcon && <SegIcon size={12} className="shrink-0" />}
+                    {label}
+                    <span
+                      className={`rounded-full px-1.5 py-0.5 text-[9px] font-extrabold tabular-nums ${
+                        on
+                          ? 'bg-white/25 text-white'
+                          : isDark
+                            ? 'bg-white/[0.06] text-slate-400'
+                            : 'bg-slate-900/[0.05] text-slate-500'
+                      }`}
+                    >
+                      {segCount}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
-            <div className="flex-1 flex items-center gap-2">
-              <div className="flex-1 min-w-0">
-                <label className="block text-[10px] font-medium text-text-secondary/50 mb-1">Date debut</label>
+            <div className="flex shrink-0 flex-wrap items-center gap-2 xl:flex-nowrap">
+              <span className={`mr-1 inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap text-[10px] font-bold uppercase tracking-[0.14em] ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+                <Calendar size={12} />
+                Période
+              </span>
+              <span className={`shrink-0 whitespace-nowrap text-[10px] font-bold uppercase tracking-wider ${isDark ? 'text-slate-600' : 'text-slate-400'}`}>Du</span>
+              <div className="w-[190px] shrink-0">
                 <DatePicker
                   value={filterFrom}
                   max={filterTo || undefined}
@@ -788,14 +872,12 @@ export const NotesActiviteTab = ({ client, highlightActivityId, isGerant = false
                     setFilterFrom(val);
                     setPage(1);
                   }}
-                  className={`!h-9 !rounded-xl !border-border/50 !bg-background/80 !text-xs ${dateError ? '!ring-1 !ring-red-300' : ''}`}
+                  className={dateError ? '!border-rose-400/60' : ''}
                 />
               </div>
-              <div className="pb-2">
-                <div className="w-6 h-0.5 rounded-full bg-border/40" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <label className="block text-[10px] font-medium text-text-secondary/50 mb-1">Date fin</label>
+              <span aria-hidden="true" className={`h-0.5 w-4 shrink-0 rounded-full ${isDark ? 'bg-white/15' : 'bg-slate-300'}`} />
+              <span className={`shrink-0 whitespace-nowrap text-[10px] font-bold uppercase tracking-wider ${isDark ? 'text-slate-600' : 'text-slate-400'}`}>Au</span>
+              <div className="w-[190px] shrink-0">
                 <DatePicker
                   value={filterTo}
                   min={filterFrom || undefined}
@@ -809,47 +891,178 @@ export const NotesActiviteTab = ({ client, highlightActivityId, isGerant = false
                     setFilterTo(val);
                     setPage(1);
                   }}
-                  className={`!h-9 !rounded-xl !border-border/50 !bg-background/80 !text-xs ${dateError ? '!ring-1 !ring-red-300' : ''}`}
+                  className={dateError ? '!border-rose-400/60' : ''}
                 />
               </div>
+              {(filterType !== 'all' || filterSearch || filterFrom || filterTo || filterAuthor) && (
+                <button
+                  type="button"
+                  onClick={() => { setFilterType('all'); setFilterSearch(''); setFilterFrom(''); setFilterTo(''); setFilterAuthor(''); setDateError(''); setPage(1); }}
+                  className={`inline-flex shrink-0 items-center gap-1.5 rounded-xl border px-3 py-2 text-[11px] font-bold backdrop-blur-md transition-all duration-200 hover:scale-[1.02] active:scale-95 ${isDark ? 'border-white/10 bg-white/[0.04] text-slate-400 hover:bg-white/10 hover:text-white' : 'border-slate-200/80 bg-white text-slate-500 shadow-sm hover:text-slate-900'}`}
+                >
+                  <X size={12} /> Réinitialiser
+                </button>
+              )}
             </div>
           </div>
           {dateError && (
-            <div className="flex items-center gap-1.5 mt-2 text-[11px] text-red-500 font-medium animate-slide-down-soft">
+            <p className={`relative mt-2.5 flex items-center gap-1.5 text-[11px] font-medium ${isDark ? 'text-rose-300' : 'text-red-500'}`}>
               <AlertCircle size={12} />
               {dateError}
-            </div>
+            </p>
           )}
+        </motion.div>
+
+        {/* Stats — staged glass with type-hue accents */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2.5">
+          {getActivityTypes(isGerant).map((t, i) => {
+            const Icon = t.icon;
+            const count = typeCounts[t.key] || 0;
+            const hue = activityTypeHue(t.key);
+            const pct = total > 0 ? Math.round((count / total) * 100) : 0;
+            return (
+              <motion.button
+                key={t.key}
+                type="button"
+                onClick={() => { setFilterType(filterType === t.key ? 'all' : t.key); setPage(1); }}
+                title={`Filtrer : ${t.label}`}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: i * 0.05, duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+                className={`group relative overflow-hidden rounded-2xl border p-3.5 text-left backdrop-blur-sm transition-all duration-300 hover:-translate-y-0.5 active:scale-[0.98] ${
+                  isDark
+                    ? 'border-white/[0.07] bg-white/[0.03] hover:border-white/[0.14]'
+                    : 'border-slate-200/70 bg-white/70 shadow-sm hover:shadow-md'
+                } ${filterType === t.key ? (isDark ? '!border-white/25' : '!border-teal-500/40') : ''}`}
+                style={filterType === t.key ? { boxShadow: `0 0 0 1px ${hue.line}, 0 8px 24px -12px ${hue.glow}` } : undefined}
+              >
+                {/* Type-hue top accent */}
+                <div
+                  aria-hidden="true"
+                  className={`absolute inset-x-3 top-0 h-[3px] rounded-full bg-gradient-to-r ${t.gradient} ${count > 0 ? 'opacity-80' : 'opacity-25'}`}
+                />
+                {/* Hue wash */}
+                <div
+                  aria-hidden="true"
+                  className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-300 group-hover:opacity-100"
+                  style={{ background: `radial-gradient(90% 100% at 50% 0%, ${hue.a}1A, transparent 70%)` }}
+                />
+                <div className="relative">
+                  <div className="flex items-center justify-between mb-2">
+                    <div
+                      className="flex h-8 w-8 items-center justify-center rounded-xl border shadow-sm transition-transform duration-200 group-hover:scale-110"
+                      style={
+                        isDark
+                          ? { background: `${hue.a}14`, borderColor: `${hue.a}30`, color: hue.a, boxShadow: `0 0 12px ${hue.glow}` }
+                          : { background: `${hue.a}12`, borderColor: `${hue.a}30`, color: hue.b }
+                      }
+                    >
+                      <Icon size={14} />
+                    </div>
+                    <span
+                      className="rounded-full px-1.5 py-0.5 text-[9px] font-extrabold tabular-nums"
+                      style={
+                        isDark
+                          ? { background: `${hue.a}14`, color: hue.a, border: `1px solid ${hue.a}30` }
+                          : { background: `${hue.a}12`, color: hue.b, border: `1px solid ${hue.a}30` }
+                      }
+                    >
+                      {pct}%
+                    </span>
+                  </div>
+                  <p className={`text-[10px] font-bold uppercase tracking-[0.12em] ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>{t.label}</p>
+                  <p className={`text-xl font-extrabold mt-0.5 tabular-nums leading-none ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                    {count}
+                    <span className={`ml-1 text-[10px] font-semibold ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+                      {count > 1 ? 'activités' : 'activité'}
+                    </span>
+                  </p>
+                  {/* Share bar */}
+                  <div className={`mt-2.5 h-1 overflow-hidden rounded-full ${isDark ? 'bg-white/10' : 'bg-slate-900/10'}`}>
+                    <motion.div
+                      initial={{ width: 0 }}
+                      animate={{ width: `${pct}%` }}
+                      transition={{ delay: 0.2 + i * 0.05, duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+                      className={`h-full rounded-full bg-gradient-to-r ${t.gradient}`}
+                      style={{ boxShadow: count > 0 ? `0 0 8px ${hue.glow}` : undefined }}
+                    />
+                  </div>
+                </div>
+              </motion.button>
+            );
+          })}
         </div>
 
-        {/* Form */}
+        {/* Form — staged */}
         {showForm && (
-          <div className={`animate-slide-down-soft rounded-2xl border ${isGerant ? 'border-[#905D5D]/20' : 'border-accent/20'} bg-card shadow-lg ${isGerant ? 'shadow-[#905D5D]/5' : 'shadow-accent/5'} overflow-hidden`}>
-            <div className={`h-1 w-full bg-gradient-to-r ${isGerant ? 'from-[#905D5D] to-[#7D5050]' : 'from-accent via-indigo-500 to-purple-500'}`} />
-            <div className="p-6">
-              <div className="flex items-center justify-between mb-5">
-                <div className="flex items-center gap-3">
-                  <div className={`w-8 h-8 rounded-xl ${isGerant ? 'bg-[#905D5D]/10' : 'bg-accent/10'} flex items-center justify-center`}>
-                    <Zap size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />
+          <motion.div
+            initial={{ opacity: 0, y: -12, filter: 'blur(6px)' }}
+            animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+            transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+            className={`relative overflow-hidden rounded-2xl border backdrop-blur-sm ${isDark ? 'border-white/[0.07] bg-white/[0.03]' : 'border-slate-200/70 bg-white/70 shadow-sm'}`}
+          >
+            <div
+              className="absolute inset-x-0 top-0 z-10 h-[3px]"
+              style={{ background: `linear-gradient(90deg, ${accent.a}, ${accent.b})`, boxShadow: `0 0 14px ${accent.glow}` }}
+            />
+            <div
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-0"
+              style={{ background: isDark ? `radial-gradient(100% 70% at 50% 0%, ${accent.a}14, transparent 62%)` : `radial-gradient(100% 70% at 50% 0%, ${accent.a}0D, transparent 62%)` }}
+            />
+            <div className="relative p-4 sm:p-6">
+              <div className="flex items-start justify-between gap-3 mb-5">
+                <div className="flex min-w-0 items-center gap-3">
+                  <span
+                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border"
+                    style={isDark
+                      ? { background: `${accent.a}14`, borderColor: `${accent.a}30`, color: accent.a }
+                      : { background: `${accent.a}12`, borderColor: `${accent.a}30`, color: ink }}
+                  >
+                    <Zap size={16} />
+                  </span>
+                  <div className="min-w-0">
+                    <p className={`text-sm font-extrabold tracking-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>{editActivity ? 'Modifier l\'activité' : 'Nouvelle activité'}</p>
+                    <p className={`mt-0.5 truncate text-xs ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+                      {editActivity ? 'Modifiez les détails de cette activité' : 'Consignez un échange avec ce client'}
+                    </p>
                   </div>
-                  <p className="text-sm font-bold text-text">{editActivity ? 'Modifier l\'activite' : 'Nouvelle activite'}</p>
                 </div>
                 <button
                   onClick={() => { setShowForm(false); setEditActivity(null); }}
-                  className="p-2 rounded-xl hover:bg-red-50 text-text-secondary/40 hover:text-red-500 transition-all duration-200 hover:rotate-90"
+                  aria-label="Fermer"
+                  className={`shrink-0 rounded-xl border p-2 backdrop-blur-md transition-all duration-200 hover:rotate-90 hover:scale-[1.05] active:scale-95 ${isDark ? 'border-white/10 bg-white/[0.04] text-slate-400 hover:bg-red-400/15 hover:text-red-300' : 'border-slate-200/80 bg-white text-slate-400 shadow-sm hover:bg-red-50 hover:text-red-500'}`}
                 >
                   <X size={16} />
                 </button>
               </div>
 
-              {/* Type selector */}
+              {/* Type selector — staged */}
               <div className="mb-5">
-                <label className="block text-[10px] font-bold text-text-secondary/60 uppercase tracking-widest mb-2.5">Type d'activite</label>
+                <div className="mb-2.5 flex items-center gap-2">
+                  <span
+                    className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg border"
+                    style={isDark
+                      ? { background: `${accent.a}14`, borderColor: `${accent.a}30`, color: accent.a }
+                      : { background: `${accent.a}12`, borderColor: `${accent.a}30`, color: ink }}
+                  >
+                    <Zap size={12} />
+                  </span>
+                  <h4 className={`shrink-0 text-[10px] font-extrabold uppercase tracking-[0.16em] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                    Type d'activité
+                  </h4>
+                  <span
+                    aria-hidden="true"
+                    className="h-px flex-1"
+                    style={{ background: isDark ? `linear-gradient(90deg, ${accent.a}30, transparent)` : `linear-gradient(90deg, ${accent.a}35, transparent)` }}
+                  />
+                </div>
                 <div className="flex flex-wrap gap-2">
                   {getActivityTypes(isGerant).map(t => {
                     const Icon = t.icon;
                     const active = formData.type === t.key;
                     const locked = t.key === 'visite' && !canVisite;
+                    const thue = activityTypeHue(t.key);
                     return (
                       <button
                         key={t.key}
@@ -857,19 +1070,28 @@ export const NotesActiviteTab = ({ client, highlightActivityId, isGerant = false
                         disabled={locked}
                         onClick={() => setFormData(p => ({ ...p, type: t.key }))}
                         title={locked ? "Permission 'Visite' refusée" : t.label}
-                        className={`flex items-center gap-2 px-3.5 py-2.5 text-xs font-semibold rounded-xl border transition-all duration-200 ${
+                        className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-bold backdrop-blur-sm transition-all duration-200 hover:-translate-y-0.5 active:scale-[0.98] ${
                           locked
-                            ? 'bg-background/40 text-text-secondary/40 border-border/30 cursor-not-allowed opacity-70'
+                            ? `cursor-not-allowed border-dashed opacity-50 ${isDark ? 'border-white/15 text-slate-600' : 'border-slate-300 text-slate-400'}`
                             : active
-                              ? `${t.bg} ${t.border} ${t.color} shadow-md ${t.glow} scale-[1.02]`
-                              : 'bg-background/60 text-text-secondary border-border/50 hover:border-border hover:bg-white/60 hover:scale-[1.01]'
+                              ? ''
+                              : isDark
+                                ? 'border-white/[0.07] bg-white/[0.03] text-slate-400 hover:border-white/[0.14] hover:text-white'
+                                : 'border-slate-200/70 bg-white/70 text-slate-600 shadow-sm hover:shadow'
                         }`}
+                        style={active && !locked
+                          ? isDark
+                            ? { background: `${thue.a}14`, borderColor: `${thue.a}40`, color: thue.a, boxShadow: `0 0 16px ${thue.glow}` }
+                            : { background: `${thue.a}14`, borderColor: `${thue.a}45`, color: thue.b, boxShadow: `0 4px 16px -8px ${thue.glow}` }
+                          : undefined}
                       >
-                        <div className={`w-6 h-6 rounded-lg flex items-center justify-center transition-all duration-200 ${
-                          active && !locked ? `bg-gradient-to-br ${t.gradient} shadow-sm` : 'bg-white/80'
-                        }`}>
-                          {locked ? <Lock size={12} className="text-text-secondary/40" /> : <Icon size={12} className={active ? 'text-white' : t.color} />}
-                        </div>
+                        <span
+                          className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-lg transition-all duration-200 ${
+                            active && !locked ? 'bg-gradient-to-br text-white shadow-sm ' + t.gradient : isDark ? 'bg-white/[0.06] text-slate-500' : 'bg-slate-900/[0.05] text-slate-400'
+                          }`}
+                        >
+                          {locked ? <Lock size={12} /> : <Icon size={12} className={active ? '' : undefined} style={active ? undefined : { color: isDark ? thue.a : thue.b }} />}
+                        </span>
                         {t.label}
                       </button>
                     );
@@ -877,111 +1099,178 @@ export const NotesActiviteTab = ({ client, highlightActivityId, isGerant = false
                 </div>
               </div>
 
-              {/* Direction */}
+              {/* Direction — staged */}
               {formData.type !== 'note' && formData.type !== 'alerte' && (
                 <div className="mb-5">
-                  <label className="block text-[10px] font-bold text-text-secondary/60 uppercase tracking-widest mb-2.5">Direction</label>
-                  <div className="flex gap-3">
+                  <div className="mb-2.5 flex items-center gap-2">
+                    <span
+                      className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg border"
+                      style={isDark
+                        ? { background: `${accent.a}14`, borderColor: `${accent.a}30`, color: accent.a }
+                        : { background: `${accent.a}12`, borderColor: `${accent.a}30`, color: ink }}
+                    >
+                      <ArrowUpRight size={12} />
+                    </span>
+                    <h4 className={`shrink-0 text-[10px] font-extrabold uppercase tracking-[0.16em] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                      Direction
+                    </h4>
+                    <span
+                      aria-hidden="true"
+                      className="h-px flex-1"
+                      style={{ background: isDark ? `linear-gradient(90deg, ${accent.a}30, transparent)` : `linear-gradient(90deg, ${accent.a}35, transparent)` }}
+                    />
+                  </div>
+                  <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
                     {[
                       { val: 'sortant', label: 'Sortant', icon: ArrowUpRight, desc: 'Agent vers client', color: 'from-blue-500 to-cyan-500' },
                       { val: 'entrant', label: 'Entrant', icon: ArrowDownLeft, desc: 'Client vers agent', color: 'from-emerald-500 to-teal-500' },
-                    ].map(d => (
-                      <button
-                        key={d.val}
-                        type="button"
-                        onClick={() => setFormData(p => ({ ...p, direction: d.val }))}
-                        className={`flex items-center gap-3 px-4 py-3 text-xs font-semibold rounded-xl border transition-all duration-200 ${
-                          formData.direction === d.val
-                            ? `${isGerant ? 'bg-[#905D5D]/5 border-[#905D5D]/30 text-[#905D5D] shadow-md shadow-[#905D5D]/10' : 'bg-accent/5 border-accent/30 text-accent shadow-md shadow-accent/10'} scale-[1.01]`
-                            : 'bg-background/60 text-text-secondary border-border/50 hover:border-border hover:bg-white/60'
-                        }`}
-                      >
-                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-200 ${
-                          formData.direction === d.val ? `bg-gradient-to-br ${d.color} shadow-sm` : 'bg-white/80'
-                        }`}>
-                          <d.icon size={14} className={formData.direction === d.val ? 'text-white' : ''} />
-                        </div>
-                        <div className="text-left">
-                          <div>{d.label}</div>
-                          <div className="text-[10px] text-text-secondary/40 font-normal">{d.desc}</div>
-                        </div>
-                      </button>
-                    ))}
+                    ].map(d => {
+                      const don = formData.direction === d.val;
+                      return (
+                        <button
+                          key={d.val}
+                          type="button"
+                          onClick={() => setFormData(p => ({ ...p, direction: d.val }))}
+                          className={`flex items-center gap-3 rounded-2xl border p-3 text-left backdrop-blur-sm transition-all duration-200 hover:-translate-y-0.5 active:scale-[0.99] ${
+                            don
+                              ? ''
+                              : isDark
+                                ? 'border-white/[0.07] bg-white/[0.03] hover:border-white/[0.14]'
+                                : 'border-slate-200/70 bg-white/70 shadow-sm hover:shadow'
+                          }`}
+                          style={don
+                            ? isDark
+                              ? { background: `${accent.a}12`, borderColor: `${accent.a}40`, boxShadow: `0 0 18px ${accent.glow}` }
+                              : { background: `${accent.a}0F`, borderColor: `${accent.a}45`, boxShadow: `0 6px 18px -10px ${accent.glow}` }
+                            : undefined}
+                        >
+                          <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br ${d.color} text-white shadow-md transition-transform duration-200 ${don ? 'scale-105' : ''}`}>
+                            <d.icon size={15} />
+                          </span>
+                          <span className="min-w-0">
+                            <span className={`block text-sm font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>{d.label}</span>
+                            <span className={`block text-[10px] font-medium ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>{d.desc}</span>
+                          </span>
+                          <span
+                            className={`ml-auto h-2 w-2 shrink-0 rounded-full transition-all ${don ? '' : isDark ? 'bg-white/15' : 'bg-slate-300'}`}
+                            style={don ? { background: accent.line, boxShadow: `0 0 8px ${accent.glow}` } : undefined}
+                          />
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
               )}
 
-              {/* Date & Time */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-5">
+              {/* Date & Time — staged */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 mb-5">
                 <div>
-                  <label className="flex items-center gap-1.5 text-[10px] font-bold text-text-secondary/60 uppercase tracking-widest mb-1.5">
-                    <Calendar size={11} className={isGerant ? 'text-[#905D5D]/60' : 'text-accent/60'} />
+                  <label className={`flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.12em] mb-1.5 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+                    <Calendar size={11} style={{ color: ink }} />
                     Date
                   </label>
                   <DatePicker
                     value={formData.activity_date}
                     onChange={e => setFormData(p => ({ ...p, activity_date: e.target.value }))}
-                    className={`!h-11 !rounded-xl !border-border/50 !bg-gradient-to-br !from-background/80 !to-background/40 !shadow-sm hover:!shadow-md ${isGerant ? 'hover:!border-[#905D5D]/30 focus:!ring-[#905D5D]/20 focus:!border-[#905D5D]/50' : 'hover:!border-accent/30 focus:!ring-accent/20 focus:!border-accent/50'}`}
+                    className="!h-11"
                   />
                 </div>
                 <div>
-                  <label className="flex items-center gap-1.5 text-[10px] font-bold text-text-secondary/60 uppercase tracking-widest mb-1.5">
-                    <Clock size={11} className={isGerant ? 'text-[#905D5D]/60' : 'text-accent/60'} />
+                  <label className={`flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.12em] mb-1.5 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+                    <Clock size={11} style={{ color: ink }} />
                     Heure
                   </label>
                   <TimePicker
                     value={formData.activity_time}
                     onChange={e => setFormData(p => ({ ...p, activity_time: e.target.value }))}
-                    className={`!h-11 !rounded-xl !border-border/50 !bg-gradient-to-br !from-background/80 !to-background/40 !shadow-sm hover:!shadow-md ${isGerant ? 'hover:!border-[#905D5D]/30 focus:!ring-[#905D5D]/20 focus:!border-[#905D5D]/50' : 'hover:!border-accent/30 focus:!ring-accent/20 focus:!border-accent/50'}`}
+                    className="!h-11"
                   />
                 </div>
               </div>
 
-              {/* Subject */}
+              {/* Subject — staged */}
               <div className="mb-5">
-                <label className="block text-[10px] font-bold text-text-secondary/60 uppercase tracking-widest mb-1.5">Sujet</label>
+                <label className={`flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.12em] mb-1.5 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+                  <FileText size={11} style={{ color: ink }} />
+                  Sujet
+                </label>
                 <input
                   type="text" value={formData.subject}
                   onChange={e => setFormData(p => ({ ...p, subject: e.target.value }))}
-                  placeholder="Sujet de l'activite..."
-                  className={`w-full h-10 px-3.5 text-sm rounded-xl border border-border/50 bg-background/60 text-text placeholder:text-text-secondary/30 focus:outline-none focus:ring-2 ${isGerant ? 'focus:ring-[#905D5D]/20 focus:border-[#905D5D]/50' : 'focus:ring-accent/20 focus:border-accent/50'} transition-all duration-200`}
+                  placeholder="Sujet de l'activité..."
+                  className={stageInput('h-11')}
                 />
               </div>
 
-              {/* Description */}
+              {/* Description — staged */}
               <div className="mb-5">
-                <label className="block text-[10px] font-bold text-text-secondary/60 uppercase tracking-widest mb-1.5">Description</label>
+                <label className={`flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.12em] mb-1.5 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+                  <MessageSquare size={11} style={{ color: ink }} />
+                  Description
+                </label>
                 <textarea
                   value={formData.description}
                   onChange={e => setFormData(p => ({ ...p, description: e.target.value }))}
-                  rows={3} placeholder="Details de l'activite..."
-                  className={`w-full px-3.5 py-2.5 text-sm rounded-xl border border-border/50 bg-background/60 text-text placeholder:text-text-secondary/30 focus:outline-none focus:ring-2 ${isGerant ? 'focus:ring-[#905D5D]/20 focus:border-[#905D5D]/50' : 'focus:ring-accent/20 focus:border-accent/50'} resize-none transition-all duration-200`}
+                  rows={3} placeholder="Détails de l'activité..."
+                  className={stageInput('min-h-[96px] py-2.5 resize-none')}
                 />
               </div>
 
-              {/* Visite — property + buyer/seller for Bon de visite */}
+              {/* Visite — property + buyer/seller for Bon de visite, staged violet glass */}
               {formData.type === 'visite' && (isVendeur || isAcheteur || isRentalSide) && (
-                <div className="animate-slide-down-soft mb-5 p-4 rounded-xl bg-violet-50/60 border border-violet-200/60">
-                  <p className="text-[10px] font-bold text-violet-700 uppercase tracking-widest mb-3">Bon de visite</p>
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+                  className={`mb-5 rounded-2xl border p-4 backdrop-blur-sm ${
+                    isDark
+                      ? 'border-violet-400/20 bg-violet-400/[0.06]'
+                      : 'border-violet-200/70 bg-violet-50/60 shadow-sm'
+                  }`}
+                >
+                  <div className="mb-3 flex items-center gap-2">
+                    <span
+                      className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg border"
+                      style={isDark
+                        ? { background: 'rgba(167,139,250,0.12)', borderColor: 'rgba(167,139,250,0.30)', color: '#A78BFA' }
+                        : { background: 'rgba(124,58,237,0.08)', borderColor: 'rgba(124,58,237,0.28)', color: '#6D28D9' }}
+                    >
+                      <MapPin size={12} />
+                    </span>
+                    <h4 className={`shrink-0 text-[10px] font-extrabold uppercase tracking-[0.16em] ${isDark ? 'text-violet-300' : 'text-violet-700'}`}>
+                      Bon de visite
+                    </h4>
+                    <span
+                      aria-hidden="true"
+                      className="h-px flex-1"
+                      style={{ background: isDark ? 'linear-gradient(90deg, rgba(167,139,250,0.35), transparent)' : 'linear-gradient(90deg, rgba(124,58,237,0.30), transparent)' }}
+                    />
+                  </div>
 
                   {/* Bien concerné */}
                   <div className="mb-4">
-                    <label className="block text-[10px] font-bold text-text-secondary/60 uppercase tracking-widest mb-1.5">Bien concerné par la visite</label>
+                    <label className={`block text-[10px] font-bold uppercase tracking-[0.12em] mb-1.5 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>Bien concerné par la visite</label>
                     {formData.visit_property_id && selectedVisitProperty ? (
-                      <div className="flex items-center gap-2.5 px-3 py-2 rounded-xl bg-white border border-violet-200/70 shadow-sm">
-                        <div className="w-8 h-8 rounded-lg bg-emerald-50 flex items-center justify-center flex-shrink-0">
-                          <Home size={14} className="text-emerald-600" />
-                        </div>
+                      <div className={`flex items-center gap-2.5 rounded-xl border p-2.5 backdrop-blur-sm ${isDark ? 'border-white/[0.07] bg-white/[0.03]' : 'border-slate-200/70 bg-white/75 shadow-sm'}`}>
+                        <span
+                          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border"
+                          style={isDark
+                            ? { background: 'rgba(52,211,153,0.12)', borderColor: 'rgba(52,211,153,0.30)', color: '#6EE7B7' }
+                            : { background: 'rgba(5,150,105,0.08)', borderColor: 'rgba(5,150,105,0.28)', color: '#047857' }}
+                        >
+                          <Home size={14} />
+                        </span>
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-semibold text-text truncate">{selectedVisitProperty.title}</p>
-                          <p className="text-[11px] text-text-secondary/60 truncate">
+                          <p className={`text-sm font-bold truncate ${isDark ? 'text-white' : 'text-slate-900'}`}>{selectedVisitProperty.title}</p>
+                          <p className={`text-[11px] truncate ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
                             {[selectedVisitProperty.address, selectedVisitProperty.city, selectedVisitProperty.district].filter(Boolean).join(', ') || selectedVisitProperty.reference}
                           </p>
                         </div>
                         <button
                           type="button"
                           onClick={() => setFormData(p => ({ ...p, visit_property_id: '', visit_seller_id: '' }))}
-                          className="p-1.5 rounded-lg hover:bg-violet-50 text-text-secondary/40 hover:text-red-500 transition-all duration-200"
+                          aria-label="Retirer le bien"
+                          className={`shrink-0 rounded-lg p-1.5 transition-all duration-200 ${isDark ? 'text-slate-500 hover:bg-red-400/15 hover:text-red-300' : 'text-slate-400 hover:bg-red-50 hover:text-red-500'}`}
                         >
                           <X size={13} />
                         </button>
@@ -989,33 +1278,38 @@ export const NotesActiviteTab = ({ client, highlightActivityId, isGerant = false
                     ) : (
                       <>
                         <div className="relative">
-                          <Search size={12} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary/30" />
+                          <Search size={12} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2" style={{ color: isDark ? '#A78BFA' : '#6D28D9' }} />
                           <input
                             type="text"
                             value={visitPropertySearch}
                             onChange={e => setVisitPropertySearch(e.target.value)}
                             placeholder={isRentalSide ? 'Rechercher un bien à louer...' : 'Rechercher un bien en vente...'}
-                            className="w-full h-9 pl-8 pr-3 text-xs rounded-xl border border-border/50 bg-white/70 text-text placeholder:text-text-secondary/30 focus:outline-none focus:ring-2 focus:ring-violet-300/30 focus:border-violet-300/60 transition-all duration-200"
+                            className={stageInput('h-9 pl-8 !text-xs')}
                           />
                         </div>
                         {visitPropertySearch && (
-                          <div className="mt-1.5 max-h-40 overflow-auto rounded-xl border border-border/50 bg-card shadow-sm divide-y divide-border/30">
+                          <div className={`mt-1.5 max-h-40 overflow-auto rounded-xl border backdrop-blur-xl scrollbar-thin ${isDark ? 'border-white/10 bg-[#141126]/95 shadow-xl' : 'border-slate-200/80 bg-white/95 shadow-lg'} divide-y ${isDark ? 'divide-white/[0.06]' : 'divide-slate-100'}`}>
                             {filteredVisitProperties.length === 0 ? (
-                              <p className="px-3 py-2 text-xs text-text-secondary">{isRentalSide ? 'Aucun bien à louer trouvé' : 'Aucun bien en vente trouvé'}</p>
+                              <p className={`px-3 py-2.5 text-xs ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>{isRentalSide ? 'Aucun bien à louer trouvé' : 'Aucun bien en vente trouvé'}</p>
                             ) : (
                               filteredVisitProperties.map((p: any) => (
                                 <button
                                   key={p.id}
                                   type="button"
                                   onClick={() => { setFormData(prev => ({ ...prev, visit_property_id: String(p.id), visit_seller_id: p.clientId ? String(p.clientId) : (isBailleur ? String(clientId) : prev.visit_seller_id) })); setVisitPropertySearch(''); }}
-                                  className="w-full flex items-center gap-3 px-3 py-2 hover:bg-background transition-colors text-left"
+                                  className={`w-full flex items-center gap-3 px-3 py-2 text-left transition-colors ${isDark ? 'hover:bg-white/[0.06]' : 'hover:bg-violet-50'}`}
                                 >
-                                  <div className="w-7 h-7 rounded-lg bg-emerald-50 flex items-center justify-center flex-shrink-0">
-                                    <Home size={12} className="text-emerald-600" />
-                                  </div>
+                                  <span
+                                    className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border"
+                                    style={isDark
+                                      ? { background: 'rgba(52,211,153,0.12)', borderColor: 'rgba(52,211,153,0.30)', color: '#6EE7B7' }
+                                      : { background: 'rgba(5,150,105,0.08)', borderColor: 'rgba(5,150,105,0.28)', color: '#047857' }}
+                                  >
+                                    <Home size={12} />
+                                  </span>
                                   <div className="min-w-0">
-                                    <p className="text-sm font-medium text-text truncate">{p.title}</p>
-                                    <p className="text-xs text-text-secondary truncate">
+                                    <p className={`text-sm font-bold truncate ${isDark ? 'text-white' : 'text-slate-900'}`}>{p.title}</p>
+                                    <p className={`text-xs truncate ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
                                       {[p.address, p.city, p.district].filter(Boolean).join(', ') || p.reference}
                                     </p>
                                   </div>
@@ -1031,24 +1325,30 @@ export const NotesActiviteTab = ({ client, highlightActivityId, isGerant = false
                   {/* Acheteur concerné (vendeur side) / Locataire-Voyageur concerné (bailleur side) / Vendeur concerné (acheteur side) */}
                   {(isVendeur || isBailleur) ? (
                   <div>
-                    <label className="block text-[10px] font-bold text-text-secondary/60 uppercase tracking-widest mb-1.5">
+                    <label className={`block text-[10px] font-bold uppercase tracking-[0.12em] mb-1.5 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
                       {isBailleur ? 'Locataire / Voyageur concerné par la visite' : 'Acheteur concerné par la visite'}
                     </label>
                     {formData.visit_buyer_id && selectedVisitCounterpart ? (
-                      <div className="flex items-center gap-2.5 px-3 py-2 rounded-xl bg-white border border-violet-200/70 shadow-sm">
-                        <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0">
-                          <User size={14} className="text-blue-600" />
-                        </div>
+                      <div className={`flex items-center gap-2.5 rounded-xl border p-2.5 backdrop-blur-sm ${isDark ? 'border-white/[0.07] bg-white/[0.03]' : 'border-slate-200/70 bg-white/75 shadow-sm'}`}>
+                        <span
+                          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border"
+                          style={isDark
+                            ? { background: 'rgba(56,189,248,0.12)', borderColor: 'rgba(56,189,248,0.30)', color: '#7DD3FC' }
+                            : { background: 'rgba(2,132,199,0.08)', borderColor: 'rgba(2,132,199,0.28)', color: '#0369A1' }}
+                        >
+                          <User size={14} />
+                        </span>
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-semibold text-text truncate">{selectedVisitCounterpart.name}</p>
-                          <p className="text-[11px] text-text-secondary/60 truncate">
+                          <p className={`text-sm font-bold truncate ${isDark ? 'text-white' : 'text-slate-900'}`}>{selectedVisitCounterpart.name}</p>
+                          <p className={`text-[11px] truncate ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
                             {[selectedVisitCounterpart.phone, selectedVisitCounterpart.email].filter(Boolean).join(' · ') || 'En recherche'}
                           </p>
                         </div>
                         <button
                           type="button"
                           onClick={() => setFormData(p => ({ ...p, visit_buyer_id: '' }))}
-                          className="p-1.5 rounded-lg hover:bg-violet-50 text-text-secondary/40 hover:text-red-500 transition-all duration-200"
+                          aria-label="Retirer la personne"
+                          className={`shrink-0 rounded-lg p-1.5 transition-all duration-200 ${isDark ? 'text-slate-500 hover:bg-red-400/15 hover:text-red-300' : 'text-slate-400 hover:bg-red-50 hover:text-red-500'}`}
                         >
                           <X size={13} />
                         </button>
@@ -1056,19 +1356,19 @@ export const NotesActiviteTab = ({ client, highlightActivityId, isGerant = false
                     ) : (
                       <>
                         <div className="relative">
-                          <Search size={12} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary/30" />
+                          <Search size={12} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2" style={{ color: isDark ? '#A78BFA' : '#6D28D9' }} />
                           <input
                             type="text"
                             value={visitBuyerSearch}
                             onChange={e => setVisitBuyerSearch(e.target.value)}
                             placeholder={isBailleur ? 'Rechercher un locataire ou voyageur...' : 'Rechercher un acheteur...'}
-                            className="w-full h-9 pl-8 pr-3 text-xs rounded-xl border border-border/50 bg-white/70 text-text placeholder:text-text-secondary/30 focus:outline-none focus:ring-2 focus:ring-violet-300/30 focus:border-violet-300/60 transition-all duration-200"
+                            className={stageInput('h-9 pl-8 !text-xs')}
                           />
                         </div>
                         {visitBuyerSearch && (
-                          <div className="mt-1.5 max-h-40 overflow-auto rounded-xl border border-border/50 bg-card shadow-sm divide-y divide-border/30">
+                          <div className={`mt-1.5 max-h-40 overflow-auto rounded-xl border backdrop-blur-xl scrollbar-thin ${isDark ? 'border-white/10 bg-[#141126]/95 shadow-xl' : 'border-slate-200/80 bg-white/95 shadow-lg'} divide-y ${isDark ? 'divide-white/[0.06]' : 'divide-slate-100'}`}>
                             {filteredVisitCounterparts.length === 0 ? (
-                              <p className="px-3 py-2 text-xs text-text-secondary">
+                              <p className={`px-3 py-2.5 text-xs ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
                                 {isBailleur ? 'Aucun locataire / voyageur en recherche trouvé' : 'Aucun acheteur en recherche trouvé'}
                               </p>
                             ) : (
@@ -1077,14 +1377,19 @@ export const NotesActiviteTab = ({ client, highlightActivityId, isGerant = false
                                   key={c.id}
                                   type="button"
                                   onClick={() => { setFormData(prev => ({ ...prev, visit_buyer_id: String(c.id) })); setVisitBuyerSearch(''); }}
-                                  className="w-full flex items-center gap-3 px-3 py-2 hover:bg-background transition-colors text-left"
+                                  className={`w-full flex items-center gap-3 px-3 py-2 text-left transition-colors ${isDark ? 'hover:bg-white/[0.06]' : 'hover:bg-violet-50'}`}
                                 >
-                                  <div className="w-7 h-7 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0">
-                                    <User size={12} className="text-blue-600" />
-                                  </div>
+                                  <span
+                                    className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border"
+                                    style={isDark
+                                      ? { background: 'rgba(56,189,248,0.12)', borderColor: 'rgba(56,189,248,0.30)', color: '#7DD3FC' }
+                                      : { background: 'rgba(2,132,199,0.08)', borderColor: 'rgba(2,132,199,0.28)', color: '#0369A1' }}
+                                  >
+                                    <User size={12} />
+                                  </span>
                                   <div className="min-w-0">
-                                    <p className="text-sm font-medium text-text truncate">{c.name}</p>
-                                    <p className="text-xs text-text-secondary truncate">
+                                    <p className={`text-sm font-bold truncate ${isDark ? 'text-white' : 'text-slate-900'}`}>{c.name}</p>
+                                    <p className={`text-xs truncate ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
                                       {[c.phone, c.email].filter(Boolean).join(' · ') || 'En recherche'}
                                     </p>
                                   </div>
@@ -1098,181 +1403,259 @@ export const NotesActiviteTab = ({ client, highlightActivityId, isGerant = false
                   </div>
                   ) : (
                   <div>
-                    <label className="block text-[10px] font-bold text-text-secondary/60 uppercase tracking-widest mb-1.5">{isAcheteur ? 'Vendeur concerné par la visite' : 'Bailleur concerné par la visite'}</label>
+                    <label className={`block text-[10px] font-bold uppercase tracking-[0.12em] mb-1.5 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>{isAcheteur ? 'Vendeur concerné par la visite' : 'Bailleur concerné par la visite'}</label>
                     {selectedVisitSeller || selectedVisitProperty?.owner?.name ? (
-                      <div className="flex items-center gap-2.5 px-3 py-2 rounded-xl bg-white border border-violet-200/70 shadow-sm">
-                        <div className={`w-8 h-8 rounded-lg ${isGerant ? 'bg-[#E7D5D5]' : 'bg-amber-50'} flex items-center justify-center flex-shrink-0`}>
-                          <User size={14} className={isGerant ? 'text-[#905D5D]' : 'text-amber-600'} />
-                        </div>
+                      <div className={`flex items-center gap-2.5 rounded-xl border p-2.5 backdrop-blur-sm ${isDark ? 'border-white/[0.07] bg-white/[0.03]' : 'border-slate-200/70 bg-white/75 shadow-sm'}`}>
+                        <span
+                          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border"
+                          style={isDark
+                            ? { background: 'rgba(251,191,36,0.12)', borderColor: 'rgba(251,191,36,0.30)', color: '#FCD34D' }
+                            : { background: 'rgba(217,119,6,0.08)', borderColor: 'rgba(217,119,6,0.28)', color: '#B45309' }}
+                        >
+                          <User size={14} />
+                        </span>
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-semibold text-text truncate">
+                          <p className={`text-sm font-bold truncate ${isDark ? 'text-white' : 'text-slate-900'}`}>
                             {selectedVisitSeller?.name || selectedVisitProperty?.owner?.name || (isAcheteur ? 'Vendeur non renseigné' : 'Bailleur non renseigné')}
                           </p>
-                          <p className="text-[11px] text-text-secondary/60 truncate">
+                          <p className={`text-[11px] truncate ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
                             {[selectedVisitSeller?.phone, selectedVisitSeller?.email].filter(Boolean).join(' · ') || (isAcheteur ? 'Vendeur du bien sélectionné' : 'Bailleur du bien sélectionné')}
                           </p>
                         </div>
                       </div>
                     ) : (
-                      <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl border border-dashed border-border/60 bg-background/40">
-                        <User size={13} className="text-text-secondary/40" />
-                        <p className="text-xs text-text-secondary/60">{isAcheteur ? 'Sélectionnez un bien pour afficher le vendeur concerné' : 'Sélectionnez un bien pour afficher le bailleur concerné'}</p>
+                      <div className={`flex items-center gap-2 rounded-xl border border-dashed px-3 py-2.5 backdrop-blur-sm ${isDark ? 'border-white/15 bg-white/[0.02] text-slate-500' : 'border-slate-300/80 bg-white/50 text-slate-500'}`}>
+                        <User size={13} className="shrink-0 opacity-60" />
+                        <p className="text-xs">{isAcheteur ? 'Sélectionnez un bien pour afficher le vendeur concerné' : 'Sélectionnez un bien pour afficher le bailleur concerné'}</p>
                       </div>
                     )}
                   </div>
                   )}
-                </div>
+                </motion.div>
               )}
 
-              {/* Toggles */}
-              <div className="flex flex-wrap gap-4 mb-6">
-                <button
-                  type="button"
-                  onClick={() => setFormData(p => ({ ...p, has_reminder: !p.has_reminder }))}
-                  className={`flex items-center gap-2.5 px-4 py-2.5 rounded-xl border text-xs font-semibold transition-all duration-200 ${
-                    formData.has_reminder
-                      ? isGerant ? 'bg-[#E7D5D5] border-[#E0C6C6] text-[#905D5D] shadow-md shadow-[#905D5D]/10' : 'bg-amber-50 border-amber-300 text-amber-700 shadow-md shadow-amber-100'
-                      : isGerant ? 'bg-background/60 border-border/50 text-text-secondary hover:border-[#905D5D]/50 hover:text-[#905D5D]' : 'bg-background/60 border-border/50 text-text-secondary hover:border-amber-300 hover:text-amber-600'
-                  }`}
-                >
-                  <div className={`w-5 h-5 rounded-lg flex items-center justify-center transition-all duration-200 ${
-                    formData.has_reminder ? `${isGerant ? 'bg-[#905D5D]' : 'bg-amber-500'} shadow-sm` : 'bg-white border-2 border-border'
-                  }`}>
-                    {formData.has_reminder && <Bell size={11} className="text-white" />}
-                  </div>
-                  Ajouter un rappel
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setFormData(p => ({ ...p, is_important: !p.is_important }))}
-                  className={`flex items-center gap-2.5 px-4 py-2.5 rounded-xl border text-xs font-semibold transition-all duration-200 ${
-                    formData.is_important
-                      ? isGerant ? 'bg-[#E7D5D5] border-[#E0C6C6] text-[#905D5D] shadow-md shadow-[#905D5D]/10' : 'bg-amber-50 border-amber-300 text-amber-700 shadow-md shadow-amber-100'
-                      : isGerant ? 'bg-background/60 border-border/50 text-text-secondary hover:border-[#905D5D]/50 hover:text-[#905D5D]' : 'bg-background/60 border-border/50 text-text-secondary hover:border-amber-300 hover:text-amber-600'
-                  }`}
-                >
-                  <div className={`w-5 h-5 rounded-lg flex items-center justify-center transition-all duration-200 ${
-                    formData.is_important ? `${isGerant ? 'bg-[#905D5D]' : 'bg-amber-500'} shadow-sm` : 'bg-white border-2 border-border'
-                  }`}>
-                    {formData.is_important && <Star size={11} className="text-white fill-white" />}
-                  </div>
-                  Marquer comme important
-                </button>
+              {/* Toggles — staged switch cards */}
+              <div className="mb-5">
+                <div className="mb-2.5 flex items-center gap-2">
+                  <span
+                    className="flex h-6 w-6 shrink-0 items-center justify-center rounded-lg border"
+                    style={isDark
+                      ? { background: `${accent.a}14`, borderColor: `${accent.a}30`, color: accent.a }
+                      : { background: `${accent.a}12`, borderColor: `${accent.a}30`, color: ink }}
+                  >
+                    <Star size={12} />
+                  </span>
+                  <h4 className={`shrink-0 text-[10px] font-extrabold uppercase tracking-[0.16em] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                    Options
+                  </h4>
+                  <span
+                    aria-hidden="true"
+                    className="h-px flex-1"
+                    style={{ background: isDark ? `linear-gradient(90deg, ${accent.a}30, transparent)` : `linear-gradient(90deg, ${accent.a}35, transparent)` }}
+                  />
+                </div>
+                <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+                  {[
+                    { key: 'has_reminder' as const, label: 'Ajouter un rappel', desc: 'Date & heure de relance', icon: Bell },
+                    { key: 'is_important' as const, label: 'Marquer comme important', desc: 'Mise en avant', icon: Star },
+                  ].map(opt => {
+                    const on = !!formData[opt.key];
+                    const OptIcon = opt.icon;
+                    return (
+                      <button
+                        key={opt.key}
+                        type="button"
+                        onClick={() => setFormData(p => ({ ...p, [opt.key]: !p[opt.key] }))}
+                        className={`flex items-center gap-3 rounded-2xl border p-3 text-left backdrop-blur-sm transition-all duration-200 hover:-translate-y-0.5 active:scale-[0.99] ${
+                          on
+                            ? ''
+                            : isDark
+                              ? 'border-white/[0.07] bg-white/[0.03] hover:border-white/[0.14]'
+                              : 'border-slate-200/70 bg-white/70 shadow-sm hover:shadow'
+                        }`}
+                        style={on
+                          ? isDark
+                            ? { background: 'rgba(251,191,36,0.10)', borderColor: 'rgba(251,191,36,0.35)', boxShadow: '0 0 18px rgba(251,191,36,0.25)' }
+                            : { background: 'rgba(217,119,6,0.07)', borderColor: 'rgba(217,119,6,0.35)', boxShadow: '0 6px 18px -10px rgba(217,119,6,0.4)' }
+                          : undefined}
+                      >
+                        <span
+                          className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-lg border transition-all duration-200 ${
+                            on ? 'border-transparent bg-gradient-to-br from-amber-400 to-amber-600 text-white shadow-md' : isDark ? 'border-white/20 text-transparent' : 'border-slate-300 text-transparent'
+                          }`}
+                        >
+                          <OptIcon size={12} className={opt.key === 'is_important' && on ? 'fill-white' : ''} />
+                        </span>
+                        <span className="min-w-0">
+                          <span className={`block text-xs font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>{opt.label}</span>
+                          <span className={`block text-[10px] font-medium ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>{opt.desc}</span>
+                        </span>
+                        <span
+                          className={`relative ml-auto h-5 w-9 shrink-0 rounded-full transition-colors duration-200 ${isDark ? 'bg-white/10' : 'bg-slate-900/10'}`}
+                          style={on ? { background: 'linear-gradient(145deg, #FBBF24, #D97706)' } : undefined}
+                        >
+                          <span
+                            className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-all duration-200 ${on ? 'left-[18px]' : 'left-0.5'}`}
+                          />
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
 
-              {/* Reminder fields */}
+              {/* Reminder fields — staged amber */}
               {formData.has_reminder && (
-                <div className={`animate-slide-down-soft grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6 p-4 rounded-xl bg-gradient-to-r ${isGerant ? 'from-[#F0E2E2] to-[#F0E2E2]/30' : 'from-amber-50 to-orange-50'} border ${isGerant ? 'border-[#E0C6C6]/60' : 'border-amber-200/60'}`}>
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+                  className={`grid grid-cols-1 sm:grid-cols-2 gap-2.5 mb-5 p-4 rounded-2xl border backdrop-blur-sm ${
+                    isDark
+                      ? 'border-amber-400/20 bg-amber-400/[0.06]'
+                      : 'border-amber-200/70 bg-amber-50/70 shadow-sm'
+                  }`}
+                >
                   <div>
-                    <label className={`flex items-center gap-1.5 text-[10px] font-bold ${isGerant ? 'text-[#905D5D]' : 'text-amber-700'} uppercase tracking-widest mb-1.5`}>
-                      <Calendar size={11} className={isGerant ? 'text-[#905D5D]/60' : 'text-amber-500/60'} />
+                    <label className={`flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.12em] mb-1.5 ${isDark ? 'text-amber-300' : 'text-amber-700'}`}>
+                      <Calendar size={11} />
                       Date du rappel
                     </label>
                     <DatePicker
                       value={formData.reminder_date}
                       max={formData.activity_date || undefined}
                       onChange={e => setFormData(p => ({ ...p, reminder_date: e.target.value }))}
-                      className={`!h-11 !rounded-xl ${isGerant ? '!border-[#E0C6C6] hover:!border-[#905D5D]/50 focus:!ring-[#905D5D]/20 focus:!border-[#905D5D]/50' : '!border-amber-200 hover:!border-amber-300 focus:!ring-amber-300/30 focus:!border-amber-300'} !bg-white !shadow-sm hover:!shadow-md`}
+                      className="!h-11"
                     />
                   </div>
                   <div>
-                    <label className={`flex items-center gap-1.5 text-[10px] font-bold ${isGerant ? 'text-[#905D5D]' : 'text-amber-700'} uppercase tracking-widest mb-1.5`}>
-                      <Clock size={11} className={isGerant ? 'text-[#905D5D]/60' : 'text-amber-500/60'} />
+                    <label className={`flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.12em] mb-1.5 ${isDark ? 'text-amber-300' : 'text-amber-700'}`}>
+                      <Clock size={11} />
                       Heure du rappel
                     </label>
                     <TimePicker
                       value={formData.reminder_time}
                       onChange={e => setFormData(p => ({ ...p, reminder_time: e.target.value }))}
-                      className={`!h-11 !rounded-xl ${isGerant ? '!border-[#E0C6C6] hover:!border-[#905D5D]/50 focus:!ring-[#905D5D]/20 focus:!border-[#905D5D]/50' : '!border-amber-200 hover:!border-amber-300 focus:!ring-amber-300/30 focus:!border-amber-300'} !bg-white !shadow-sm hover:!shadow-md`}
+                      className="!h-11"
                     />
                   </div>
-                </div>
+                </motion.div>
               )}
 
-              {/* Actions */}
-              <div className="flex justify-end gap-3 pt-2">
+              {/* Actions — staged */}
+              <div className="flex flex-col-reverse gap-2.5 pt-1 sm:flex-row sm:justify-end">
                 <button
+                  type="button"
                   onClick={() => { setShowForm(false); setEditActivity(null); }}
-                  className="px-5 py-2.5 text-xs font-semibold text-text-secondary rounded-xl border border-border/50 hover:bg-background hover:border-border transition-all duration-200"
+                  className={`rounded-xl border px-5 py-2.5 text-xs font-bold backdrop-blur-md transition-all duration-200 hover:scale-[1.02] active:scale-95 ${isDark ? 'border-white/10 bg-white/[0.04] text-slate-300 hover:bg-white/10 hover:text-white' : 'border-slate-200/80 bg-white text-slate-600 shadow-sm hover:text-slate-900'}`}
                 >
                   Annuler
                 </button>
                 <button
+                  type="button"
                   onClick={handleSubmit}
                   disabled={!formData.subject.trim()}
-                  className={`px-5 py-2.5 text-xs font-semibold text-white rounded-xl bg-gradient-to-r ${isGerant ? 'from-[#905D5D] to-[#7D5050]' : 'from-accent to-indigo-600'} shadow-lg ${isGerant ? 'shadow-[#905D5D]/25' : 'shadow-accent/25'} hover:shadow-xl ${isGerant ? 'hover:shadow-[#905D5D]/30' : 'hover:shadow-accent/30'} hover:scale-[1.02] active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:scale-100 disabled:hover:shadow-lg transition-all duration-200`}
+                  className="rounded-xl border border-white/20 px-5 py-2.5 text-xs font-bold text-white shadow-lg transition-all hover:scale-[1.02] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:scale-100"
+style={isGerant
+  ? { backgroundImage: `linear-gradient(145deg, ${accent.a} 0%, ${accent.b} 100%)`, boxShadow: `inset 0 1px 0 rgba(255,255,255,0.4), 0 10px 26px -10px ${accent.glow}` }
+  : isDark
+                      ? { backgroundImage: 'linear-gradient(145deg, #8B7CFF 0%, #6C5ECF 60%, #5646C9 100%)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.4), 0 10px 26px -8px rgba(124,92,255,0.65)' }
+                      : { backgroundImage: 'linear-gradient(145deg, #2DD4BF 0%, #14B8A6 60%, #0D9488 100%)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.5), 0 10px 26px -10px rgba(13,148,136,0.6)' }}
                 >
-                  {editActivity ? 'Enregistrer les modifications' : 'Ajouter l\'activite'}
+                  {editActivity ? 'Enregistrer les modifications' : 'Ajouter l\'activité'}
                 </button>
               </div>
             </div>
-          </div>
+          </motion.div>
         )}
 
-        {/* History */}
-        <div className="rounded-2xl border border-border/40 bg-card overflow-hidden shadow-sm">
-          <div className="px-5 py-4 border-b border-border/30 flex items-center justify-between bg-gradient-to-r from-background/50 to-transparent">
+        {/* History — staged */}
+        <div className={`relative overflow-hidden rounded-2xl border backdrop-blur-sm ${isDark ? 'border-white/[0.07] bg-white/[0.03]' : 'border-slate-200/70 bg-white/70 shadow-sm'}`}>
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-0"
+            style={{ background: `radial-gradient(80% 120% at 100% 0%, ${accent.a}14, transparent 60%)` }}
+          />
+          <div className={`relative px-5 py-4 border-b flex items-center justify-between ${isDark ? 'border-white/[0.07]' : 'border-slate-200/70'}`}>
             <div className="flex items-center gap-2.5">
-              <div className={`w-7 h-7 rounded-lg ${isGerant ? 'bg-[#905D5D]/10' : 'bg-accent/10'} flex items-center justify-center`}>
-                <Clock size={13} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />
-              </div>
+              <span
+                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border"
+                style={isDark
+                  ? { background: `${accent.a}14`, borderColor: `${accent.a}30`, color: accent.a }
+                  : { background: `${accent.a}12`, borderColor: `${accent.a}30`, color: ink }}
+              >
+                <Clock size={13} />
+              </span>
               <div>
-                <h4 className="text-xs font-bold text-text tracking-tight">
+                <h4 className={`text-xs font-extrabold uppercase tracking-[0.14em] ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>
                   Historique
                 </h4>
-                <p className="text-[10px] text-text-secondary/50 font-medium">{total} activite{total > 1 ? 's' : ''} enregistree{total > 1 ? 's' : ''}</p>
+                <p className={`text-[10px] font-medium ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>{total} activité{total > 1 ? 's' : ''} enregistrée{total > 1 ? 's' : ''}</p>
               </div>
             </div>
             <button
               onClick={() => setRefreshKey(k => k + 1)}
-              className={`p-2 rounded-xl ${isGerant ? 'hover:bg-[#905D5D]/10 hover:text-[#905D5D]' : 'hover:bg-accent/10 hover:text-accent'} text-text-secondary/40 transition-all duration-200 hover:rotate-180`}
-              title="Rafraichir"
+              className={`p-2 rounded-xl border backdrop-blur-md transition-all duration-200 hover:scale-[1.05] active:scale-95 ${isDark ? 'border-white/10 bg-white/[0.04] text-slate-400 hover:bg-white/10 hover:text-white' : 'border-slate-200/80 bg-white text-slate-500 shadow-sm hover:text-slate-900'}`}
+              title="Rafraîchir"
             >
               <RefreshCw size={14} />
             </button>
           </div>
 
           {loading ? (
-            <div className="p-6 space-y-4">
-              {[1,2,3].map(i => (
-                <div key={i} className="flex items-start gap-3 animate-pulse" style={{ animationDelay: `${i * 100}ms` }}>
-                  <div className="w-10 h-10 rounded-xl skeleton-shimmer" />
-                  <div className="flex-1 space-y-2">
-                    <div className="h-4 w-48 rounded-lg skeleton-shimmer" />
-                    <div className="h-3 w-32 rounded-lg skeleton-shimmer" />
-                    <div className="h-3 w-64 rounded-lg skeleton-shimmer" />
-                  </div>
-                </div>
-              ))}
+            <div className="relative flex flex-col items-center justify-center py-20">
+              <div className="relative mb-4 h-14 w-14">
+                <div className="absolute inset-0 rounded-full border-2" style={{ borderColor: `${accent.a}30` }} />
+                <div className="absolute inset-0 animate-spin rounded-full border-2 border-transparent" style={{ borderTopColor: accent.a }} />
+                <div className="absolute inset-2 animate-spin rounded-full border-2 border-transparent" style={{ borderTopColor: `${accent.a}99`, animationDirection: 'reverse', animationDuration: '1.5s' }} />
+                <MessageSquare size={16} className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2" style={{ color: ink }} />
+              </div>
+              <p className={`text-sm font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>Chargement...</p>
+              <p className={`mt-1 text-xs ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>Récupération des activités</p>
             </div>
           ) : activities.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-16">
-              <div className="relative mb-4">
-                <div className={`w-20 h-20 rounded-2xl bg-gradient-to-br ${isGerant ? 'from-[#905D5D]/10 to-[#E7D5D5]' : 'from-accent/10 to-indigo-100'} flex items-center justify-center animate-pulse-glow`}>
-                  <FileText size={32} className={isGerant ? 'text-[#905D5D]/40' : 'text-accent/40'} />
-                </div>
-                <div className={`absolute -bottom-1 -right-1 w-7 h-7 rounded-lg bg-gradient-to-br ${isGerant ? 'from-[#905D5D] to-[#7D5050]' : 'from-accent to-indigo-600'} flex items-center justify-center shadow-lg ${isGerant ? 'shadow-[#905D5D]/20' : 'shadow-accent/20'}`}>
-                  <Hash size={13} className="text-white" />
-                </div>
+            <div className="relative flex flex-col items-center justify-center py-16 text-center">
+              <div
+                className={`mb-3 flex h-14 w-14 items-center justify-center rounded-2xl border backdrop-blur-sm ${isDark ? 'border-white/10 bg-white/[0.04] text-slate-500' : 'border-slate-200/70 bg-white/70 text-slate-400 shadow-sm'}`}
+              >
+                <MessageSquare size={22} />
               </div>
-              <p className="text-sm font-semibold text-text-secondary/60 mb-1">Aucune activite</p>
-              <p className="text-xs text-text-secondary/40">Commencez par ajouter une activite</p>
+              <p className={`text-sm font-bold ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>Aucune activité</p>
+              <p className={`mt-1 max-w-xs text-xs ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>Commencez par ajouter une activité pour suivre vos échanges avec ce client</p>
+              <button
+                type="button"
+                onClick={() => { resetForm(); setEditActivity(null); setShowForm(true); }}
+                className="mt-3 inline-flex items-center gap-2 rounded-xl border border-white/20 px-4 py-2 text-xs font-bold text-white shadow-lg transition-all hover:scale-[1.02] active:scale-95"
+                style={isGerant
+                  ? { backgroundImage: `linear-gradient(145deg, ${accent.a} 0%, ${accent.b} 100%)`, boxShadow: `inset 0 1px 0 rgba(255,255,255,0.4), 0 10px 26px -10px ${accent.glow}` }
+                  : isDark
+                    ? { backgroundImage: 'linear-gradient(145deg, #8B7CFF 0%, #6C5ECF 60%, #5646C9 100%)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.4), 0 10px 26px -8px rgba(124,92,255,0.65)' }
+                    : { backgroundImage: 'linear-gradient(145deg, #2DD4BF 0%, #14B8A6 60%, #0D9488 100%)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.5), 0 10px 26px -10px rgba(13,148,136,0.6)' }}
+              >
+                <Plus size={14} /> Nouvelle activité
+              </button>
             </div>
           ) : (
             <div className="relative">
               {/* Timeline line */}
-              <div className={`absolute left-[39px] top-0 bottom-0 w-px bg-gradient-to-b ${isGerant ? 'from-[#905D5D]/20' : 'from-accent/20'} via-border to-transparent`} />
+              <div
+                aria-hidden="true"
+                className="absolute bottom-0 left-[39px] top-0 w-px"
+                style={{ background: `linear-gradient(to bottom, ${accent.a}40, transparent)` }}
+              />
 
-              <div className="divide-y divide-border/20">
+              <div className={`divide-y ${isDark ? 'divide-white/[0.06]' : 'divide-slate-200/70'}`}>
                 {activities.map((a, i) => {
                   const tm = getTypeMeta(a.type);
                   const Icon = tm.icon;
                   return (
-                    <div
+                    <motion.div
                       key={a.id}
                       id={`activity-${a.id}`}
-                      className={`animate-stagger group relative px-5 py-4 ${isGerant ? 'hover:bg-[#905D5D]/[0.02]' : 'hover:bg-accent/[0.02]'} transition-all duration-300 scroll-mt-20`}
-                      style={{ animationDelay: `${i * 40}ms` }}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: Math.min(i * 0.04, 0.4), duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+                      className={`group relative scroll-mt-20 px-5 py-4 transition-colors duration-300 ${isDark ? 'hover:bg-white/[0.03]' : 'hover:bg-slate-900/[0.02]'}`}
                     >
                       <div className="flex items-start gap-4">
                         {/* Timeline dot */}
@@ -1281,7 +1664,7 @@ export const NotesActiviteTab = ({ client, highlightActivityId, isGerant = false
                             <Icon size={14} className="text-white" />
                           </div>
                           {a.is_important && (
-                            <div className={`absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full ${isGerant ? 'bg-[#905D5D]' : 'bg-amber-400'} border-2 border-white flex items-center justify-center animate-pulse-soft`}>
+                            <div className={`absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full ${'bg-accent'} border-2 border-white flex items-center justify-center animate-pulse-soft`}>
                               <Star size={7} className="text-white fill-white" />
                             </div>
                           )}
@@ -1290,64 +1673,67 @@ export const NotesActiviteTab = ({ client, highlightActivityId, isGerant = false
                         {/* Content */}
                         <div className="flex-1 min-w-0 pt-0.5">
                           <div className="flex items-center gap-2 flex-wrap mb-1">
-                            <h4 className={`text-sm font-bold text-text ${isGerant ? 'group-hover:text-[#905D5D]' : 'group-hover:text-accent'} transition-colors duration-200`}>{a.subject}</h4>
+                            <h4 className={`text-sm font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>{a.subject}</h4>
                             {a.type === 'rendez_vous' && a.status && (
-                              <span className={`inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full ${STATUS_META[a.status]?.bg || DEFAULT_STATUS.bg} ${STATUS_META[a.status]?.color || DEFAULT_STATUS.color} border ${STATUS_META[a.status]?.border || DEFAULT_STATUS.border}`}>
-                                {STATUS_META[a.status]?.label || 'En attente'}
-                              </span>
+                              <StagePill label={STATUS_META[a.status]?.label || 'En attente'} hue={rdvStatusHue(a.status)} isDark={isDark} dot={false} />
                             )}
                             {a.alarm_sent && (
-                              <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-red-50 text-red-600 border border-red-200/60">
-                                <Lock size={9} /> Verrouillee
-                              </span>
+                              <StagePill label="Verrouillée" hue={RED_STAGE_HUE} isDark={isDark} />
                             )}
                             {a.has_reminder && (
-                              <span className={`inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full ${isGerant ? 'bg-[#E7D5D5] text-[#905D5D] border-[#E0C6C6]/60' : 'bg-amber-50 text-amber-600 border-amber-200/60'}`}>
-                                <Bell size={9} /> Rappel
-                              </span>
+                              <StagePill label="Rappel" hue={STAGE_HUES.amber} isDark={isDark} dot={false} />
                             )}
                             {a.type === 'visite' && a.visit_property_id && (
                               <button
                                 onClick={() => openBonDeVisite(a)}
-                                className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-violet-50 text-violet-600 border border-violet-200/60 hover:bg-violet-100 transition-colors"
+                                className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-bold transition-all duration-200 hover:scale-[1.04] active:scale-95 ${
+                                  isDark
+                                    ? 'bg-violet-400/15 text-violet-300 border border-violet-400/30 hover:bg-violet-400/25'
+                                    : 'bg-violet-50 text-violet-600 border border-violet-200/60 hover:bg-violet-100'
+                                }`}
                                 title="Ouvrir le bon de visite"
                               >
                                 <FileText size={9} /> Bon de visite
                               </button>
                             )}
-                            <span className={`ml-auto text-[10px] font-bold px-2.5 py-1 rounded-lg ${tm.bg} ${tm.color} border ${tm.border}`}>
-                              {tm.label}
+                            <span className="ml-auto">
+                              <StagePill label={tm.label} hue={activityTypeHue(a.type)} isDark={isDark} dot={false} />
                             </span>
                           </div>
 
-                          <div className="flex items-center gap-2 text-[11px] text-text-secondary/50 mb-1.5">
-                            <span className="font-medium text-text-secondary/70">{formatRelativeTime(a.activity_date)}</span>
+                          <div className={`flex items-center gap-2 text-[11px] mb-1.5 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+                            <span className={`font-medium ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{formatRelativeTime(a.activity_date)}</span>
                             {a.direction && (
                               <>
-                                <span className="text-border/50">|</span>
-                                <span className={`inline-flex items-center gap-1 font-medium px-1.5 py-0.5 rounded-md ${
-                                  a.direction === 'sortant' ? 'bg-blue-50 text-blue-600' : 'bg-emerald-50 text-emerald-600'
-                                }`}>
-                                  {a.direction === 'sortant' ? <ArrowUpRight size={10} /> : <ArrowDownLeft size={10} />}
-                                  {a.direction === 'sortant' ? 'Sortant' : 'Entrant'}
-                                </span>
+                                <span className="opacity-40">|</span>
+                                <StagePill
+                                  label={a.direction === 'sortant' ? 'Sortant' : 'Entrant'}
+                                  hue={a.direction === 'sortant' ? STAGE_HUES.sky : STAGE_HUES.emerald}
+                                  isDark={isDark}
+                                  dot={false}
+                                />
                               </>
                             )}
                             {a.author_name && (
                               <>
-                                <span className="text-border/50">|</span>
+                                <span className="opacity-40">|</span>
                                 <span className="font-medium">{a.author_name}</span>
                               </>
                             )}
                           </div>
 
                           {a.description && (
-                            <p className="text-xs text-text-secondary/60 line-clamp-2 leading-relaxed mb-1.5">{a.description}</p>
+                            <p className={`text-xs line-clamp-2 leading-relaxed mb-1.5 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{a.description}</p>
                           )}
 
                           {a.has_reminder && a.reminder_date && (
-                            <div className={`inline-flex items-center gap-1.5 mt-1 text-[11px] font-medium ${isGerant ? 'text-[#905D5D] bg-[#E7D5D5]/80' : 'text-amber-600 bg-amber-50/80'} px-2.5 py-1 rounded-lg border ${isGerant ? 'border-[#E0C6C6]/40' : 'border-amber-200/40'}`}>
-                              <Bell size={11} className="animate-pulse-soft" />
+                            <div
+                              className="inline-flex items-center gap-1.5 mt-1 text-[11px] font-medium px-2.5 py-1 rounded-xl border backdrop-blur-sm"
+                              style={isDark
+                                ? { background: 'rgba(251,191,36,0.10)', borderColor: 'rgba(251,191,36,0.30)', color: '#FCD34D' }
+                                : { background: 'rgba(217,119,6,0.08)', borderColor: 'rgba(217,119,6,0.28)', color: '#B45309' }}
+                            >
+                              <Bell size={11} />
                               Rappel : {formatDateTime(a.reminder_date)}
                             </div>
                           )}
@@ -1362,8 +1748,10 @@ export const NotesActiviteTab = ({ client, highlightActivityId, isGerant = false
                               disabled={!canVisite}
                               className={`p-2 rounded-xl transition-all duration-200 ${
                                 canVisite
-                                  ? 'hover:bg-violet-50 text-text-secondary/30 hover:text-violet-600 hover:scale-110'
-                                  : 'text-text-secondary/20 cursor-not-allowed'
+                                  ? isDark
+                                    ? 'text-slate-500 hover:bg-violet-400/15 hover:text-violet-300 hover:scale-110'
+                                    : 'text-slate-400 hover:bg-violet-50 hover:text-violet-600 hover:scale-110'
+                                  : isDark ? 'text-slate-700 cursor-not-allowed' : 'text-slate-300 cursor-not-allowed'
                               }`}
                               title={canVisite ? 'Bon de visite' : "Permission 'Visite' refusée"}
                             >
@@ -1375,7 +1763,7 @@ export const NotesActiviteTab = ({ client, highlightActivityId, isGerant = false
                             <>
                               <button
                                 onClick={() => handleStatusChange(a, 'confirme')}
-                                className="p-2 rounded-xl hover:bg-emerald-50 text-text-secondary/30 hover:text-emerald-600 transition-all duration-200 hover:scale-110"
+                                className={`p-2 rounded-xl transition-all duration-200 hover:scale-110 ${isDark ? 'text-slate-500 hover:bg-emerald-400/15 hover:text-emerald-300' : 'text-slate-400 hover:bg-emerald-50 hover:text-emerald-600'}`}
                                 title="Confirmer le rendez-vous"
                               >
                                 <Check size={14} />
@@ -1383,7 +1771,7 @@ export const NotesActiviteTab = ({ client, highlightActivityId, isGerant = false
                               {!!a.activity_date && new Date(a.activity_date) <= new Date() && (
                                 <button
                                   onClick={() => handleStatusChange(a, 'termine')}
-                                  className="p-2 rounded-xl hover:bg-blue-50 text-text-secondary/30 hover:text-blue-600 transition-all duration-200 hover:scale-110"
+                                  className={`p-2 rounded-xl transition-all duration-200 hover:scale-110 ${isDark ? 'text-slate-500 hover:bg-sky-400/15 hover:text-sky-300' : 'text-slate-400 hover:bg-blue-50 hover:text-blue-600'}`}
                                   title="Marquer le rendez-vous terminé"
                                 >
                                   <CheckCircle size={14} />
@@ -1391,7 +1779,7 @@ export const NotesActiviteTab = ({ client, highlightActivityId, isGerant = false
                               )}
                               <button
                                 onClick={() => handleStatusChange(a, 'annule')}
-                                className="p-2 rounded-xl hover:bg-red-50 text-text-secondary/30 hover:text-red-500 transition-all duration-200 hover:scale-110"
+                                className={`p-2 rounded-xl transition-all duration-200 hover:scale-110 ${isDark ? 'text-slate-500 hover:bg-red-400/15 hover:text-red-300' : 'text-slate-400 hover:bg-red-50 hover:text-red-500'}`}
                                 title="Annuler le rendez-vous"
                               >
                                 <XCircle size={14} />
@@ -1403,7 +1791,7 @@ export const NotesActiviteTab = ({ client, highlightActivityId, isGerant = false
                               {!!a.activity_date && new Date(a.activity_date) <= new Date() && (
                                 <button
                                   onClick={() => handleStatusChange(a, 'termine')}
-                                  className="p-2 rounded-xl hover:bg-blue-50 text-text-secondary/30 hover:text-blue-600 transition-all duration-200 hover:scale-110"
+                                  className={`p-2 rounded-xl transition-all duration-200 hover:scale-110 ${isDark ? 'text-slate-500 hover:bg-sky-400/15 hover:text-sky-300' : 'text-slate-400 hover:bg-blue-50 hover:text-blue-600'}`}
                                   title="Marquer le rendez-vous terminé"
                                 >
                                   <CheckCircle size={14} />
@@ -1411,7 +1799,7 @@ export const NotesActiviteTab = ({ client, highlightActivityId, isGerant = false
                               )}
                               <button
                                 onClick={() => handleStatusChange(a, 'annule')}
-                                className="p-2 rounded-xl hover:bg-red-50 text-text-secondary/30 hover:text-red-500 transition-all duration-200 hover:scale-110"
+                                className={`p-2 rounded-xl transition-all duration-200 hover:scale-110 ${isDark ? 'text-slate-500 hover:bg-red-400/15 hover:text-red-300' : 'text-slate-400 hover:bg-red-50 hover:text-red-500'}`}
                                 title="Annuler le rendez-vous"
                               >
                                 <XCircle size={14} />
@@ -1420,7 +1808,7 @@ export const NotesActiviteTab = ({ client, highlightActivityId, isGerant = false
                           )}
                           <button
                             onClick={() => setDetailActivity(a)}
-                            className={`p-2 rounded-xl ${isGerant ? 'hover:bg-[#905D5D]/10 hover:text-[#905D5D]' : 'hover:bg-accent/10 hover:text-accent'} text-text-secondary/30 transition-all duration-200 hover:scale-110`}
+                            className={`p-2 rounded-xl transition-all duration-200 hover:scale-110 ${isDark ? 'text-slate-500 hover:bg-white/10 hover:text-white' : 'text-slate-400 hover:bg-slate-900/5 hover:text-slate-900'}`}
                             title="Voir"
                           >
                             <Eye size={14} />
@@ -1429,14 +1817,14 @@ export const NotesActiviteTab = ({ client, highlightActivityId, isGerant = false
                             <>
                               <button
                                 onClick={() => openEdit(a)}
-                                className={`p-2 rounded-xl ${isGerant ? 'hover:bg-[#E7D5D5] hover:text-[#905D5D]' : 'hover:bg-amber-50 hover:text-amber-600'} text-text-secondary/30 transition-all duration-200 hover:scale-110`}
+                                className={`p-2 rounded-xl transition-all duration-200 hover:scale-110 ${isDark ? 'text-slate-500 hover:bg-amber-400/15 hover:text-amber-300' : 'text-slate-400 hover:bg-amber-50 hover:text-amber-600'}`}
                                 title="Modifier"
                               >
                                 <Edit3 size={14} />
                               </button>
                               <button
                                 onClick={() => setDeleteConfirm(a.id)}
-                                className="p-2 rounded-xl hover:bg-red-50 text-text-secondary/30 hover:text-red-500 transition-all duration-200 hover:scale-110"
+                                className={`p-2 rounded-xl transition-all duration-200 hover:scale-110 ${isDark ? 'text-slate-500 hover:bg-red-400/15 hover:text-red-300' : 'text-slate-400 hover:bg-red-50 hover:text-red-500'}`}
                                 title="Supprimer"
                               >
                                 <Trash2 size={14} />
@@ -1445,32 +1833,32 @@ export const NotesActiviteTab = ({ client, highlightActivityId, isGerant = false
                           )}
                         </div>
                       </div>
-                    </div>
+                    </motion.div>
                   );
                 })}
               </div>
             </div>
           )}
 
-          {/* Pagination */}
+          {/* Pagination — staged */}
           {totalPages > 1 && (
-            <div className="px-5 py-3.5 border-t border-border/30 flex items-center justify-between bg-gradient-to-r from-background/30 to-transparent">
-              <span className="text-[11px] font-medium text-text-secondary/50">
+            <div className={`relative px-5 py-3.5 border-t flex items-center justify-between ${isDark ? 'border-white/[0.07]' : 'border-slate-200/70'}`}>
+              <span className={`text-[11px] font-medium ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
                 {((page - 1) * LIMIT) + 1}-{Math.min(page * LIMIT, total)} sur {total}
               </span>
-              <div className="flex items-center gap-1.5 bg-background/80 rounded-xl border border-border/40 p-0.5">
+              <div className={`flex items-center gap-1 rounded-xl border p-1 backdrop-blur-sm ${isDark ? 'border-white/[0.07] bg-white/[0.03]' : 'border-slate-200/70 bg-white/70 shadow-sm'}`}>
                 <button
                   onClick={() => setPage(p => Math.max(1, p - 1))}
                   disabled={page <= 1}
-                  className="p-1.5 rounded-lg hover:bg-white hover:shadow-sm disabled:opacity-20 disabled:hover:bg-transparent transition-all duration-200"
+                  className={`p-1.5 rounded-lg transition-all duration-200 disabled:opacity-20 ${isDark ? 'text-slate-400 hover:bg-white/[0.06] hover:text-white' : 'text-slate-500 hover:bg-slate-900/[0.04] hover:text-slate-900'}`}
                 >
                   <ChevronLeft size={14} />
                 </button>
-                <span className="px-3 text-xs font-bold text-text tabular-nums">{page}/{totalPages}</span>
+                <span className={`px-3 text-xs font-extrabold tabular-nums ${isDark ? 'text-white' : 'text-slate-900'}`}>{page}/{totalPages}</span>
                 <button
                   onClick={() => setPage(p => Math.min(totalPages, p + 1))}
                   disabled={page >= totalPages}
-                  className="p-1.5 rounded-lg hover:bg-white hover:shadow-sm disabled:opacity-20 disabled:hover:bg-transparent transition-all duration-200"
+                  className={`p-1.5 rounded-lg transition-all duration-200 disabled:opacity-20 ${isDark ? 'text-slate-400 hover:bg-white/[0.06] hover:text-white' : 'text-slate-500 hover:bg-slate-900/[0.04] hover:text-slate-900'}`}
                 >
                   <ChevronRight size={14} />
                 </button>
@@ -1479,114 +1867,83 @@ export const NotesActiviteTab = ({ client, highlightActivityId, isGerant = false
           )}
         </div>
 
-        {/* Detail Dialog */}
-        <Dialog isOpen={!!detailActivity} onClose={() => setDetailActivity(null)} title="" size="md">
-          {detailActivity && (() => {
-            const tm = getTypeMeta(detailActivity.type);
-            const Icon = tm.icon;
-            return (
-              <div className="space-y-5">
-                {/* Header */}
-                <div className={`relative -m-6 mb-0 p-6 pb-5 rounded-t-2xl bg-gradient-to-br ${isGerant ? 'from-[#905D5D] to-[#7D5050]' : 'from-accent via-indigo-600 to-purple-600'}`}>
-                  <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGNpcmNsZSBjeD0iMjAiIGN5PSIyMCIgcj0iMSIgZmlsbD0icmdiYSgyNTUsMjU1LDI1NSwwLjEpIi8+PC9zdmc+')] opacity-40" />
-                  <div className="relative flex items-start gap-4">
-                    <div className="w-12 h-12 rounded-2xl bg-white/20 backdrop-blur-sm flex items-center justify-center shadow-lg">
-                      <Icon size={22} className="text-white" />
-                    </div>
-                    <div className="flex-1">
-                      <h3 className="text-lg font-bold text-white leading-tight">{detailActivity.subject}</h3>
-                      <p className="text-sm text-white/70 mt-1">{formatDateTime(detailActivity.activity_date)}</p>
-                    </div>
-                    <button
-                      onClick={() => setDetailActivity(null)}
-                      className="p-2 rounded-xl bg-white/10 hover:bg-white/20 text-white/70 hover:text-white transition-all duration-200 hover:rotate-90"
-                    >
-                      <X size={16} />
-                    </button>
+        {/* Detail Dialog — StageModal (ported, centered) */}
+        {detailActivity && (() => {
+          const tm = getTypeMeta(detailActivity.type);
+          const Icon = tm.icon;
+          const hue = activityTypeHue(detailActivity.type);
+          return (
+            <StageModal
+              open={!!detailActivity}
+              onClose={() => setDetailActivity(null)}
+              title={detailActivity.subject}
+              subtitle={formatDateTime(detailActivity.activity_date)}
+              icon={Icon}
+              hue={hue}
+              maxWidth="max-w-2xl"
+              centered
+              bodyClassName="max-h-[70vh] overflow-y-auto"
+            >
+              <div className="space-y-4">
+                {/* Pills */}
+                <div className="flex flex-wrap gap-2">
+                  {detailActivity.type === 'rendez_vous' && detailActivity.status && (
+                    <StagePill label={STATUS_META[detailActivity.status]?.label || 'En attente'} hue={rdvStatusHue(detailActivity.status)} isDark={isDark} />
+                  )}
+                  {detailActivity.is_important && (
+                    <StagePill label="Important" hue={STAGE_HUES.amber} isDark={isDark} />
+                  )}
+                  <StagePill label={tm.label} hue={hue} isDark={isDark} />
+                  {detailActivity.direction && (
+                    <StagePill label={detailActivity.direction === 'sortant' ? 'Sortant' : 'Entrant'} hue={SLATE_STAGE_HUE} isDark={isDark} />
+                  )}
+                  {detailActivity.alarm_sent && (
+                    <StagePill label="Verrouillee" hue={RED_STAGE_HUE} isDark={isDark} />
+                  )}
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className={`rounded-2xl border p-4 backdrop-blur-sm ${isDark ? 'border-white/[0.07] bg-white/[0.04]' : 'border-slate-200/70 bg-white/75'}`}>
+                    <span className={`text-[10px] font-bold uppercase tracking-widest ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>Direction</span>
+                    <p className={`mt-1.5 text-sm font-semibold ${isDark ? 'text-white' : 'text-slate-900'}`}>{detailActivity.direction === 'sortant' ? 'Sortant (Agent > Client)' : detailActivity.direction === 'entrant' ? 'Entrant (Client > Agent)' : 'Non applicable'}</p>
                   </div>
-                  <div className="relative flex gap-2 mt-4">
-                    {detailActivity.type === 'rendez_vous' && detailActivity.status && (
-                      <span className={`inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold rounded-lg ${
-                        detailActivity.status === 'annule' ? 'bg-red-400/20 text-red-100 border border-red-300/20' :
-                        detailActivity.status === 'termine' ? 'bg-blue-400/20 text-blue-100 border border-blue-300/20' :
-                        detailActivity.status === 'confirme' ? 'bg-emerald-400/20 text-emerald-100 border border-emerald-300/20' :
-                        isGerant ? 'bg-[#905D5D]/20 text-white border border-[#905D5D]/30' : 'bg-amber-400/20 text-amber-100 border border-amber-300/20'
-                      }`}>
-                        {STATUS_META[detailActivity.status]?.label || 'En attente'}
-                      </span>
-                    )}
-                    {detailActivity.is_important && (
-                      <span className={`inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold rounded-lg ${isGerant ? 'bg-[#905D5D]/20 text-white border border-[#905D5D]/30' : 'bg-amber-400/20 text-amber-100 border border-amber-300/20'}`}>
-                        <Star size={10} className="fill-current" /> Important
-                      </span>
-                    )}
-                    <span className="px-2.5 py-1 text-[11px] font-semibold rounded-lg bg-white/15 text-white/90 border border-white/10">
-                      {tm.label}
-                    </span>
-                    {detailActivity.direction && (
-                      <span className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold rounded-lg bg-white/15 text-white/90 border border-white/10">
-                        {detailActivity.direction === 'sortant' ? <ArrowUpRight size={10} /> : <ArrowDownLeft size={10} />}
-                        {detailActivity.direction === 'sortant' ? 'Sortant' : 'Entrant'}
-                      </span>
-                    )}
-                    {detailActivity.alarm_sent && (
-                      <span className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold rounded-lg bg-red-400/20 text-red-100 border border-red-300/20">
-                        <Lock size={10} /> Verrouillee
-                      </span>
-                    )}
+                  <div className={`rounded-2xl border p-4 backdrop-blur-sm ${isDark ? 'border-white/[0.07] bg-white/[0.04]' : 'border-slate-200/70 bg-white/75'}`}>
+                    <span className={`text-[10px] font-bold uppercase tracking-widest ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>Auteur</span>
+                    <div className="mt-1.5 flex items-center gap-2">
+                      <p className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-slate-900'}`}>{detailActivity.author_name || 'Non renseigne'}</p>
+                      {detailActivity.author_role && (
+                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold rounded-md ${isDark ? 'border border-white/10 bg-white/[0.04] text-slate-200' : detailActivity.author_role === 'admin' ? 'bg-purple-100 text-purple-700 border border-purple-200' : 'bg-blue-100 text-blue-700 border border-blue-200'}`}>
+                          {detailActivity.author_role === 'admin' ? <Shield size={9} /> : <User size={9} />}
+                          {detailActivity.author_role === 'admin' ? 'Admin' : 'Agent'}
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
 
-                {/* Body */}
-                <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="p-4 rounded-xl bg-gradient-to-br from-background to-background/50 border border-border/30">
-                      <span className="text-[10px] font-bold text-text-secondary/40 uppercase tracking-widest">Direction</span>
-                      <p className="mt-1.5 text-sm font-semibold text-text">{detailActivity.direction === 'sortant' ? 'Sortant (Agent > Client)' : detailActivity.direction === 'entrant' ? 'Entrant (Client > Agent)' : 'Non applicable'}</p>
-                    </div>
-                    <div className="p-4 rounded-xl bg-gradient-to-br from-background to-background/50 border border-border/30">
-                      <span className="text-[10px] font-bold text-text-secondary/40 uppercase tracking-widest">Auteur</span>
-                      <div className="mt-1.5 flex items-center gap-2">
-                        <p className="text-sm font-semibold text-text">{detailActivity.author_name || 'Non renseigne'}</p>
-                        {detailActivity.author_role && (
-                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold rounded-md ${
-                            detailActivity.author_role === 'admin'
-                              ? 'bg-purple-100 text-purple-700 border border-purple-200'
-                              : 'bg-blue-100 text-blue-700 border border-blue-200'
-                          }`}>
-                            {detailActivity.author_role === 'admin' ? <Shield size={9} /> : <User size={9} />}
-                            {detailActivity.author_role === 'admin' ? 'Admin' : 'Agent'}
-                          </span>
-                        )}
+                {detailActivity.has_reminder && detailActivity.reminder_date && (
+                  <div className={`rounded-2xl border p-4 backdrop-blur-sm ${isGerant ? (isDark ? 'border-accent/30 bg-accent/[0.08]' : 'border-accent/60 bg-accent/10') : (isDark ? 'border-amber-500/20 bg-amber-500/[0.08]' : 'border-amber-200/60 bg-amber-50/70')}`}>
+                    <div className="flex items-center gap-2">
+                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center shadow-sm ${isGerant ? 'bg-accent shadow-[hsl(var(--accent))]/20' : 'bg-amber-500 shadow-amber-200'}`}>
+                        <Bell size={14} className="text-white" />
+                      </div>
+                      <div>
+                        <span className={`text-[10px] font-bold uppercase tracking-widest ${isGerant ? 'text-accent' : (isDark ? 'text-amber-300' : 'text-amber-600')}`}>Rappel programme</span>
+                        <p className={`text-sm font-bold ${isGerant ? 'text-accent' : (isDark ? 'text-amber-200' : 'text-amber-800')}`}>{formatDateTime(detailActivity.reminder_date)}</p>
                       </div>
                     </div>
                   </div>
+                )}
 
-                  {detailActivity.has_reminder && detailActivity.reminder_date && (
-                    <div className={`p-4 rounded-xl bg-gradient-to-r ${isGerant ? 'from-[#F0E2E2] to-[#F0E2E2]/30' : 'from-amber-50 to-orange-50'} border ${isGerant ? 'border-[#E0C6C6]/60' : 'border-amber-200/60'}`}>
-                      <div className="flex items-center gap-2">
-                        <div className={`w-8 h-8 rounded-lg ${isGerant ? 'bg-[#905D5D]' : 'bg-amber-500'} flex items-center justify-center shadow-sm ${isGerant ? 'shadow-[#905D5D]/20' : 'shadow-amber-200'}`}>
-                          <Bell size={14} className="text-white" />
-                        </div>
-                        <div>
-                          <span className={`text-[10px] font-bold ${isGerant ? 'text-[#905D5D]' : 'text-amber-600'} uppercase tracking-widest`}>Rappel programme</span>
-                          <p className={`text-sm font-bold ${isGerant ? 'text-[#905D5D]' : 'text-amber-800'}`}>{formatDateTime(detailActivity.reminder_date)}</p>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {detailActivity.description && (
-                    <div className="p-4 rounded-xl bg-gradient-to-br from-background to-background/50 border border-border/30">
-                      <span className="text-[10px] font-bold text-text-secondary/40 uppercase tracking-widest">Description</span>
-                      <p className="mt-2 text-sm text-text/75 whitespace-pre-wrap leading-relaxed">{detailActivity.description}</p>
-                    </div>
-                  )}
-                </div>
+                {detailActivity.description && (
+                  <div className={`rounded-2xl border p-4 backdrop-blur-sm ${isDark ? 'border-white/[0.07] bg-white/[0.04]' : 'border-slate-200/70 bg-white/75'}`}>
+                    <span className={`text-[10px] font-bold uppercase tracking-widest ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>Description</span>
+                    <p className={`mt-2 text-sm whitespace-pre-wrap leading-relaxed ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>{detailActivity.description}</p>
+                  </div>
+                )}
 
                 {/* Actions */}
-                <div className="flex flex-col gap-3 pt-3 border-t border-border/30">
-                  {/* Rendez-vous status actions */}
+                <div className={`flex flex-col gap-3 pt-3 border-t ${isDark ? 'border-white/[0.07]' : 'border-slate-200/70'}`}>
                   {detailActivity.type === 'rendez_vous' && detailActivity.status === 'en_attente' && (
                     <div className="flex gap-2">
                       <button
@@ -1647,18 +2004,17 @@ export const NotesActiviteTab = ({ client, highlightActivityId, isGerant = false
                       <span className="text-xs font-semibold">Visite verrouillée — permission refusée</span>
                     </div>
                   )}
-                  {/* Edit/Delete for non-locked, non-terminal activities */}
                   {!detailActivity.alarm_sent && detailActivity.status !== 'annule' && detailActivity.status !== 'termine' && (detailActivity.type !== 'visite' || canVisite) && (
                     <div className="flex gap-3">
                       <button
                         onClick={() => { setDetailActivity(null); openEdit(detailActivity); }}
-                        className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-xs font-semibold ${isGerant ? 'text-[#905D5D] border-[#905D5D]/20 bg-[#905D5D]/5 hover:bg-[#905D5D]/10' : 'text-accent border-accent/20 bg-accent/5 hover:bg-accent/10'} rounded-xl border transition-all duration-200`}
+                        className={`flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-xs font-semibold rounded-xl border transition-all duration-200 active:scale-[0.97] ${isGerant ? 'text-accent border-accent/25 bg-gradient-to-b from-accent/15 to-accent/5 hover:from-accent/25 hover:to-accent/10 shadow-sm' : isDark ? 'text-violet-200 border-white/15 bg-gradient-to-b from-white/[0.08] to-white/[0.02] hover:from-white/[0.14] hover:to-white/[0.05] shadow-[inset_0_1px_0_rgba(255,255,255,0.18),0_6px_16px_-8px_rgba(124,92,255,0.45)]' : 'text-teal-900 border-teal-900/15 bg-gradient-to-b from-white to-teal-50/70 hover:from-white hover:to-teal-50 shadow-[inset_0_1px_0_rgba(255,255,255,1),0_6px_16px_-8px_rgba(13,148,136,0.4)]'}`}
                       >
                         <Edit3 size={13} /> Modifier
                       </button>
                       <button
                         onClick={() => { setDetailActivity(null); setDeleteConfirm(detailActivity.id); }}
-                        className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-xs font-semibold text-red-500 rounded-xl border border-red-200/60 bg-red-50 hover:bg-red-100 transition-all duration-200"
+                        className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-xs font-semibold text-white rounded-xl border border-white/20 bg-gradient-to-b from-rose-500 to-red-600 shadow-[inset_0_1px_0_rgba(255,255,255,0.3),0_8px_16px_rgba(225,29,72,0.4)] hover:brightness-110 transition-all duration-200 active:scale-[0.97]"
                       >
                         <Trash2 size={13} /> Supprimer
                       </button>
@@ -1672,34 +2028,43 @@ export const NotesActiviteTab = ({ client, highlightActivityId, isGerant = false
                   )}
                 </div>
               </div>
-            );
-          })()}
-        </Dialog>
+            </StageModal>
+          );
+        })()}
 
-        {/* Delete Dialog */}
-        <Dialog isOpen={deleteConfirm !== null} onClose={() => setDeleteConfirm(null)} title="" size="sm">
-          <div className="text-center py-2">
-            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-red-500 to-rose-600 flex items-center justify-center mx-auto mb-4 shadow-lg shadow-red-200 animate-pop-in">
-              <Trash2 size={28} className="text-white" />
-            </div>
-            <h3 className="text-base font-bold text-text mb-1.5">Supprimer l'activite ?</h3>
-            <p className="text-sm text-text-secondary/60 mb-6">Cette action est irreversible.</p>
-            <div className="flex gap-3">
+        {/* Delete Dialog — StageModal (ported, centered) */}
+        <StageModal
+          open={deleteConfirm !== null}
+          onClose={() => setDeleteConfirm(null)}
+          title="Supprimer l'activite ?"
+          icon={Trash2}
+          hue={RED_STAGE_HUE}
+          maxWidth="max-w-md"
+          centered
+          footer={
+            <>
               <button
                 onClick={() => setDeleteConfirm(null)}
-                className="flex-1 px-4 py-2.5 text-xs font-semibold text-text-secondary rounded-xl border border-border/50 hover:bg-background transition-all duration-200"
+                className={stageBtns.ghost}
               >
                 Annuler
               </button>
               <button
                 onClick={() => deleteConfirm && handleDelete(deleteConfirm)}
-                className="flex-1 px-4 py-2.5 text-xs font-semibold text-white rounded-xl bg-gradient-to-r from-red-500 to-rose-600 shadow-lg shadow-red-200 hover:shadow-xl hover:shadow-red-300 hover:scale-[1.02] active:scale-[0.98] transition-all duration-200"
+                className="inline-flex h-9 items-center gap-1.5 rounded-xl px-4 text-sm font-semibold text-white border border-white/20 bg-gradient-to-b from-rose-500 to-red-600 shadow-[inset_0_1px_0_rgba(255,255,255,0.3),0_8px_16px_rgba(225,29,72,0.4)] hover:brightness-110 transition-all duration-200 active:scale-[0.97]"
               >
                 Supprimer
               </button>
+            </>
+          }
+        >
+          <div className="text-center py-2">
+            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-red-500 to-rose-600 flex items-center justify-center mx-auto mb-4 shadow-lg shadow-red-200 animate-pop-in">
+              <Trash2 size={28} className="text-white" />
             </div>
+            <p className={`text-sm ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>Cette action est irreversible.</p>
           </div>
-        </Dialog>
+        </StageModal>
 
         {/* Bon de visite Dialog */}
         <Dialog isOpen={!!bonDeVisiteActivity} onClose={() => setBonDeVisiteActivity(null)} title="Bon de visite" size="2xl" className="max-h-[90vh] overflow-hidden flex flex-col">
@@ -1730,7 +2095,7 @@ export const NotesActiviteTab = ({ client, highlightActivityId, isGerant = false
                 <div className="overflow-y-auto pr-1 -mr-1">
                 {bonDeVisiteLoading ? (
                   <div className="flex flex-col items-center justify-center py-20">
-                    <div className={`w-8 h-8 border-2 ${isGerant ? 'border-[#905D5D]' : 'border-accent'} border-t-transparent rounded-full animate-spin mb-3`} />
+                    <div className={`w-8 h-8 border-2 ${'border-accent'} border-t-transparent rounded-full animate-spin mb-3`} />
                     <p className="text-xs text-text-secondary">Génération du bon de visite...</p>
                   </div>
                 ) : (

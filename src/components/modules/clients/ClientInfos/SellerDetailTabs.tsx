@@ -6,7 +6,7 @@ import { Button } from '../../../ui/Button';
 import { ClientTransactionsTab } from '../ClientTransactionsTab';
 import { NotesActiviteTab } from './NotesActiviteTab';
 import { ClientContractsTab } from '../ClientContractsTab';
-import { ClientTabsShell, StageField, StageSection, StageTags, HeaderPills, StageEmpty, ProximitesGrid, PrestationsGrid, StageHeroAmount, StagePill, StageLinkCard, getMandatStatusHue, OK_STAGE_HUE, SLATE_STAGE_HUE, useDetailAccent } from './ClientDetailStage';
+import { ClientTabsShell, StageField, StageSection, StageTags, HeaderPills, StageEmpty, ProximitesGrid, PrestationsGrid, StageHeroAmount, StagePill, StageLinkCard, getMandatStatusHue, OK_STAGE_HUE, SLATE_STAGE_HUE, useDetailAccent, StageDocumentsTab } from './ClientDetailStage';
 import { Client } from '../../../../types/client';
 import { api } from '../../../../services/api';
 import { useMyPermissions, permissionAllowed } from '../../../../hooks/useMyPermissions';
@@ -24,7 +24,7 @@ const renderTagList = (items: string[] | undefined, label: string, isGerant: boo
       <p className="text-sm font-medium text-text mb-2">{label}</p>
       <div className="flex flex-wrap gap-1.5">
         {items.map(item => (
-          <span key={item} className={`px-2 py-1 text-xs rounded-lg ${isGerant ? 'bg-[#905D5D]/10 text-[#905D5D] border border-[#905D5D]/20' : 'bg-accent/10 text-accent border border-accent/20'}`}>
+          <span key={item} className={`px-2 py-1 text-xs rounded-lg ${'bg-accent/10 text-accent border border-accent/20'}`}>
             {item}
           </span>
         ))}
@@ -279,24 +279,16 @@ export const SellerDetailTabs = ({ client: initialClient, adminId, agentId, high
 
     return (
       <div className="space-y-5">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {client.currentSituation && (
-            <InfoField label="Situation actuelle" value={client.currentSituation} icon={<User size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />
-          )}
-          {client.reasonForSelling && (
-            <InfoField label="Raison de la vente" value={client.reasonForSelling} icon={<Briefcase size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />
-          )}
-          {c.creditRestantDu && (
-            <InfoField label="Crédit existant" value={`${c.creditRestantDu.toLocaleString()} ${client.devise || 'MAD'}`} icon={<CreditCard size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />
-          )}
-          {c.dateSouhaiteeVente && (
-            <InfoField label="Date souhaitée de vente" value={new Date(c.dateSouhaiteeVente).toLocaleDateString('fr-FR')} icon={<Calendar size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />
-          )}
-        </div>
+        <StageSection icon={User} title="Situation" accent={accent} ink={ink} isDark={isDark} delay={0.05}>
+          {client.currentSituation && <StageField icon={User} label="Situation actuelle" value={client.currentSituation} accent={accent} ink={ink} isDark={isDark} />}
+          {client.reasonForSelling && <StageField icon={Briefcase} label="Raison de la vente" value={client.reasonForSelling} accent={accent} ink={ink} isDark={isDark} />}
+          {c.creditRestantDu && <StageField icon={CreditCard} label="Crédit existant" value={`${c.creditRestantDu.toLocaleString()} ${client.devise || 'MAD'}`} accent={accent} ink={ink} isDark={isDark} />}
+          {c.dateSouhaiteeVente && <StageField icon={Calendar} label="Date souhaitée de vente" value={new Date(c.dateSouhaiteeVente).toLocaleDateString('fr-FR')} accent={accent} ink={ink} isDark={isDark} />}
+        </StageSection>
         {client.notes && (
-          <div className="p-4 rounded-xl bg-background border border-border/30">
-            <p className="text-xs font-medium text-text-secondary mb-1">Notes complémentaires</p>
-            <p className="text-sm text-text">{client.notes}</p>
+          <div className={`rounded-2xl border p-4 backdrop-blur-sm ${isDark ? 'border-white/[0.07] bg-white/[0.04]' : 'border-slate-200/70 bg-white/75'}`}>
+            <p className={`text-[10px] font-bold uppercase tracking-widest mb-1 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>Notes complémentaires</p>
+            <p className={`text-sm ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>{client.notes}</p>
           </div>
         )}
       </div>
@@ -367,69 +359,36 @@ export const SellerDetailTabs = ({ client: initialClient, adminId, agentId, high
   // ─── TAB 8: DOCUMENTS ───
   const renderDocuments = () => {
     const docs = client.documents || [];
-    const requiredDocs = [
+    const findMatched = (matchTerms: string[]) =>
+      docs.find(d => matchTerms.some(t => d.name.toLowerCase().includes(t)));
+    const items = [
       { label: "Pièce d'identité (passeport ou CIN)", required: true, matchTerms: ['cin', 'identité', 'passeport', 'carte'], url: client.docIdentiteUrl, name: client.docIdentiteName },
       { label: 'Titre de propriété', required: true, matchTerms: ['titre', 'propriété', 'propriete'], url: client.docRevenusUrl, name: client.docRevenusName },
       { label: 'Documents de copropriété', required: false, matchTerms: ['copropriété', 'copropriete', 'copro'], url: client.docDomicileUrl, name: client.docDomicileName },
       { label: 'Autre document', required: false, matchTerms: ['autre'], url: client.docFinancementUrl, name: client.docFinancementName },
-    ];
-    const mandatUploaded = !!client.mandatPdfUrl;
+    ].map(d => {
+      const matched = findMatched(d.matchTerms);
+      return {
+        label: d.label,
+        required: d.required,
+        url: d.url || matched?.url || null,
+        name: d.name || matched?.name || null,
+      };
+    });
 
     return (
-      <div className="space-y-5">
-        {/* Documents justificatifs */}
-        <div className="rounded-xl border border-border/50 bg-background/50 p-4 space-y-3">
-          <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider">Documents justificatifs</p>
-          {requiredDocs.map((doc, i) => {
-            const matchedDoc = docs.find(d => doc.matchTerms.some(t => d.name.toLowerCase().includes(t)));
-            const uploaded = !!doc.url || !!matchedDoc;
-            const fileUrl = doc.url || matchedDoc?.url;
-            const fileName = doc.name || matchedDoc?.name;
-            return (
-              <div key={i} className="flex items-center gap-3 p-3 rounded-lg border border-border bg-card/50">
-                <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 transition-colors ${uploaded ? 'bg-emerald-500 border-emerald-500' : 'bg-background border-border'}`}>
-                  {uploaded && (
-                    <svg width="12" height="10" viewBox="0 0 10 8" fill="none">
-                      <path d="M1 4L3.5 6.5L9 1" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
-                  )}
-                </div>
-                <span className={`text-sm flex-1 ${uploaded ? 'text-text-secondary' : 'text-text'}`}>{doc.label}</span>
-                {fileName && <span className="text-[10px] text-text-secondary truncate max-w-[140px]">{fileName}</span>}
-                {doc.required ? (
-                  <span className="text-[10px] font-medium text-error uppercase">Obligatoire</span>
-                ) : (
-                  <span className={`text-[10px] font-medium ${isGerant ? 'text-[#905D5D]' : 'text-accent'} uppercase`}>Recommandé</span>
-                )}
-                {uploaded && fileUrl ? (
-                  <button type="button" onClick={() => openViewer(fileUrl, doc.label)} className={`text-xs px-2.5 py-1 rounded-lg ${isGerant ? 'bg-[#905D5D]/10 text-[#905D5D] border border-[#905D5D]/20 hover:bg-[#905D5D]/20' : 'bg-accent/10 text-accent border border-accent/20 hover:bg-accent/20'} transition-all flex items-center gap-1`}>
-                    <Eye size={12} /> Voir
-                  </button>
-                ) : null}
-              </div>
-            );
-          })}
-        </div>
-
-        {/* Fichier du mandat signé */}
-        <div className="rounded-xl border border-border/50 bg-background/50 p-4 space-y-3">
-          <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider">Fichier du mandat signé</p>
-          <div className="flex items-center gap-3 p-3 rounded-lg border border-border bg-card/50">
-            <FileText size={16} className={mandatUploaded ? 'text-emerald-500' : 'text-text-secondary'} />
-            <span className="text-sm text-text flex-1">Mandat signé (PDF)</span>
-            {mandatUploaded ? (
-              <>
-                <span className="text-[10px] font-medium text-emerald-600 uppercase bg-emerald-50 px-2 py-0.5 rounded">Uploadé</span>
-                <button type="button" onClick={() => client.mandatPdfUrl && openViewer(client.mandatPdfUrl, 'Mandat signé')} className={`text-xs px-3 py-1.5 rounded-lg ${isGerant ? 'bg-[#905D5D]/10 text-[#905D5D] border border-[#905D5D]/20 hover:bg-[#905D5D]/20' : 'bg-accent/10 text-accent border border-accent/20 hover:bg-accent/20'} transition-all flex items-center gap-1.5`}>
-                  <Eye size={12} /> Voir
-                </button>
-              </>
-            ) : (
-              <span className="text-[10px] font-medium text-text-secondary uppercase bg-background px-2 py-0.5 rounded">Non uploadé</span>
-            )}
-          </div>
-        </div>
-      </div>
+      <StageDocumentsTab
+        items={items}
+        clientName={client.name}
+        mandatTitle="Mandat signé"
+        mandatUrl={client.mandatPdfUrl}
+        mandatName={(client as any).mandatPdfName || 'Mandat signé (PDF)'}
+        accent={accent}
+        ink={ink}
+        isDark={isDark}
+        isGerant={isGerant}
+        onOpen={openViewer}
+      />
     );
   };
 
@@ -440,7 +399,7 @@ export const SellerDetailTabs = ({ client: initialClient, adminId, agentId, high
   const renderContrats = () => {
     if (!canReadContracts) return null;
     return (
-      <ClientContractsTab clientId={client.id} clientName={client.name} isGerant={isGerant} />
+      <ClientContractsTab clientId={client.id} clientName={client.name} clientType={client.type} isGerant={isGerant} />
     );
   };
 

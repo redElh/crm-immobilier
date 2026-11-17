@@ -1,20 +1,20 @@
 import { useState, useEffect } from 'react'
 import {
   Mail, User, FileText, Paperclip, Send, Clock, Save,
-  Download, ExternalLink, RefreshCw, Plus, X, Check
+  RefreshCw, Plus, Check,
 } from 'react-feather'
 import { Dialog } from './Dialog'
-import { Badge } from './Badge'
 import { Button } from './Button'
 import { Input } from './Input'
 import { api } from '../../services/api'
 import { fetchRegistre } from '../../services/registreService'
+import type { Transaction } from '../../types/transactions'
+import { useStageTheme } from '../dashboard/Stage'
 import {
-  MANDAT_TYPE_LABELS,
-  CLIENT_TYPE_LABELS,
-  CLIENT_TYPE_COLORS,
-} from '../../types/transactions'
-import type { Transaction, MandatType } from '../../types/transactions'
+  regTypeHue, regTypeLabel, HuePill, PartyAvatar,
+  RegistreModalHero, useRegistreAccent,
+} from '../modules/registre/RegistreStage'
+import { StageSection } from '../modules/prospects/ProspectDetailStage'
 
 interface RegistreEnvoyerModalProps {
   isOpen: boolean
@@ -52,20 +52,6 @@ interface ContractData {
   startDate: string
   endDate: string
   [key: string]: any
-}
-
-function Section({ icon: Icon, title, children }: { icon: any; title: string; children: React.ReactNode }) {
-  return (
-    <div className="rounded-xl border border-border/50 overflow-hidden">
-      <div className="flex items-center gap-2.5 px-4 py-3 bg-background/50 border-b border-border/40">
-        <Icon size={14} className="text-accent" />
-        <span className="text-xs font-semibold uppercase tracking-wider text-text-secondary">{title}</span>
-      </div>
-      <div className="px-4 py-3 space-y-3">
-        {children}
-      </div>
-    </div>
-  )
 }
 
 function formatDate(dateStr?: string) {
@@ -305,6 +291,9 @@ export function RegistreEnvoyerModal({ isOpen, onClose, transaction }: RegistreE
   const [body, setBody] = useState('')
   const [attachments, setAttachments] = useState<{ name: string; checked: boolean }[]>([])
   const [sending, setSending] = useState(false)
+  const theme = useStageTheme()
+  const isDark = theme === 'dark'
+  const { accent, ink } = useRegistreAccent()
 
   useEffect(() => {
     if (!isOpen || !transaction) return
@@ -381,92 +370,113 @@ export function RegistreEnvoyerModal({ isOpen, onClose, transaction }: RegistreE
       title={`Envoyer au client (${typeTitle})`}
       size="2xl"
     >
-      <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-1">
-        {/* Subtitle */}
-        <div className="flex items-center gap-2 text-sm text-text-secondary">
-          <Mail size={14} />
-          <span className="font-medium text-text">{t.clientName}</span>
-          <span className="text-border">·</span>
-          <span className="font-mono text-xs">{t.reference}</span>
-        </div>
-
-        {loading && (
-          <div className="flex items-center justify-center py-8">
-            <RefreshCw size={20} className="text-text-secondary/30 animate-spin" />
+      <div className="max-h-[70vh] space-y-4 overflow-y-auto scrollbar-thin pr-1">
+        {loading ? (
+          <div className="flex items-center justify-center py-10">
+            <span
+              className="flex h-12 w-12 items-center justify-center rounded-2xl border"
+              style={{ background: isDark ? `${accent.a}14` : `${accent.a}12`, borderColor: `${accent.a}30` }}
+            >
+              <RefreshCw size={18} className="animate-spin" style={{ color: isDark ? accent.a : ink }} />
+            </span>
           </div>
-        )}
-
-        {!loading && (
+        ) : (
           <>
-            {/* DESTINATAIRE */}
-            <Section icon={User} title="Destinataire">
-              <div className="p-3 rounded-lg bg-background/50 border border-border/30 space-y-1.5">
-                <p className="text-sm font-medium text-text">{client?.name || t.clientName}</p>
-                {client?.email && (
-                  <p className="text-xs text-text-secondary flex items-center gap-1.5">
-                    <Mail size={11} className="text-text-secondary/40" /> {client.email}
-                  </p>
-                )}
-                {client?.phone && (
-                  <p className="text-xs text-text-secondary flex items-center gap-1.5">
-                    <span className="text-text-secondary/40">Tel :</span> {client.phone}
-                  </p>
-                )}
-              </div>
-            </Section>
+            <RegistreModalHero
+              t={t}
+              isDark={isDark}
+              icon={Send}
+              instanceLabel="Envoyer au client"
+              amountLabel="Montant"
+              badges={
+                <>
+                  <HuePill hue={regTypeHue(t.type)} label={regTypeLabel(t.type)} isDark={isDark} />
+                </>
+              }
+              kpiChips={[
+                ...(client?.email ? [{ icon: Mail, label: 'E-mail', value: client.email }] : []),
+                ...(client?.phone ? [{ icon: User as any, label: 'Tél', value: client.phone }] : []),
+                { icon: FileText, label: 'Référence', value: t.reference, mono: true },
+              ]}
+            />
 
-            {/* MODÈLE D'EMAIL */}
-            <Section icon={FileText} title={`Modele d'email (personnalise pour ${typeTitle})`}>
-              <div className="space-y-3">
-                <Input
-                  label="Objet"
-                  value={subject}
-                  onChange={e => setSubject(e.target.value)}
-                />
-                <div className="space-y-1.5">
-                  <label className="text-sm font-medium text-text">Message</label>
-                  <textarea
-                    value={body}
-                    onChange={e => setBody(e.target.value)}
-                    rows={18}
-                    className="w-full px-3 py-2 text-sm rounded-lg border border-border bg-card text-text placeholder:text-text-secondary/40 focus:outline-none focus:ring-2 focus:ring-accent/15 focus:border-accent transition-all resize-none font-mono leading-relaxed"
-                  />
+            {/* DESTINATAIRE */}
+            <StageSection icon={User} title="Destinataire" accent={accent} ink={ink} isDark={isDark}>
+              <div className="md:col-span-2 flex items-start gap-3 rounded-2xl border p-3 backdrop-blur-sm"
+                style={{
+                  borderColor: isDark ? 'rgba(255,255,255,0.07)' : 'rgba(148,163,184,0.35)',
+                  background: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(255,255,255,0.75)',
+                  boxShadow: isDark ? 'inset 0 1px 0 rgba(255,255,255,0.06)' : 'inset 0 1px 0 rgba(255,255,255,0.8)',
+                }}
+              >
+                <PartyAvatar name={client?.name || t.clientName || ''} role={clientType} isDark={isDark} />
+                <div className="min-w-0">
+                  <p className={`truncate text-sm font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>{client?.name || t.clientName || '—'}</p>
+                  <div className={`mt-0.5 flex flex-wrap gap-x-3 text-[11px] font-medium ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                    {client?.email && <span className="inline-flex items-center gap-1"><Mail size={10} /> {client.email}</span>}
+                    {client?.phone && <span className="inline-flex items-center gap-1"><User size={10} /> {client.phone}</span>}
+                  </div>
                 </div>
               </div>
-            </Section>
+            </StageSection>
+
+            {/* MODÈLE D'EMAIL */}
+            <StageSection icon={FileText} title={`Modèle d'email (personnalisé pour ${typeTitle})`} accent={accent} ink={ink} isDark={isDark}>
+              <Input
+                label="Objet"
+                value={subject}
+                onChange={e => setSubject(e.target.value)}
+              />
+              <div className="col-span-full space-y-1.5">
+                <label className={`text-[11px] font-bold uppercase tracking-[0.14em] ${isDark ? 'text-slate-400/85' : 'text-teal-900/55'}`}>Message</label>
+                <textarea
+                  value={body}
+                  onChange={e => setBody(e.target.value)}
+                  rows={18}
+                  className={`w-full rounded-xl border px-3 py-2.5 text-sm font-mono leading-relaxed outline-none transition-all resize-none ${
+                    isDark
+                      ? 'border-white/10 bg-white/[0.04] text-slate-100 placeholder:text-slate-500 focus:border-violet-400/60'
+                      : 'border-teal-900/15 bg-white/80 text-teal-950 placeholder:text-teal-900/35 focus:border-teal-500/70'
+                  }`}
+                />
+              </div>
+            </StageSection>
 
             {/* PIÈCES JOINTES */}
-            <Section icon={Paperclip} title="Pieces jointes">
-              <div className="space-y-2">
+            <StageSection icon={Paperclip} title="Pièces jointes" accent={accent} ink={ink} isDark={isDark}>
+              <div className="md:col-span-2 space-y-2">
                 {attachments.map((att, i) => (
                   <label
                     key={i}
-                    className="flex items-center gap-2.5 p-2 rounded-lg hover:bg-background/50 cursor-pointer transition-colors"
+                    className={`flex items-center gap-2.5 rounded-xl border p-2.5 cursor-pointer transition-colors ${
+                      isDark ? 'border-white/[0.07] bg-white/[0.03] hover:border-white/[0.16]' : 'border-slate-200/70 bg-white/70 hover:border-teal-500/30'
+                    }`}
                   >
                     <div
-                      className={`w-4.5 h-4.5 rounded border flex items-center justify-center transition-colors ${
-                        att.checked
-                          ? 'bg-accent border-accent text-white'
-                          : 'border-border bg-card hover:border-text-secondary/40'
-                      }`}
+                      className="flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-md border transition-all"
+                      style={att.checked
+                        ? { background: isDark ? 'rgba(124,92,255,0.9)' : 'rgba(13,148,136,0.9)', borderColor: 'transparent', color: '#fff', boxShadow: isDark ? '0 0 10px rgba(124,92,255,0.5)' : '0 0 10px rgba(13,148,136,0.4)' }
+                        : { borderColor: isDark ? 'rgba(255,255,255,0.18)' : 'rgba(148,163,184,0.5)', background: isDark ? 'rgba(255,255,255,0.04)' : '#fff' }}
                       onClick={(e) => { e.preventDefault(); toggleAttachment(i) }}
                     >
-                      {att.checked && <Check size={10} />}
+                      {att.checked && <Check size={11} />}
                     </div>
-                    <FileText size={13} className="text-text-secondary/60 shrink-0" />
-                    <span className="text-sm text-text truncate">{att.name}</span>
+                    <FileText size={13} className="shrink-0" style={{ color: isDark ? '#94A3B8' : '#94A3B8' }} />
+                    <span className={`truncate text-sm font-semibold ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>{att.name}</span>
                   </label>
                 ))}
-                <button className="flex items-center gap-1.5 text-xs text-accent hover:text-accent/80 transition-colors mt-1">
-                  <Plus size={12} />
+                <button className={`inline-flex items-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-bold transition-colors ${
+                  isDark ? 'border-white/[0.10] bg-white/[0.04] text-slate-200 hover:bg-white/[0.08]' : 'border-teal-500/25 bg-white/70 text-teal-800 hover:bg-white'
+                }`}>
+                  <Plus size={12} style={{ color: isDark ? accent.a : ink }} />
                   Ajouter un fichier
                 </button>
               </div>
-            </Section>
+            </StageSection>
 
             {/* ACTIONS */}
-            <Section icon={Send} title="Actions">
-              <div className="flex flex-wrap gap-2">
+            <StageSection icon={Send} title="Actions" accent={accent} ink={ink} isDark={isDark}>
+              <div className="md:col-span-2 flex flex-wrap gap-2">
                 <Button onClick={handleSend} disabled={sending} loading={sending}>
                   <Send size={12} className="mr-1.5" />
                   Envoyer maintenant
@@ -480,7 +490,7 @@ export function RegistreEnvoyerModal({ isOpen, onClose, transaction }: RegistreE
                   Enregistrer comme brouillon
                 </Button>
               </div>
-            </Section>
+            </StageSection>
           </>
         )}
       </div>

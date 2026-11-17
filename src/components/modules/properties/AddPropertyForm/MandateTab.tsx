@@ -8,7 +8,7 @@ import { api } from '../../../../services/api';
 import { FileText, Shield, PenTool, Upload, Calendar, Check, Paperclip, Award } from 'react-feather';
 import { SectionCard } from './stage';
 import { useStageChrome } from '../../calendar/useStageChrome';
-import { useStageTheme, STAGE_HUES } from '../../../dashboard/Stage';
+import { useStageTheme } from '../../../dashboard/Stage';
 
 const STATUT_MANDAT_OPTIONS = [
   { value: 'Non défini', label: 'Non défini' },
@@ -103,16 +103,16 @@ function StageDocRow({ label, required, isDark }: { label: string; required: boo
       style={{
         borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(15,23,42,0.07)',
         background: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.62)',
-        boxShadow: isDark ? 'inset 0 1px 0 rgba(255,255,255,0.06)' : 'inset 0 1px 0 rgba(255,255,255,0.85), 0 8px 22px -14px rgba(13,148,136,0.22)',
+        boxShadow: isDark ? 'inset 0 1px 0 rgba(255,255,255,0.06)' : 'inset 0 1px 0 rgba(255,255,255,0.85), 0 8px 22px -14px var(--pf-glow)',
       }}
     >
       <span
         className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border"
         style={{
-          borderColor: required ? (isDark ? 'rgba(251,113,133,0.30)' : 'rgba(251,113,133,0.22)') : isDark ? 'rgba(167,139,250,0.22)' : 'rgba(20,184,166,0.18)',
-          background: required ? (isDark ? 'rgba(251,113,133,0.14)' : 'rgba(251,113,133,0.08)') : isDark ? 'rgba(167,139,250,0.10)' : 'rgba(20,184,166,0.08)',
-          color: required ? (isDark ? '#FDA4AF' : '#BE123C') : isDark ? '#A78BFA' : '#0D9488',
-          boxShadow: required ? (isDark ? '0 0 14px -6px rgba(251,113,133,0.5)' : '0 4px 14px -8px rgba(251,113,133,0.35)') : isDark ? '0 0 14px -8px rgba(167,139,250,0.35)' : '0 4px 14px -10px rgba(13,148,136,0.25)',
+          borderColor: required ? (isDark ? 'rgba(251,113,133,0.30)' : 'rgba(251,113,133,0.22)') : 'var(--pf-soft-2)',
+          background: required ? (isDark ? 'rgba(251,113,133,0.14)' : 'rgba(251,113,133,0.08)') : 'var(--pf-soft)',
+          color: required ? (isDark ? '#FDA4AF' : '#BE123C') : 'var(--pf-line)',
+          boxShadow: required ? (isDark ? '0 0 14px -6px rgba(251,113,133,0.5)' : '0 4px 14px -8px rgba(251,113,133,0.35)') : isDark ? '0 0 14px -8px var(--pf-glow)' : '0 4px 14px -10px var(--pf-glow)',
         }}
       >
         <FileText size={14} />
@@ -121,12 +121,12 @@ function StageDocRow({ label, required, isDark }: { label: string; required: boo
       <span
         className="inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-bold tracking-wide"
         style={{
-          color: required ? (isDark ? '#FDA4AF' : '#BE123C') : isDark ? '#A78BFA' : '#0D9488',
-          borderColor: required ? (isDark ? 'rgba(251,113,133,0.28)' : 'rgba(251,113,133,0.18)') : isDark ? 'rgba(167,139,250,0.24)' : 'rgba(20,184,166,0.18)',
-          background: required ? (isDark ? 'rgba(251,113,133,0.10)' : 'rgba(251,113,133,0.06)') : isDark ? 'rgba(167,139,250,0.10)' : 'rgba(20,184,166,0.08)',
+          color: required ? (isDark ? '#FDA4AF' : '#BE123C') : 'var(--pf-line)',
+          borderColor: required ? (isDark ? 'rgba(251,113,133,0.28)' : 'rgba(251,113,133,0.18)') : 'var(--pf-soft-2)',
+          background: required ? (isDark ? 'rgba(251,113,133,0.10)' : 'rgba(251,113,133,0.06)') : 'var(--pf-soft)',
         }}
       >
-        <span className="h-1.5 w-1.5 rounded-full" style={{ background: required ? (isDark ? '#FDA4AF' : '#E11D48') : isDark ? '#A78BFA' : '#14B8A6' }} />
+        <span className="h-1.5 w-1.5 rounded-full" style={{ background: required ? (isDark ? '#FDA4AF' : '#E11D48') : 'var(--pf-line)' }} />
         {required ? 'Obligatoire' : 'Recommandé'}
       </span>
       <button
@@ -153,23 +153,23 @@ function StageSignatureCard({ title, subtitle, isDark }: { title: string; subtit
       style={{
         borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(15,23,42,0.07)',
         background: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.62)',
-        boxShadow: isDark ? 'inset 0 1px 0 rgba(255,255,255,0.06), 0 12px 28px -18px rgba(0,0,0,0.45)' : 'inset 0 1px 0 rgba(255,255,255,0.85), 0 12px 28px -16px rgba(13,148,136,0.22)',
+        boxShadow: isDark ? 'inset 0 1px 0 rgba(255,255,255,0.06), 0 12px 28px -18px rgba(0,0,0,0.45)' : 'inset 0 1px 0 rgba(255,255,255,0.85), 0 12px 28px -16px var(--pf-glow)',
       }}
     >
       <div className="mb-3 flex items-center gap-2.5">
         <span
           className="flex h-8 w-8 items-center justify-center rounded-xl border"
           style={{
-            borderColor: isDark ? 'rgba(167,139,250,0.22)' : 'rgba(20,184,166,0.18)',
-            background: isDark ? 'rgba(167,139,250,0.12)' : 'rgba(20,184,166,0.10)',
-            color: isDark ? '#A78BFA' : '#0D9488',
+            borderColor: 'var(--pf-soft-2)',
+            background: 'var(--pf-soft)',
+            color: 'var(--pf-line)',
           }}
         >
           <PenTool size={13} />
         </span>
         <div>
           <p className={`text-sm font-semibold leading-none ${isDark ? 'text-white' : 'text-slate-900'}`}>{title}</p>
-          <p className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-teal-900/45'}`}>{subtitle}</p>
+          <p className={`text-[11px] ${isDark ? 'text-slate-400' : 'text-slate-400'}`}>{subtitle}</p>
         </div>
         <span
           className="ml-auto inline-flex items-center gap-1 rounded-full border px-2 py-1 text-[10px] font-bold uppercase tracking-[0.12em]"
@@ -185,14 +185,14 @@ function StageSignatureCard({ title, subtitle, isDark }: { title: string; subtit
       <div
         className="flex h-[84px] items-center justify-center rounded-xl border-2 border-dashed"
         style={{
-          borderColor: isDark ? 'rgba(167,139,250,0.22)' : 'rgba(20,184,166,0.22)',
-          background: isDark ? 'rgba(167,139,250,0.04)' : 'rgba(20,184,166,0.04)',
+          borderColor: 'var(--pf-soft-2)',
+          background: 'var(--pf-soft)',
         }}
       >
         <div className="text-center">
-          <PenTool size={18} className="mx-auto mb-1" style={{ color: isDark ? 'rgba(167,139,250,0.55)' : 'rgba(13,148,136,0.55)' }} />
-          <p className={`text-xs font-medium ${isDark ? 'text-slate-400' : 'text-teal-900/50'}`}>Champ de signature électronique</p>
-          <p className={`text-[11px] ${isDark ? 'text-slate-500' : 'text-teal-900/30'}`}>Cliquer pour signer</p>
+          <PenTool size={18} className="mx-auto mb-1" style={{ color: isDark ? 'var(--pf-ring)' : 'var(--pf-line)' }} />
+          <p className={`text-xs font-medium ${isDark ? 'text-slate-400' : 'text-slate-400'}`}>Champ de signature électronique</p>
+          <p className={`text-[11px] ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>Cliquer pour signer</p>
         </div>
       </div>
     </div>
@@ -202,44 +202,44 @@ function StageSignatureCard({ title, subtitle, isDark }: { title: string; subtit
 function StageFileUpload({ isDark, isGerant }: { isDark: boolean; isGerant: boolean }) {
   return (
     <div className="space-y-2">
-      <p className={`text-[11px] font-bold uppercase tracking-[0.14em] ${isDark ? 'text-slate-400' : 'text-teal-900/55'}`}>Fichier du mandat signé</p>
+      <p className={`text-[11px] font-bold uppercase tracking-[0.14em] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Fichier du mandat signé</p>
       <div
         className="group relative flex items-center gap-3 rounded-2xl border p-3 transition-all duration-300 hover:-translate-y-[1px]"
         style={{
           borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(15,23,42,0.07)',
           background: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.62)',
-          boxShadow: isDark ? 'inset 0 1px 0 rgba(255,255,255,0.06)' : 'inset 0 1px 0 rgba(255,255,255,0.85), 0 8px 22px -14px rgba(13,148,136,0.18)',
+          boxShadow: isDark ? 'inset 0 1px 0 rgba(255,255,255,0.06)' : 'inset 0 1px 0 rgba(255,255,255,0.85), 0 8px 22px -14px var(--pf-glow)',
         }}
       >
         <span
           className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border"
           style={{
-            borderColor: isDark ? 'rgba(20,184,166,0.22)' : 'rgba(20,184,166,0.18)',
-            background: isDark ? 'rgba(20,184,166,0.12)' : 'rgba(20,184,166,0.10)',
-            color: isDark ? '#6EE7B7' : '#0D9488',
+            borderColor: 'var(--pf-soft-2)',
+            background: 'var(--pf-soft)',
+            color: isDark ? '#6EE7B7' : 'var(--pf-line)',
           }}
         >
           <Upload size={16} />
         </span>
         <div className="min-w-0 flex-1">
           <p className={`truncate text-sm font-semibold ${isDark ? 'text-white' : 'text-slate-900'}`}>Upload PDF</p>
-          <p className={`truncate text-xs ${isDark ? 'text-slate-400' : 'text-teal-900/45'}`}>Glissez-déposez ou parcourez · PDF jusqu’à 10 Mo</p>
+          <p className={`truncate text-xs ${isDark ? 'text-slate-400' : 'text-slate-400'}`}>Glissez-déposez ou parcourez · PDF jusqu’à 10 Mo</p>
         </div>
         <button
           type="button"
           className="inline-flex shrink-0 items-center gap-1.5 rounded-xl border px-3.5 py-2 text-xs font-semibold backdrop-blur-md transition-all duration-200 hover:-translate-y-px active:scale-95"
           style={{
             borderColor: isDark ? 'rgba(255,255,255,0.14)' : 'rgba(15,23,42,0.12)',
-            background: isDark ? 'linear-gradient(145deg, #2DD4BF, #0D9488)' : 'linear-gradient(145deg, #2DD4BF, #0D9488)',
+            background: isDark ? 'linear-gradient(145deg, var(--pf-a), var(--pf-b))' : 'linear-gradient(145deg, var(--pf-a), var(--pf-b))',
             color: 'white',
-            boxShadow: isDark ? '0 8px 20px -10px rgba(20,184,166,0.55), inset 0 1px 0 rgba(255,255,255,0.35)' : '0 8px 20px -12px rgba(13,148,136,0.45), inset 0 1px 0 rgba(255,255,255,0.4)',
+            boxShadow: isDark ? '0 8px 20px -10px var(--pf-glow), inset 0 1px 0 rgba(255,255,255,0.35)' : '0 8px 20px -12px var(--pf-glow), inset 0 1px 0 rgba(255,255,255,0.4)',
           }}
         >
           <Paperclip size={13} />
           Parcourir...
         </button>
       </div>
-      <p className={`flex items-center gap-1.5 text-[11px] ${isDark ? 'text-slate-500' : 'text-teal-900/35'}`}>
+      <p className={`flex items-center gap-1.5 text-[11px] ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
         <Shield size={11} />
         PDF signé, tamponné et paraphé sur chaque page
       </p>
@@ -581,23 +581,23 @@ export function MandateTab({ register, control, watch, setValue, propertyType, a
                 style={{
                   borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(15,23,42,0.07)',
                   background: isDark ? 'rgba(255,255,255,0.02)' : 'rgba(255,255,255,0.55)',
-                  boxShadow: isDark ? 'inset 0 1px 0 rgba(255,255,255,0.05)' : 'inset 0 1px 0 rgba(255,255,255,0.8), 0 12px 28px -18px rgba(13,148,136,0.18)',
+                  boxShadow: isDark ? 'inset 0 1px 0 rgba(255,255,255,0.05)' : 'inset 0 1px 0 rgba(255,255,255,0.8), 0 12px 28px -18px var(--pf-glow)',
                 }}
               >
                 <div className="flex items-center gap-2.5 px-4 py-3" style={{ borderBottom: `1px solid ${isDark ? 'rgba(255,255,255,0.06)' : 'rgba(15,23,42,0.06)'}` }}>
                   <span
                     className="flex h-8 w-8 items-center justify-center rounded-xl border"
                     style={{
-                      borderColor: isDark ? 'rgba(167,139,250,0.22)' : 'rgba(20,184,166,0.18)',
-                      background: isDark ? 'rgba(167,139,250,0.12)' : 'rgba(20,184,166,0.10)',
-                      color: isDark ? '#A78BFA' : '#0D9488',
+                      borderColor: 'var(--pf-soft-2)',
+                      background: 'var(--pf-soft)',
+                      color: 'var(--pf-line)',
                     }}
                   >
                     <Shield size={14} />
                   </span>
                   <div className="flex-1">
                     <h3 className={`text-sm font-bold tracking-[-0.1px] ${isDark ? 'text-white' : 'text-slate-900'}`}>6. Documents justificatifs</h3>
-                    <p className={`text-xs ${isDark ? 'text-slate-400' : 'text-teal-900/50'}`}>{isVente ? 'Vente' : 'Bailleur'} · {(isVente ? DOCUMENTS_VENTE : DOCUMENTS_BAILLEUR).length} pièces · badge Obligatoire/Recommandé</p>
+                    <p className={`text-xs ${isDark ? 'text-slate-400' : 'text-slate-400'}`}>{isVente ? 'Vente' : 'Bailleur'} · {(isVente ? DOCUMENTS_VENTE : DOCUMENTS_BAILLEUR).length} pièces · badge Obligatoire/Recommandé</p>
                   </div>
                   <span
                     className="hidden sm:inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-bold"
@@ -616,7 +616,7 @@ export function MandateTab({ register, control, watch, setValue, propertyType, a
                     <StageDocRow key={i} label={doc.label} required={doc.required} isDark={isDark} />
                   ))}
                 </div>
-                <div className={`flex items-center gap-1.5 px-4 py-2.5 text-[11px] ${isDark ? 'text-slate-500' : 'text-teal-900/35'}`} style={{ borderTop: `1px solid ${isDark ? 'rgba(255,255,255,0.06)' : 'rgba(15,23,42,0.06)'}` }}>
+                <div className={`flex items-center gap-1.5 px-4 py-2.5 text-[11px] ${isDark ? 'text-slate-500' : 'text-slate-400'}`} style={{ borderTop: `1px solid ${isDark ? 'rgba(255,255,255,0.06)' : 'rgba(15,23,42,0.06)'}` }}>
                   <FileText size={11} />
                   Formats acceptés : PDF, JPG, PNG · 10 Mo max par fichier
                 </div>
@@ -641,23 +641,23 @@ export function MandateTab({ register, control, watch, setValue, propertyType, a
                 style={{
                   borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(15,23,42,0.07)',
                   background: isDark ? 'rgba(255,255,255,0.02)' : 'rgba(255,255,255,0.55)',
-                  boxShadow: isDark ? 'inset 0 1px 0 rgba(255,255,255,0.05)' : 'inset 0 1px 0 rgba(255,255,255,0.8), 0 12px 28px -18px rgba(13,148,136,0.18)',
+                  boxShadow: isDark ? 'inset 0 1px 0 rgba(255,255,255,0.05)' : 'inset 0 1px 0 rgba(255,255,255,0.8), 0 12px 28px -18px var(--pf-glow)',
                 }}
               >
                 <div className="flex items-center gap-2.5 px-4 py-3" style={{ borderBottom: `1px solid ${isDark ? 'rgba(255,255,255,0.06)' : 'rgba(15,23,42,0.06)'}` }}>
                   <span
                     className="flex h-8 w-8 items-center justify-center rounded-xl border"
                     style={{
-                      borderColor: isDark ? 'rgba(167,139,250,0.22)' : 'rgba(20,184,166,0.18)',
-                      background: isDark ? 'rgba(167,139,250,0.12)' : 'rgba(20,184,166,0.10)',
-                      color: isDark ? '#A78BFA' : '#0D9488',
+                      borderColor: 'var(--pf-soft-2)',
+                      background: 'var(--pf-soft)',
+                      color: 'var(--pf-line)',
                     }}
                   >
                     <PenTool size={14} />
                   </span>
                   <div className="flex-1">
                     <h3 className={`text-sm font-bold tracking-[-0.1px] ${isDark ? 'text-white' : 'text-slate-900'}`}>7. Signatures</h3>
-                    <p className={`text-xs ${isDark ? 'text-slate-400' : 'text-teal-900/50'}`}>Électronique & fichier signé</p>
+                    <p className={`text-xs ${isDark ? 'text-slate-400' : 'text-slate-400'}`}>Électronique & fichier signé</p>
                   </div>
                   <span
                     className="hidden sm:inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-semibold"

@@ -1,15 +1,15 @@
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Button } from '../../../components/ui/Button';
 import { Select } from '../../../components/ui/Select';
-import { BackLink } from '../../../components/ui/BackLink';
-import { Dialog } from '../../../components/ui/Dialog';
+import { Input } from '../../../components/ui/Input';
+import { Textarea } from '../../../components/ui/Textarea';
 import {
-  Search, Sliders, X, MoreVertical, User, Edit3, Copy, Repeat, Trash2,
-  Eye, Phone, Mail, MapPin, CheckCircle, AlertTriangle,
+  Search, Sliders, X, User, Edit3, Copy, Repeat, Trash2,
+  Eye, Phone, Mail, MapPin, CheckCircle, AlertTriangle, Bell,
   Users, Shield, Calendar, Star, Home, Briefcase, Sun, Plus,
-  ArrowUp, ArrowDown, UserCheck, FileText, DollarSign, TrendingUp, Layers, Zap, Activity, Filter, ArrowLeft, ChevronDown, ChevronRight
+  UserCheck, DollarSign, TrendingUp, Activity, ArrowLeft,
+  ChevronRight, RefreshCw
 } from 'react-feather';
 import { CITIES } from './mockData';
 import type { AdminClient } from './mockData';
@@ -21,17 +21,21 @@ import { LocataireFormModal } from '../../../components/modules/clients/Locatair
 import { VoyageurFormModal } from '../../../components/modules/clients/VoyageurFormModal';
 import { ClientFormModal } from '../../../components/modules/clients/ClientFormModal';
 import { ClientDraftSection } from '../../../components/modules/clients/ClientDraftSection';
+import { ClientAssignModal } from '../../../components/modules/clients/ClientAssignModal';
 import { getClientStatusHue, getClientInitials } from '../../../components/modules/clients/ClientCard';
 import { api } from '../../../services/api';
 import { deleteClient, fetchClients, duplicateClient } from '../../../services/clientService';
 import { useToast } from '../../../components/ui/Toast';
 import { triggerMandatExpireNotification } from '../../../services/automatorTrigger';
-import { useStageChrome } from '../../../components/modules/calendar/useStageChrome';
+import { cn } from '../../../lib/utils';
 import {
-  Stage, StageStatCard, StagePanel, StageBadge, STAGE_HUES, useStageTheme, ShimmerProgress, AnimatedNumber, OrbIcon, TiltCard
+  StagePanel, StageBadge, StageButton, ShimmerProgress, STAGE_HUES, SLATE_HUE, GERANT_MAUVE_HUE,
+  useStageTheme, useStageAccent, TiltCard, type StageHue
 } from '../../../components/dashboard/Stage';
-
-const GERANT_BUTTON_CLASSES = 'bg-[#905D5D] hover:bg-[#7D5050] border-[#905D5D] hover:border-[#7D5050] text-white shadow-[0_10px_24px_rgba(144,93,93,0.35)]'
+import { AdminStatCard } from '../../../components/dashboard/AdminStatCard';
+import { stagePillStyle } from '../../../components/modules/prospects/ProspectDetailStage';
+import StageModal, { useStageModalButtons } from '../../../components/modules/calendar/StageModal';
+import { RegistreActionsMenu, type RegistreAction } from '../../../components/ui/RegistreActionsMenu';
 
 const STATUS_BY_TYPE: Record<string, string[]> = {
   acheteur: ['En qualification', 'En recherche', 'En negociation', 'En compromis', 'Vendu / Achete', 'Inactif', 'Perdu'],
@@ -41,119 +45,168 @@ const STATUS_BY_TYPE: Record<string, string[]> = {
   voyageur: ['En recherche', 'Reservation en cours', 'Confirme', 'Paye', 'En sejour', 'Termine', 'Annule', 'Inactif'],
 };
 
-const STATUS_COLORS: Record<string, string> = {
-  'En qualification': 'bg-blue-50 text-blue-700 border-blue-200',
-  'En recherche': 'bg-cyan-50 text-cyan-700 border-cyan-200',
-  'En negociation': 'bg-amber-50 text-amber-700 border-amber-200',
-  'En compromis': 'bg-violet-50 text-violet-700 border-violet-200',
-  'Vendu / Achete': 'bg-emerald-50 text-emerald-700 border-emerald-200',
-  'Vendu': 'bg-emerald-50 text-emerald-700 border-emerald-200',
-  'En attente de signature': 'bg-orange-50 text-orange-700 border-orange-200',
-  'En mandat': 'bg-indigo-50 text-indigo-700 border-indigo-200',
-  'En location': 'bg-teal-50 text-teal-700 border-teal-200',
-  'En visite': 'bg-purple-50 text-purple-700 border-purple-200',
-  'En dossier': 'bg-pink-50 text-pink-700 border-pink-200',
-  'Bail signe': 'bg-emerald-50 text-emerald-700 border-emerald-200',
-  'Installe': 'bg-green-50 text-green-700 border-green-200',
-  'Reservation en cours': 'bg-cyan-50 text-cyan-700 border-cyan-200',
-  'Confirme': 'bg-emerald-50 text-emerald-700 border-emerald-200',
-  'En sejour': 'bg-blue-50 text-blue-700 border-blue-200',
-  'Termine': 'bg-gray-50 text-gray-700 border-gray-200',
-  'Annule': 'bg-red-50 text-red-700 border-red-200',
-  'Inactif': 'bg-gray-50 text-gray-500 border-gray-200',
-  'Perdu': 'bg-red-50 text-red-600 border-red-200',
-  'Loue': 'bg-emerald-50 text-emerald-700 border-emerald-200',
-  'Paye': 'bg-blue-50 text-blue-700 border-blue-200',
-  'Actif': 'bg-emerald-50 text-emerald-700 border-emerald-200',
-};
-
 const typeLabels: Record<string, string> = {
   acheteur: 'Acheteurs', vendeur: 'Vendeurs', bailleur: 'Bailleurs', locataire: 'Locataires', voyageur: 'Voyageurs',
 };
 
-const buildTypeSummary = (type: string, clients: any[]) => {
-  const currentMonth = new Date().toISOString().slice(0, 7);
-  const total = clients.length;
-  const actifs = clients.filter(c => c.status === 'Actif' || c.statutMetier === 'En mandat' || c.statutMetier === 'En recherche').length;
-  const enNegoc = clients.filter(c => c.statutMetier === 'En negociation' || c.status === 'En négociation').length;
-  const enCompromis = clients.filter(c => c.statutMetier === 'En compromis').length;
-  const nouveauCeMois = clients.filter(c => c.createdAt?.startsWith(currentMonth)).length;
-  const biensProposes = clients.reduce((sum: number, c: any) => sum + (c.pieces || 0), 0);
-  const enDossier = clients.filter(c => c.statutMetier === 'En dossier').length;
-  const bauxSignes = clients.filter(c => c.statutMetier === 'Bail signe').length;
-  const installes = clients.filter(c => c.statutMetier === 'Installe').length;
-  const reservations = clients.filter(c => c.statutMetier === 'Confirme').length;
-  const sejourEnCours = clients.filter(c => c.statutMetier === 'En cours' || c.statutMetier === 'Occupe').length;
-  const sejoursTermines = clients.filter(c => c.statutMetier === 'Termine').length;
-  const summaries: Record<string, string> = {
-    acheteur: `${total} client${total !== 1 ? 's' : ''} · ${actifs} actif${actifs !== 1 ? 's' : ''} · ${enNegoc} en négociation · ${enCompromis} en compromis · ${nouveauCeMois} ce mois · ${biensProposes} biens proposés`,
-    vendeur: `${total} client${total !== 1 ? 's' : ''} · ${actifs} actif${actifs !== 1 ? 's' : ''} · ${enNegoc} en négociation · ${enCompromis} en compromis · ${nouveauCeMois} vendu${nouveauCeMois !== 1 ? 's' : ''} ce mois · ${biensProposes} biens en stock`,
-    bailleur: `${total} client${total !== 1 ? 's' : ''} · ${actifs} actif${actifs !== 1 ? 's' : ''} · ${bauxSignes} baux actifs · ${nouveauCeMois} location${nouveauCeMois !== 1 ? 's' : ''} ce mois · ${biensProposes} biens en location`,
-    locataire: `${total} client${total !== 1 ? 's' : ''} · ${actifs} actif${actifs !== 1 ? 's' : ''} · ${enDossier} en dossier · ${bauxSignes} baux signés · ${installes} installés · ${biensProposes} biens proposés`,
-    voyageur: `${total} client${total !== 1 ? 's' : ''} · ${actifs} actif${actifs !== 1 ? 's' : ''} · ${reservations} réservations confirmées · ${sejourEnCours} séjour en cours · ${sejoursTermines} séjours terminés ce mois`,
-  };
-  return summaries[type] || '';
-};
-
-const typeKpiConfig: Record<string, { label: string; icon: any; hue: any }[]> = {
+const typeKpiConfig: Record<string, { label: string; icon: any; hue: any; unit?: string }[]> = {
   acheteur: [
-    { label: 'Total acheteurs', icon: Users, hue: STAGE_HUES.violet },
-    { label: 'Actifs', icon: UserCheck, hue: STAGE_HUES.emerald },
-    { label: 'En négociation', icon: Star, hue: STAGE_HUES.amber },
-    { label: 'En compromis', icon: FileText, hue: STAGE_HUES.sky },
-    { label: 'Acheteurs ce mois', icon: Calendar, hue: STAGE_HUES.fuchsia },
-    { label: 'Biens proposés', icon: Home, hue: STAGE_HUES.emerald },
+    { label: 'Total acheteurs', icon: Users, hue: STAGE_HUES.violet, unit: 'clients' },
+    { label: 'Actifs', icon: UserCheck, hue: STAGE_HUES.emerald, unit: 'clients' },
+    { label: 'En négociation', icon: Star, hue: STAGE_HUES.amber, unit: 'clients' },
+    { label: 'Biens proposés', icon: Home, hue: STAGE_HUES.sky, unit: 'biens' },
   ],
   vendeur: [
-    { label: 'Total vendeurs', icon: Home, hue: STAGE_HUES.violet },
-    { label: 'Actifs (mandat)', icon: UserCheck, hue: STAGE_HUES.emerald },
-    { label: 'En négociation', icon: Star, hue: STAGE_HUES.amber },
-    { label: 'En compromis', icon: FileText, hue: STAGE_HUES.sky },
-    { label: 'Vendus ce mois', icon: Calendar, hue: STAGE_HUES.fuchsia },
-    { label: 'Biens en stock', icon: Briefcase, hue: STAGE_HUES.amber },
+    { label: 'Total vendeurs', icon: Home, hue: STAGE_HUES.violet, unit: 'clients' },
+    { label: 'Actifs (mandat)', icon: UserCheck, hue: STAGE_HUES.emerald, unit: 'clients' },
+    { label: 'En négociation', icon: Star, hue: STAGE_HUES.amber, unit: 'clients' },
+    { label: 'Biens en stock', icon: Briefcase, hue: STAGE_HUES.sky, unit: 'biens' },
   ],
   bailleur: [
-    { label: 'Total bailleurs', icon: Briefcase, hue: STAGE_HUES.emerald },
-    { label: 'Actifs (mandat)', icon: UserCheck, hue: STAGE_HUES.emerald },
-    { label: 'Baux actifs', icon: CheckCircle, hue: STAGE_HUES.violet },
-    { label: 'Locations ce mois', icon: Calendar, hue: STAGE_HUES.sky },
-    { label: 'Biens en location', icon: Home, hue: STAGE_HUES.amber },
-    { label: 'Revenus mensuels', icon: TrendingUp, hue: STAGE_HUES.fuchsia },
+    { label: 'Total bailleurs', icon: Briefcase, hue: STAGE_HUES.emerald, unit: 'clients' },
+    { label: 'Baux actifs', icon: CheckCircle, hue: STAGE_HUES.violet, unit: 'baux' },
+    { label: 'En location', icon: Home, hue: STAGE_HUES.sky, unit: 'biens' },
+    { label: 'Locations ce mois', icon: Calendar, hue: STAGE_HUES.fuchsia, unit: 'locations' },
   ],
   locataire: [
-    { label: 'Total locataires', icon: Users, hue: STAGE_HUES.amber },
-    { label: 'Actifs', icon: UserCheck, hue: STAGE_HUES.emerald },
-    { label: 'En dossier', icon: FileText, hue: STAGE_HUES.violet },
-    { label: 'Baux signés', icon: CheckCircle, hue: STAGE_HUES.sky },
-    { label: 'Locataires installés', icon: UserCheck, hue: STAGE_HUES.fuchsia },
-    { label: 'Biens proposés', icon: Home, hue: STAGE_HUES.emerald },
+    { label: 'Total locataires', icon: Users, hue: STAGE_HUES.amber, unit: 'clients' },
+    { label: 'Actifs', icon: UserCheck, hue: STAGE_HUES.emerald, unit: 'clients' },
+    { label: 'Baux signés', icon: CheckCircle, hue: STAGE_HUES.sky, unit: 'baux' },
+    { label: 'Biens proposés', icon: Home, hue: STAGE_HUES.violet, unit: 'biens' },
   ],
   voyageur: [
-    { label: 'Total voyageurs', icon: Sun, hue: STAGE_HUES.fuchsia },
-    { label: 'Actifs', icon: UserCheck, hue: STAGE_HUES.emerald },
-    { label: 'Réservations confirmées', icon: CheckCircle, hue: STAGE_HUES.violet },
-    { label: 'Séjour en cours', icon: Calendar, hue: STAGE_HUES.sky },
-    { label: 'Séjours terminés ce mois', icon: Calendar, hue: STAGE_HUES.amber },
+    { label: 'Total voyageurs', icon: Sun, hue: STAGE_HUES.fuchsia, unit: 'clients' },
+    { label: 'Actifs', icon: UserCheck, hue: STAGE_HUES.emerald, unit: 'clients' },
+    { label: 'Réservations confirmées', icon: CheckCircle, hue: STAGE_HUES.violet, unit: 'résas' },
+    { label: 'Séjours terminés ce mois', icon: Calendar, hue: STAGE_HUES.sky, unit: 'séjours' },
   ],
 };
 
-/* Sidebar emerald identity (agent shell): logo orb #2DD4BF -> #0D9488.
-   Admin cards use it in light mode (premium staged); dark keeps hue. */
-const SIDEBAR_EMERALD = {
-  a: '#2DD4BF',
-  b: '#0D9488',
-  glow: 'rgba(13,148,136,0.35)',
-  line: '#14B8A6',
+const TYPE_METRICS: Record<string, { key: string; label: string; hue: StageHue }[]> = {
+  acheteur: [
+    { key: 'actifs', label: 'Actifs', hue: STAGE_HUES.emerald },
+    { key: 'enNegoc', label: 'En négoc.', hue: STAGE_HUES.amber },
+    { key: 'enCompromis', label: 'En compromis', hue: STAGE_HUES.sky },
+    { key: 'vendusAchetes', label: 'Achetés', hue: STAGE_HUES.violet },
+    { key: 'proposesStock', label: 'Proposés', hue: STAGE_HUES.fuchsia },
+  ],
+  vendeur: [
+    { key: 'actifs', label: 'Actifs', hue: STAGE_HUES.emerald },
+    { key: 'enNegoc', label: 'En négoc.', hue: STAGE_HUES.amber },
+    { key: 'enCompromis', label: 'En compromis', hue: STAGE_HUES.sky },
+    { key: 'vendusAchetes', label: 'Vendus', hue: STAGE_HUES.violet },
+    { key: 'proposesStock', label: 'En stock', hue: STAGE_HUES.fuchsia },
+  ],
+  bailleur: [
+    { key: 'actifs', label: 'Actifs', hue: STAGE_HUES.emerald },
+    { key: 'bauxActifs', label: 'Baux actifs', hue: STAGE_HUES.violet },
+    { key: 'locations', label: 'Locations', hue: STAGE_HUES.sky },
+    { key: 'enLocation', label: 'En location', hue: STAGE_HUES.amber },
+    { key: 'proposesStock', label: 'Biens', hue: STAGE_HUES.fuchsia },
+  ],
+  locataire: [
+    { key: 'actifs', label: 'Actifs', hue: STAGE_HUES.emerald },
+    { key: 'enDossier', label: 'En dossier', hue: STAGE_HUES.violet },
+    { key: 'bauxSignes', label: 'Baux signés', hue: STAGE_HUES.sky },
+    { key: 'installes', label: 'Installés', hue: STAGE_HUES.amber },
+    { key: 'proposesStock', label: 'Proposés', hue: STAGE_HUES.fuchsia },
+  ],
+  voyageur: [
+    { key: 'actifs', label: 'Actifs', hue: STAGE_HUES.emerald },
+    { key: 'reservations', label: 'Réservations', hue: STAGE_HUES.violet },
+    { key: 'sejourEnCours', label: 'Séjour en cours', hue: STAGE_HUES.sky },
+    { key: 'sejoursTermines', label: 'Terminés', hue: STAGE_HUES.amber },
+  ],
 };
-const LIGHT_INK = '#0F766E';
 
-/* Premium Stage client card — dark: hue identity; light: sidebar emerald
-   shades. Status badge = per-status convenient color (all types).
-   Orb avatar, chip details, halo + lift. Footer pinned to bottom. */
-function StageClientCard({ client, onClick, onMenu, isDark, hue, index = 0 }: { client: any; onClick: () => void; onMenu: (e: React.MouseEvent) => void; isDark: boolean; hue: any; index?: number }) {
+const AGENT_HUES: StageHue[] = [
+  STAGE_HUES.violet, STAGE_HUES.sky, STAGE_HUES.emerald, STAGE_HUES.amber, STAGE_HUES.fuchsia,
+];
+
+function StageMixBar({
+  segments, isDark, className,
+}: {
+  segments: { value: number; hue: StageHue }[];
+  isDark: boolean;
+  className?: string;
+}) {
+  const total = segments.reduce((sum, s) => sum + s.value, 0);
+  return (
+    <div
+      className={cn('flex h-1.5 w-full overflow-hidden rounded-full', className)}
+      style={{ backgroundColor: isDark ? 'rgba(255,255,255,0.07)' : 'rgba(15,23,42,0.08)' }}
+    >
+      {total > 0 && segments.map((s, i) =>
+        s.value > 0 ? (
+          <span
+            key={i}
+            style={{
+              width: `${(s.value / total) * 100}%`,
+              background: `linear-gradient(90deg, ${s.hue.b}, ${s.hue.line})`,
+              boxShadow: isDark ? `0 0 8px ${s.hue.glow}` : undefined,
+            }}
+            title={`${s.value}`}
+          />
+        ) : null,
+      )}
+    </div>
+  );
+}
+
+const DANGER_HUE: StageHue = {
+  a: '#FB7185',
+  b: '#E11D48',
+  glow: 'rgba(244,63,94,0.45)',
+  line: '#F43F5E',
+};
+
+const agentHueFor = (id: string | number | null | undefined): StageHue => {
+  if (!id) return SLATE_HUE;
+  const str = String(id);
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) hash = (hash * 31 + str.charCodeAt(i)) >>> 0;
+  return AGENT_HUES[hash % AGENT_HUES.length];
+};
+
+function ClientSummaryCard({ client, isDark, hue, isGerant = false }: { client: any; isDark: boolean; hue: StageHue; isGerant?: boolean }) {
   const statusKey = (client.statutMetier || client.status || '').trim() || '—';
-  const accent = isDark ? hue : SIDEBAR_EMERALD;
-  const ink = isDark ? hue.a : LIGHT_INK;
+  const statusHue = getClientStatusHue(statusKey) || hue;
+  const initials = getClientInitials(client.name || 'Client');
+  return (
+    <div className={cn(
+      'flex items-center gap-3 rounded-2xl border p-3.5',
+      isDark
+        ? 'border-white/[0.08] bg-white/[0.04]'
+        : isGerant
+          ? 'border-[#905D5D]/15 bg-white/70'
+          : 'border-orange-900/10 bg-white/70',
+    )}>
+      <div
+        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-sm font-bold text-white"
+        style={{ background: `linear-gradient(145deg, ${hue.a}, ${hue.b})`, boxShadow: `inset 0 1px 0 rgba(255,255,255,0.35), 0 8px 18px -8px ${hue.glow}` }}
+      >
+        {initials}
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className={cn('truncate text-sm font-semibold', isDark ? 'text-white' : 'text-slate-900')}>{client.name || 'Client'}</p>
+        <p className={cn('truncate text-xs', isDark ? 'text-slate-400' : 'text-orange-900/55')}>
+          {[client.type, client.phone].filter(Boolean).join(' · ') || '—'}
+        </p>
+      </div>
+      <span className="shrink-0 rounded-full border px-2.5 py-1 text-[11px] font-bold" style={stagePillStyle(statusHue, isDark)}>
+        {statusKey}
+      </span>
+    </div>
+  );
+}
+
+/* Premium Stage client card — accent identity in both themes.
+   Status badge = per-status convenient color (all types).
+   Orb avatar, chip details, halo + lift. Footer pinned to bottom. */
+function StageClientCard({ client, onClick, actions, isDark, hue, index = 0, isGerant }: { client: any; onClick: () => void; actions: RegistreAction[]; isDark: boolean; hue: StageHue; index?: number; isGerant?: boolean }) {
+  const statusKey = (client.statutMetier || client.status || '').trim() || '—';
+  const accent = hue;
+  const ink = isDark ? hue.a : hue.b;
   const statusHue = getClientStatusHue(statusKey) || accent;
   const badgeStyle: React.CSSProperties = isDark
     ? { background: `${statusHue.a}2E`, color: '#fff', border: `1px solid ${statusHue.a}5C`, boxShadow: `0 2px 12px ${statusHue.glow}, inset 0 1px 0 rgba(255,255,255,0.14)` }
@@ -187,7 +240,7 @@ function StageClientCard({ client, onClick, onMenu, isDark, hue, index = 0 }: { 
       whileHover={{ y: -5 }}
       transition={{ duration: 0.55, delay: Math.min(index * 0.05, 0.4), ease: [0.22, 1, 0.36, 1] }}
     >
-      <div className="group relative h-full cursor-pointer" onClick={onClick} style={{ perspective: 1000 }}>
+      <div className="group relative h-full cursor-pointer" style={{ perspective: 1000 }}>
         <div
           aria-hidden="true"
           className="pointer-events-none absolute -inset-2 rounded-[26px] opacity-60 transition-opacity duration-500 group-hover:opacity-100"
@@ -237,13 +290,12 @@ function StageClientCard({ client, onClick, onMenu, isDark, hue, index = 0 }: { 
                     )}
                   </div>
                 </div>
-                <button
-                  onClick={(e) => { e.stopPropagation(); onMenu(e); }}
-                  title="Actions"
-                  className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border backdrop-blur-md transition-all duration-200 hover:scale-105 active:scale-95 ${isDark ? 'border-white/10 bg-white/[0.05] text-slate-400 hover:border-white/20 hover:bg-white/10 hover:text-white' : 'border-slate-200/80 bg-white text-slate-500 shadow-sm hover:bg-white hover:text-slate-900'}`}
-                >
-                  <MoreVertical size={14} />
-                </button>
+                <RegistreActionsMenu
+                  alwaysVisible
+                  isGerant={isGerant}
+                  actions={actions}
+                  className="shrink-0"
+                />
               </div>
 
               <div className="mt-3 flex flex-wrap items-center gap-1.5">
@@ -300,7 +352,7 @@ function StageClientCard({ client, onClick, onMenu, isDark, hue, index = 0 }: { 
               {/* spacer pushes footer to the bottom so all cards align */}
               <div className="flex-1" style={{ minHeight: 12 }} />
             </div>
-            <div className={`mt-auto flex items-center justify-between gap-2 border-t px-4 py-2.5 backdrop-blur-md ${isDark ? 'border-white/[0.06] bg-white/[0.02]' : 'border-teal-900/10 bg-white/60'}`}>
+            <div className={`mt-auto flex items-center justify-between gap-2 border-t px-4 py-2.5 backdrop-blur-md ${isDark ? 'border-white/[0.06] bg-white/[0.02]' : 'border-orange-900/10 bg-white/60'}`}>
               <span className="group/btn inline-flex cursor-pointer items-center gap-1 text-xs font-bold transition-all duration-200 hover:gap-1.5" style={{ color: ink }} onClick={(e) => { e.stopPropagation(); onClick(); }}>
                 Voir fiche
                 <ChevronRight size={13} strokeWidth={2.5} className="transition-transform duration-200 group-hover/btn:translate-x-0.5" />
@@ -330,24 +382,34 @@ export default function AdminClientsPageWithType() {
   const [showFilters, setShowFilters] = useState(false);
   const [users, setUsers] = useState<any[]>([]);
   const [currentUser, setCurrentUser] = useState<any>(null);
-  const [showAssignModal, setShowAssignModal] = useState(false);
-  const [assignStep, setAssignStep] = useState<'choose' | 'agent' | 'admin'>('choose');
   const [isGerant, setIsGerant] = useState(false);
-  const { staged, dark } = useStageChrome();
+  const [showAssignModal, setShowAssignModal] = useState(false);
+  const accent = useStageAccent();
+  const btns = useStageModalButtons();
   const theme = useStageTheme();
   const isDark = theme === 'dark';
+  const gradientTitle = isDark
+    ? 'bg-clip-text text-transparent bg-gradient-to-r from-[#F43F5E] via-[#FB7185] to-[#8B7CFF]'
+    : 'bg-clip-text text-transparent bg-gradient-to-r from-[#EA580C] via-[#F97316] to-[#FBBF24]';
+  const ghostBtn = cn(
+    btns.ghost,
+    isDark
+      ? ''
+      : isGerant
+        ? '!border-[#905D5D]/15 !text-[#7D5050]/70 hover:!bg-white hover:!text-[#7D5050]'
+        : '!border-orange-900/12 !text-orange-900/70 hover:!bg-white hover:!text-orange-900',
+  );
+  const interfaceHue = isGerant ? GERANT_MAUVE_HUE : accent;
+  const fieldLabel = cn(
+    'mb-1.5 block text-[11px] font-bold uppercase tracking-[0.14em]',
+    isDark ? 'text-slate-400' : isGerant ? 'text-[#905D5D]/65' : 'text-orange-900/55',
+  );
+  const glassLight = isDark ? '' : '!text-orange-900/70 hover:!text-orange-900';
   useEffect(() => {
     api.get<any[]>('/admin/users').then(setUsers).catch(() => {});
     api.get<any>('/auth/me').then(u => { setCurrentUser(u); if (u) setIsGerant(u.role === 'gerant'); }).catch(() => {});
   }, []);
-  useEffect(() => {
-    const handleClick = (e: MouseEvent) => { if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuTarget(null); };
-    document.addEventListener('mousedown', handleClick);
-    return () => document.removeEventListener('mousedown', handleClick);
-  }, []);
   const [actionClient, setActionClient] = useState<AdminClient | null>(null);
-  const [menuTarget, setMenuTarget] = useState<{ client: AdminClient; bounds: DOMRect } | null>(null);
-  const menuRef = useRef<HTMLDivElement>(null);
   const [showReassignDialog, setShowReassignDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showStatusDialog, setShowStatusDialog] = useState(false);
@@ -363,7 +425,15 @@ export default function AdminClientsPageWithType() {
   const [sendNotification, setSendNotification] = useState(false);
   const [selectedContactId, setSelectedContactId] = useState<string | undefined>(undefined);
   const [apiClients, setApiClients] = useState<AdminClient[]>([]);
-  useEffect(() => { fetchClients().then(data => setApiClients(Array.isArray(data) ? data : [])).catch(() => {}); }, []);
+  const [loadingClients, setLoadingClients] = useState(false);
+  const refreshClients = () => {
+    setLoadingClients(true);
+    fetchClients()
+      .then(data => setApiClients(Array.isArray(data) ? data : []))
+      .catch(() => {})
+      .finally(() => setLoadingClients(false));
+  };
+  useEffect(() => { refreshClients(); }, []);
   useEffect(() => {
     const state = location.state as any;
     if (state?.editingClient) { setEditingClient(state.editingClient); setIsModalOpen(true); window.history.replaceState({}, ''); }
@@ -379,35 +449,41 @@ export default function AdminClientsPageWithType() {
     return apiClients.filter(c => (c.type || '').toLowerCase() === typeTitle);
   }, [type, apiClients]);
   const typeLabel = typeLabels[type || ''] || '';
-  const typeSummary = useMemo(() => buildTypeSummary(type || '', clientsForType), [type, clientsForType]);
+  const metrics = TYPE_METRICS[type || ''] || [];
   const kpiValues = useMemo(() => {
     const currentMonth = new Date().toISOString().slice(0, 7);
     const total = clientsForType.length;
     const actifs = clientsForType.filter(c => c.status === 'Actif' || c.statutMetier === 'En mandat' || c.statutMetier === 'En recherche').length;
     const enNegoc = clientsForType.filter(c => c.statutMetier === 'En negociation' || c.status === 'En négociation').length;
-    const enCompromis = clientsForType.filter(c => c.statutMetier === 'En compromis').length;
-    const vendusAchetes = clientsForType.filter(c => c.statutMetier === 'Vendu / Achete' || c.statutMetier === 'Vendu').length;
     const proposesStock = clientsForType.reduce((sum, c) => sum + (c.pieces || 0), 0);
     const bauxActifs = clientsForType.filter(c => c.statutMetier === 'Bail signe').length;
     const locations = clientsForType.filter(c => c.createdAt?.startsWith(currentMonth) && (c.statutMetier === 'Bail signe' || c.type === 'Bailleur')).length;
     const enLocation = clientsForType.filter(c => c.statutMetier === 'En location').length;
-    const enDossier = clientsForType.filter(c => c.statutMetier === 'En dossier').length;
     const bauxSignes = clientsForType.filter(c => c.statutMetier === 'Bail signe').length;
-    const installes = clientsForType.filter(c => c.statutMetier === 'Installe').length;
     const reservations = clientsForType.filter(c => c.statutMetier === 'Confirme').length;
-    const sejourEnCours = clientsForType.filter(c => c.statutMetier === 'En cours' || c.statutMetier === 'Occupe').length;
     const sejoursTermines = clientsForType.filter(c => c.statutMetier === 'Termine').length;
-    const nouveauCeMois = clientsForType.filter(c => c.createdAt?.startsWith(currentMonth)).length;
-    const values = [total, actifs, enNegoc, enCompromis, vendusAchetes, proposesStock, bauxActifs, locations, enLocation, 0, enDossier, bauxSignes, installes, reservations, sejourEnCours, sejoursTermines, nouveauCeMois];
     const map: Record<string, number[]> = {
-      acheteur: [total, actifs, enNegoc, enCompromis, nouveauCeMois, proposesStock],
-      vendeur: [total, actifs, enNegoc, enCompromis, vendusAchetes, proposesStock],
-      bailleur: [total, actifs, bauxActifs, locations, enLocation, 0],
-      locataire: [total, actifs, enDossier, bauxSignes, installes, proposesStock],
-      voyageur: [total, actifs, reservations, sejourEnCours, sejoursTermines],
+      acheteur: [total, actifs, enNegoc, proposesStock],
+      vendeur: [total, actifs, enNegoc, proposesStock],
+      bailleur: [total, bauxActifs, enLocation, locations],
+      locataire: [total, actifs, bauxSignes, proposesStock],
+      voyageur: [total, actifs, reservations, sejoursTermines],
     };
     return map[type || ''] || [];
   }, [type, clientsForType]);
+  const sparkBuckets = useMemo(() => {
+    const now = new Date();
+    return Array.from({ length: 6 }, (_, i) => {
+      const offset = 5 - i;
+      const start = new Date(now.getFullYear(), now.getMonth() - offset, 1);
+      const end = new Date(now.getFullYear(), now.getMonth() - offset + 1, 1);
+      return clientsForType.filter(c => {
+        if (!c.createdAt) return false;
+        const d = new Date(c.createdAt);
+        return !Number.isNaN(d.getTime()) && d >= start && d < end;
+      }).length;
+    });
+  }, [clientsForType]);
   const COLORS = ['bg-violet-500', 'bg-blue-500', 'bg-emerald-500', 'bg-amber-500', 'bg-rose-500', 'bg-indigo-500', 'bg-cyan-500', 'bg-pink-500'];
   const findPerson = (agentId: string) => {
     if (!agentId) return undefined;
@@ -441,11 +517,6 @@ export default function AdminClientsPageWithType() {
     if (!agentId) return 'NA';
     const person = findPerson(agentId);
     return person ? person.initials : agentId.slice(0, 2).toUpperCase();
-  };
-  const getAgentColor = (agentId: string) => {
-    if (!agentId) return 'bg-gray-400';
-    const person = findPerson(agentId);
-    return person ? person.color : 'bg-violet-400';
   };
   const getRoleBadge = (person?: { role?: string; position?: string }, isGerant = false) => {
     if (!person) return null;
@@ -555,15 +626,6 @@ export default function AdminClientsPageWithType() {
     setShowDeleteDialog(false); setDeleteConfirm(''); setDeleteReason(''); setActionClient(null);
   };
   const handleStatusChange = () => { setShowStatusDialog(false); setNewStatus(''); };
-  const typeIconMap: Record<string, React.ReactNode> = {
-    acheteur: <Search size={22} />, vendeur: <Home size={22} />, bailleur: <Briefcase size={22} />, locataire: <Users size={22} />, voyageur: <Sun size={22} />,
-  };
-  const typeColorMap: Record<string, string> = {
-    acheteur: 'text-accent', vendeur: 'text-violet-600', bailleur: 'text-emerald-600', locataire: 'text-amber-600', voyageur: 'text-rose-600',
-  };
-  const typeBgMap: Record<string, string> = {
-    acheteur: 'bg-accent-light', vendeur: 'bg-violet-50', bailleur: 'bg-emerald-50', locataire: 'bg-amber-50', voyageur: 'bg-rose-50',
-  };
   const clientTypeKey: Record<string, 'Acheteur' | 'Vendeur' | 'Bailleur' | 'Locataire' | 'Voyageur'> = {
     acheteur: 'Acheteur', vendeur: 'Vendeur', bailleur: 'Bailleur', locataire: 'Locataire', voyageur: 'Voyageur',
   };
@@ -615,295 +677,533 @@ export default function AdminClientsPageWithType() {
     if (!person) return undefined;
     return { assignedType: person.role === 'agent' ? 'agent' as const : 'admin' as const, assignedName: person.name };
   }, [selectedAgent]);
-  useEffect(() => { if (resumeDraftId) { setShowAssignModal(false); setIsModalOpen(true); } }, [resumeDraftId]);
+  useEffect(() => { if (resumeDraftId) { setIsModalOpen(true); } }, [resumeDraftId]);
 
-  const heroHue = (() => {
-    const map: Record<string, any> = { acheteur: STAGE_HUES.violet, vendeur: STAGE_HUES.sky, bailleur: STAGE_HUES.emerald, locataire: STAGE_HUES.amber, voyageur: STAGE_HUES.fuchsia };
-    return map[type || ''] || STAGE_HUES.violet;
-  })();
+  const buildClientActions = (client: AdminClient): RegistreAction[] => [
+    { icon: <Eye size={14} />, label: 'Voir la fiche complète', onClick: () => navigate(`/admin/${adminId}/clients/type/${type}/${client.id}`) },
+    { icon: <Edit3 size={14} />, label: 'Modifier', onClick: () => { setEditingClient(client); setIsModalOpen(true); } },
+    {
+      icon: <Copy size={14} />,
+      label: 'Dupliquer',
+      onClick: async () => {
+        try {
+          await duplicateClient(String(client.id));
+          const updated = await fetchClients();
+          setApiClients(Array.isArray(updated) ? updated : []);
+          toast('success', `${client.name || 'Client'} dupliqué avec succès`);
+        } catch (e: any) {
+          toast('error', e.message || 'Erreur lors de la duplication');
+        }
+      },
+    },
+    { separator: true, icon: <></>, label: '', onClick: () => {} },
+    {
+      icon: <Repeat size={14} />,
+      label: 'Réaffecter à un agent',
+      onClick: () => {
+        setActionClient(client);
+        const rawId = String((client as any).agentId || '');
+        const matchedUser = users.find((u: any) => String(u.id) === rawId) || users.find((u: any) => {
+          const full = `${u.first_name || ''} ${u.last_name || ''}`.trim();
+          return full.toLowerCase() === rawId.toLowerCase();
+        });
+        setSelectedAgent(matchedUser ? String(matchedUser.id) : '');
+        setSendNotification(false);
+        setShowReassignDialog(true);
+      },
+    },
+    {
+      icon: <Activity size={14} />,
+      label: 'Changer le statut',
+      onClick: () => {
+        setActionClient(client);
+        setNewStatus(client.statutMetier || client.status || '');
+        setShowStatusDialog(true);
+      },
+    },
+    { separator: true, icon: <></>, label: '', onClick: () => {} },
+    {
+      icon: <Trash2 size={14} />,
+      label: 'Supprimer',
+      variant: 'danger',
+      onClick: () => {
+        setActionClient(client);
+        setDeleteConfirm('');
+        setDeleteReason('');
+        setShowDeleteDialog(true);
+      },
+    },
+  ];
 
   return (
-    <Stage theme={theme}>
-      <div className="space-y-6 animate-fade-in">
-        {/* Retour — Stage ghost */}
-        <button
-          onClick={() => navigate(-1)}
-          className={`group inline-flex items-center gap-2 rounded-xl border px-3 py-1.5 text-xs font-semibold backdrop-blur-md transition-all ${isDark ? 'border-white/10 bg-white/[0.04] text-slate-400 hover:text-white hover:border-white/20 hover:bg-white/10' : 'border-teal-900/10 bg-white/60 text-teal-900/60 hover:text-teal-900 hover:border-teal-900/20 hover:bg-white'}`}
-        >
-          <ArrowLeft size={14} className="transition-transform group-hover:-translate-x-0.5" />
-          Retour
-        </button>
-
-        {/* Hero — holographic */}
-        <div className="stage-glass relative overflow-hidden p-5 sm:p-6">
-          <div className="absolute -right-10 -top-10 h-40 w-40 rounded-full pointer-events-none" style={{ background: `radial-gradient(circle, ${heroHue.glow.replace(/[\d.]+\)$/, '0.18)')}, transparent 70%)` }} />
-          <div className="relative flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-center gap-4 min-w-0">
-              <div className="hidden sm:flex h-14 w-14 items-center justify-center rounded-2xl text-white shrink-0" style={{ background: `linear-gradient(145deg, ${heroHue.a}, ${heroHue.b})`, boxShadow: `inset 0 1px 0 rgba(255,255,255,0.45), 0 12px 28px -10px ${heroHue.glow}` }}>
-                {typeIconMap[type || ''] || <Users size={22} />}
-              </div>
-              <div className="min-w-0">
-                <div className="flex items-center gap-2">
-                  <span className="relative flex h-2 w-2"><span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60" /><span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.9)]" /></span>
-                  <p className={`text-[10px] font-bold uppercase tracking-[0.22em] ${isDark ? 'text-slate-400/80' : 'text-teal-900/50'}`}>Clients — {typeLabel}</p>
-                </div>
-                <h1 className={`mt-1 text-2xl font-extrabold tracking-tight ${isDark ? 'bg-gradient-to-r from-white via-indigo-100 to-indigo-300 bg-clip-text text-transparent' : 'bg-gradient-to-r from-teal-900 via-teal-700 to-emerald-600 bg-clip-text text-transparent'}`}>Clients — {typeLabel}</h1>
-                <p className={`mt-1 text-sm ${isDark ? 'text-slate-400' : 'text-teal-900/60'} truncate`}>{typeSummary}</p>
-              </div>
+    <div className="space-y-5 pb-24 animate-fade-in">
+        {/* Hero — premium */}
+        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}>
+          <div className="flex flex-wrap items-end justify-between gap-4">
+            <div className="min-w-0">
+              <p className={cn('flex items-center gap-2 text-[10px] font-extrabold uppercase tracking-[3px]', isDark ? 'text-slate-400' : 'text-teal-900/50')}>
+                <span className="live-dot inline-block h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                Square Immo · Clientèle · {typeLabel}
+              </p>
+              <h1 className={cn('mt-2 text-4xl font-black tracking-[-2px] sm:text-5xl', gradientTitle)}>
+                {typeLabel.toUpperCase()} 360
+              </h1>
+              <p className={cn('mt-1.5 text-sm', isDark ? 'text-slate-400' : 'text-teal-900/60')}>
+                Analyse complète du fichier {typeLabel.toLowerCase()} — volumes, statuts et activité.
+              </p>
             </div>
-            <div className="flex items-center gap-2 shrink-0">
-              <StageBadge variant={clientsForType.length > 0 ? 'ok' : 'neutral'}>{clientsForType.length} clients</StageBadge>
-              {/* Nouveau client — Stage primary */}
-              <button
-                onClick={() => { setShowAssignModal(true); setAssignStep('choose'); }}
-                className="inline-flex items-center gap-2 rounded-xl border border-white/20 px-4 py-2 text-sm font-semibold text-white shadow-lg transition-all hover:scale-[1.02] active:scale-95"
-                style={{
-                  backgroundImage: isDark ? 'linear-gradient(145deg, #8B7CFF 0%, #6C5ECF 60%, #5646C9 100%)' : 'linear-gradient(145deg, #2DD4BF 0%, #14B8A6 60%, #0D9488 100%)',
-                  boxShadow: isDark ? 'inset 0 1px 0 rgba(255,255,255,0.4), 0 10px 26px -8px rgba(124,92,255,0.65)' : 'inset 0 1px 0 rgba(255,255,255,0.5), 0 10px 26px -10px rgba(13,148,136,0.6)',
-                }}
-              >
-                <Plus size={14} />
+            <div className="flex flex-wrap items-center gap-2">
+              <StageButton variant="glass" size="md" icon={<ArrowLeft size={14} />} onClick={() => navigate(-1)} className={glassLight}>
+                Retour
+              </StageButton>
+              <StageButton variant="glass" size="md" icon={<RefreshCw size={14} className={loadingClients ? 'animate-spin' : ''} />} onClick={refreshClients} disabled={loadingClients} className={glassLight}>
+                Actualiser
+              </StageButton>
+              <StageButton size="md" icon={<Plus size={14} />} onClick={() => setShowAssignModal(true)}>
                 Nouveau client
-              </button>
+              </StageButton>
             </div>
           </div>
           <div className="mt-4 flex flex-wrap items-center gap-2">
-            <span className="inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold" style={{ borderColor: heroHue.a + '22', background: heroHue.a + '14', color: heroHue.a }}>
+            <span className="inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold" style={stagePillStyle(accent, isDark)}>
               <TrendingUp size={12} />
               {filteredClients.length} filtrés / {clientsForType.length} total
             </span>
             {activeFiltersCount > 0 && (
-              <button onClick={resetFilters} className={`inline-flex items-center gap-1 rounded-full border px-3 py-1 text-xs font-medium ${isDark ? 'border-white/10 bg-white/5 text-slate-300 hover:bg-white/10' : 'border-teal-900/10 bg-white/70 text-teal-700 hover:bg-white'}`}>
+              <button onClick={resetFilters} className={cn('inline-flex items-center gap-1 rounded-full border px-3 py-1 text-xs font-semibold transition-colors', isDark ? 'border-white/10 bg-white/5 text-slate-300 hover:bg-white/10' : 'border-orange-900/10 bg-white/70 text-orange-700 hover:bg-white')}>
                 <X size={12} /> Réinitialiser ({activeFiltersCount})
               </button>
             )}
           </div>
-        </div>
+        </motion.div>
 
-        {/* Recherche & Filtres — Stage glass */}
-        <div className="stage-glass p-4">
-          <div className="flex items-center gap-2 mb-3">
-            <Filter size={14} className={isDark ? 'text-violet-300' : 'text-teal-600'} />
-            <h3 className={`text-sm font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>Recherche & filtres</h3>
-            {activeFiltersCount > 0 && <span className="ml-auto inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-violet-500 px-1.5 text-[10px] font-bold text-white">{activeFiltersCount}</span>}
-          </div>
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-            <div className="flex-1 relative">
-              <Search size={14} className={`absolute left-3 top-1/2 -translate-y-1/2 ${isDark ? 'text-slate-500' : 'text-teal-900/40'}`} />
-              <input
-                type="text"
-                placeholder="Rechercher par nom, téléphone ou email..."
-                className={`w-full h-10 pl-9 pr-3 text-sm rounded-xl border focus:outline-none transition-all ${isDark ? 'bg-white/[0.04] border-white/10 text-white placeholder:text-slate-500 focus:border-violet-400/40' : 'bg-white border-teal-900/10 text-slate-900 placeholder:text-slate-400 focus:border-teal-500/30'}`}
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+        {/* KPI Cards */}
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          {(typeKpiConfig[type || ''] || []).map((kpi, i, arr) => {
+            const value = kpiValues[i] ?? 0;
+            const total = kpiValues[0] ?? 0;
+            const nextLabel = arr[i + 1]?.label.toLowerCase();
+            const pct = total > 0 ? Math.round((value / total) * 100) : 0;
+            return (
+              <AdminStatCard
+                key={kpi.label}
+                icon={kpi.icon}
+                label={kpi.label}
+                value={value}
+                unit={kpi.unit}
+                detail={i === 0 && nextLabel ? `${kpiValues[1] ?? 0} ${nextLabel}` : `${total} au total`}
+                trend={i > 0 ? `${pct}%` : undefined}
+                trendUp
+                hue={i === 0 ? accent : kpi.hue}
+                spark={sparkBuckets}
+                facts={i === 0
+                  ? [{ label: 'Filtrés', value: filteredClients.length }, { label: 'Actifs', value: kpiValues[1] ?? 0 }]
+                  : [{ label: 'Part', value: `${pct}%` }, { label: 'Total', value: total }]}
+                delay={i * 0.06}
               />
-            </div>
-            <button
-              className={`inline-flex h-10 items-center gap-2 rounded-xl border px-4 text-sm font-semibold backdrop-blur-md transition-all ${showFilters || activeFiltersCount > 0 ? (isDark ? 'bg-violet-500/15 border-violet-400/30 text-violet-200' : 'bg-teal-500/10 border-teal-500/20 text-teal-700') : (isDark ? 'bg-white/[0.04] border-white/10 text-slate-300 hover:bg-white/10' : 'bg-white border-teal-900/10 text-slate-600 hover:bg-teal-50')}`}
-              onClick={() => setShowFilters(!showFilters)}
-            >
-              <Sliders size={14} />
-              Filtres avancés
-              <ChevronDown size={12} className={`transition-transform ${showFilters ? 'rotate-180' : ''}`} />
-            </button>
-          </div>
-          {activeFiltersCount > 0 && (
-            <div className="mt-3 flex flex-wrap gap-1.5">
-              {statusFilter !== 'all' && <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs ${isDark ? 'bg-violet-500/10 border-violet-400/20 text-violet-200' : 'bg-violet-50 border-violet-200 text-violet-700'}`}>Statut: {statusFilter} <button onClick={() => setStatusFilter('all')} className="ml-1 hover:text-red-500"><X size={10} /></button></span>}
-              {agentFilter !== 'all' && <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs ${isDark ? 'bg-emerald-500/10 border-emerald-400/20 text-emerald-200' : 'bg-emerald-50 border-emerald-200 text-emerald-700'}`}>Agent <button onClick={() => setAgentFilter('all')} className="ml-1 hover:text-red-500"><X size={10} /></button></span>}
-              {cityFilter !== 'all' && <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs ${isDark ? 'bg-sky-500/10 border-sky-400/20 text-sky-200' : 'bg-sky-50 border-sky-200 text-sky-700'}`}>{cityFilter} <button onClick={() => setCityFilter('all')} className="ml-1 hover:text-red-500"><X size={10} /></button></span>}
-            </div>
-          )}
-          <AnimatePresence>
-            {showFilters && (
-              <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} transition={{ duration: 0.2 }} className="overflow-hidden">
-                <div className={`mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 rounded-xl border p-3 ${isDark ? 'bg-white/[0.02] border-white/5' : 'bg-teal-50/50 border-teal-900/5'}`}>
-                  <Select options={statusOptions} value={statusFilter} onValueChange={setStatusFilter} placeholder="Statut" />
-                  <Select options={agentOptions} value={agentFilter} onValueChange={(v) => setAgentFilter(v)} placeholder="Agent" />
-                  <Select options={mandatStatusOptions} value={mandatStatutFilter} onValueChange={setMandatStatutFilter} placeholder="Mandat" />
-                  <Select options={cityOptions} value={cityFilter} onValueChange={setCityFilter} placeholder="Secteur" />
-                  <Select options={dateRangeOptions} value={dateRange} onValueChange={setDateRange} placeholder="Date de création" />
-                  <div className="flex items-center gap-2">
-                    <input type="number" placeholder="Budget min" className={`w-full h-9 px-3 text-sm rounded-xl border focus:outline-none ${isDark ? 'bg-white/[0.04] border-white/10 text-white placeholder:text-slate-500 focus:border-violet-400/30' : 'bg-white border-teal-900/10 text-slate-900 placeholder:text-slate-400 focus:border-teal-500/30'}`} value={budgetMin} onChange={(e) => setBudgetMin(e.target.value)} />
-                    <span className={`text-xs ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>-</span>
-                    <input type="number" placeholder="Budget max" className={`w-full h-9 px-3 text-sm rounded-xl border focus:outline-none ${isDark ? 'bg-white/[0.04] border-white/10 text-white placeholder:text-slate-500 focus:border-violet-400/30' : 'bg-white border-teal-900/10 text-slate-900 placeholder:text-slate-400 focus:border-teal-500/30'}`} value={budgetMax} onChange={(e) => setBudgetMax(e.target.value)} />
-                  </div>
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
-
-        {/* KPI Cards — StageStatCard */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3">
-          {(typeKpiConfig[type || ''] || []).map((kpi, i) => (
-            <StageStatCard key={kpi.label} icon={kpi.icon} label={kpi.label} value={kpiValues[i] ?? 0} hue={kpi.hue} delay={i * 0.04} spark={[2, 4, 3, 6, 5, 8]} />
-          ))}
+            );
+          })}
         </div>
 
         {/* Statistics — StagePanel */}
-        <StagePanel title="Répartition par intervenant" icon={Users} hue={heroHue}>
-          <div className="overflow-x-auto scrollbar-thin">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className={`border-b ${isDark ? 'border-white/10' : 'border-teal-900/10'}`}>
-                  <th className={`text-left px-3 py-2.5 text-xs font-bold uppercase tracking-wider ${isDark ? 'text-slate-400' : 'text-teal-900/50'}`}>Intervenant</th>
-                  {type === 'acheteur' && (<>
-                    <th className={`text-center px-3 py-2.5 text-xs font-bold uppercase tracking-wider ${isDark ? 'text-slate-400' : 'text-teal-900/50'}`}>Total</th>
-                    <th className={`text-center px-3 py-2.5 text-xs font-bold uppercase tracking-wider ${isDark ? 'text-slate-400' : 'text-teal-900/50'}`}>Actifs</th>
-                    <th className={`text-center px-3 py-2.5 text-xs font-bold uppercase tracking-wider ${isDark ? 'text-slate-400' : 'text-teal-900/50'}`}>En négoc.</th>
-                    <th className={`text-center px-3 py-2.5 text-xs font-bold uppercase tracking-wider ${isDark ? 'text-slate-400' : 'text-teal-900/50'}`}>En compromis</th>
-                    <th className={`text-center px-3 py-2.5 text-xs font-bold uppercase tracking-wider ${isDark ? 'text-slate-400' : 'text-teal-900/50'}`}>Achetés</th>
-                    <th className={`text-center px-3 py-2.5 text-xs font-bold uppercase tracking-wider ${isDark ? 'text-slate-400' : 'text-teal-900/50'}`}>Proposés</th>
-                  </>)}
-                  {type === 'vendeur' && (<>
-                    <th className={`text-center px-3 py-2.5 text-xs font-bold uppercase tracking-wider ${isDark ? 'text-slate-400' : 'text-teal-900/50'}`}>Total</th>
-                    <th className={`text-center px-3 py-2.5 text-xs font-bold uppercase tracking-wider ${isDark ? 'text-slate-400' : 'text-teal-900/50'}`}>Actifs</th>
-                    <th className={`text-center px-3 py-2.5 text-xs font-bold uppercase tracking-wider ${isDark ? 'text-slate-400' : 'text-teal-900/50'}`}>En négoc.</th>
-                    <th className={`text-center px-3 py-2.5 text-xs font-bold uppercase tracking-wider ${isDark ? 'text-slate-400' : 'text-teal-900/50'}`}>En compromis</th>
-                    <th className={`text-center px-3 py-2.5 text-xs font-bold uppercase tracking-wider ${isDark ? 'text-slate-400' : 'text-teal-900/50'}`}>Vendus</th>
-                    <th className={`text-center px-3 py-2.5 text-xs font-bold uppercase tracking-wider ${isDark ? 'text-slate-400' : 'text-teal-900/50'}`}>En stock</th>
-                  </>)}
-                  {type === 'bailleur' && (<>
-                    <th className={`text-center px-3 py-2.5 text-xs font-bold uppercase tracking-wider ${isDark ? 'text-slate-400' : 'text-teal-900/50'}`}>Total</th>
-                    <th className={`text-center px-3 py-2.5 text-xs font-bold uppercase tracking-wider ${isDark ? 'text-slate-400' : 'text-teal-900/50'}`}>Actifs</th>
-                    <th className={`text-center px-3 py-2.5 text-xs font-bold uppercase tracking-wider ${isDark ? 'text-slate-400' : 'text-teal-900/50'}`}>Baux actifs</th>
-                    <th className={`text-center px-3 py-2.5 text-xs font-bold uppercase tracking-wider ${isDark ? 'text-slate-400' : 'text-teal-900/50'}`}>Locations</th>
-                    <th className={`text-center px-3 py-2.5 text-xs font-bold uppercase tracking-wider ${isDark ? 'text-slate-400' : 'text-teal-900/50'}`}>En location</th>
-                    <th className={`text-center px-3 py-2.5 text-xs font-bold uppercase tracking-wider ${isDark ? 'text-slate-400' : 'text-teal-900/50'}`}>Revenus</th>
-                  </>)}
-                  {type === 'locataire' && (<>
-                    <th className={`text-center px-3 py-2.5 text-xs font-bold uppercase tracking-wider ${isDark ? 'text-slate-400' : 'text-teal-900/50'}`}>Total</th>
-                    <th className={`text-center px-3 py-2.5 text-xs font-bold uppercase tracking-wider ${isDark ? 'text-slate-400' : 'text-teal-900/50'}`}>Actifs</th>
-                    <th className={`text-center px-3 py-2.5 text-xs font-bold uppercase tracking-wider ${isDark ? 'text-slate-400' : 'text-teal-900/50'}`}>En dossier</th>
-                    <th className={`text-center px-3 py-2.5 text-xs font-bold uppercase tracking-wider ${isDark ? 'text-slate-400' : 'text-teal-900/50'}`}>Baux signés</th>
-                    <th className={`text-center px-3 py-2.5 text-xs font-bold uppercase tracking-wider ${isDark ? 'text-slate-400' : 'text-teal-900/50'}`}>Installés</th>
-                    <th className={`text-center px-3 py-2.5 text-xs font-bold uppercase tracking-wider ${isDark ? 'text-slate-400' : 'text-teal-900/50'}`}>Proposés</th>
-                  </>)}
-                  {type === 'voyageur' && (<>
-                    <th className={`text-center px-3 py-2.5 text-xs font-bold uppercase tracking-wider ${isDark ? 'text-slate-400' : 'text-teal-900/50'}`}>Total</th>
-                    <th className={`text-center px-3 py-2.5 text-xs font-bold uppercase tracking-wider ${isDark ? 'text-slate-400' : 'text-teal-900/50'}`}>Actifs</th>
-                    <th className={`text-center px-3 py-2.5 text-xs font-bold uppercase tracking-wider ${isDark ? 'text-slate-400' : 'text-teal-900/50'}`}>Réservations</th>
-                    <th className={`text-center px-3 py-2.5 text-xs font-bold uppercase tracking-wider ${isDark ? 'text-slate-400' : 'text-teal-900/50'}`}>Séjour en cours</th>
-                    <th className={`text-center px-3 py-2.5 text-xs font-bold uppercase tracking-wider ${isDark ? 'text-slate-400' : 'text-teal-900/50'}`}>Séjours terminés</th>
-                  </>)}
-                </tr>
-              </thead>
-              <tbody className={`divide-y ${isDark ? 'divide-white/5' : 'divide-teal-900/5'}`}>
-                {statsByAgent.map(({ user, s }: any) => {
-                  const userId = String(user.id);
-                  const initials = `${(user.first_name || '')[0]}${(user.last_name || '')[0]}`.toUpperCase() || '?';
-                  const color = COLORS[Math.abs(Number(user.id) || userId.length) % COLORS.length];
-                  const name = `${user.first_name || ''} ${user.last_name || ''}`.trim();
-                  const badge = getRoleBadge({ role: user.role, position: user.position });
-                  return (
-                    <tr key={userId} className={`transition-colors ${isDark ? 'hover:bg-white/[0.04]' : 'hover:bg-teal-50/50'}`}>
-                      <td className="px-3 py-2.5">
-                        <div className="flex items-center gap-2.5">
-                          <div className={`w-7 h-7 rounded-full ${color} flex items-center justify-center text-white text-[10px] font-bold shadow-sm`}>{initials}</div>
-                          <span className={`text-sm font-semibold ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>{name}</span>
-                          {badge && <span className={`inline-flex items-center px-1.5 py-0.5 text-[9px] font-bold rounded-full uppercase tracking-wider ${badge.cls}`}>{badge.label}</span>}
-                        </div>
+        <StagePanel
+          title="Statistiques par intervenant"
+          icon={Users}
+          hue={accent}
+          action={
+            <StageBadge variant="neutral">
+              {statsByAgent.length} intervenant{statsByAgent.length > 1 ? 's' : ''}
+            </StageBadge>
+          }
+        >
+          <div className="mb-3 flex flex-wrap items-center gap-1.5">
+            {metrics.slice(0, 5).map(m => {
+              const total = (tableTotals as any)[m.key] || 0;
+              return (
+                <span
+                  key={m.key}
+                  className={cn(
+                    'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10.5px] font-semibold',
+                    isDark ? 'border-white/[0.07] bg-white/[0.03] text-slate-400' : 'border-slate-200/70 bg-white/70 text-slate-500',
+                  )}
+                >
+                  <span className="h-1.5 w-1.5 rounded-full" style={{ background: m.hue.line, boxShadow: `0 0 6px ${m.hue.glow}` }} />
+                  {m.label}
+                  <b className={cn('tabular-nums', isDark ? 'text-slate-200' : 'text-slate-800')}>{total}</b>
+                </span>
+              );
+            })}
+          </div>
+
+          <div className={cn('overflow-hidden rounded-2xl border', isDark ? 'border-white/[0.07] bg-white/[0.015]' : 'border-slate-200/70 bg-white/60')}>
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[760px] text-sm">
+                <thead>
+                  <tr className={cn('border-b', isDark ? 'border-white/[0.07] bg-white/[0.03]' : 'border-slate-200/70 bg-slate-50/70')}>
+                    <th className={cn('px-4 py-2.5 text-left text-[9.5px] font-extrabold uppercase tracking-[0.14em]', isDark ? 'text-slate-400' : 'text-slate-500')}>Intervenant</th>
+                    <th className={cn('px-4 py-2.5 text-center text-[9.5px] font-extrabold uppercase tracking-[0.14em]', isDark ? 'text-slate-400' : 'text-slate-500')}>Total</th>
+                    {metrics.map(m => (
+                      <th key={m.key} className={cn('px-4 py-2.5 text-center text-[9.5px] font-extrabold uppercase tracking-[0.14em]', isDark ? 'text-slate-400' : 'text-slate-500')}>
+                        <span className="inline-flex items-center gap-1.5">
+                          <span className="h-1.5 w-1.5 rounded-full" style={{ background: m.hue.line, boxShadow: `0 0 5px ${m.hue.glow}` }} />
+                          {m.label}
+                        </span>
+                      </th>
+                    ))}
+                    <th className={cn('px-4 py-2.5 text-center text-[9.5px] font-extrabold uppercase tracking-[0.14em]', isDark ? 'text-slate-400' : 'text-slate-500')}>Taux actifs</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {statsByAgent.map(({ user, s }: any) => {
+                    const uid = String(user.id);
+                    const person = findPerson(uid);
+                    const hue = agentHueFor(user.id);
+                    const badge = getRoleBadge({ role: user.role, position: user.position });
+                    const name = `${user.first_name || ''} ${user.last_name || ''}`.trim();
+                    const rate = s.total > 0 ? Math.round((s.actifs / s.total) * 100) : 0;
+                    return (
+                      <tr key={uid} className={cn('group/row border-b transition-colors duration-200 last:border-0', isDark ? 'border-white/[0.05] hover:bg-white/[0.04]' : 'border-slate-100 hover:bg-white')}>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-2.5">
+                            <span
+                              className="relative flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[10px] font-extrabold text-white"
+                              style={{ backgroundImage: `linear-gradient(145deg, ${hue.a}, ${hue.b})`, boxShadow: `0 6px 16px -8px ${hue.glow}, inset 0 1px 0 rgba(255,255,255,0.35)` }}
+                            >
+                              {person?.initials || uid.slice(0, 2).toUpperCase()}
+                              <span className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2" style={{ background: hue.line, borderColor: isDark ? '#0B1024' : '#fff' }} />
+                            </span>
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-1.5">
+                                <span className={cn('truncate text-[13px] font-bold', isDark ? 'text-white' : 'text-slate-900')}>{name || person?.name || uid}</span>
+                                {badge && (
+                                  <span className="rounded-full px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wider" style={stagePillStyle(hue, isDark)}>
+                                    {badge.label}
+                                  </span>
+                                )}
+                              </div>
+                              <span className={cn('text-[10px] font-medium capitalize', isDark ? 'text-slate-500' : 'text-slate-400')}>
+                                {person?.position || person?.role || 'Intervenant'}
+                              </span>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className={cn('text-center text-sm font-extrabold tabular-nums', isDark ? 'text-white' : 'text-slate-900')}>{s.total || 0}</div>
+                          <StageMixBar
+                            className="mx-auto mt-1 max-w-[88px]"
+                            isDark={isDark}
+                            segments={metrics.map(m => ({ value: (s as any)[m.key] || 0, hue: m.hue }))}
+                          />
+                        </td>
+                        {metrics.map(m => (
+                          <td key={m.key} className={cn('px-4 py-3 text-center text-xs font-semibold tabular-nums', isDark ? 'text-slate-300' : 'text-slate-700')}>
+                            {(s as any)[m.key] || 0}
+                          </td>
+                        ))}
+                        <td className="px-4 py-3">
+                          <div className="flex items-center justify-center gap-2">
+                            <div className="w-14">
+                              <ShimmerProgress pct={rate} colorFrom={hue.a} colorTo={hue.b} glow={hue.glow} height={5} />
+                            </div>
+                            <span className={cn('min-w-[32px] text-right text-[11px] font-bold tabular-nums', isDark ? 'text-slate-200' : 'text-slate-700')}>{rate}%</span>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+
+                  <tr className={isDark ? 'bg-white/[0.04]' : 'bg-slate-900/[0.03]'}>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2.5">
+                        <span
+                          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[10px] font-extrabold text-white"
+                          style={{ backgroundImage: `linear-gradient(145deg, ${accent.a}, ${accent.b})`, boxShadow: `0 6px 16px -8px ${accent.glow}` }}
+                        >
+                          <Users size={13} />
+                        </span>
+                        <span className={cn('text-[12px] font-extrabold uppercase tracking-[0.12em]', isDark ? 'text-white' : 'text-slate-900')}>Total équipe</span>
+                      </div>
+                    </td>
+                    <td className={cn('px-4 py-3 text-center text-sm font-extrabold tabular-nums', isDark ? 'text-white' : 'text-slate-900')}>{tableTotals.total}</td>
+                    {metrics.map(m => (
+                      <td key={m.key} className={cn('px-4 py-3 text-center text-xs font-bold tabular-nums', isDark ? 'text-slate-200' : 'text-slate-800')}>
+                        {(tableTotals as any)[m.key] || 0}
                       </td>
-                      {type === 'acheteur' && (<>
-                        <td className={`text-center px-3 py-2.5 font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>{s.total || 0}</td>
-                        <td className="text-center px-3 py-2.5">{s.actifs || 0}</td>
-                        <td className="text-center px-3 py-2.5">{s.enNegoc || 0}</td>
-                        <td className="text-center px-3 py-2.5">{s.enCompromis || 0}</td>
-                        <td className="text-center px-3 py-2.5">{s.vendusAchetes || 0}</td>
-                        <td className="text-center px-3 py-2.5">{s.proposesStock || 0}</td>
-                      </>)}
-                      {type === 'vendeur' && (<>
-                        <td className={`text-center px-3 py-2.5 font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>{s.total || 0}</td>
-                        <td className="text-center px-3 py-2.5">{s.actifs || 0}</td>
-                        <td className="text-center px-3 py-2.5">{s.enNegoc || 0}</td>
-                        <td className="text-center px-3 py-2.5">{s.enCompromis || 0}</td>
-                        <td className="text-center px-3 py-2.5">{s.vendusAchetes || 0}</td>
-                        <td className="text-center px-3 py-2.5">{s.proposesStock || 0}</td>
-                      </>)}
-                      {type === 'bailleur' && (<>
-                        <td className={`text-center px-3 py-2.5 font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>{s.total || 0}</td>
-                        <td className="text-center px-3 py-2.5">{s.actifs || 0}</td>
-                        <td className="text-center px-3 py-2.5">{s.bauxActifs || 0}</td>
-                        <td className="text-center px-3 py-2.5">{s.locations || 0}</td>
-                        <td className="text-center px-3 py-2.5">{s.enLocation || 0}</td>
-                        <td className="text-center px-3 py-2.5">{s.revenus ? `${s.revenus} €` : '0 €'}</td>
-                      </>)}
-                      {type === 'locataire' && (<>
-                        <td className={`text-center px-3 py-2.5 font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>{s.total || 0}</td>
-                        <td className="text-center px-3 py-2.5">{s.actifs || 0}</td>
-                        <td className="text-center px-3 py-2.5">{s.enDossier || 0}</td>
-                        <td className="text-center px-3 py-2.5">{s.bauxSignes || 0}</td>
-                        <td className="text-center px-3 py-2.5">{s.installes || 0}</td>
-                        <td className="text-center px-3 py-2.5">{s.proposesStock || 0}</td>
-                      </>)}
-                      {type === 'voyageur' && (<>
-                        <td className={`text-center px-3 py-2.5 font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>{s.total || 0}</td>
-                        <td className="text-center px-3 py-2.5">{s.actifs || 0}</td>
-                        <td className="text-center px-3 py-2.5">{s.reservations || 0}</td>
-                        <td className="text-center px-3 py-2.5">{s.sejourEnCours || 0}</td>
-                        <td className="text-center px-3 py-2.5">{s.sejoursTermines || 0}</td>
-                      </>)}
-                    </tr>
-                  );
-                })}
-                <tr className={`${isDark ? 'bg-white/[0.04] border-t border-white/10' : 'bg-teal-50/60 border-t border-teal-900/10'} font-bold`}>
-                  <td className={`px-3 py-2.5 text-sm ${isDark ? 'text-white' : 'text-slate-900'}`}>TOTAL</td>
-                  {type === 'acheteur' && (<>
-                    <td className={`text-center px-3 py-2.5 ${isDark ? 'text-white' : 'text-slate-900'}`}>{tableTotals.total}</td>
-                    <td className="text-center px-3 py-2.5">{tableTotals.actifs}</td>
-                    <td className="text-center px-3 py-2.5">{tableTotals.enNegoc}</td>
-                    <td className="text-center px-3 py-2.5">{tableTotals.enCompromis}</td>
-                    <td className="text-center px-3 py-2.5">{tableTotals.vendusAchetes}</td>
-                    <td className="text-center px-3 py-2.5">{tableTotals.proposesStock}</td>
-                  </>)}
-                  {type === 'vendeur' && (<>
-                    <td className={`text-center px-3 py-2.5 ${isDark ? 'text-white' : 'text-slate-900'}`}>{tableTotals.total}</td>
-                    <td className="text-center px-3 py-2.5">{tableTotals.actifs}</td>
-                    <td className="text-center px-3 py-2.5">{tableTotals.enNegoc}</td>
-                    <td className="text-center px-3 py-2.5">{tableTotals.enCompromis}</td>
-                    <td className="text-center px-3 py-2.5">{tableTotals.vendusAchetes}</td>
-                    <td className="text-center px-3 py-2.5">{tableTotals.proposesStock}</td>
-                  </>)}
-                  {type === 'bailleur' && (<>
-                    <td className={`text-center px-3 py-2.5 ${isDark ? 'text-white' : 'text-slate-900'}`}>{tableTotals.total}</td>
-                    <td className="text-center px-3 py-2.5">{tableTotals.actifs}</td>
-                    <td className="text-center px-3 py-2.5">{tableTotals.bauxActifs}</td>
-                    <td className="text-center px-3 py-2.5">{tableTotals.locations}</td>
-                    <td className="text-center px-3 py-2.5">{tableTotals.enLocation}</td>
-                    <td className="text-center px-3 py-2.5">{tableTotals.revenus ? `${tableTotals.revenus} €` : '0 €'}</td>
-                  </>)}
-                  {type === 'locataire' && (<>
-                    <td className={`text-center px-3 py-2.5 ${isDark ? 'text-white' : 'text-slate-900'}`}>{tableTotals.total}</td>
-                    <td className="text-center px-3 py-2.5">{tableTotals.actifs}</td>
-                    <td className="text-center px-3 py-2.5">{tableTotals.enDossier}</td>
-                    <td className="text-center px-3 py-2.5">{tableTotals.bauxSignes}</td>
-                    <td className="text-center px-3 py-2.5">{tableTotals.installes}</td>
-                    <td className="text-center px-3 py-2.5">{tableTotals.proposesStock}</td>
-                  </>)}
-                  {type === 'voyageur' && (<>
-                    <td className={`text-center px-3 py-2.5 ${isDark ? 'text-white' : 'text-slate-900'}`}>{tableTotals.total}</td>
-                    <td className="text-center px-3 py-2.5">{tableTotals.actifs}</td>
-                    <td className="text-center px-3 py-2.5">{tableTotals.reservations}</td>
-                    <td className="text-center px-3 py-2.5">{tableTotals.sejourEnCours}</td>
-                    <td className="text-center px-3 py-2.5">{tableTotals.sejoursTermines}</td>
-                  </>)}
-                </tr>
-              </tbody>
-            </table>
+                    ))}
+                    <td className="px-4 py-3">
+                      <div className="flex items-center justify-center">
+                        <span className={cn('rounded-full px-2 py-1 text-[11px] font-extrabold tabular-nums', isDark ? 'bg-white/[0.06] text-white' : 'bg-white text-slate-900')}>
+                          {tableTotals.total > 0 ? Math.round((tableTotals.actifs / tableTotals.total) * 100) : 0}%
+                        </span>
+                      </div>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
           </div>
         </StagePanel>
 
-        {/* Client List — Stage holographic cards (emerald orb in light mode) */}
-        <StagePanel title={`Liste des clients • ${filteredClients.length} sur ${clientsForType.length}`} icon={Users} hue={isDark ? heroHue : SIDEBAR_EMERALD}>
+        {/* Search + Filter bar */}
+        <StagePanel
+          title="Recherche et filtres"
+          icon={Search}
+          hue={accent}
+          action={
+            <div className="flex items-center gap-1.5">
+              {activeFiltersCount > 0 && (
+                <StageBadge variant="ok">{activeFiltersCount} filtre{activeFiltersCount > 1 ? 's' : ''}</StageBadge>
+              )}
+              <span className="hidden sm:inline-flex">
+                <StageBadge variant="neutral">{filteredClients.length} résultat{filteredClients.length > 1 ? 's' : ''}</StageBadge>
+              </span>
+            </div>
+          }
+        >
+          <div className="space-y-3">
+            <div className="flex flex-col gap-2.5 sm:flex-row">
+              <div className="group relative flex-1">
+                <div
+                  className={cn(
+                    'relative flex h-12 items-center gap-2.5 rounded-2xl border px-2.5 transition-all duration-300 focus-within:ring-2',
+                    isDark
+                      ? 'border-white/[0.08] bg-white/[0.04] focus-within:border-white/[0.16] focus-within:ring-white/[0.05]'
+                      : 'border-orange-900/10 bg-white/80 shadow-[0_1px_2px_rgba(15,23,42,0.04)] focus-within:border-orange-600/30 focus-within:ring-orange-500/[0.08]',
+                  )}
+                  style={{ boxShadow: isDark ? 'inset 0 1px 0 rgba(255,255,255,0.05)' : 'inset 0 1px 0 rgba(255,255,255,0.9)' }}
+                >
+                  <span
+                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border transition-transform duration-300 group-focus-within:scale-105"
+                    style={{
+                      background: `linear-gradient(145deg, ${accent.a}26, ${accent.b}18)`,
+                      borderColor: `${accent.a}38`,
+                      color: isDark ? accent.a : accent.b,
+                      boxShadow: `0 6px 16px -8px ${accent.glow}`,
+                    }}
+                  >
+                    <Search size={14} />
+                  </span>
+                  <input
+                    type="text"
+                    placeholder="Rechercher par nom, téléphone ou email..."
+                    className={cn(
+                      'h-full min-w-0 flex-1 bg-transparent text-sm font-medium outline-none',
+                      isDark ? 'text-white placeholder:text-slate-500' : 'text-slate-900 placeholder:text-slate-400',
+                    )}
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                  />
+                  {searchTerm ? (
+                    <button
+                      type="button"
+                      onClick={() => setSearchTerm('')}
+                      className={cn(
+                        'flex h-7 w-7 shrink-0 items-center justify-center rounded-lg transition-colors',
+                        isDark ? 'text-slate-400 hover:bg-white/[0.08] hover:text-white' : 'text-slate-400 hover:bg-slate-900/[0.06] hover:text-slate-700',
+                      )}
+                      aria-label="Effacer la recherche"
+                    >
+                      <X size={13} />
+                    </button>
+                  ) : (
+                    <kbd
+                      className={cn(
+                        'hidden shrink-0 items-center rounded-md border px-1.5 py-0.5 text-[9px] font-bold sm:inline-flex',
+                        isDark ? 'border-white/[0.08] bg-white/[0.04] text-slate-500' : 'border-orange-900/10 bg-orange-50/60 text-orange-900/40',
+                      )}
+                    >
+                      {typeof navigator !== 'undefined' && /Mac/i.test(navigator.platform) ? '⌘K' : 'Ctrl K'}
+                    </kbd>
+                  )}
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <StageButton
+                  variant={showFilters || activeFiltersCount > 0 ? 'primary' : 'glass'}
+                  size="md"
+                  icon={<Sliders size={14} />}
+                  onClick={() => setShowFilters(!showFilters)}
+                  className={cn('!h-12 flex-1 !rounded-2xl px-4 sm:flex-none', !(showFilters || activeFiltersCount > 0) ? glassLight : '')}
+                >
+                  Filtres
+                  {activeFiltersCount > 0 && (
+                    <span className="ml-0.5 inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-white/25 px-1 text-[10px] font-extrabold">
+                      {activeFiltersCount}
+                    </span>
+                  )}
+                </StageButton>
+                {(activeFiltersCount > 0 || searchTerm) && (
+                  <StageButton
+                    variant="glass"
+                    size="md"
+                    icon={<X size={14} />}
+                    onClick={() => { resetFilters(); setSearchTerm(''); }}
+                    className={cn('!h-12 !rounded-2xl px-3', glassLight)}
+                  >
+                    Effacer
+                  </StageButton>
+                )}
+              </div>
+            </div>
+
+            {(activeFiltersCount > 0 || searchTerm) && (
+              <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                <span className={cn('mr-0.5 text-[10px] font-bold uppercase tracking-[0.14em]', isDark ? 'text-slate-500' : 'text-slate-400')}>
+                  Actifs
+                </span>
+                {searchTerm && (
+                  <button type="button" onClick={() => setSearchTerm('')} className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold transition-colors" style={stagePillStyle(accent, isDark)}>
+                    «{searchTerm.length > 18 ? `${searchTerm.slice(0, 18)}…` : searchTerm}»
+                    <X size={10} />
+                  </button>
+                )}
+                {statusFilter !== 'all' && (
+                  <button type="button" onClick={() => setStatusFilter('all')} className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold transition-all hover:brightness-95" style={stagePillStyle(accent, isDark)}>
+                    <span className={cn('text-[9px] font-bold uppercase tracking-wide', isDark ? 'opacity-60' : 'opacity-70')}>Statut</span>
+                    {statusFilter}
+                    <X size={10} className="opacity-70" />
+                  </button>
+                )}
+                {agentFilter !== 'all' && (
+                  <button type="button" onClick={() => setAgentFilter('all')} className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold transition-all hover:brightness-95" style={stagePillStyle(accent, isDark)}>
+                    <span className={cn('text-[9px] font-bold uppercase tracking-wide', isDark ? 'opacity-60' : 'opacity-70')}>Agent</span>
+                    {agentOptions.find(o => o.value === agentFilter)?.label || agentFilter}
+                    <X size={10} className="opacity-70" />
+                  </button>
+                )}
+                {mandatStatutFilter !== 'all' && (
+                  <button type="button" onClick={() => setMandatStatutFilter('all')} className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold transition-all hover:brightness-95" style={stagePillStyle(accent, isDark)}>
+                    <span className={cn('text-[9px] font-bold uppercase tracking-wide', isDark ? 'opacity-60' : 'opacity-70')}>Mandat</span>
+                    {mandatStatutFilter}
+                    <X size={10} className="opacity-70" />
+                  </button>
+                )}
+                {cityFilter !== 'all' && (
+                  <button type="button" onClick={() => setCityFilter('all')} className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold transition-all hover:brightness-95" style={stagePillStyle(accent, isDark)}>
+                    <span className={cn('text-[9px] font-bold uppercase tracking-wide', isDark ? 'opacity-60' : 'opacity-70')}>Secteur</span>
+                    {cityFilter}
+                    <X size={10} className="opacity-70" />
+                  </button>
+                )}
+                {budgetMin !== '' && (
+                  <button type="button" onClick={() => setBudgetMin('')} className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold transition-all hover:brightness-95" style={stagePillStyle(accent, isDark)}>
+                    <span className={cn('text-[9px] font-bold uppercase tracking-wide', isDark ? 'opacity-60' : 'opacity-70')}>Min</span>
+                    {budgetMin}
+                    <X size={10} className="opacity-70" />
+                  </button>
+                )}
+                {budgetMax !== '' && (
+                  <button type="button" onClick={() => setBudgetMax('')} className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold transition-all hover:brightness-95" style={stagePillStyle(accent, isDark)}>
+                    <span className={cn('text-[9px] font-bold uppercase tracking-wide', isDark ? 'opacity-60' : 'opacity-70')}>Max</span>
+                    {budgetMax}
+                    <X size={10} className="opacity-70" />
+                  </button>
+                )}
+                {dateRange !== 'all' && (
+                  <button type="button" onClick={() => setDateRange('all')} className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold transition-all hover:brightness-95" style={stagePillStyle(accent, isDark)}>
+                    <span className={cn('text-[9px] font-bold uppercase tracking-wide', isDark ? 'opacity-60' : 'opacity-70')}>Date</span>
+                    {dateRangeOptions.find(o => o.value === dateRange)?.label || dateRange}
+                    <X size={10} className="opacity-70" />
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        </StagePanel>
+
+        {/* Advanced Filters Panel */}
+        <AnimatePresence>
+          {showFilters && (
+            <motion.div
+              initial={{ opacity: 0, height: 0, filter: 'blur(6px)' }}
+              animate={{ opacity: 1, height: 'auto', filter: 'blur(0px)' }}
+              exit={{ opacity: 0, height: 0, filter: 'blur(4px)' }}
+              transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+              className="overflow-hidden"
+            >
+              <StagePanel
+                title="Filtres avancés"
+                icon={Sliders}
+                hue={accent}
+                action={
+                  <StageButton variant="glass" size="sm" icon={<X size={12} />} onClick={resetFilters} disabled={activeFiltersCount === 0} className={glassLight}>
+                    Réinitialiser
+                  </StageButton>
+                }
+              >
+                <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
+                  {[
+                    { key: 'status', label: 'Statut', icon: Activity, control: <Select options={statusOptions} value={statusFilter} onValueChange={setStatusFilter} placeholder="Statut" /> },
+                    { key: 'agent', label: 'Responsable', icon: User, control: <Select options={agentOptions} value={agentFilter} onValueChange={setAgentFilter} placeholder="Responsable" /> },
+                    { key: 'mandat', label: 'Mandat', icon: Shield, control: <Select options={mandatStatusOptions} value={mandatStatutFilter} onValueChange={setMandatStatutFilter} placeholder="Mandat" /> },
+                    { key: 'city', label: 'Secteur', icon: MapPin, control: <Select options={cityOptions} value={cityFilter} onValueChange={setCityFilter} placeholder="Secteur" /> },
+                    { key: 'date', label: 'Date de création', icon: Calendar, control: <Select options={dateRangeOptions} value={dateRange} onValueChange={setDateRange} placeholder="Date de création" /> },
+                    {
+                      key: 'budget',
+                      label: 'Budget',
+                      icon: DollarSign,
+                      control: (
+                        <div className="flex items-center gap-1.5">
+                          <Input type="number" placeholder="Min" value={budgetMin} onChange={(e) => setBudgetMin(e.target.value)} />
+                          <span className="text-xs text-slate-400">–</span>
+                          <Input type="number" placeholder="Max" value={budgetMax} onChange={(e) => setBudgetMax(e.target.value)} />
+                        </div>
+                      ),
+                    },
+                  ].map(field => {
+                    const FieldIcon = field.icon;
+                    return (
+                      <div
+                        key={field.key}
+                        className={cn(
+                          'rounded-2xl border p-2.5 transition-colors duration-200',
+                          isDark ? 'border-white/[0.06] bg-white/[0.03]' : 'border-orange-900/10 bg-white/60',
+                        )}
+                      >
+                        <div className="mb-1.5 flex items-center gap-1.5">
+                          <span
+                            className="flex h-5 w-5 items-center justify-center rounded-md border"
+                            style={{
+                              background: `${accent.a}14`,
+                              borderColor: `${accent.a}30`,
+                              color: isDark ? accent.a : accent.b,
+                            }}
+                          >
+                            <FieldIcon size={10} />
+                          </span>
+                          <label className={cn('text-[10px] font-bold uppercase tracking-[0.12em]', isDark ? 'text-slate-400' : 'text-slate-500')}>
+                            {field.label}
+                          </label>
+                        </div>
+                        {field.control}
+                      </div>
+                    );
+                  })}
+                </div>
+                <div className={cn('mt-3 flex flex-wrap items-center justify-between gap-2 border-t pt-3 text-[11px] font-medium', isDark ? 'border-white/[0.06] text-slate-500' : 'border-orange-900/10 text-slate-400')}>
+                  <span className="inline-flex items-center gap-1.5">
+                    <span className="live-dot inline-block h-1.5 w-1.5 rounded-full" style={{ background: accent.line, boxShadow: `0 0 6px ${accent.glow}` }} />
+                    Les filtres s'appliquent instantanément
+                  </span>
+                  <span>
+                    <b className={isDark ? 'text-slate-300' : 'text-slate-600'}>{filteredClients.length}</b> client{filteredClients.length > 1 ? 's' : ''} correspondant{filteredClients.length > 1 ? 's' : ''}
+                  </span>
+                </div>
+              </StagePanel>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Client List — Stage holographic cards */}
+        <StagePanel title={`Liste des clients • ${filteredClients.length} sur ${clientsForType.length}`} icon={Users} hue={accent}>
           {filteredClients.length === 0 ? (
             <div className="py-14 text-center">
-              <div className={`mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl ${isDark ? 'bg-white/5 text-slate-500' : 'bg-teal-50 text-teal-700'}`}>
+              <div className={`mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl ${isDark ? 'bg-white/5 text-slate-500' : 'bg-orange-50 text-orange-700'}`}>
                 <Search size={22} />
               </div>
               <p className={`font-semibold ${isDark ? 'text-slate-300' : 'text-slate-700'}`}>Aucun client trouvé</p>
               <p className={`mt-1 text-sm ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>{clientsForType.length > 0 ? 'Essayez de modifier vos filtres' : 'Les clients apparaissent ici une fois ajoutés'}</p>
-              {activeFiltersCount > 0 && <button onClick={resetFilters} className={`mt-3 inline-flex items-center gap-1 rounded-xl border px-3 py-1.5 text-xs font-semibold ${isDark ? 'border-white/10 bg-white/5 text-slate-300 hover:bg-white/10' : 'border-teal-900/10 bg-white text-teal-700 hover:bg-teal-50'}`}><X size={12} /> Effacer les filtres</button>}
+              {activeFiltersCount > 0 && <button onClick={resetFilters} className={`mt-3 inline-flex items-center gap-1 rounded-xl border px-3 py-1.5 text-xs font-semibold ${isDark ? 'border-white/10 bg-white/5 text-slate-300 hover:bg-white/10' : 'border-orange-900/10 bg-white text-orange-700 hover:bg-orange-50'}`}><X size={12} /> Effacer les filtres</button>}
             </div>
           ) : (
             <div className="grid auto-rows-fr grid-cols-1 items-stretch gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -912,104 +1212,155 @@ export default function AdminClientsPageWithType() {
                   key={c.id}
                   index={i}
                   client={c}
-                  hue={heroHue}
+                  hue={accent}
                   isDark={isDark}
                   onClick={() => navigate(`/admin/${adminId}/clients/type/${type}/${c.id}`)}
-                  onMenu={(e) => setMenuTarget(menuTarget?.client.id === c.id ? null : { client: c as AdminClient, bounds: e.currentTarget.getBoundingClientRect() })}
+                  actions={buildClientActions(c as AdminClient)}
+                  isGerant={isGerant}
                 />
               ))}
             </div>
           )}
         </StagePanel>
 
-        {/* Floating Action Menu */}
-        <AnimatePresence>
-          {menuTarget && (() => {
-            const { client, bounds } = menuTarget;
-            const viewportH = window.innerHeight;
-            const spaceBelow = viewportH - bounds.bottom;
-            const menuH = 220;
-            const top = spaceBelow >= menuH ? bounds.bottom + 4 : bounds.top - menuH - 4;
-            const right = window.innerWidth - bounds.right;
-            return (
-              <>
-                <motion.div className="fixed inset-0 z-40" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setMenuTarget(null)} />
-                <motion.div
-                  ref={menuRef}
-                  initial={{ opacity: 0, y: 8, scale: 0.96 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 8, scale: 0.96 }} transition={{ duration: 0.12 }}
-                  style={{ position: 'fixed', top, right }}
-                  className={`w-56 rounded-2xl border py-1 z-50 backdrop-blur-xl ${isDark ? 'bg-[#0F172A]/90 border-white/10 shadow-[0_20px_60px_rgba(0,0,0,0.5)]' : 'bg-white/95 border-teal-900/10 shadow-[0_20px_60px_rgba(13,148,136,0.18)]'}`}
-                >
-                  <button className={`flex w-full items-center gap-2.5 px-4 py-2.5 text-sm transition-colors text-left ${isDark ? 'text-slate-200 hover:bg-white/5' : 'text-slate-700 hover:bg-teal-50'}`} onClick={() => { setMenuTarget(null); navigate(`/admin/${adminId}/clients/type/${type}/${client.id}`); }}>
-                    <Eye size={14} /> Voir la fiche complète
-                  </button>
-                  <button className={`flex w-full items-center gap-2.5 px-4 py-2.5 text-sm transition-colors text-left ${isDark ? 'text-slate-200 hover:bg-white/5' : 'text-slate-700 hover:bg-teal-50'}`} onClick={() => { setMenuTarget(null); setEditingClient(client); setIsModalOpen(true); }}>
-                    <Edit3 size={14} /> Modifier
-                  </button>
-                  <button className={`flex w-full items-center gap-2.5 px-4 py-2.5 text-sm transition-colors text-left ${isDark ? 'text-slate-200 hover:bg-white/5' : 'text-slate-700 hover:bg-teal-50'}`} onClick={async () => { setMenuTarget(null); try { const duplicated = await duplicateClient(String(client.id)); const updated = await fetchClients(); setApiClients(Array.isArray(updated) ? updated : []); toast('success', `${client.name || 'Client'} dupliqué avec succès`); } catch (e: any) { toast('error', e.message || 'Erreur lors de la duplication'); } }}>
-                    <Copy size={14} /> Dupliquer
-                  </button>
-                  <div className={`h-px my-1 ${isDark ? 'bg-white/5' : 'bg-teal-900/5'}`} />
-                  <button className={`flex w-full items-center gap-2.5 px-4 py-2.5 text-sm transition-colors text-left ${isDark ? 'text-slate-200 hover:bg-white/5' : 'text-slate-700 hover:bg-teal-50'}`} onClick={() => { setMenuTarget(null); setActionClient(client); const rawId = String((client as any).agentId || ''); const matchedUser = users.find((u: any) => String(u.id) === rawId) || users.find((u: any) => { const full = `${u.first_name || ''} ${u.last_name || ''}`.trim(); return full.toLowerCase() === rawId.toLowerCase(); }); setSelectedAgent(matchedUser ? String(matchedUser.id) : ''); setShowReassignDialog(true); }}>
-                    <Repeat size={14} /> Réaffecter à un agent
-                  </button>
-                  <div className={`h-px my-1 ${isDark ? 'bg-white/5' : 'bg-teal-900/5'}`} />
-                  <button className={`flex w-full items-center gap-2.5 px-4 py-2.5 text-sm transition-colors text-left ${isDark ? 'text-rose-300 hover:bg-rose-500/10' : 'text-red-600 hover:bg-red-50'}`} onClick={() => { setMenuTarget(null); setActionClient(client); setDeleteConfirm(''); setDeleteReason(''); setShowDeleteDialog(true); }}>
-                    <Trash2 size={14} /> Supprimer
-                  </button>
-                </motion.div>
-              </>
-            );
-          })()}
-        </AnimatePresence>
-
         {/* Dialogs */}
-        <Dialog isOpen={showReassignDialog} onClose={() => setShowReassignDialog(false)} title="Réaffecter un client" size="lg">
+        <StageModal
+          open={showReassignDialog}
+          onClose={() => setShowReassignDialog(false)}
+          title="Réaffecter un client"
+          eyebrow="Attribution"
+          subtitle={actionClient ? [actionClient.type, actionClient.phone].filter(Boolean).join(' · ') : undefined}
+          icon={Repeat}
+          hue={interfaceHue}
+          maxWidth="max-w-xl"
+          centered
+          footer={actionClient ? (
+            <>
+              <button className={ghostBtn} onClick={() => setShowReassignDialog(false)}>Annuler</button>
+              <button className={cn(btns.primary, isGerant && 'btn-gerant-pill')} onClick={handleReassign} disabled={!selectedAgent}>Réaffecter</button>
+            </>
+          ) : undefined}
+        >
           {actionClient && (
             <div className="space-y-4">
-              <div className={`p-3 rounded-xl border ${isDark ? 'bg-white/[0.04] border-white/10' : 'bg-teal-50 border-teal-900/10'}`}>
-                <p className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-slate-900'}`}>{actionClient.name}</p>
-                <p className={`text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{actionClient.type} · {actionClient.phone}</p>
-              </div>
+              <ClientSummaryCard client={actionClient} isDark={isDark} hue={interfaceHue} isGerant={isGerant} />
               <div>
-                <p className={`text-xs mb-1.5 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>Responsable actuel :</p>
+                <p className={fieldLabel}>Responsable actuel</p>
                 <div className="flex items-center gap-2 text-sm">
-                  {actionClient.agentId ? (<><div className={`w-6 h-6 rounded-full ${getAgentColor(actionClient.agentId)} flex items-center justify-center text-white text-[10px] font-bold`}>{getAgentInitials(actionClient.agentId)}</div><span className={isDark ? 'text-slate-200' : 'text-slate-700'}>{getAgentName(actionClient.agentId)}</span></>) : <span className="text-slate-400 italic">Non assigné</span>}
+                  {actionClient.agentId ? (
+                    <>
+                      <div
+                        className="flex h-6 w-6 items-center justify-center rounded-full text-[10px] font-bold text-white"
+                        style={{ background: `linear-gradient(145deg, ${agentHueFor(actionClient.agentId).a}, ${agentHueFor(actionClient.agentId).b})` }}
+                      >
+                        {getAgentInitials(actionClient.agentId)}
+                      </div>
+                      <span className={isDark ? 'text-slate-200' : 'text-slate-700'}>{getAgentName(actionClient.agentId)}</span>
+                    </>
+                  ) : (
+                    <span className="italic text-slate-400">Non assigné</span>
+                  )}
                 </div>
               </div>
               <div>
-                <label className={`text-sm font-medium mb-1.5 block ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>Nouvel responsable</label>
-                <Select placeholder="Sélectionner un responsable" value={selectedAgent} onValueChange={(v) => setSelectedAgent(v)} options={users.map((u: any) => ({ value: String(u.id), label: `${u.first_name || ''} ${u.last_name || ''}`.trim() }))} />
+                <label className={fieldLabel}>Nouveau responsable</label>
+                <Select
+                  placeholder="Sélectionner un responsable"
+                  value={selectedAgent}
+                  onValueChange={setSelectedAgent}
+                  options={users
+                    .filter((u: any) => u.status !== 'supprimé')
+                    .map((u: any) => ({ value: String(u.id), label: `${u.first_name || ''} ${u.last_name || ''}`.trim() }))}
+                />
               </div>
               <div>
-                <label className={`text-sm font-medium mb-1.5 block ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>Note pour le responsable</label>
-                <textarea className={`w-full h-20 px-3 py-2 text-sm rounded-xl border focus:outline-none resize-none ${isDark ? 'bg-white/[0.04] border-white/10 text-white placeholder:text-slate-500 focus:border-violet-400/30' : 'bg-white border-teal-900/10 text-slate-900 placeholder:text-slate-400 focus:border-teal-500/30'}`} placeholder="Je vous confie ce client pour le suivi..." value={reassignNote} onChange={(e) => setReassignNote(e.target.value)} />
+                <label className={fieldLabel}>Note pour le responsable</label>
+                <Textarea placeholder="Je vous confie ce client pour le suivi..." value={reassignNote} onChange={(e) => setReassignNote(e.target.value)} />
               </div>
-              <label className={`flex items-center gap-2 text-sm cursor-pointer ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
-                <input type="checkbox" className="w-4 h-4 rounded border" checked={sendNotification} onChange={(e) => setSendNotification(e.target.checked)} />
-                Envoyer une notification au nouveau responsable
+              <label
+                className={cn(
+                  'flex cursor-pointer items-center justify-between gap-3 rounded-2xl border p-3.5 transition-all duration-200',
+                  isDark
+                    ? 'border-white/[0.08] bg-white/[0.04] hover:border-white/[0.14] hover:bg-white/[0.06]'
+                    : isGerant
+                      ? 'border-[#905D5D]/15 bg-white/70 hover:border-[#905D5D]/30 hover:bg-white'
+                      : 'border-orange-900/10 bg-white/70 hover:border-orange-500/25 hover:bg-white',
+                )}
+              >
+                <span className="flex min-w-0 items-center gap-3">
+                  <span
+                    className={cn(
+                      'flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border transition-colors',
+                      isDark
+                        ? 'border-white/10 bg-white/[0.05] text-slate-300'
+                        : isGerant
+                          ? 'border-[#905D5D]/15 bg-[#905D5D]/10 text-[#7D5050]'
+                          : 'border-orange-900/10 bg-orange-500/10 text-orange-700',
+                    )}
+                    style={!isDark && sendNotification ? { borderColor: `${interfaceHue.line}33`, background: `${interfaceHue.line}1A`, color: interfaceHue.line } : undefined}
+                  >
+                    <Bell size={15} />
+                  </span>
+                  <span className="min-w-0">
+                    <span className={cn('block text-xs font-bold', isDark ? 'text-slate-200' : 'text-slate-800')}>Notifier le nouveau responsable</span>
+                    <span className="mt-0.5 block text-[11px] text-slate-500">Envoyer une notification lors de la réaffectation.</span>
+                  </span>
+                </span>
+                <span
+                  className={cn(
+                    'relative h-5 w-9 shrink-0 rounded-full transition-all duration-300',
+                    sendNotification ? '' : isDark ? 'bg-white/15' : 'bg-slate-900/15',
+                  )}
+                  style={sendNotification ? {
+                    backgroundImage: `linear-gradient(90deg, ${interfaceHue.a}, ${interfaceHue.b})`,
+                    boxShadow: `0 0 14px -4px ${interfaceHue.glow}, inset 0 1px 0 rgba(255,255,255,0.35)`,
+                  } : undefined}
+                >
+                  <span className={cn('absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform duration-300', sendNotification ? 'translate-x-[18px]' : 'translate-x-0.5')} />
+                </span>
+                <input
+                  type="checkbox"
+                  className="sr-only"
+                  checked={sendNotification}
+                  onChange={(e) => setSendNotification(e.target.checked)}
+                />
               </label>
-              <div className="flex items-center justify-end gap-3 pt-2">
-                <Button variant="ghost" onClick={() => setShowReassignDialog(false)}>Annuler</Button>
-                <Button variant="default" className={isGerant ? GERANT_BUTTON_CLASSES : ''} onClick={handleReassign} disabled={!selectedAgent}>Réaffecter</Button>
-              </div>
             </div>
           )}
-        </Dialog>
+        </StageModal>
 
-        <Dialog isOpen={showDeleteDialog} onClose={() => setShowDeleteDialog(false)} title="Supprimer le client" size="lg">
+        <StageModal
+          open={showDeleteDialog}
+          onClose={() => setShowDeleteDialog(false)}
+          title="Supprimer le client"
+          eyebrow="Zone sensible"
+          subtitle={actionClient ? [actionClient.type, actionClient.phone].filter(Boolean).join(' · ') : undefined}
+          icon={Trash2}
+          hue={DANGER_HUE}
+          maxWidth="max-w-xl"
+          centered
+          footer={actionClient ? (
+            <>
+              <button className={ghostBtn} onClick={() => setShowDeleteDialog(false)}>Annuler</button>
+              <button
+                className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-white/20 bg-gradient-to-br from-rose-400 to-rose-600 px-4 text-sm font-semibold text-white shadow-[0_10px_24px_-10px_rgba(244,63,94,0.7)] transition-all hover:brightness-110 active:scale-[0.97] disabled:pointer-events-none disabled:opacity-40"
+                onClick={handleDelete}
+                disabled={deleteConfirm !== 'SUPPRIMER'}
+              >
+                Confirmer la suppression
+              </button>
+            </>
+          ) : undefined}
+        >
           {actionClient && (
             <div className="space-y-4">
-              <div className={`p-3 rounded-xl border ${isDark ? 'bg-white/[0.04] border-white/10' : 'bg-teal-50 border-teal-900/10'}`}>
-                <p className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-slate-900'}`}>{actionClient.name}</p>
-                <p className={`text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{actionClient.type} · {actionClient.phone}</p>
-              </div>
-              <div className="p-3 rounded-xl bg-red-50 border border-red-200">
-                <div className="flex items-start gap-2">
-                  <AlertTriangle size={16} className="text-red-500 flex-shrink-0 mt-0.5" />
-                  <div className="text-xs text-red-700 space-y-1">
-                    <p className="font-semibold">Attention :</p>
-                    <ul className="list-disc list-inside space-y-0.5">
+              <ClientSummaryCard client={actionClient} isDark={isDark} hue={DANGER_HUE} isGerant={isGerant} />
+              <div className={cn('rounded-2xl border p-3.5', isDark ? 'border-rose-400/25 bg-rose-500/10' : 'border-rose-200 bg-rose-50')}>
+                <div className="flex items-start gap-2.5">
+                  <AlertTriangle size={16} className={cn('mt-0.5 shrink-0', isDark ? 'text-rose-300' : 'text-rose-500')} />
+                  <div className={cn('space-y-1 text-xs', isDark ? 'text-rose-200/85' : 'text-rose-700')}>
+                    <p className="font-semibold">Attention — action irréversible</p>
+                    <ul className="list-inside list-disc space-y-0.5">
                       <li>Cette action est IRREVERSIBLE</li>
                       <li>Tous les documents associés seront supprimés</li>
                       <li>Tous les mandats liés seront supprimés</li>
@@ -1019,107 +1370,105 @@ export default function AdminClientsPageWithType() {
                 </div>
               </div>
               <div>
-                <label className="text-sm font-medium mb-1.5 block">Confirmation</label>
-                <input type="text" className="w-full h-10 px-3 text-sm rounded-xl border border-border bg-card placeholder:text-text-secondary/50 focus:outline-none focus:ring-2 focus:ring-error/20 focus:border-error" placeholder='Tapez "SUPPRIMER" pour confirmer' value={deleteConfirm} onChange={(e) => setDeleteConfirm(e.target.value)} />
+                <label className={fieldLabel}>Confirmation</label>
+                <Input placeholder='Tapez "SUPPRIMER" pour confirmer' value={deleteConfirm} onChange={(e) => setDeleteConfirm(e.target.value)} />
               </div>
               <div>
-                <label className="text-sm font-medium mb-1.5 block">Motif de suppression (optionnel)</label>
-                <select className={`w-full h-10 px-3 text-sm rounded-xl border bg-card focus:outline-none ${isDark ? 'bg-white/[0.04] border-white/10 text-white focus:border-violet-400/30' : 'bg-white border-teal-900/10 text-slate-900 focus:border-teal-500/30'}`} value={deleteReason} onChange={(e) => setDeleteReason(e.target.value)}>
-                  <option value="">Sélectionner un motif</option>
-                  <option value="doublon">Erreur de saisie - Doublon</option>
-                  <option value="retire">Client retiré</option>
-                  <option value="decede">Client décédé</option>
-                  <option value="autre">Autre</option>
-                </select>
-              </div>
-              <div className="flex items-center justify-end gap-3 pt-2">
-                <Button variant="ghost" onClick={() => setShowDeleteDialog(false)}>Annuler</Button>
-                <Button variant="danger" onClick={handleDelete} disabled={deleteConfirm !== 'SUPPRIMER'}>Confirmer la suppression</Button>
+                <label className={fieldLabel}>Motif de suppression (optionnel)</label>
+                <Select
+                  value={deleteReason}
+                  onValueChange={setDeleteReason}
+                  placeholder="Sélectionner un motif"
+                  options={[
+                    { value: 'doublon', label: 'Erreur de saisie - Doublon' },
+                    { value: 'retire', label: 'Client retiré' },
+                    { value: 'decede', label: 'Client décédé' },
+                    { value: 'autre', label: 'Autre' },
+                  ]}
+                />
               </div>
             </div>
           )}
-        </Dialog>
+        </StageModal>
 
-        <Dialog isOpen={showStatusDialog} onClose={() => setShowStatusDialog(false)} title="Changer le statut" size="md">
+        <StageModal
+          open={showStatusDialog}
+          onClose={() => setShowStatusDialog(false)}
+          title="Changer le statut"
+          eyebrow="Cycle de vie"
+          subtitle={actionClient ? `${actionClient.name || 'Client'} · ${actionClient.type || ''}` : undefined}
+          icon={Activity}
+          hue={interfaceHue}
+          maxWidth="max-w-lg"
+          centered
+          footer={actionClient ? (
+            <>
+              <button className={ghostBtn} onClick={() => setShowStatusDialog(false)}>Annuler</button>
+              <button className={cn(btns.primary, isGerant && 'btn-gerant-pill')} onClick={handleStatusChange} disabled={newStatus === (actionClient.statutMetier || actionClient.status)}>Changer le statut</button>
+            </>
+          ) : undefined}
+        >
           {actionClient && (
             <div className="space-y-4">
-              <div className={`p-3 rounded-xl border ${isDark ? 'bg-white/[0.04] border-white/10' : 'bg-teal-50 border-teal-900/10'}`}>
-                <p className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-slate-900'}`}>{actionClient.name}</p>
-                <p className={`text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{actionClient.type} · {actionClient.phone}</p>
-              </div>
+              <ClientSummaryCard client={actionClient} isDark={isDark} hue={interfaceHue} isGerant={isGerant} />
               <div>
-                <label className="text-sm font-medium mb-1.5 block">Statut actuel</label>
-                <span className={`inline-flex items-center px-2.5 py-1 text-xs font-medium rounded-full border ${STATUS_COLORS[actionClient.statutMetier || actionClient.status] || 'bg-gray-50 text-gray-500 border-gray-200'}`}>{actionClient.statutMetier || actionClient.status}</span>
-              </div>
-              <div>
-                <label className="text-sm font-medium mb-1.5 block">Nouveau statut</label>
-                <select className={`w-full h-10 px-3 text-sm rounded-xl border bg-card focus:outline-none ${isDark ? 'bg-white/[0.04] border-white/10 text-white focus:border-violet-400/30' : 'bg-white border-teal-900/10 text-slate-900 focus:border-teal-500/30'}`} value={newStatus} onChange={(e) => setNewStatus(e.target.value)}>
-                  {(STATUS_BY_TYPE[type || ''] || []).map(s => (<option key={s} value={s}>{s}</option>))}
-                </select>
-              </div>
-              <div className="flex items-center justify-end gap-3 pt-2">
-                <Button variant="ghost" onClick={() => setShowStatusDialog(false)}>Annuler</Button>
-                <Button variant="default" className={isGerant ? GERANT_BUTTON_CLASSES : ''} onClick={handleStatusChange} disabled={newStatus === (actionClient.statutMetier || actionClient.status)}>Changer le statut</Button>
+                <p className={fieldLabel}>Nouveau statut</p>
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                  {(STATUS_BY_TYPE[type || ''] || []).map(s => {
+                    const statusHue = getClientStatusHue(s) || interfaceHue;
+                    const active = newStatus === s;
+                    return (
+                      <button
+                        key={s}
+                        type="button"
+                        onClick={() => setNewStatus(s)}
+                        className={cn(
+                          'rounded-xl border px-3 py-2 text-left text-xs font-semibold transition-all duration-200 active:scale-[0.98]',
+                          active ? 'border-transparent' : isDark ? 'border-white/[0.06] bg-white/[0.03] text-slate-300 hover:bg-white/[0.06]' : 'border-orange-900/10 bg-white/70 text-slate-600 hover:bg-white',
+                        )}
+                        style={active ? stagePillStyle(statusHue, isDark) : undefined}
+                      >
+                        {s}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             </div>
           )}
-        </Dialog>
+        </StageModal>
 
-        <Dialog isOpen={showAssignModal} onClose={() => setShowAssignModal(false)} title="Attribution du client" size="sm">
-          {assignStep === 'choose' ? (
-            <div className="space-y-3">
-              <p className={`text-sm ${isDark ? 'text-slate-400' : 'text-slate-600'} mb-4`}>Souhaitez-vous confier ce client à un agent, un admin ou le gérer vous-même ?</p>
-              <button className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl border transition-all text-left group ${isDark ? 'bg-white/[0.04] border-white/10 hover:bg-white/[0.06] hover:border-violet-400/30' : 'bg-white border-teal-900/10 hover:bg-teal-50 hover:border-teal-500/20'}`} onClick={() => setAssignStep('agent')}>
-                <div className="w-9 h-9 rounded-xl bg-violet-500/10 flex items-center justify-center text-violet-500 group-hover:scale-105 transition-transform"><Users size={16} /></div>
-                <div><div className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-slate-900'}`}>Confier à un agent</div><div className={`text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Le client sera rattaché à un agent immobilier</div></div>
-              </button>
-              <button className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl border transition-all text-left group ${isDark ? 'bg-white/[0.04] border-white/10 hover:bg-white/[0.06] hover:border-violet-400/30' : 'bg-white border-teal-900/10 hover:bg-teal-50 hover:border-teal-500/20'}`} onClick={() => setAssignStep('admin')}>
-                <div className="w-9 h-9 rounded-xl bg-indigo-500/10 flex items-center justify-center text-indigo-500 group-hover:scale-105 transition-transform"><Shield size={16} /></div>
-                <div><div className={`text-sm font-semibold ${isDark ? 'text-white' : 'text-slate-900'}`}>Confier à un admin</div><div className={`text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Le client sera géré par un autre administrateur</div></div>
-              </button>
-              <div className="relative py-1"><div className="absolute inset-0 flex items-center"><div className={`w-full border-t ${isDark ? 'border-white/10' : 'border-teal-900/10'}`} /></div><div className="relative flex justify-center"><span className={`px-3 text-xs ${isDark ? 'bg-[#0B1022] text-slate-500' : 'bg-white text-slate-400'}`}>ou</span></div></div>
-              <button className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl border transition-all text-left group ${isGerant ? 'border-[#905D5D]/20 bg-[#905D5D]/5 hover:bg-[#905D5D]/10 hover:border-[#905D5D]/30' : isDark ? 'border-violet-500/20 bg-violet-500/5 hover:bg-violet-500/10' : 'border-teal-500/20 bg-teal-50 hover:bg-teal-100'}`} onClick={() => { setShowAssignModal(false); setSelectedAgent(currentUser ? String(currentUser.id) : ''); setIsModalOpen(true); }}>
-                <div className={`w-9 h-9 rounded-xl flex items-center justify-center group-hover:scale-105 transition-transform ${isGerant ? 'bg-[#905D5D]/10 text-[#905D5D]' : isDark ? 'bg-violet-500/10 text-violet-300' : 'bg-teal-500/10 text-teal-600'}`}><User size={16} /></div>
-                <div><div className={`text-sm font-semibold ${isGerant ? 'text-[#905D5D]' : isDark ? 'text-violet-300' : 'text-teal-700'}`}>Je gère moi-même</div><div className={`text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Ajouter le client directement en tant qu'admin</div></div>
-              </button>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              <button className={`text-xs flex items-center gap-1 transition-colors mb-2 ${isDark ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-slate-900'}`} onClick={() => setAssignStep('choose')}>
-                <ArrowLeft size={14} />
-                Retour
-              </button>
-              <p className={`text-sm mb-1 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>{assignStep === 'agent' ? 'Sélectionnez un agent' : 'Sélectionnez un admin'}</p>
-              <div className="space-y-1.5 max-h-64 overflow-y-auto scrollbar-thin">
-                {(assignStep === 'agent' ? users.filter(u => u.role === 'agent').map(u => ({ id: String(u.id), name: `${u.first_name || ''} ${u.last_name || ''}`.trim(), initials: `${(u.first_name || '')[0]}${(u.last_name || '')[0]}`.toUpperCase() || '?', color: COLORS[Math.abs(Number(u.id) || u.id.length) % COLORS.length] })) : users.filter(u => (u.role === 'admin' || u.role === 'gerant') && String(u.id) !== String(currentUser?.id)).map(u => ({ id: String(u.id), name: `${u.first_name || ''} ${u.last_name || ''}`.trim(), initials: `${(u.first_name || '')[0]}${(u.last_name || '')[0]}`.toUpperCase() || '?', color: 'bg-indigo-500' }))).map((person) => (
-                  <button key={person.id} className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-xl border transition-all text-left group ${isDark ? 'bg-white/[0.04] border-white/10 hover:bg-white/[0.06] hover:border-violet-400/20' : 'bg-white border-teal-900/10 hover:bg-teal-50 hover:border-teal-500/20'}`} onClick={() => { setShowAssignModal(false); setSelectedAgent(person.id); setIsModalOpen(true); }}>
-                    <div className={`w-8 h-8 rounded-full ${person.color} text-white text-xs font-semibold flex items-center justify-center`}>{person.initials}</div>
-                    <span className={`text-sm font-medium ${isDark ? 'text-white' : 'text-slate-900'}`}>{person.name}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-        </Dialog>
+        <ClientAssignModal
+          open={showAssignModal}
+          onClose={() => setShowAssignModal(false)}
+          users={users}
+          currentUser={currentUser}
+          onAssign={(agentId) => {
+            setShowAssignModal(false);
+            setSelectedAgent(agentId);
+            setIsModalOpen(true);
+          }}
+        />
 
-        {isModalOpen && (() => {
-          const handleClose = () => { setIsModalOpen(false); setResumeDraftId(undefined); setEditingClient(null); };
-          const handleSubmit = editingClient ? handleUpdateClient : handleAddClient;
-          const modalType = editingClient ? (editingClient.type || '').toLowerCase() : (type || '');
-          const clientTypeLabel = clientTypeKey[modalType] || clientTypeKey[type || ''] || 'Acheteur';
-          const commonProps = { onClose: handleClose, onSubmit: handleSubmit, client: editingClient || undefined, key: editingClient?.id || 'new', selectedContactId };
-          if (clientTypeLabel === 'Acheteur') return <BuyerFormModal {...commonProps} assignmentInfo={assignmentInfo} draftId={resumeDraftId} userId={currentUser ? String(currentUser.id) : undefined} onDraftChange={() => setDraftVersion(v => v + 1)} isGerant={isGerant} />;
-          if (clientTypeLabel === 'Vendeur') return <SellerFormModal {...commonProps} assignmentInfo={assignmentInfo} draftId={resumeDraftId} userId={currentUser ? String(currentUser.id) : undefined} onDraftChange={() => setDraftVersion(v => v + 1)} isGerant={isGerant} />;
-          if (clientTypeLabel === 'Bailleur') return <BailleurFormModal {...commonProps} assignmentInfo={assignmentInfo} draftId={resumeDraftId} userId={currentUser ? String(currentUser.id) : undefined} onDraftChange={() => setDraftVersion(v => v + 1)} isGerant={isGerant} />;
-          if (clientTypeLabel === 'Locataire') return <LocataireFormModal {...commonProps} assignmentInfo={assignmentInfo} draftId={resumeDraftId} userId={currentUser ? String(currentUser.id) : undefined} onDraftChange={() => setDraftVersion(v => v + 1)} isGerant={isGerant} />;
-          if (clientTypeLabel === 'Voyageur') return <VoyageurFormModal {...commonProps} assignmentInfo={assignmentInfo} draftId={resumeDraftId} userId={currentUser ? String(currentUser.id) : undefined} onDraftChange={() => setDraftVersion(v => v + 1)} isGerant={isGerant} />;
-          return <ClientFormModal onClose={handleClose} onSubmit={handleSubmit} clientType={clientTypeLabel} isGerant={isGerant} />;
-        })()}
+        <AnimatePresence>
+          {isModalOpen && (() => {
+            const handleClose = () => { setIsModalOpen(false); setResumeDraftId(undefined); setEditingClient(null); };
+            const handleSubmit = editingClient ? handleUpdateClient : handleAddClient;
+            const modalType = editingClient ? (editingClient.type || '').toLowerCase() : (type || '');
+            const clientTypeLabel = clientTypeKey[modalType] || clientTypeKey[type || ''] || 'Acheteur';
+            const commonProps = { onClose: handleClose, onSubmit: handleSubmit, client: editingClient || undefined, key: editingClient?.id || 'new', selectedContactId };
+            if (clientTypeLabel === 'Acheteur') return <BuyerFormModal {...commonProps} assignmentInfo={assignmentInfo} draftId={resumeDraftId} userId={currentUser ? String(currentUser.id) : undefined} onDraftChange={() => setDraftVersion(v => v + 1)} isGerant={isGerant} />;
+            if (clientTypeLabel === 'Vendeur') return <SellerFormModal {...commonProps} assignmentInfo={assignmentInfo} draftId={resumeDraftId} userId={currentUser ? String(currentUser.id) : undefined} onDraftChange={() => setDraftVersion(v => v + 1)} isGerant={isGerant} />;
+            if (clientTypeLabel === 'Bailleur') return <BailleurFormModal {...commonProps} assignmentInfo={assignmentInfo} draftId={resumeDraftId} userId={currentUser ? String(currentUser.id) : undefined} onDraftChange={() => setDraftVersion(v => v + 1)} isGerant={isGerant} />;
+            if (clientTypeLabel === 'Locataire') return <LocataireFormModal {...commonProps} assignmentInfo={assignmentInfo} draftId={resumeDraftId} userId={currentUser ? String(currentUser.id) : undefined} onDraftChange={() => setDraftVersion(v => v + 1)} isGerant={isGerant} />;
+            if (clientTypeLabel === 'Voyageur') return <VoyageurFormModal {...commonProps} assignmentInfo={assignmentInfo} draftId={resumeDraftId} userId={currentUser ? String(currentUser.id) : undefined} onDraftChange={() => setDraftVersion(v => v + 1)} isGerant={isGerant} />;
+            return <ClientFormModal onClose={handleClose} onSubmit={handleSubmit} clientType={clientTypeLabel} isGerant={isGerant} />;
+          })()}
+        </AnimatePresence>
 
         {currentUser && (
           <ClientDraftSection key={draftVersion} userId={String(currentUser.id)} clientType={clientTypeKey[type || '']} onResume={(draft) => setResumeDraftId(draft.id)} isGerant={isGerant} />
         )}
       </div>
-    </Stage>
   );
 }

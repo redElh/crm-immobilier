@@ -4,6 +4,7 @@ import { Calendar, ChevronLeft, ChevronRight } from 'react-feather'
 import { cn } from '../../lib/utils'
 import { portalWithTheme } from './dropdownTheme'
 import { useStageChrome } from '../modules/calendar/useStageChrome'
+import { useStageScope } from '../dashboard/Stage'
 
 const DAYS = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim']
 const MONTHS = ['Janvier', 'Février', 'Mars', 'Avril', 'Mai', 'Juin', 'Juillet', 'Août', 'Septembre', 'Octobre', 'Novembre', 'Décembre']
@@ -42,6 +43,7 @@ function formatDate(year: number, month: number, day: number): string {
 export const DatePicker = React.forwardRef<HTMLInputElement, DatePickerProps>(
   ({ label, value, defaultValue, onChange, onBlur, error, className, placeholder, required, disabled, min, max, name }, ref) => {
     const { staged, dark } = useStageChrome()
+    const isAdminDatePicker = useStageScope() === 'admin'
     const [isOpen, setIsOpen] = useState(false)
     const [selectedDate, setSelectedDate] = useState(value || defaultValue || '')
     const containerRef = useRef<HTMLDivElement>(null)
@@ -118,14 +120,37 @@ export const DatePicker = React.forwardRef<HTMLInputElement, DatePickerProps>(
       }
     }, [])
 
+    const justOpenedRef = useRef(false)
+
+    const openPanel = () => {
+      setDropdownStyle(computePosition())
+      setIsOpen(true)
+      justOpenedRef.current = true
+      window.setTimeout(() => { justOpenedRef.current = false }, 400)
+    }
+
+    /* Opening on pointerdown instead of click makes the trigger immune to
+       swallowed clicks (node swaps / focus scroll between down and up). */
+    const handlePointerDown = () => {
+      if (disabled || isOpen) return
+      openPanel()
+    }
+
     const handleToggle = () => {
       if (disabled) return
       if (isOpen) {
         setIsOpen(false)
       } else {
-        setDropdownStyle(computePosition())
-        setIsOpen(true)
+        openPanel()
       }
+    }
+
+    const handleClick = () => {
+      if (justOpenedRef.current) {
+        justOpenedRef.current = false
+        return
+      }
+      handleToggle()
     }
 
     const selectDay = (year: number, month: number, day: number) => {
@@ -223,15 +248,40 @@ export const DatePicker = React.forwardRef<HTMLInputElement, DatePickerProps>(
       }
     }, [isOpen, computePosition])
 
+    /* Re-measure while a host modal's entry spring is still moving the panel:
+       keeps the picker glued to its trigger instead of trusting a single
+       first measure taken mid-animation. */
+    useEffect(() => {
+      if (!isOpen) return
+      let raf = 0
+      const start = performance.now()
+      const track = () => {
+        setDropdownStyle((prev) => {
+          const next = computePosition()
+          const same =
+            Object.keys(next).length === Object.keys(prev).length &&
+            Object.entries(next).every(([k, v]) => (prev as Record<string, unknown>)[k] === v)
+          return same ? prev : next
+        })
+        if (performance.now() - start < 700) raf = requestAnimationFrame(track)
+      }
+      raf = requestAnimationFrame(track)
+      return () => cancelAnimationFrame(raf)
+    }, [isOpen, computePosition])
+
     const stagedClass = staged
       ? dark
-        ? 'w-full h-9 flex items-center justify-between px-3 text-sm rounded-xl border border-white/10 bg-gradient-to-b from-white/[0.08] to-white/[0.02] [background-color:transparent] text-slate-100 outline-none transition-all duration-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.14),inset_0_-8px_16px_-12px_rgba(0,0,0,0.7),0_6px_18px_-8px_rgba(3,5,14,0.9)] hover:border-white/15 focus:border-violet-400/70'
-        : 'w-full h-9 flex items-center justify-between px-3 text-sm rounded-xl border border-teal-900/15 bg-gradient-to-b from-white to-teal-50/70 [background-color:transparent] text-teal-950 outline-none transition-all duration-200 shadow-[inset_0_1px_0_rgba(255,255,255,1),inset_0_-6px_14px_-10px_rgba(13,148,136,0.35),0_6px_18px_-10px_rgba(13,148,136,0.45)] hover:border-teal-900/20 focus:border-teal-500/70'
+        ? isAdminDatePicker
+          ? 'w-full h-9 flex items-center justify-between px-3 text-sm rounded-xl border border-white/10 bg-gradient-to-b from-white/[0.08] to-white/[0.02] [background-color:transparent] text-slate-100 outline-none transition-all duration-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.14),inset_0_-8px_16px_-12px_rgba(0,0,0,0.7),0_6px_18px_-8px_rgba(3,5,14,0.9)] hover:border-white/15 focus:border-rose-400/70'
+          : 'w-full h-9 flex items-center justify-between px-3 text-sm rounded-xl border border-white/10 bg-gradient-to-b from-white/[0.08] to-white/[0.02] [background-color:transparent] text-slate-100 outline-none transition-all duration-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.14),inset_0_-8px_16px_-12px_rgba(0,0,0,0.7),0_6px_18px_-8px_rgba(3,5,14,0.9)] hover:border-white/15 focus:border-violet-400/70'
+        : isAdminDatePicker
+          ? 'w-full h-9 flex items-center justify-between px-3 text-sm rounded-xl border border-orange-900/20 bg-gradient-to-b from-white to-orange-50/80 [background-color:transparent] text-slate-900 outline-none transition-all duration-200 shadow-[inset_0_1px_0_rgba(255,255,255,1),0_4px_16px_-8px_rgba(41,37,36,0.16)] hover:border-orange-900/30 focus:border-orange-500'
+          : 'w-full h-9 flex items-center justify-between px-3 text-sm rounded-xl border border-teal-900/15 bg-gradient-to-b from-white to-teal-50/70 [background-color:transparent] text-teal-950 outline-none transition-all duration-200 shadow-[inset_0_1px_0_rgba(255,255,255,1),inset_0_-6px_14px_-10px_rgba(13,148,136,0.35),0_6px_18px_-10px_rgba(13,148,136,0.45)] hover:border-teal-900/20 focus:border-teal-500/70'
       : null
     return (
       <div ref={containerRef}>
         {label && (
-          <label className={cn('block mb-1.5', staged ? (dark ? 'text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400/85' : 'text-[11px] font-bold uppercase tracking-[0.14em] text-teal-900/55') : 'text-sm font-medium text-text mb-1.5')}>
+          <label className={cn('block mb-1.5', staged ? (dark ? 'text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400/85' : isAdminDatePicker ? 'text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500' : 'text-[11px] font-bold uppercase tracking-[0.14em] text-teal-900/55') : 'text-sm font-medium text-text mb-1.5')}>
             {label}
             {required && <span className="text-error ml-0.5">*</span>}
           </label>
@@ -241,7 +291,8 @@ export const DatePicker = React.forwardRef<HTMLInputElement, DatePickerProps>(
             ref={buttonRef}
             role="button"
             tabIndex={0}
-            onClick={handleToggle}
+            onPointerDown={handlePointerDown}
+            onClick={handleClick}
             onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') handleToggle() }}
             className={cn(
               stagedClass ? stagedClass : cn(
@@ -257,8 +308,8 @@ export const DatePicker = React.forwardRef<HTMLInputElement, DatePickerProps>(
             )}
           >
             <div className="flex items-center gap-2 min-w-0">
-              <Calendar size={15} className={cn('shrink-0', staged && dark ? 'text-slate-500' : 'text-text-secondary')} />
-              <span className={cn('truncate', !displayDate && (staged && dark ? 'text-slate-500' : 'text-text-secondary/60'))}>
+              <Calendar size={15} className={cn('shrink-0', staged && dark ? 'text-slate-500' : staged && isAdminDatePicker ? 'text-slate-400' : 'text-text-secondary')} />
+              <span className={cn('truncate', !displayDate && (staged && dark ? 'text-slate-500' : staged && isAdminDatePicker ? 'text-slate-400' : 'text-text-secondary/60'))}>
                 {displayDate || placeholder || 'Sélectionner une date'}
               </span>
             </div>
@@ -268,6 +319,7 @@ export const DatePicker = React.forwardRef<HTMLInputElement, DatePickerProps>(
                 animate={{ opacity: 1, scale: 1 }}
                 type="button"
                 tabIndex={-1}
+                onPointerDown={(e) => e.stopPropagation()}
                 className="p-0.5 rounded text-text-secondary/40 hover:text-text hover:bg-background transition-colors shrink-0"
                 onClick={clearDate}
               >
@@ -295,8 +347,12 @@ export const DatePicker = React.forwardRef<HTMLInputElement, DatePickerProps>(
                   'rounded-2xl border p-4 select-none backdrop-blur-xl',
                   staged
                     ? dark
-                      ? 'border-violet-500/20 bg-[#0F0A1E] shadow-[0_24px_60px_-20px_rgba(124,92,255,0.35),inset_0_1px_0_rgba(255,255,255,0.08)]'
-                      : 'border-white/70 bg-white/92 shadow-[0_24px_60px_-28px_rgba(13,148,136,0.35),inset_0_1px_0_rgba(255,255,255,0.9)]'
+                      ? isAdminDatePicker
+                        ? 'border-rose-500/20 bg-[#180F1E] shadow-[0_24px_60px_-20px_rgba(244,63,94,0.35),inset_0_1px_0_rgba(255,255,255,0.08)]'
+                        : 'border-violet-500/20 bg-[#0F0A1E] shadow-[0_24px_60px_-20px_rgba(124,92,255,0.35),inset_0_1px_0_rgba(255,255,255,0.08)]'
+                      : isAdminDatePicker
+                        ? 'border-white/70 bg-white/92 shadow-[0_24px_60px_-28px_rgba(249,115,22,0.35),inset_0_1px_0_rgba(255,255,255,0.9)]'
+                        : 'border-white/70 bg-white/92 shadow-[0_24px_60px_-28px_rgba(13,148,136,0.35),inset_0_1px_0_rgba(255,255,255,0.9)]'
                     : 'bg-card border-border/50 shadow-dropdown'
                 )}
               >
@@ -308,7 +364,7 @@ export const DatePicker = React.forwardRef<HTMLInputElement, DatePickerProps>(
                     aria-label="Mois précédent"
                     className={cn(
                       'flex h-8 w-8 items-center justify-center rounded-xl transition-all duration-200 active:scale-90',
-                      staged ? (dark ? 'text-slate-400 hover:bg-white/[0.06] hover:text-white' : 'text-teal-900/60 hover:bg-teal-900/[0.06] hover:text-teal-900') : 'text-text-secondary hover:bg-background hover:text-text'
+                      staged ? (dark ? 'text-slate-400 hover:bg-white/[0.06] hover:text-white' : isAdminDatePicker ? 'text-slate-500 hover:bg-slate-900/[0.05] hover:text-slate-900' : 'text-teal-900/60 hover:bg-teal-900/[0.06] hover:text-teal-900') : 'text-text-secondary hover:bg-background hover:text-text'
                     )}
                   >
                     <ChevronLeft size={16} />
@@ -321,11 +377,19 @@ export const DatePicker = React.forwardRef<HTMLInputElement, DatePickerProps>(
                       staged
                         ? showYearPicker
                           ? dark
-                            ? 'border-violet-400/30 bg-violet-500/20 text-white'
-                            : 'border-teal-500/30 bg-teal-500/12 text-teal-900'
+                            ? isAdminDatePicker
+                              ? 'border-rose-400/30 bg-rose-500/20 text-white'
+                              : 'border-violet-400/30 bg-violet-500/20 text-white'
+                            : isAdminDatePicker
+                              ? 'border-orange-500/30 bg-orange-500/12 text-orange-900'
+                              : 'border-teal-500/30 bg-teal-500/12 text-teal-900'
                           : dark
-                            ? 'border-white/10 bg-white/[0.06] text-slate-200 hover:border-violet-400/20 hover:text-white'
-                            : 'border-teal-900/10 bg-white text-teal-800 hover:border-teal-500/20'
+                            ? isAdminDatePicker
+                              ? 'border-white/10 bg-white/[0.06] text-slate-200 hover:border-rose-400/20 hover:text-white'
+                              : 'border-white/10 bg-white/[0.06] text-slate-200 hover:border-violet-400/20 hover:text-white'
+                            : isAdminDatePicker
+                              ? 'border-orange-900/10 bg-white text-orange-800 hover:border-orange-500/20'
+                              : 'border-teal-900/10 bg-white text-teal-800 hover:border-teal-500/20'
                         : showYearPicker
                           ? 'border-accent/40 bg-accent-light/60 text-accent'
                           : 'border-border/50 bg-background text-text hover:border-accent/30 hover:text-accent'
@@ -340,7 +404,7 @@ export const DatePicker = React.forwardRef<HTMLInputElement, DatePickerProps>(
                     aria-label="Mois suivant"
                     className={cn(
                       'flex h-8 w-8 items-center justify-center rounded-xl transition-all duration-200 active:scale-90',
-                      staged ? (dark ? 'text-slate-400 hover:bg-white/[0.06] hover:text-white' : 'text-teal-900/60 hover:bg-teal-900/[0.06] hover:text-teal-900') : 'text-text-secondary hover:bg-background hover:text-text'
+                      staged ? (dark ? 'text-slate-400 hover:bg-white/[0.06] hover:text-white' : isAdminDatePicker ? 'text-slate-500 hover:bg-slate-900/[0.05] hover:text-slate-900' : 'text-teal-900/60 hover:bg-teal-900/[0.06] hover:text-teal-900') : 'text-text-secondary hover:bg-background hover:text-text'
                     )}
                   >
                     <ChevronRight size={16} />
@@ -356,24 +420,24 @@ export const DatePicker = React.forwardRef<HTMLInputElement, DatePickerProps>(
                       transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
                       className="mb-3 overflow-hidden"
                     >
-                      <div className={cn('rounded-xl border p-3', staged ? (dark ? 'border-white/10 bg-white/[0.04]' : 'border-teal-900/10 bg-white') : 'border-border/50 bg-background')}>
+                      <div className={cn('rounded-xl border p-3', staged ? (dark ? 'border-white/10 bg-white/[0.04]' : isAdminDatePicker ? 'border-orange-900/10 bg-white' : 'border-teal-900/10 bg-white') : 'border-border/50 bg-background')}>
                         <div className="mb-2.5 flex items-center justify-between">
                           <button
                             type="button"
                             aria-label="Décennie précédente"
                             onClick={() => setViewYear(y => y - 10)}
-                            className={cn('flex h-7 w-7 items-center justify-center rounded-lg transition-all duration-200 active:scale-90', staged ? (dark ? 'text-slate-400 hover:bg-white/[0.06] hover:text-white' : 'text-teal-900/60 hover:bg-teal-900/[0.04]') : 'text-text-secondary hover:bg-card hover:text-text')}
+                            className={cn('flex h-7 w-7 items-center justify-center rounded-lg transition-all duration-200 active:scale-90', staged ? (dark ? 'text-slate-400 hover:bg-white/[0.06] hover:text-white' : isAdminDatePicker ? 'text-orange-900/60 hover:bg-orange-900/[0.04]' : 'text-teal-900/60 hover:bg-teal-900/[0.04]') : 'text-text-secondary hover:bg-card hover:text-text')}
                           >
                             <ChevronLeft size={14} />
                           </button>
-                          <span className={cn('font-mono text-[11px] font-bold uppercase tracking-[0.18em]', staged ? (dark ? 'text-slate-400' : 'text-teal-900/55') : 'text-text-secondary')}>
+                          <span className={cn('font-mono text-[11px] font-bold uppercase tracking-[0.18em]', staged ? (dark ? 'text-slate-400' : isAdminDatePicker ? 'text-slate-400' : 'text-teal-900/55') : 'text-text-secondary')}>
                             {decadeStart} – {decadeStart + 9}
                           </span>
                           <button
                             type="button"
                             aria-label="Décennie suivante"
                             onClick={() => setViewYear(y => y + 10)}
-                            className={cn('flex h-7 w-7 items-center justify-center rounded-lg transition-all duration-200 active:scale-90', staged ? (dark ? 'text-slate-400 hover:bg-white/[0.06] hover:text-white' : 'text-teal-900/60 hover:bg-teal-900/[0.04]') : 'text-text-secondary hover:bg-card hover:text-text')}
+                            className={cn('flex h-7 w-7 items-center justify-center rounded-lg transition-all duration-200 active:scale-90', staged ? (dark ? 'text-slate-400 hover:bg-white/[0.06] hover:text-white' : isAdminDatePicker ? 'text-orange-900/60 hover:bg-orange-900/[0.04]' : 'text-teal-900/60 hover:bg-teal-900/[0.04]') : 'text-text-secondary hover:bg-card hover:text-text')}
                           >
                             <ChevronRight size={14} />
                           </button>
@@ -392,10 +456,10 @@ export const DatePicker = React.forwardRef<HTMLInputElement, DatePickerProps>(
                                 onClick={() => { setViewYear(y); setShowYearPicker(false); }}
                                 className={cn(
                                   'flex h-9 items-center justify-center rounded-lg text-xs font-semibold tabular-nums transition-colors duration-150',
-                                  !isInRange && (staged ? (dark ? 'text-slate-600' : 'text-teal-900/20') : 'text-text-secondary/25'),
-                                  isInRange && !isSelected && !isCurrent && (staged ? (dark ? 'text-slate-300 hover:bg-white/[0.06] hover:text-white' : 'text-teal-900/70 hover:bg-teal-900/[0.04]') : 'text-text-secondary hover:bg-card hover:text-text'),
-                                  isCurrent && !isSelected && (staged ? (dark ? 'bg-violet-500/20 text-violet-200 ring-1 ring-violet-400/30' : 'bg-teal-500/12 text-teal-800 ring-1 ring-teal-500/20') : 'bg-accent/10 text-accent ring-1 ring-accent/40'),
-                                  isSelected && (staged ? (dark ? 'bg-gradient-to-b from-[#8B7CFF] to-[#5646C9] text-white shadow-[0_0_12px_rgba(124,92,255,0.5)]' : 'bg-gradient-to-b from-teal-400 to-emerald-600 text-white shadow-[0_0_12px_rgba(20,184,166,0.4)]') : 'dp-selected !text-white'),
+                                  !isInRange && (staged ? (dark ? 'text-slate-600' : isAdminDatePicker ? 'text-slate-300' : 'text-teal-900/20') : 'text-text-secondary/25'),
+                                  isInRange && !isSelected && !isCurrent && (staged ? (dark ? 'text-slate-300 hover:bg-white/[0.06] hover:text-white' : isAdminDatePicker ? 'text-slate-600 hover:bg-slate-900/[0.05]' : 'text-teal-900/70 hover:bg-teal-900/[0.04]') : 'text-text-secondary hover:bg-card hover:text-text'),
+                                  isCurrent && !isSelected && (staged ? (dark ? (isAdminDatePicker ? 'bg-rose-500/20 text-rose-200 ring-1 ring-rose-400/30' : 'bg-violet-500/20 text-violet-200 ring-1 ring-violet-400/30') : isAdminDatePicker ? 'bg-orange-500/12 text-orange-800 ring-1 ring-orange-500/20' : 'bg-teal-500/12 text-teal-800 ring-1 ring-teal-500/20') : 'bg-accent/10 text-accent ring-1 ring-accent/40'),
+                                  isSelected && (staged ? (dark ? (isAdminDatePicker ? 'bg-gradient-to-b from-rose-400 to-rose-700 text-white shadow-[0_0_12px_rgba(244,63,94,0.5)]' : 'bg-gradient-to-b from-[#8B7CFF] to-[#5646C9] text-white shadow-[0_0_12px_rgba(124,92,255,0.5)]') : isAdminDatePicker ? 'bg-gradient-to-b from-orange-400 to-orange-700 text-white shadow-[0_0_12px_rgba(249,115,22,0.4)]' : 'bg-gradient-to-b from-teal-400 to-emerald-600 text-white shadow-[0_0_12px_rgba(20,184,166,0.4)]') : 'dp-selected !text-white'),
                                 )}
                               >
                                 {y}
@@ -411,7 +475,7 @@ export const DatePicker = React.forwardRef<HTMLInputElement, DatePickerProps>(
                 {/* weekdays */}
                 <div className="mb-1.5 grid grid-cols-7 gap-1">
                   {DAYS.map((d) => (
-                    <div key={d} className={cn('py-1 text-center text-[10px] font-bold uppercase tracking-[0.12em]', staged ? (dark ? 'text-slate-500' : 'text-teal-900/35') : 'text-text-secondary/45')}>
+                    <div key={d} className={cn('py-1 text-center text-[10px] font-bold uppercase tracking-[0.12em]', staged ? (dark ? 'text-slate-500' : isAdminDatePicker ? 'text-slate-400' : 'text-teal-900/35') : 'text-text-secondary/45')}>
                       {d}
                     </div>
                   ))}
@@ -443,8 +507,8 @@ export const DatePicker = React.forwardRef<HTMLInputElement, DatePickerProps>(
                           staged
                             ? cell.current
                               ? isSelected(cell.year, cell.month, cell.day)
-                                ? dark ? 'bg-gradient-to-b from-[#8B7CFF] to-[#5646C9] text-white shadow-[0_0_12px_rgba(124,92,255,0.5)] font-bold' : 'bg-gradient-to-b from-teal-400 to-emerald-600 text-white shadow-[0_0_12px_rgba(20,184,166,0.4)] font-bold'
-                                : isToday(cell.year, cell.month, cell.day) ? (dark ? 'text-white ring-1 ring-violet-400/40 bg-white/[0.06]' : 'text-teal-900 ring-1 ring-teal-500/30 bg-teal-500/10') : (dark ? 'text-slate-200 hover:bg-white/[0.06] hover:text-white' : 'text-teal-900 hover:bg-teal-900/[0.06]')
+                                ? dark ? (isAdminDatePicker ? 'bg-gradient-to-b from-rose-400 to-rose-700 text-white shadow-[0_0_12px_rgba(244,63,94,0.5)] font-bold' : 'bg-gradient-to-b from-[#8B7CFF] to-[#5646C9] text-white shadow-[0_0_12px_rgba(124,92,255,0.5)] font-bold') : isAdminDatePicker ? 'bg-gradient-to-b from-orange-400 to-orange-700 text-white shadow-[0_0_12px_rgba(249,115,22,0.4)] font-bold' : 'bg-gradient-to-b from-teal-400 to-emerald-600 text-white shadow-[0_0_12px_rgba(20,184,166,0.4)] font-bold'
+                                : isToday(cell.year, cell.month, cell.day) ? (dark ? (isAdminDatePicker ? 'text-white ring-1 ring-rose-400/40 bg-white/[0.06]' : 'text-white ring-1 ring-violet-400/40 bg-white/[0.06]') : isAdminDatePicker ? 'text-orange-900 ring-1 ring-orange-500/30 bg-orange-500/10' : 'text-teal-900 ring-1 ring-teal-500/30 bg-teal-500/10') : (dark ? 'text-slate-200 hover:bg-white/[0.06] hover:text-white' : isAdminDatePicker ? 'text-orange-900 hover:bg-orange-900/[0.06]' : 'text-teal-900 hover:bg-teal-900/[0.06]')
                               : 'text-slate-600 dark:text-slate-600'
                             : cell.current ? 'text-text hover:bg-accent-light/60' : 'text-text-secondary/25',
                           isDisabled(cell.year, cell.month, cell.day) && 'cursor-not-allowed opacity-40 hover:bg-transparent',

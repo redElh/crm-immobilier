@@ -1,11 +1,11 @@
-import { useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { useNavigate, useParams } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   Users, Search, Home, Briefcase, Sun, TrendingUp,
   ChevronRight, UserCheck, UserX, ArrowUp, ArrowDown, Lock, UserPlus, ArrowUpRight
 } from 'react-feather';
 import { useState, useEffect, useMemo } from 'react';
-import { fetchClients } from '../../../services/clientService';
+import { fetchClients, createClient } from '../../../services/clientService';
 import { api } from '../../../services/api';
 import { useMyPermissions, permissionAllowed } from '../../../hooks/useMyPermissions';
 import { useStageChrome } from '../../../components/modules/calendar/useStageChrome';
@@ -13,6 +13,18 @@ import {
   Stage, StageBadge, StagePanel, StageStatCard, StageButton,
   TiltCard, OrbIcon, STAGE_HUES, useStageTheme, AnimatedNumber,
 } from '../../../components/dashboard/Stage';
+import { ClientTypeChooser } from '../../../components/modules/clients/ClientTypeChooser';
+import { BuyerFormModal } from '../../../components/modules/clients/BuyerFormModal';
+import { SellerFormModal } from '../../../components/modules/clients/SellerFormModal';
+import { BailleurFormModal } from '../../../components/modules/clients/BailleurFormModal';
+import { LocataireFormModal } from '../../../components/modules/clients/LocataireFormModal';
+import { VoyageurFormModal } from '../../../components/modules/clients/VoyageurFormModal';
+import { useToast } from '../../../components/ui/Toast';
+import type { Client } from '../../../types/client';
+
+const TYPE_LABELS: Record<string, string> = {
+  acheteur: 'Acheteur', vendeur: 'Vendeur', bailleur: 'Bailleur', locataire: 'Locataire', voyageur: 'Voyageur',
+};
 
 const clientTypes = [
   { type: 'acheteur', title: 'Acheteurs', description: 'Recherche et acquisition de biens', icon: Search, hue: STAGE_HUES.emerald },
@@ -80,13 +92,19 @@ function ClientTypeOrb({ clientType, index, onClick }: { clientType: any; index:
 
 export default function ClientTypesPage() {
   const navigate = useNavigate();
+  const { agentId } = useParams<{ agentId?: string }>();
   const { dark } = useStageChrome();
   const theme = useStageTheme();
   const perms = useMyPermissions();
   const canRead = permissionAllowed(perms, 'clients-lecture');
+  const canWrite = permissionAllowed(perms, 'clients-ecriture');
   const permsLoaded = perms !== null;
+  const { toast } = useToast();
   const [clients, setClients] = useState<any[]>([]);
   const [currentUser, setCurrentUser] = useState<any>(null);
+  const [chooserOpen, setChooserOpen] = useState(false);
+  const [pendingType, setPendingType] = useState<string | null>(null);
+  const [creatingType, setCreatingType] = useState<string | null>(null);
 
   useEffect(() => {
     api.get<any>('/auth/me').then(setCurrentUser).catch(() => {});
@@ -96,6 +114,25 @@ export default function ClientTypesPage() {
     if (!currentUser) return;
     fetchClients({ agent_id: String(currentUser.id) }).then(setClients).catch(() => {});
   }, [currentUser]);
+
+  const assignmentInfo = useMemo(() => {
+    if (!currentUser) return undefined;
+    const name = [currentUser.first_name || '', currentUser.last_name || ''].filter(Boolean).join(' ').trim() || currentUser.email || '';
+    return { assignedType: 'agent' as const, assignedName: name };
+  }, [currentUser]);
+
+  const handleCreateClient = async (newClient: Omit<Client, 'id'>) => {
+    const label = TYPE_LABELS[creatingType || ''] || 'Client';
+    try {
+      await createClient(newClient);
+      if (currentUser) fetchClients({ agent_id: String(currentUser.id) }).then(setClients).catch(() => {});
+      toast('success', `${label} ajouté avec succès`);
+    } catch (err) {
+      console.error('Failed to create client:', err);
+      toast('error', `Erreur lors de la création du ${label.toLowerCase()}`);
+    }
+    setCreatingType(null);
+  };
 
   const stats = useMemo(() => {
     const currentMonth = new Date().toISOString().slice(0, 7);
@@ -162,7 +199,9 @@ export default function ClientTypesPage() {
             <h1 className={dark ? 'mt-1 bg-gradient-to-r from-white via-indigo-100 to-indigo-300 bg-clip-text text-3xl font-extrabold tracking-tight text-transparent' : 'mt-1 bg-gradient-to-r from-teal-900 via-teal-700 to-emerald-600 bg-clip-text text-3xl font-extrabold tracking-tight text-transparent'}>Types de clients</h1>
             <p className={dark ? 'mt-1 text-sm text-slate-400' : 'mt-1 text-sm text-teal-900/55'}>{clients.length} client{clients.length !== 1 ? 's' : ''} · {stats.typeStats.filter(t => t.total > 0).length} segments actifs</p>
           </div>
-          <StageButton variant="primary" size="md" onClick={() => navigate('/clients/create')} icon={<UserPlus size={15} />}>Nouveau client</StageButton>
+          {canWrite && (
+            <StageButton variant="primary" size="md" onClick={() => setChooserOpen(true)} icon={<UserPlus size={15} />}>Nouveau client</StageButton>
+          )}
         </div>
 
         <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
@@ -180,11 +219,51 @@ export default function ClientTypesPage() {
           <div className="grid auto-rows-fr grid-cols-1 items-stretch gap-4 sm:grid-cols-2 xl:grid-cols-5">
             {stats.typeStats.map((ct, index) => {
               const config = clientTypes.find(c => c.type === ct.type)!;
-              return <ClientTypeOrb key={ct.type} clientType={{ ...config, ...ct, active: ct.actifs }} index={index} onClick={() => navigate(`/clients/type/${ct.type}`)} />;
+              return <ClientTypeOrb key={ct.type} clientType={{ ...config, ...ct, active: ct.actifs }} index={index} onClick={() => navigate(`/${agentId}/clients/type/${ct.type}`)} />;
             })}
           </div>
         </StagePanel>
       </div>
+
+      {canWrite && (
+        <AnimatePresence
+          onExitComplete={() => {
+            if (pendingType) {
+              setCreatingType(pendingType);
+              setPendingType(null);
+            }
+          }}
+        >
+          {chooserOpen && (
+            <ClientTypeChooser
+              stats={Object.fromEntries(stats.typeStats.map(t => [t.type, { total: t.total, actifs: t.actifs, enNegociation: t.enNegociation }]))}
+              onClose={() => setChooserOpen(false)}
+              onSelect={(type) => {
+                setPendingType(type);
+                setChooserOpen(false);
+              }}
+            />
+          )}
+        </AnimatePresence>
+      )}
+
+      <AnimatePresence>
+        {canWrite && creatingType && (() => {
+          const commonProps = {
+            onClose: () => setCreatingType(null),
+            onSubmit: handleCreateClient,
+            assignmentInfo,
+            userId: currentUser ? String(currentUser.id) : undefined,
+            onDraftChange: () => {},
+          };
+          if (creatingType === 'acheteur') return <BuyerFormModal key="acheteur" {...commonProps} />;
+          if (creatingType === 'vendeur') return <SellerFormModal key="vendeur" {...commonProps} />;
+          if (creatingType === 'bailleur') return <BailleurFormModal key="bailleur" {...commonProps} />;
+          if (creatingType === 'locataire') return <LocataireFormModal key="locataire" {...commonProps} />;
+          if (creatingType === 'voyageur') return <VoyageurFormModal key="voyageur" {...commonProps} />;
+          return null;
+        })()}
+      </AnimatePresence>
     </Stage>
   );
 }

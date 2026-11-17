@@ -49,3 +49,6 @@ whisper-service/.venv/
 whisper-service/*.log
 whisper-service/*.pid
 *.pid
+.aider*
+.vercel
+.env*

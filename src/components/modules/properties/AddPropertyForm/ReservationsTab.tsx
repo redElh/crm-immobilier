@@ -437,12 +437,14 @@ export function ReservationsTab({ register, control, watch, propertyId }: Reserv
         </div>
       </div>
 
-      {showVoyageurModal && (
-        <VoyageurFormModal
-          onClose={() => setShowVoyageurModal(false)}
-          onSubmit={handleVoyageurCreated}
-        />
-      )}
+      <AnimatePresence>
+        {showVoyageurModal && (
+          <VoyageurFormModal
+            onClose={() => setShowVoyageurModal(false)}
+            onSubmit={handleVoyageurCreated}
+          />
+        )}
+      </AnimatePresence>
     </MotionCard>
   );
 }

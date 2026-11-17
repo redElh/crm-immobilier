@@ -2,27 +2,33 @@ import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Prospect } from '../../types/prospect';
 import { SearchInput } from '../../components/ui/SearchInput';
-import { FilterDropdown } from '../../components/ui/FilterDropdown';
+import { Select } from '../../components/ui/Select';
 import { Button } from '../../components/ui/Button';
 import Card from '../../components/ui/Card';
 import { Dialog } from '../../components/ui/Dialog';
-import { Plus, Users, UserPlus, Phone, CheckCircle, Clock, AlertTriangle, TrendingUp, DollarSign, Search, ArrowUp, ArrowDown } from 'react-feather';
+import { Plus, Users, UserPlus, Phone, CheckCircle, Clock, AlertTriangle, TrendingUp, DollarSign, Search, ArrowUp, ArrowDown, X, Sliders } from 'react-feather';
 import { ProspectCard } from '../../components/modules/prospects/ProspectCard';
 import { ProspectFormModal } from '../../components/modules/prospects/ProspectFormModal';
 import { ProspectDraftSection } from '../../components/modules/prospects/ProspectDraftSection';
 import { ReminderModal } from '../../components/modules/prospects/ReminderModal';
 import { QualificationPocket } from '../../components/modules/prospects/QualificationPocket';
 import { ContactFormModal } from '../../components/modules/contacts/ContactFormModal';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useToast } from '../../components/ui/Toast';
 import { createProspect, updateProspect, deleteProspect, updateProspectStatus, scheduleReminder, updateReminder, cancelReminder, fetchProspects } from '../../services/prospectService';
 import { createContact } from '../../services/contactService';
 import { useMyPermissions, permissionAllowed } from '../../hooks/useMyPermissions';
 import { ActionChoiceModal } from '../../components/modules/prospects/ActionChoiceModal';
 import { Lock } from 'react-feather';
+import { useStageChrome } from '../../components/modules/calendar/useStageChrome';
+import { useStageTheme, Stage, StageStatCard, StagePanel, StageBadge, STAGE_HUES, OrbIcon, TiltCard, AnimatedNumber, GlowSparkline } from '../../components/dashboard/Stage';
 import type { ProspectDraft } from '../../services/prospectDraftStorage';
 
 const ORIGINS = ['Site web', 'Référence', 'Appel téléphonique', 'Réseaux sociaux', 'Recommandation', 'Mubawab', 'Properstar', 'Green-Acres'];
+
+const statusDot = (color: string, glow?: string) => ({ size = 10 }: { size?: number; className?: string }) => (
+  <span className="inline-block shrink-0 rounded-full" style={{ width: Math.round(size * 0.55), height: Math.round(size * 0.55), background: color, boxShadow: glow ? `0 0 8px ${glow}` : undefined }} />
+);
 
 export default function ProspectsPage() {
   const navigate = useNavigate();
@@ -59,12 +65,17 @@ export default function ProspectsPage() {
   const [showConvertModal, setShowConvertModal] = useState(false);
   const [convertProspect, setConvertProspect] = useState<Prospect | undefined>();
   const [qualifiedRefresh, setQualifiedRefresh] = useState(0);
-  const [draftCount, setDraftCount] = useState(0);
+  const [pocketPresent, setPocketPresent] = useState(false);
   const [showActionChoice, setShowActionChoice] = useState(false);
   const [actionChoiceProspect, setActionChoiceProspect] = useState<Prospect | undefined>();
   const [showEditReminder, setShowEditReminder] = useState(false);
   const [editReminderTarget, setEditReminderTarget] = useState<Prospect | undefined>();
   const userId = agentId || '1';
+  const { staged, dark } = useStageChrome();
+  const theme = useStageTheme();
+  const isDark = theme === 'dark';
+  const hasActiveFilters = searchTerm.trim() !== '' || statusFilter !== 'all' || originFilter !== 'all' || typeFilter !== 'all';
+  const clearFilters = () => { setSearchTerm(''); setStatusFilter('all'); setOriginFilter('all'); setTypeFilter('all'); };
 
   const filteredProspects = useMemo(() => {
     return prospects.filter((p) => {
@@ -239,51 +250,101 @@ export default function ProspectsPage() {
   }
 
   return (
-    <div className="space-y-6 animate-fade-in">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Prospects - Vue d'ensemble</h1>
-          <p className="text-sm text-text-secondary mt-1">
-            {kpiData.total} prospects · {kpiData.nouveaux} nouveaux · {kpiData.qualifies} qualifiés · {kpiData.convertis} convertis
-          </p>
-          {kpiData.nouveaux > 0 && (
-            <p className="text-[11px] text-blue-600/70 mt-1 flex items-center gap-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
-              {kpiData.nouveaux} prospect{kpiData.nouveaux !== 1 ? 's' : ''} en attente de prise de contact
+    <Stage theme={theme}>
+      <div className="space-y-6 animate-fade-in">
+      {/* Header hero */}
+      <div className="stage-glass relative overflow-hidden p-5 sm:p-6">
+        <div className="absolute -right-10 -top-10 h-40 w-40 rounded-full pointer-events-none" style={{ background: 'radial-gradient(circle, rgba(124,92,255,0.18), transparent 70%)' }} />
+        <div className="absolute -left-10 -bottom-10 h-32 w-32 rounded-full pointer-events-none opacity-40" style={{ background: 'radial-gradient(circle, rgba(20,184,166,0.18), transparent 70%)' }} />
+        <div className="relative flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2">
+              <span className="relative flex h-2 w-2"><span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60" /><span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.9)]" /></span>
+              <p className={`text-[10px] font-bold uppercase tracking-[0.22em] ${isDark ? 'text-slate-400/80' : 'text-teal-900/50'}`}>Prospects · Vue d'ensemble</p>
+            </div>
+            <h1 className={`mt-1 text-2xl sm:text-3xl font-extrabold tracking-tight ${isDark ? 'bg-gradient-to-r from-white via-indigo-100 to-indigo-300 bg-clip-text text-transparent' : 'bg-gradient-to-r from-teal-900 via-teal-700 to-emerald-600 bg-clip-text text-transparent'}`}>Prospects - Vue d'ensemble</h1>
+            <p className={`mt-1 text-sm ${isDark ? 'text-slate-400' : 'text-teal-900/60'}`}>
+              {kpiData.total} prospects · {kpiData.nouveaux} nouveaux · {kpiData.qualifies} qualifiés · {kpiData.convertis} convertis
             </p>
+            {kpiData.nouveaux > 0 && (
+              <p className="text-[11px] text-blue-600/70 mt-1 flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
+                {kpiData.nouveaux} prospect{kpiData.nouveaux !== 1 ? 's' : ''} en attente de prise de contact
+              </p>
+            )}
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <span className="inline-flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-semibold" style={{ borderColor: 'rgba(124,92,255,0.18)', background: 'rgba(124,92,255,0.10)', color: isDark ? '#C7CBFF' : '#5B4BD4' }}>
+                <Users size={12} />{kpiData.total} total
+              </span>
+              {kpiData.nouveaux > 0 && <span className="inline-flex items-center gap-1.5 rounded-xl border px-2.5 py-1 text-xs font-semibold" style={{ borderColor: 'rgba(59,130,246,0.18)', background: 'rgba(59,130,246,0.10)', color: '#2563EB' }}><span className="w-2 h-2 rounded-full bg-blue-500" />{kpiData.nouveaux} nouveaux</span>}
+              {kpiData.qualifies > 0 && <span className="inline-flex items-center gap-1.5 rounded-xl border px-2.5 py-1 text-xs font-semibold" style={{ borderColor: 'rgba(16,185,129,0.18)', background: 'rgba(16,185,129,0.10)', color: '#059669' }}><span className="w-2 h-2 rounded-full bg-emerald-500" />{kpiData.qualifies} qualifiés</span>}
+              {kpiData.convertis > 0 && <span className="inline-flex items-center gap-1.5 rounded-xl border px-2.5 py-1 text-xs font-semibold" style={{ borderColor: 'rgba(139,92,246,0.18)', background: 'rgba(139,92,246,0.10)', color: '#7C3AED' }}><span className="w-2 h-2 rounded-full bg-violet-500" />{kpiData.convertis} convertis</span>}
+            </div>
+          </div>
+          {canWrite && (
+            <button
+              onClick={() => { setEditProspect(undefined); setIsModalOpen(true); }}
+              className="inline-flex shrink-0 items-center gap-2 rounded-xl border border-white/20 px-5 py-2.5 text-sm font-bold text-white shadow-lg transition-all hover:scale-[1.02] active:scale-95"
+              style={{
+                backgroundImage: isDark ? 'linear-gradient(145deg, #8B7CFF 0%, #6C5ECF 60%, #5646C9 100%)' : 'linear-gradient(145deg, #2DD4BF 0%, #14B8A6 60%, #0D9488 100%)',
+                boxShadow: isDark ? 'inset 0 1px 0 rgba(255,255,255,0.4), 0 10px 26px -8px rgba(124,92,255,0.65)' : 'inset 0 1px 0 rgba(255,255,255,0.5), 0 10px 26px -10px rgba(13,148,136,0.6)',
+              }}
+            >
+              <Plus size={16} />
+              Nouveau prospect
+            </button>
           )}
         </div>
-        {canWrite && (
-          <Button variant="default" icon={<Plus size={14} />} onClick={() => { setEditProspect(undefined); setIsModalOpen(true); }}>
-            Nouveau prospect
-          </Button>
-        )}
       </div>
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {kpiCards.map((kpi, i) => {
-          const Icon = kpi.icon;
+      {/* KPI Cards — compact premium strip */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-8 gap-3">
+        {[
+          { icon: Users, label: 'Total', value: kpiData.total, suffix: '', trend: '+18%', up: true, hue: STAGE_HUES.violet, spark: [2,4,3,6,5,8] },
+          { icon: UserPlus, label: 'Nouveaux', value: kpiData.nouveaux, suffix: '', trend: '+25%', up: true, hue: STAGE_HUES.sky, spark: [1,3,2,5,4,7] },
+          { icon: Phone, label: 'Contactés', value: kpiData.contactes, suffix: '', trend: '+10%', up: true, hue: STAGE_HUES.amber, spark: [1,2,1,3,2,4] },
+          { icon: CheckCircle, label: 'Qualifiés', value: kpiData.qualifies, suffix: '', trend: '+8%', up: true, hue: STAGE_HUES.emerald, spark: [1,2,3,2,4,3] },
+          { icon: Clock, label: 'En attente', value: kpiData.enAttente, suffix: '', trend: '-5%', up: false, hue: STAGE_HUES.fuchsia, spark: [2,1,2,1,2,1] },
+          { icon: AlertTriangle, label: 'Perdus', value: kpiData.perdus, suffix: '', trend: '0%', up: true, hue: STAGE_HUES.fuchsia, spark: [1,1,1,2,1,1] },
+          { icon: TrendingUp, label: 'Convertis', value: kpiData.convertis, suffix: '', trend: '+15%', up: true, hue: STAGE_HUES.violet, spark: [1,2,2,3,4,5] },
+          { icon: DollarSign, label: 'Taux conv.', value: Number(kpiData.tauxConv), suffix: '%', trend: '+2%', up: true, hue: STAGE_HUES.sky, spark: [1,2,2,3,3,4] },
+        ].map((k, i) => {
+          const Icon = k.icon;
+          const trendColor = k.up ? (isDark ? '#6EE7B7' : '#059669') : (isDark ? '#FDA4AF' : '#E11D48');
           return (
             <motion.div
-              key={kpi.label}
-              initial={{ opacity: 0, y: 10 }}
+              key={k.label}
+              initial={{ opacity: 0, y: 14 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: i * 0.05 }}
-              className="bg-card rounded-xl border border-border/50 shadow-card p-4 hover:shadow-card-hover transition-all"
+              transition={{ duration: 0.45, delay: i * 0.04, ease: [0.22, 1, 0.36, 1] }}
+              whileHover={{ y: -2 }}
+              className="stage-glass group relative overflow-hidden rounded-xl p-3"
             >
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-xs text-text-secondary font-medium uppercase tracking-wider">{kpi.label}</p>
-                <div className={`p-2 rounded-lg ${kpi.bg}`}>
-                  <Icon size={14} className={kpi.color} />
+              <div className="absolute -right-6 -top-6 h-16 w-16 rounded-full pointer-events-none opacity-30" style={{ background: `radial-gradient(circle, ${k.hue.glow}, transparent 70%)` }} />
+              <div className="relative flex items-center gap-2.5">
+                <OrbIcon icon={Icon} hue={k.hue} size={30} radius={9} />
+                <div className="min-w-0 flex-1">
+                  <p className={`text-[9px] font-bold uppercase tracking-[1.4px] ${isDark ? 'text-slate-400' : 'text-teal-900/60'}`}>{k.label}</p>
+                  <div className="flex items-baseline gap-0.5">
+                    <AnimatedNumber
+                      value={k.value}
+                      suffix={k.suffix}
+                      className={isDark ? 'text-[20px] font-extrabold leading-none tracking-[-0.5px] text-white' : 'text-[20px] font-extrabold leading-none tracking-[-0.5px] text-slate-900'}
+                    />
+                  </div>
                 </div>
               </div>
-              <p className="text-2xl font-bold">{kpi.value}</p>
-              <div className={`flex items-center gap-1 mt-1 text-xs ${kpi.up ? 'text-emerald-600' : 'text-red-500'}`}>
-                {kpi.up ? <ArrowUp size={12} /> : <ArrowDown size={12} />}
-                <span>{kpi.evolution}</span>
-                <span className="text-text-secondary/50 ml-1">vs mois dernier</span>
+              <div className="mt-2 flex items-center justify-between gap-1">
+                <span
+                  className="inline-flex items-center gap-0.5 rounded-full border px-1.5 py-0.5 text-[9px] font-bold"
+                  style={{ color: trendColor, borderColor: `${trendColor}33`, backgroundColor: `${trendColor}14` }}
+                >
+                  {k.up ? <ArrowUp size={9} strokeWidth={3} /> : <ArrowDown size={9} strokeWidth={3} />}
+                  {k.trend}
+                </span>
+                <div className="flex-1 -mb-1">
+                  <GlowSparkline data={k.spark} color={k.hue.line} height={18} />
+                </div>
               </div>
             </motion.div>
           );
@@ -291,64 +352,107 @@ export default function ProspectsPage() {
       </div>
 
       {/* Search + Filters */}
-      <Card className="p-5">
-        <div className="flex flex-col sm:flex-row gap-4 items-end">
-          <div className="flex-1 w-full">
-            <SearchInput
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Rechercher par nom, email ou téléphone..."
+      <div className="stage-glass overflow-hidden rounded-2xl">
+        <div className="h-[3px] w-full" style={{ background: `linear-gradient(90deg, transparent, ${isDark ? 'rgba(139,124,255,0.9)' : 'rgba(20,184,166,0.9)'} 18%, ${isDark ? '#8B7CFF' : '#14B8A6'} 50%, transparent)` }} />
+        <div className="space-y-4 px-5 pb-4 pt-5" style={{ background: isDark ? 'radial-gradient(90% 140% at 0% 0%, rgba(139,124,255,0.07), transparent 65%)' : 'radial-gradient(90% 140% at 0% 0%, rgba(20,184,166,0.06), transparent 65%)' }}>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5">
+              <OrbIcon icon={Sliders} hue={isDark ? STAGE_HUES.violet : { a: '#2DD4BF', b: '#0D9488', glow: 'rgba(13,148,136,0.35)', line: '#14B8A6' }} size={26} radius={8} />
+              <div>
+                <p className={`text-sm font-bold leading-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>Recherche & filtres</p>
+                <p className={`text-[11px] leading-tight ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                  <AnimatedNumber value={filteredProspects.length} className="inline font-semibold" /> prospect{filteredProspects.length !== 1 ? 's' : ''} sur {prospects.length}
+                </p>
+              </div>
+            </div>
+            {hasActiveFilters && (
+              <button
+                onClick={clearFilters}
+                className={`inline-flex h-9 shrink-0 items-center gap-1.5 rounded-xl border px-3.5 text-xs font-semibold backdrop-blur-md transition-all ${isDark ? 'border-white/10 bg-white/[0.06] text-slate-300 hover:border-white/20 hover:bg-white/10 hover:text-white' : 'border-teal-900/10 bg-white/80 text-teal-700 shadow-[0_4px_14px_-8px_rgba(13,148,136,0.5)] hover:border-teal-900/20 hover:bg-teal-50'}`}
+              >
+                <X size={12} /> Réinitialiser
+              </button>
+            )}
+          </div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(0,1.6fr)_repeat(3,minmax(0,1fr))]">
+            <div>
+              <label className={`block mb-1.5 ${isDark ? 'text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400/85' : 'text-[11px] font-bold uppercase tracking-[0.14em] text-teal-900/55'}`}>Recherche</label>
+              <SearchInput
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Nom, email ou téléphone..."
+              />
+            </div>
+            <Select
+              label="Statut"
+              className="!h-10"
+              options={[
+                { value: 'all', label: 'Tous les statuts' },
+                { value: 'Nouveau', label: 'Nouveau', icon: statusDot('#38BDF8', 'rgba(56,189,248,0.8)') },
+                { value: 'Contacté', label: 'Contacté', icon: statusDot('#FBBF24', 'rgba(251,191,36,0.8)') },
+                { value: 'Qualifié', label: 'Qualifié', icon: statusDot('#34D399', 'rgba(52,211,153,0.8)') },
+                { value: 'En attente', label: 'En attente', icon: statusDot('#FB923C', 'rgba(251,146,60,0.8)') },
+                { value: 'Perdu', label: 'Perdu', icon: statusDot('#F87171', 'rgba(248,113,113,0.8)') },
+                { value: 'Converti', label: 'Converti', icon: statusDot('#8B7CFF', 'rgba(139,124,255,0.8)') },
+              ]}
+              value={statusFilter}
+              onChange={setStatusFilter}
+            />
+            <Select
+              label="Origine"
+              className="!h-10"
+              options={[
+                { value: 'all', label: 'Toutes les origines' },
+                ...ORIGINS.map(o => ({ value: o, label: o })),
+              ]}
+              value={originFilter}
+              onChange={setOriginFilter}
+            />
+            <Select
+              label="Type"
+              className="!h-10"
+              options={[
+                { value: 'all', label: 'Tous les types' },
+                { value: 'Acheter', label: 'Acheter' },
+                { value: 'Louer', label: 'Louer' },
+                { value: 'Vendre', label: 'Vendre' },
+                { value: 'Faire estimer', label: 'Faire estimer' },
+              ]}
+              value={typeFilter}
+              onChange={setTypeFilter}
             />
           </div>
-          <FilterDropdown
-            label="Statut"
-            options={[
-              { value: 'all', label: 'Tous les statuts' },
-              { value: 'Nouveau', label: 'Nouveau' },
-              { value: 'Contacté', label: 'Contacté' },
-              { value: 'Qualifié', label: 'Qualifié' },
-              { value: 'En attente', label: 'En attente' },
-              { value: 'Perdu', label: 'Perdu' },
-              { value: 'Converti', label: 'Converti' },
-            ]}
-            value={statusFilter}
-            onChange={setStatusFilter}
-          />
-          <FilterDropdown
-            label="Origine"
-            options={[
-              { value: 'all', label: 'Toutes les origines' },
-              ...ORIGINS.map(o => ({ value: o, label: o })),
-            ]}
-            value={originFilter}
-            onChange={setOriginFilter}
-          />
-          <FilterDropdown
-            label="Type"
-            options={[
-              { value: 'all', label: 'Tous les types' },
-              { value: 'Acheter', label: 'Acheter' },
-              { value: 'Louer', label: 'Louer' },
-              { value: 'Vendre', label: 'Vendre' },
-              { value: 'Faire estimer', label: 'Faire estimer' },
-            ]}
-            value={typeFilter}
-            onChange={setTypeFilter}
-          />
         </div>
 
         {loading ? (
-          <div className="flex justify-center py-12">
-            <div className="animate-spin rounded-full h-8 w-8 border-2 border-accent border-t-transparent" />
+          <div className="flex items-center justify-center py-16">
+            <div className="relative flex h-12 w-12 items-center justify-center">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-violet-400/20" />
+              <span className="relative inline-flex h-8 w-8 animate-spin rounded-full border-2 border-violet-400/80 border-t-transparent" />
+            </div>
           </div>
         ) : filteredProspects.length === 0 ? (
-          <div className="text-center py-12">
-            <Search size={32} className="text-text-secondary/20 mx-auto mb-3" />
-            <p className="text-text-secondary font-medium">Aucun prospect trouvé</p>
-            <p className="text-xs text-text-secondary/60 mt-1">Essayez de modifier vos filtres</p>
+          <div className="flex items-center justify-center py-12">
+            <div className="max-w-sm p-10 text-center">
+              <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl" style={{ background: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(15,23,42,0.03)', border: `1px solid ${isDark ? 'rgba(255,255,255,0.08)' : 'rgba(15,23,42,0.06)'}` }}>
+                <Search size={22} className={isDark ? 'text-white/20' : 'text-slate-400/60'} />
+              </div>
+              <h3 className={`mb-1 text-lg font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>Aucun prospect trouvé</h3>
+              <p className={`text-sm ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Essayez de modifier vos filtres ou d'ajouter un nouveau prospect</p>
+            </div>
           </div>
         ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mt-4">
+          <div className="mt-4">
+            <div className="mb-3 flex items-center justify-between gap-3 px-5">
+              <div className="flex items-center gap-2.5">
+                <OrbIcon icon={Users} hue={isDark ? STAGE_HUES.violet : { a: '#2DD4BF', b: '#0D9488', glow: 'rgba(13,148,136,0.35)', line: '#14B8A6' }} size={26} radius={8} />
+                <span className={`text-sm font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>Liste des prospects</span>
+              </div>
+              <StageBadge variant="neutral">
+                <AnimatedNumber value={filteredProspects.length} className="inline font-bold" /> prospect{filteredProspects.length !== 1 ? 's' : ''}
+              </StageBadge>
+            </div>
+            <div className="grid auto-rows-fr grid-cols-1 items-stretch gap-4 md:grid-cols-2 xl:grid-cols-3">
             {filteredProspects.map((prospect) => (
               <ProspectCard
                 key={prospect.id}
@@ -373,26 +477,29 @@ export default function ProspectsPage() {
                 onViewContact={(contactId) => navigate(`/contacts/${contactId}`)}
               />
             ))}
+            </div>
           </div>
         )}
-      </Card>
+      </div>
 
-      {isModalOpen && (
-        <ProspectFormModal
-          onClose={() => { setIsModalOpen(false); setEditProspect(undefined); setDraftId(undefined); }}
-          onSubmit={handleAddProspect}
-          prospect={editProspect}
-          draftId={draftId}
-          userId={userId}
-          onDraftChange={() => setDraftChange(c => c + 1)}
-        />
-      )}
+      <AnimatePresence>
+        {isModalOpen && (
+          <ProspectFormModal
+            onClose={() => { setIsModalOpen(false); setEditProspect(undefined); setDraftId(undefined); }}
+            onSubmit={handleAddProspect}
+            prospect={editProspect}
+            draftId={draftId}
+            userId={userId}
+            onDraftChange={() => setDraftChange(c => c + 1)}
+          />
+        )}
+      </AnimatePresence>
 
       {canWrite && (
         <ProspectDraftSection
           userId={userId}
           draftChange={draftChange}
-          onCountChange={setDraftCount}
+          shiftUp={pocketPresent}
           onResume={(draft: ProspectDraft) => {
             setDraftId(draft.id);
             setIsModalOpen(true);
@@ -439,9 +546,10 @@ export default function ProspectsPage() {
         />
       )}
 
-      <QualificationPocket onConvert={handleConvert} refreshTrigger={qualifiedRefresh} onStatusReverted={handleStatusReverted} offset={draftCount > 0} canWrite={canWrite} />
+      <QualificationPocket onConvert={handleConvert} refreshTrigger={qualifiedRefresh} onStatusReverted={handleStatusReverted} canWrite={canWrite} onPresenceChange={setPocketPresent} />
 
-      {showConvertModal && convertProspect && (
+      <AnimatePresence>
+        {showConvertModal && convertProspect && (
         <ContactFormModal
           onClose={() => { setShowConvertModal(false); setConvertProspect(undefined); }}
           onSubmit={handleConvertSubmit}
@@ -478,7 +586,8 @@ export default function ProspectsPage() {
             updatedAt: '',
           }}
         />
-      )}
+        )}
+      </AnimatePresence>
 
       <Dialog isOpen={showDeleteDialog} onClose={() => setShowDeleteDialog(false)} title="Supprimer le prospect" size="sm">
         {(() => {
@@ -520,6 +629,7 @@ export default function ProspectsPage() {
           );
         })()}
       </Dialog>
-    </div>
+      </div>
+    </Stage>
   );
 }

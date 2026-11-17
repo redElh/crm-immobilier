@@ -1,7 +1,7 @@
 import { CSSProperties, ReactNode, useRef, useMemo, useEffect, memo } from 'react'
 import { useLocation, Link } from 'react-router-dom'
 import { motion, useMotionValue, useSpring } from 'framer-motion'
-import { Shield, Layers, Star, ArrowRight, Zap } from 'react-feather'
+import { Shield, Star, ArrowRight } from 'react-feather'
 
 interface AuthFormContainerProps {
   title: string
@@ -482,15 +482,6 @@ export function AuthFormContainer({ title, subtitle, children }: AuthFormContain
 
                 <div className="auth-form-stage">{children}</div>
 
-                <div className="mt-6 flex items-center justify-between border-t border-white/8 pt-4">
-                  <div className="flex items-center gap-2 text-[11px] text-white/40">
-                    <Layers size={12} />
-                    <span>AES-256 · 2FA · RGPD</span>
-                  </div>
-                  <div className="hidden items-center gap-1.5 text-[11px] text-white/40 sm:flex">
-                    <Zap size={12} className="text-white/50" /> Temps réel
-                  </div>
-                </div>
               </div>
             </div>
             <motion.div

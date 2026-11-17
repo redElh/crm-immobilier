@@ -432,6 +432,98 @@ export const getClientContracts = (clientId: string): Contract[] => {
   return mockContracts.filter(c => c.partieA.id === clientId || c.partieB.id === clientId)
 }
 
+export const getDemoContractsForClient = (clientId: string, clientName?: string, clientType?: string): Contract[] => {
+  const byId = getClientContracts(clientId)
+  if (byId.length > 0) return byId
+  if (clientName) {
+    const n = clientName.trim().toLowerCase()
+    const byName = mockContracts.filter(c => c.partieA.name.toLowerCase() === n || c.partieB.name.toLowerCase() === n)
+    if (byName.length > 0) return byName
+  }
+  const partyType = (clientType || '').trim().toLowerCase()
+  if (!partyType) return []
+  return mockContracts.filter(c => c.partieA.type.toLowerCase() === partyType || c.partieB.type.toLowerCase() === partyType)
+}
+
+// Map a demo Contract to the API-ish row shape consumed by contracts lists
+// (contractType / clientName / amount / createdAt aliases).
+export const toDemoContractRow = (c: Contract) => ({
+  ...c,
+  contractType: c.type,
+  clientName: c.partieA.name,
+  clientType: c.partieA.type,
+  amount: c.prixVente ?? c.loyerMensuelHC ?? c.prixTotalSejour,
+  createdAt: c.dateCreation,
+  agentName: c.agentPrincipal,
+  agent_id: c.agentId,
+  client_id: c.partieA.id,
+  property_id: c.propertyId,
+})
+
+/* Normalize any contract row (API camelCase row or full demo Contract) into
+   the canonical Contract shape used by the detail page and PDF generation. */
+export function normalizeContract(raw: any): Contract {
+  const type = raw.type || raw.contractType
+  return {
+    id: raw.id,
+    reference: raw.reference || `${CONTRACT_TYPE_CONFIG[type as Contract['type']]?.shortLabel || 'CTR'}-${String(raw.id).padStart(3, '0')}`,
+    type,
+    status: raw.status,
+    etape: raw.etape,
+    partieA: raw.partieA || {
+      id: raw.clientId || '',
+      name: raw.clientName || '—',
+      type: raw.clientType || '',
+      phone: '',
+      email: '',
+      role: raw.clientType || '',
+    },
+    partieB: raw.partieB || {
+      id: '',
+      name: '',
+      type: '',
+      phone: '',
+      email: '',
+      role: 'Partie B',
+    },
+    agentPrincipal: raw.agentPrincipal || raw.agentName || '—',
+    agentId: raw.agentId || '',
+    propertyId: raw.propertyId || raw.property_id || '',
+    propertyTitle: raw.propertyTitle || raw.property_title || raw.propertyName || 'Bien associé',
+    propertyRef: raw.propertyRef || raw.property_ref || '',
+    propertyAddress: raw.propertyAddress || raw.property_address || '',
+    propertyTypeLabel: raw.propertyTypeLabel || raw.propertyType || '',
+    dateCreation: raw.dateCreation || raw.createdAt || '',
+    dateOffre: raw.dateOffre,
+    dateReservation: raw.dateReservation,
+    dateCompromis: raw.dateCompromis,
+    dateActe: raw.dateActe,
+    dateDebutBail: raw.dateDebutBail,
+    dateFinBail: raw.dateFinBail,
+    dateArrivee: raw.dateArrivee || raw.startDate,
+    dateDepart: raw.dateDepart || raw.endDate,
+    prixVente: raw.prixVente,
+    montantNetVendeur: raw.montantNetVendeur,
+    honorairesTTC: raw.honorairesTTC,
+    sequestre: raw.sequestre,
+    conditionPaiementHonoraires: raw.conditionPaiementHonoraires,
+    loyerMensuelHC: raw.loyerMensuelHC,
+    chargesMensuelles: raw.chargesMensuelles,
+    depotGarantie: raw.depotGarantie,
+    honorairesLocation: raw.honorairesLocation,
+    prixTotalSejour: raw.prixTotalSejour || raw.amount || raw.montant,
+    acompteVerse: raw.acompteVerse,
+    soldeRestant: raw.soldeRestant,
+    caution: raw.caution,
+    devise: raw.devise || 'MAD',
+    documents: raw.documents || [],
+    history: raw.history || [],
+    notes: raw.notes,
+    createdAt: raw.createdAt || raw.dateCreation || '',
+    updatedAt: raw.updatedAt || '',
+  }
+}
+
 export const getPropertyContracts = (propertyId: string): Contract[] => {
   return mockContracts.filter(c => c.propertyId === propertyId)
 }

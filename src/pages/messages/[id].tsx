@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Pin, Check, CheckCheck } from 'lucide-react'
@@ -17,9 +17,13 @@ import { GroupMembersModal } from '../../components/modules/messages/GroupMember
 import { useToast } from '../../components/ui/Toast'
 import {
   StageBadge,
-  StageButton,
+  GERANT_MAUVE_HUE,
+  useStageAccent,
   useStageTheme,
+  type StageHue,
 } from '../../components/dashboard/Stage'
+import StageModal, { useStageModalButtons } from '../../components/modules/calendar/StageModal'
+import { stagePillStyle } from '../../components/modules/prospects/ProspectDetailStage'
 import {
   fetchCurrentUser, fetchConversation, fetchMessages, sendMessage,
   deleteConversation, clearConversation, markConversationRead, currentUserToParticipant,
@@ -48,6 +52,13 @@ const EMPTY_PARTICIPANT: MessageParticipant = {
   id: '', name: '', type: 'agent', role: '', email: '', presence: 'offline',
 }
 
+const DANGER_HUE: StageHue = {
+  a: '#FB7185',
+  b: '#E11D48',
+  glow: 'rgba(244,63,94,0.45)',
+  line: '#F43F5E',
+}
+
 function dateSeparator(iso: string): string {
   const d = new Date(iso)
   const now = new Date()
@@ -64,11 +75,11 @@ function TypingBubble({ isDark }: { isDark: boolean }) {
       animate={{ opacity: 1, y: 0 }}
       className="flex justify-start"
     >
-      <div className={cn('rounded-2xl rounded-bl-md px-4 py-3 flex items-center gap-1 border backdrop-blur-md', isDark ? 'bg-white/[0.06] border-white/10' : 'bg-white/80 border-teal-900/10')}>
-        {[0, 1, 2].map(i => (
+      <div className={cn('rounded-2xl rounded-bl-md px-4 py-3 flex items-center gap-1 border backdrop-blur-md', isDark ? 'bg-white/[0.06] border-white/10' : 'bg-white/80 border-[color:var(--msg-hairline)]')}>
+        {[0, 1, 2].map((i) => (
           <motion.span
             key={i}
-            className={cn('w-1.5 h-1.5 rounded-full', isDark ? 'bg-indigo-300' : 'bg-teal-600')}
+            className="w-1.5 h-1.5 rounded-full bg-[var(--msg-accent-line)]"
             animate={{ y: [0, -4, 0], opacity: [0.4, 1, 0.4] }}
             transition={{ duration: 0.9, repeat: Infinity, delay: i * 0.15 }}
           />
@@ -85,7 +96,7 @@ function RecordingBubble({ isDark }: { isDark: boolean }) {
       animate={{ opacity: 1, y: 0 }}
       className="flex justify-start"
     >
-      <div className={cn('rounded-2xl rounded-bl-md px-4 py-3 flex items-center gap-2 border backdrop-blur-md', isDark ? 'bg-white/[0.06] border-white/10' : 'bg-white/80 border-teal-900/10')}>
+      <div className={cn('rounded-2xl rounded-bl-md px-4 py-3 flex items-center gap-2 border backdrop-blur-md', isDark ? 'bg-white/[0.06] border-white/10' : 'bg-white/80 border-[color:var(--msg-hairline)]')}>
         <span className="w-2 h-2 rounded-full bg-error animate-pulse" />
         <span className={cn('text-xs', isDark ? 'text-slate-300' : 'text-slate-500')}>enregistre un message vocal...</span>
       </div>
@@ -103,11 +114,36 @@ export default function ConversationDetailPage() {
   const zoomStyle = messageZoomStyle(appearance.messageSize)
   const theme = useStageTheme()
   const isDark = theme === 'dark'
-  const chatWallpaper = isDark
-    ? { backgroundImage: 'radial-gradient(rgba(148,163,184,0.12) 1px, transparent 1.4px)', backgroundSize: '18px 18px' }
-    : { backgroundImage: 'radial-gradient(rgba(13,148,136,0.12) 1px, transparent 1.4px)', backgroundSize: '18px 18px' }
+  const stageAccent = useStageAccent()
   const [currentUser, setCurrentUser] = useState<MessageParticipant>(EMPTY_PARTICIPANT)
-
+  const [currentRole, setCurrentRole] = useState('')
+  const isGerant = admin && currentRole === 'gerant'
+  const interfaceHue = isGerant ? GERANT_MAUVE_HUE : stageAccent
+  const btns = useStageModalButtons()
+  const ghostBtn = cn(
+    btns.ghost,
+    isDark
+      ? ''
+      : isGerant
+        ? '!border-[#905D5D]/15 !text-[#7D5050]/70 hover:!bg-white hover:!text-[#7D5050]'
+        : '',
+  )
+  const msgVars = {
+    '--msg-accent-a': interfaceHue.a,
+    '--msg-accent-b': interfaceHue.b,
+    '--msg-accent-line': interfaceHue.line,
+    '--msg-accent-glow': interfaceHue.glow,
+    '--msg-accent-soft': `${interfaceHue.a}18`,
+    '--msg-accent-border': `${interfaceHue.a}42`,
+    '--msg-hairline': isDark ? 'rgba(255,255,255,0.10)' : `${interfaceHue.line}1F`,
+    '--msg-hairline-soft': isDark ? 'rgba(255,255,255,0.05)' : `${interfaceHue.line}12`,
+    '--msg-ink': isDark ? '#E2E8F0' : interfaceHue.line,
+    '--msg-ink-soft': isDark ? 'rgba(148,163,184,0.8)' : `${interfaceHue.line}B3`,
+  } as CSSProperties
+  const chatWallpaper = {
+    backgroundImage: `radial-gradient(${isDark ? `${interfaceHue.line}24` : `${interfaceHue.line}1F`} 1px, transparent 1.4px)`,
+    backgroundSize: '18px 18px',
+  }
   const [conversation, setConversation] = useState<Conversation | null>(null)
   const [moreMenu, setMoreMenu] = useState(false)
   const [membersModal, setMembersModal] = useState(false)
@@ -158,6 +194,7 @@ export default function ConversationDetailPage() {
         const me = await fetchCurrentUser()
         if (!cancelled) {
           currentUserIdRef.current = String(me.id)
+          setCurrentRole(me.role)
           setCurrentUser(currentUserToParticipant(me))
         }
         const conv = await fetchConversation(id!)
@@ -511,7 +548,7 @@ export default function ConversationDetailPage() {
   const lastMsg = conversation.messages[conversation.messages.length - 1]
 
   return (
-    <div className={cn('relative flex flex-col h-full w-full rounded-2xl overflow-hidden animate-fade-in', isDark ? 'stage-dark' : 'stage-light', appearance.theme === 'dark' && 'dark')} style={zoomStyle}>
+    <div className={cn('relative flex flex-col h-full w-full rounded-2xl overflow-hidden animate-fade-in', appearance.theme === 'dark' && 'dark')} style={{ ...zoomStyle, ...msgVars }}>
       {moreMenu && (
         <div
           aria-hidden="true"
@@ -521,11 +558,11 @@ export default function ConversationDetailPage() {
         />
       )}
       {/* Header */}
-      <div className={cn('relative flex items-center gap-3 px-4 py-3 border-b backdrop-blur-md shrink-0 z-10', isDark ? 'border-white/10 bg-white/[0.02]' : 'border-teal-900/10 bg-white/60')}>
-        <span aria-hidden="true" className="pointer-events-none absolute inset-x-8 bottom-0 h-px" style={{ background: isDark ? 'linear-gradient(90deg, transparent, rgba(139,124,255,0.55), rgba(94,234,212,0.3), transparent)' : 'linear-gradient(90deg, transparent, rgba(45,212,191,0.55), rgba(124,92,255,0.3), transparent)' }} />
+      <div className={cn('relative flex items-center gap-3 px-4 py-3 border-b backdrop-blur-md shrink-0 z-10', isDark ? 'border-white/10 bg-white/[0.02]' : 'border-[color:var(--msg-hairline)] bg-white/60')}>
+        <span aria-hidden="true" className="pointer-events-none absolute inset-x-8 bottom-0 h-px" style={{ background: 'linear-gradient(90deg, transparent, var(--msg-accent-line), transparent)' }} />
         <button
           onClick={() => navigate(`${basePath}/messages`)}
-          className={cn('p-1.5 rounded-lg transition-colors', isDark ? 'text-slate-400 hover:text-white hover:bg-white/5' : 'text-slate-500 hover:text-teal-900 hover:bg-teal-900/5')}
+          className={cn('p-1.5 rounded-lg transition-colors', isDark ? 'text-slate-400 hover:text-white hover:bg-white/5' : 'text-slate-500 hover:text-[color:var(--msg-ink)] hover:bg-[var(--msg-accent-soft)]')}
           title="Retour"
         >
           <ArrowLeft size={18} />
@@ -535,12 +572,15 @@ export default function ConversationDetailPage() {
           <div className="flex items-center gap-2">
             <h3 className={cn('text-sm font-bold tracking-tight truncate', isDark ? 'text-white' : 'text-slate-900')}>{otherParticipant.name}</h3>
             {conversation.isGroup && (
-              <span className={cn('flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded-md border', isDark ? 'bg-violet-400/10 text-indigo-300 border-violet-400/25' : 'bg-teal-500/10 text-teal-700 border-teal-500/25')}>
+              <span
+                className="flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded-md border"
+                style={stagePillStyle(interfaceHue, isDark)}
+              >
                 <Users size={9} /> Groupe
               </span>
             )}
           </div>
-          <p className={cn('text-[11px] flex items-center gap-1.5 truncate', presence ? cn('font-semibold', isDark ? 'text-indigo-300' : 'text-teal-700') : isDark ? 'text-slate-400' : 'text-slate-500')}>
+          <p className={cn('text-[11px] flex items-center gap-1.5 truncate', presence ? 'font-semibold text-[color:var(--msg-accent-line)]' : isDark ? 'text-slate-400' : 'text-slate-500')}>
             {presence === 'recording' ? (
               <>
                 <span className="w-1.5 h-1.5 rounded-full bg-error animate-pulse" />
@@ -566,7 +606,7 @@ export default function ConversationDetailPage() {
         {conversation.relatedPropertyTitle && (
           <button
             onClick={() => navigate(`${basePath}/properties/${conversation.relatedPropertyId}`)}
-            className={cn('hidden md:flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold rounded-xl border backdrop-blur-md transition-colors shrink-0', isDark ? 'text-indigo-300 bg-violet-400/10 hover:bg-violet-400/20 border-violet-400/25' : 'text-teal-700 bg-teal-500/10 hover:bg-teal-500/20 border-teal-500/25')}
+            className="hidden md:flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold rounded-xl border backdrop-blur-md transition-colors shrink-0 text-[color:var(--msg-accent-line)] bg-[var(--msg-accent-soft)] hover:bg-[var(--msg-accent-border)] border-[color:var(--msg-accent-border)]"
           >
             <Home size={12} />
             {conversation.relatedPropertyTitle}
@@ -578,8 +618,8 @@ export default function ConversationDetailPage() {
             data-chat-menu-toggle
             onClick={() => setMoreMenu(o => !o)}
             className={cn('p-2 rounded-xl border transition-colors', moreMenu
-              ? isDark ? 'text-indigo-300 bg-violet-400/10 border-violet-400/30' : 'text-teal-700 bg-teal-500/10 border-teal-500/30'
-              : isDark ? 'text-slate-400 border-transparent hover:text-white hover:bg-white/5 hover:border-white/10' : 'text-slate-500 border-transparent hover:text-teal-900 hover:bg-teal-900/5 hover:border-teal-900/10')}
+              ? 'text-[color:var(--msg-accent-line)] bg-[var(--msg-accent-soft)] border-[color:var(--msg-accent-border)]'
+              : isDark ? 'text-slate-400 border-transparent hover:text-white hover:bg-white/5 hover:border-white/10' : 'text-slate-500 border-transparent hover:text-[color:var(--msg-ink)] hover:bg-[var(--msg-accent-soft)] hover:border-[color:var(--msg-hairline)]')}
             title="Plus d'options"
           >
             <MoreVertical size={17} />
@@ -622,7 +662,7 @@ export default function ConversationDetailPage() {
                       'w-full flex items-center gap-2.5 px-3 py-2 text-sm rounded-xl transition-colors',
                       (item as any).danger
                         ? 'text-error hover:bg-error/5'
-                        : isDark ? 'text-slate-200 hover:bg-white/5' : 'text-slate-700 hover:bg-teal-900/5'
+                        : isDark ? 'text-slate-200 hover:bg-white/5' : 'text-slate-700 hover:bg-[var(--msg-accent-soft)]'
                     )}
                   >
                     {item.icon} {item.label}
@@ -704,7 +744,7 @@ export default function ConversationDetailPage() {
           <div className="flex items-center gap-1 shrink-0">
             <button
               onClick={() => setSelectionMode(false)}
-              className={cn('px-3 py-1.5 text-xs font-medium rounded-lg transition-colors', isDark ? 'text-slate-400 hover:text-white hover:bg-white/5' : 'text-slate-500 hover:text-teal-900 hover:bg-teal-900/5')}
+              className={cn('px-3 py-1.5 text-xs font-medium rounded-lg transition-colors', isDark ? 'text-slate-400 hover:text-white hover:bg-white/5' : 'text-slate-500 hover:text-[color:var(--msg-ink)] hover:bg-[var(--msg-accent-soft)]')}
             >
               Annuler
             </button>
@@ -742,63 +782,83 @@ export default function ConversationDetailPage() {
       />
 
       {/* Clear conversation confirmation */}
-      {clearTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div className="absolute inset-0 bg-black/40" onClick={() => setClearTarget(false)} />
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95, y: 10 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            transition={{ duration: 0.16 }}
-            className="relative stage-glass rounded-2xl p-6 w-full max-w-sm"
-          >
-            <h3 className={cn('text-base font-extrabold tracking-tight mb-2', isDark ? 'text-white' : 'text-slate-900')}>Vider la conversation ?</h3>
-            <p className={cn('text-sm leading-relaxed mb-5', isDark ? 'text-slate-400' : 'text-slate-500')}>
-              Les messages seront supprimés de votre vue uniquement. L'autre participant continuera de les voir.
-            </p>
-            <div className="flex items-center justify-end gap-2">
-              <StageButton variant="glass" onClick={() => setClearTarget(false)}>
-                Annuler
-              </StageButton>
-              <button
-                onClick={handleClearConversation}
-                className="px-4 h-8 text-xs font-semibold rounded-xl bg-error text-white hover:bg-error/90 transition-colors"
-              >
-                Vider
-              </button>
-            </div>
-          </motion.div>
+      <StageModal
+        open={clearTarget}
+        onClose={() => setClearTarget(false)}
+        centered
+        maxWidth="max-w-md"
+        title="Vider la conversation ?"
+        eyebrow="Messagerie"
+        subtitle="Les messages seront supprimés de votre vue uniquement."
+        icon={Delete}
+        hue={DANGER_HUE}
+        accent={DANGER_HUE.a}
+        footer={
+          <>
+            <button type="button" className={ghostBtn} onClick={() => setClearTarget(false)}>
+              Annuler
+            </button>
+            <button
+              type="button"
+              onClick={handleClearConversation}
+              className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-white/25 px-4 text-sm font-semibold text-white transition-all duration-200 hover:brightness-110 active:scale-[0.97]"
+              style={{
+                backgroundImage: `linear-gradient(145deg, ${DANGER_HUE.a}, ${DANGER_HUE.b})`,
+                boxShadow: `0 8px 20px -8px ${DANGER_HUE.glow}, inset 0 1px 0 rgba(255,255,255,0.3)`,
+              }}
+            >
+              Vider
+            </button>
+          </>
+        }
+      >
+        <div
+          className="rounded-2xl border p-4 text-sm leading-relaxed"
+          style={{ borderColor: `${DANGER_HUE.a}30`, background: `${DANGER_HUE.a}12` }}
+        >
+          L'autre participant continuera de voir les messages de son côté.
         </div>
-      )}
+      </StageModal>
+
       {/* Delete selected messages confirmation */}
-      {deleteTargets && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div className="absolute inset-0 bg-black/40" onClick={() => setDeleteTargets(null)} />
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95, y: 10 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            transition={{ duration: 0.16 }}
-            className="relative stage-glass rounded-2xl p-6 w-full max-w-sm"
-          >
-            <h3 className={cn('text-base font-extrabold tracking-tight mb-2', isDark ? 'text-white' : 'text-slate-900')}>
-              Supprimer {deleteTargets.length} message{deleteTargets.length > 1 ? 's' : ''} ?
-            </h3>
-            <p className={cn('text-sm leading-relaxed mb-5', isDark ? 'text-slate-400' : 'text-slate-500')}>
-              Les messages seront supprimés pour tout le monde et remplacés par « Ce message a été supprimé ».
-            </p>
-            <div className="flex items-center justify-end gap-2">
-              <StageButton variant="glass" onClick={() => setDeleteTargets(null)}>
-                Annuler
-              </StageButton>
-              <button
-                onClick={() => handleDeleteMessages(deleteTargets)}
-                className="px-4 h-8 text-xs font-semibold rounded-xl bg-error text-white hover:bg-error/90 transition-colors"
-              >
-                Supprimer
-              </button>
-            </div>
-          </motion.div>
+      <StageModal
+        open={!!deleteTargets}
+        onClose={() => setDeleteTargets(null)}
+        centered
+        maxWidth="max-w-md"
+        title={`Supprimer ${deleteTargets?.length ?? 0} message${(deleteTargets?.length ?? 0) > 1 ? 's' : ''} ?`}
+        eyebrow="Messagerie"
+        subtitle="Cette action est définitive pour tous les participants."
+        icon={Trash2}
+        hue={DANGER_HUE}
+        accent={DANGER_HUE.a}
+        footer={
+          <>
+            <button type="button" className={ghostBtn} onClick={() => setDeleteTargets(null)}>
+              Annuler
+            </button>
+            <button
+              type="button"
+              onClick={() => deleteTargets && handleDeleteMessages(deleteTargets)}
+              className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-white/25 px-4 text-sm font-semibold text-white transition-all duration-200 hover:brightness-110 active:scale-[0.97]"
+              style={{
+                backgroundImage: `linear-gradient(145deg, ${DANGER_HUE.a}, ${DANGER_HUE.b})`,
+                boxShadow: `0 8px 20px -8px ${DANGER_HUE.glow}, inset 0 1px 0 rgba(255,255,255,0.3)`,
+              }}
+            >
+              Supprimer
+            </button>
+          </>
+        }
+      >
+        <div
+          className="rounded-2xl border p-4 text-sm leading-relaxed"
+          style={{ borderColor: `${DANGER_HUE.a}30`, background: `${DANGER_HUE.a}12` }}
+        >
+          Les messages seront remplacés par « Ce message a été supprimé ».
         </div>
-      )}
+      </StageModal>
+
       {/* Members management */}
       {membersModal && conversation && (
         <GroupMembersModal

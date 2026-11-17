@@ -1,87 +1,109 @@
-import { motion, AnimatePresence } from 'framer-motion'
-import Card from '../../../components/ui/Card'
-import { Badge } from '../../../components/ui/Badge'
-import { NavLink, useParams } from 'react-router-dom'
+import type { ComponentType } from 'react'
+import { motion } from 'framer-motion'
+import { NavLink } from 'react-router-dom'
 import { Settings, User, Mail, Bell, Paperclip, Users, Download, HelpCircle, ArrowRight } from 'react-feather'
+import {
+  StageBadge,
+  OrbIcon,
+  TiltCard,
+  STAGE_HUES,
+} from '../../../components/dashboard/Stage'
+import type { StageHue } from '../../../components/dashboard/Stage'
+import {
+  SettingsHero,
+  useSettingsBasePath,
+  useSettingsChrome,
+} from '../../../components/settings/SettingsChrome'
 
-const containerVariants = {
-  hidden: { opacity: 0 },
-  visible: {
-    opacity: 1,
-    transition: { staggerChildren: 0.06 }
-  }
-}
-
-const itemVariants = {
-  hidden: { opacity: 0, y: 16 },
-  visible: { opacity: 1, y: 0 }
+interface SettingsCategory {
+  title: string
+  description: string
+  icon: ComponentType<{ size?: number | string; className?: string }>
+  path: string
+  hue: StageHue
 }
 
 export default function AdminSettingsPage() {
-  const { adminId } = useParams<{ adminId: string }>()
+  const { isDark, isAdmin, accent, link } = useSettingsChrome()
+  const base = useSettingsBasePath()
 
-  const settingsCategories = [
-    { title: "Mon Compte", description: "Profil, sécurité et préférences", icon: User, to: `/admin/${adminId}/settings/compte/profil` },
-    { title: "Communication", description: "Signature email, réponses automatiques", icon: Mail, to: `/admin/${adminId}/settings/communication/signature` },
-    { title: "Notifications", description: "Configurez vos préférences de notification", icon: Bell, to: `/admin/${adminId}/settings/notifications` },
-    { title: "Intégrations", description: "Google Calendar, API", icon: Paperclip, to: `/admin/${adminId}/settings/integrations` },
-    { title: "Équipe", description: "Gestion des membres et permissions", icon: Users, to: `/admin/${adminId}/settings/equipe`, badge: "Admin" },
-    { title: "Données", description: "Import, export et sauvegarde", icon: Download, to: `/admin/${adminId}/settings/donnees` },
-    { title: "Aide & Support", description: "Centre d'aide, support et à propos", icon: HelpCircle, to: `/admin/${adminId}/settings/aide` },
+  const categories: SettingsCategory[] = [
+    { title: 'Mon Compte', description: 'Profil, sécurité et préférences', icon: User, path: '/compte/profil', hue: isAdmin ? accent : STAGE_HUES.violet },
+    { title: 'Communication', description: 'Signature email, réponses automatiques', icon: Mail, path: '/communication/signature', hue: STAGE_HUES.sky },
+    { title: 'Notifications', description: 'Configurez vos préférences de notification', icon: Bell, path: '/notifications', hue: STAGE_HUES.amber },
+    { title: 'Intégrations', description: 'Google Calendar, API', icon: Paperclip, path: '/integrations', hue: STAGE_HUES.emerald },
+    { title: 'Données', description: 'Import, export et sauvegarde', icon: Download, path: '/donnees', hue: STAGE_HUES.fuchsia },
+    { title: 'Équipe', description: 'Membres, rôles et permissions', icon: Users, path: '/equipe', hue: STAGE_HUES.sky },
+    { title: 'Aide & Support', description: "Centre d'aide, support et à propos", icon: HelpCircle, path: '/aide', hue: { a: '#F472B6', b: '#BE185D', glow: 'rgba(244,114,182,0.45)', line: '#F472B6' } },
   ]
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-3">
-        <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center">
-          <Settings size={20} className="text-amber-700" />
-        </div>
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Paramètres</h1>
-          <p className="text-sm text-text-secondary mt-1">Personnalisez votre expérience CRM</p>
-        </div>
-      </div>
+      <SettingsHero
+          eyebrow="Mission control · Paramètres"
+          title="Paramètres"
+          subtitle="Personnalisez votre expérience CRM — tout votre espace en un coup d'œil"
+          right={
+            <div className="flex items-center gap-2">
+              <OrbIcon icon={Settings} hue={accent} size={42} radius={13} />
+              <div className={`hidden sm:block text-right ${isDark ? 'text-slate-400' : isAdmin ? 'text-orange-900/60' : 'text-teal-900/60'}`}>
+                <p className={`text-xs font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>{categories.length} espaces</p>
+                <p className="text-[11px]">configurables</p>
+              </div>
+            </div>
+          }
+        />
 
-      <motion.div
-        className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"
-        variants={containerVariants}
-        initial="hidden"
-        animate="visible"
-      >
-        <AnimatePresence mode="popLayout">
-          {settingsCategories.map((category) => {
+        <motion.div
+          className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"
+          initial="hidden"
+          animate="visible"
+          variants={{
+            hidden: { opacity: 0 },
+            visible: { opacity: 1, transition: { staggerChildren: 0.06 } },
+          }}
+        >
+          {categories.map((category) => {
             const Icon = category.icon
             return (
-              <motion.div key={category.title} variants={itemVariants} layout>
-                <Card className="hover:shadow-card-hover transition-all duration-200 group">
-                  <NavLink to={category.to} className="block p-5">
+              <motion.div
+                key={category.title}
+                variants={{ hidden: { opacity: 0, y: 16 }, visible: { opacity: 1, y: 0 } }}
+                transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+              >
+                <TiltCard className="group h-full">
+                  <NavLink to={`${base}${category.path}`} className="flex h-full flex-col p-5">
+                    <div
+                      className="absolute top-0 inset-x-0 h-[3px]"
+                      style={{
+                        background: `linear-gradient(90deg, ${category.hue.a}, ${category.hue.b})`,
+                        boxShadow: `0 0 12px ${category.hue.glow}`,
+                      }}
+                    />
                     <div className="flex items-start justify-between mb-4">
-                      <div className="p-2.5 rounded-lg bg-amber-100 text-amber-700">
-                        <Icon size={18} />
-                      </div>
-                      {category.badge && (
-                        <Badge variant="secondary" size="sm">{category.badge}</Badge>
-                      )}
+                      <OrbIcon icon={Icon} hue={category.hue} size={44} radius={12} />
+                      <StageBadge variant="neutral" className="text-[10px] opacity-0 group-hover:opacity-100 transition-opacity">
+                        Configurer
+                      </StageBadge>
                     </div>
-                    <h3 className="font-semibold text-sm">{category.title}</h3>
-                    <p className="text-xs text-text-secondary mt-1">{category.description}</p>
-                    <div className="mt-4 flex items-center gap-1 text-sm font-medium text-accent">
+                    <h3 className={`text-sm font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>{category.title}</h3>
+                    <p className={`text-xs mt-1 leading-relaxed ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{category.description}</p>
+                    <div className={`mt-4 inline-flex items-center gap-1.5 text-xs font-bold transition-colors ${link}`}>
                       <span>Configurer</span>
-                      <ArrowRight size={14} className="group-hover:translate-x-0.5 transition-transform" />
+                      <ArrowRight size={13} className="transition-transform duration-200 group-hover:translate-x-1" />
                     </div>
                   </NavLink>
-                </Card>
+                </TiltCard>
               </motion.div>
             )
           })}
-        </AnimatePresence>
-      </motion.div>
+        </motion.div>
 
-      <div className="flex items-center gap-3 py-4">
-        <div className="flex-1 h-px bg-border/50" />
-        <p className="text-xs text-text-secondary/60 whitespace-nowrap">CRM Immobilier - Version 1.0.0</p>
-        <div className="flex-1 h-px bg-border/50" />
-      </div>
+        <div className="flex items-center gap-3 py-2">
+          <div className={`flex-1 h-px ${isDark ? 'bg-white/10' : isAdmin ? 'bg-orange-900/10' : 'bg-teal-900/10'}`} />
+          <p className={`text-xs whitespace-nowrap ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>CRM Immobilier — Version 1.0.0</p>
+          <div className={`flex-1 h-px ${isDark ? 'bg-white/10' : isAdmin ? 'bg-orange-900/10' : 'bg-teal-900/10'}`} />
+        </div>
     </div>
   )
 }

@@ -10,6 +10,7 @@ interface AnimatedNumberProps {
   className?: string
   style?: React.CSSProperties
   groupSeparator?: string
+  decimalSeparator?: string
 }
 
 export function AnimatedNumber({
@@ -21,6 +22,7 @@ export function AnimatedNumber({
   className,
   style,
   groupSeparator = ' ',
+  decimalSeparator = '.',
 }: AnimatedNumberProps) {
   const ref = useRef<HTMLSpanElement>(null)
   const inView = useInView(ref, { once: true, margin: '-40px' })
@@ -41,10 +43,10 @@ export function AnimatedNumber({
       const fixed = latest.toFixed(decimals)
       const parts = fixed.split('.')
       parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, groupSeparator)
-      setDisplay(`${prefix}${parts.join('.')}${suffix}`)
+      setDisplay(`${prefix}${parts.join(decimalSeparator)}${suffix}`)
     })
     return unsubscribe
-  }, [spring, decimals, prefix, suffix, groupSeparator])
+  }, [spring, decimals, prefix, suffix, groupSeparator, decimalSeparator])
 
   return (
     <span ref={ref} className={className} style={style}>

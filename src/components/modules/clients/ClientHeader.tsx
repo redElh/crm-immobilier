@@ -5,7 +5,7 @@ import { Mail, Phone, User, DollarSign, MapPin, Home, Calendar, FileText, Trendi
 import { CompletionRing } from "../../ui/CompletionRing";
 import { calcClientCompletion } from "../../../utils/clientCompletion";
 import { api } from "../../../services/api";
-import { useStageTheme, STAGE_HUES, type StageHue } from "../../dashboard/Stage";
+import { useStageTheme, useStageScope, useStageAccent, STAGE_HUES, type StageHue } from "../../dashboard/Stage";
 import { getClientStatusHue, getClientInitials } from "./ClientCard";
 
 /* =====================================================================
@@ -31,12 +31,6 @@ const SIDEBAR_EMERALD: StageHue = {
   line: '#14B8A6',
 };
 const LIGHT_INK = '#0F766E';
-const GERANT_HUE: StageHue = {
-  a: '#C9A0A0',
-  b: '#905D5D',
-  glow: 'rgba(144,93,93,0.35)',
-  line: '#905D5D',
-};
 
 interface ClientActivity {
   id: string | number;
@@ -62,7 +56,7 @@ const NAME_TO_POSITION: Record<string, string> = {};
 const getRoleBadge = (role?: string, position?: string, _isGerant = false) => {
   void _isGerant;
   if (role === 'agent') return { label: position || 'Agent', hue: STAGE_HUES.emerald };
-  if (role === 'gerant') return { label: 'Gérant', hue: GERANT_HUE };
+  if (role === 'gerant') return { label: 'Gérant', hue: STAGE_HUES.amber };
   if (role === 'admin') return { label: 'Admin', hue: STAGE_HUES.violet };
   return null;
 };
@@ -72,14 +66,16 @@ const COMPLETION_LOW_HUE: StageHue = { a: '#F87171', b: '#B91C1C', glow: 'rgba(2
 export const ClientHeader = ({ client, isGerant = false }: { client: Client; isGerant?: boolean }) => {
   const theme = useStageTheme();
   const isDark = theme === 'dark';
+  const scope = useStageScope();
+  const stageAccent = useStageAccent();
   const [nextRdv, setNextRdv] = useState<string | null>(null);
   const [visitsThisMonth, setVisitsThisMonth] = useState<number | null>(null);
   const completion = (client as any).completion ?? calcClientCompletion(client);
   const [, setUsersFetched] = useState(false);
 
   const typeHue = TYPE_HUE[client.type || ''] || STAGE_HUES.violet;
-  const accent = isGerant ? GERANT_HUE : (isDark ? typeHue : SIDEBAR_EMERALD);
-  const ink = isGerant ? '#905D5D' : (isDark ? typeHue.a : LIGHT_INK);
+  const accent = scope === 'admin' ? stageAccent : (isDark ? typeHue : SIDEBAR_EMERALD);
+  const ink = scope === 'admin' ? (isDark ? stageAccent.a : stageAccent.b) : (isDark ? typeHue.a : LIGHT_INK);
   const statusLabel = client.statutMetier || client.status;
   const statusHue = getClientStatusHue(statusLabel) || accent;
   const badgeStyle: CSSProperties = isDark
@@ -357,7 +353,7 @@ export const ClientHeader = ({ client, isGerant = false }: { client: Client; isG
         </div>
 
         {/* ── Contact + agent bar ── */}
-        <div className={`flex flex-col gap-3 border-t pt-4 lg:flex-row lg:items-center ${isDark ? 'border-white/[0.06]' : 'border-teal-900/10'}`}>
+        <div className={`flex flex-col gap-3 border-t pt-4 lg:flex-row lg:items-center ${isDark ? 'border-white/[0.06]' : scope === 'admin' ? 'border-orange-900/10' : 'border-teal-900/10'}`}>
           <div className="flex flex-wrap items-center gap-1.5">
             <a href={`tel:${client.phone}`} className={contactPill}>
               <Phone size={12} style={{ color: ink }} /> {client.phone}
@@ -419,8 +415,8 @@ export const ClientHeader = ({ client, isGerant = false }: { client: Client; isG
               type="button"
               whileTap={{ scale: 0.96 }}
               className="inline-flex items-center gap-2 rounded-xl border border-white/20 px-4 py-2 text-xs font-bold text-white shadow-lg transition-all hover:scale-[1.02] active:scale-95"
-              style={isGerant
-                ? { backgroundImage: 'linear-gradient(145deg, #C9A0A0 0%, #905D5D 100%)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.4), 0 10px 26px -10px rgba(144,93,93,0.6)' }
+              style={scope === 'admin'
+                ? { backgroundImage: `linear-gradient(145deg, ${stageAccent.a} 0%, ${stageAccent.b} 100%)`, boxShadow: `inset 0 1px 0 rgba(255,255,255,0.4), 0 10px 26px -10px ${stageAccent.glow}` }
                 : isDark
                   ? { backgroundImage: 'linear-gradient(145deg, #8B7CFF 0%, #6C5ECF 60%, #5646C9 100%)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.4), 0 10px 26px -8px rgba(124,92,255,0.65)' }
                   : { backgroundImage: 'linear-gradient(145deg, #2DD4BF 0%, #14B8A6 60%, #0D9488 100%)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.5), 0 10px 26px -10px rgba(13,148,136,0.6)' }}

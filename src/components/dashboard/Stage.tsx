@@ -110,8 +110,69 @@ export function useStageThemeState(): [StageTheme, (t: StageTheme) => void] {
     } catch {
       /* ignore */
     }
+    // Notify portalled widgets (Cardinal, toasts) that live outside the shell.
+    window.dispatchEvent(new CustomEvent('stage-theme-change', { detail: theme }))
   }, [theme])
   return [theme, setTheme]
+}
+
+/* ---------------------------------------------------------------------
+   Shell scope — 'agent' (default) | 'admin'
+   Admin light mode wears a vivid orange accent to stand apart from
+   the agent emerald lagoon; both scopes share violet in dark mode.
+--------------------------------------------------------------------- */
+
+export type StageScope = 'agent' | 'admin'
+
+/** Agent light lagoon accent (emerald) */
+export const AGENT_EMERALD_HUE: StageHue = {
+  a: '#2DD4BF', b: '#0D9488', glow: 'rgba(13,148,136,0.45)', line: '#0D9488',
+}
+
+/** Admin light canvas accent (vivid orange) */
+export const ADMIN_ORANGE_HUE: StageHue = {
+  a: '#FB923C', b: '#C2410C', glow: 'rgba(249,115,22,0.45)', line: '#F97316',
+}
+
+/** Admin dark identity — the vivid "Poche de qualification" blend:
+ *  crimson rose → deep violet, distinct from the agent violet stage. */
+export const ADMIN_ROSE_HUE: StageHue = {
+  a: '#F43F5E', b: '#6D28D9', glow: 'rgba(244,63,94,0.50)', line: '#F43F5E',
+}
+
+/** Softer rose for text/dots resting on the dark admin canvas */
+export const ADMIN_ROSE_INK = '#FB7185'
+
+/** Gérant identity — muted mauve, mirrors the legacy `#905D5D` token used
+ *  across the admin/gérant property pages. */
+export const GERANT_MAUVE_HUE: StageHue = {
+  a: '#A56E6E', b: '#7D5050', glow: 'rgba(144,93,93,0.45)', line: '#905D5D',
+}
+
+const StageScopeContext = createContext<StageScope>('agent')
+
+export function useStageScope(): StageScope {
+  return useContext(StageScopeContext)
+}
+
+export function StageScopeProvider({
+  value,
+  children,
+}: {
+  value: StageScope
+  children: React.ReactNode
+}) {
+  return <StageScopeContext.Provider value={value}>{children}</StageScopeContext.Provider>
+}
+
+/** Primary accent for staged chrome:
+ *  dark → violet (agent) / crimson-rose (admin)
+ *  light → emerald (agent) / orange (admin). */
+export function useStageAccent(): StageHue {
+  const theme = useStageTheme()
+  const scope = useStageScope()
+  if (theme === 'dark') return scope === 'admin' ? ADMIN_ROSE_HUE : STAGE_HUES.violet
+  return scope === 'admin' ? ADMIN_ORANGE_HUE : AGENT_EMERALD_HUE
 }
 
 /* ---------------------------------------------------------------------
@@ -137,21 +198,26 @@ export function Stage({
   )
 }
 
-/** Animated tab-content swap: blur + rise */
+/** Animated tab-content swap: blur + rise (+ optional horizontal drift
+    driven by `direction` so forward/backward swaps read bidirectionally). */
 export function StageTabSwap({
   tabId,
   children,
+  duration = 0.45,
+  direction = 0,
 }: {
   tabId: string
   children: React.ReactNode
+  duration?: number
+  direction?: number
 }) {
   return (
     <motion.div
       key={tabId}
-      initial={{ opacity: 0, y: 18, filter: 'blur(8px)' }}
-      animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
-      exit={{ opacity: 0, y: -10, filter: 'blur(6px)' }}
-      transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+      initial={{ opacity: 0, y: 18, x: direction * 22, filter: 'blur(8px)' }}
+      animate={{ opacity: 1, y: 0, x: 0, filter: 'blur(0px)' }}
+      exit={{ opacity: 0, y: -10, x: direction * -14, filter: 'blur(6px)' }}
+      transition={{ duration, ease: [0.22, 1, 0.36, 1] }}
       className="space-y-6"
     >
       {children}
@@ -166,10 +232,13 @@ export function StageTabSwap({
 export function TiltCard({
   children,
   className,
+  contentClassName,
   onClick,
 }: {
   children: React.ReactNode
   className?: string
+  /** Classes for the inner content wrapper (defaults to a plain full-height box). */
+  contentClassName?: string
   onClick?: () => void
 }) {
   const ref = useRef<HTMLDivElement>(null)
@@ -209,7 +278,7 @@ export function TiltCard({
       className={cn('tilt-card stage-glass overflow-hidden', className)}
     >
       <div className="tilt-glare" aria-hidden="true" />
-      <div className="relative h-full">
+      <div className={cn('relative h-full', contentClassName)}>
         {children}
       </div>
     </motion.div>
@@ -275,6 +344,8 @@ interface StageStatCardProps {
   delay?: number
   /** Useful top-right slot (e.g. live badge, mini action). Renders nothing when omitted. */
   action?: React.ReactNode
+  /** Compact context line shown below the KPI value. */
+  detail?: string
 }
 
 export function StageStatCard({
@@ -288,6 +359,7 @@ export function StageStatCard({
   spark,
   delay = 0,
   action,
+  detail,
 }: StageStatCardProps) {
   const theme = useStageTheme()
   const TrendIcon = trendUp ? ArrowUpRight : ArrowDownRight
@@ -302,25 +374,28 @@ export function StageStatCard({
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5, delay, ease: [0.22, 1, 0.36, 1] }}
     >
-      <TiltCard className="flex h-full flex-col p-5">
+      <TiltCard className="flex h-full min-h-[124px] flex-col p-3.5">
         <div className="flex items-start justify-between gap-2">
-          <OrbIcon icon={icon} hue={hue} size={46} />
+          <OrbIcon icon={icon} hue={hue} size={40} radius={12} />
           {action}
         </div>
 
-        <p className={`mt-4 text-[11px] font-semibold uppercase tracking-[1.6px] ${labelColor}`}>
+        <p className={`mt-3 text-[10px] font-bold uppercase tracking-[1.35px] ${labelColor}`}>
           {label}
         </p>
         <AnimatedNumber
           value={value}
           suffix={suffix}
           className={theme === 'dark'
-            ? 'mt-0.5 block text-[32px] font-extrabold leading-none tracking-[-1px] text-white'
-            : 'mt-0.5 block text-[32px] font-extrabold leading-none tracking-[-1px] text-slate-900'}
+            ? 'mt-0.5 block text-[27px] font-extrabold leading-none tracking-[-0.8px] text-white'
+            : 'mt-0.5 block text-[27px] font-extrabold leading-none tracking-[-0.8px] text-slate-900'}
         />
+        {detail && (
+          <p className={`mt-1 truncate text-[10px] font-medium ${faintColor}`}>{detail}</p>
+        )}
 
         {trend && (
-          <div className="mt-2.5 flex items-center gap-2">
+          <div className="mt-2 flex items-center gap-2">
             <span
               className="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-bold"
               style={{
@@ -337,8 +412,8 @@ export function StageStatCard({
         )}
 
         {spark && (
-          <div className="-mx-5 -mb-5 mt-auto pt-3">
-            <GlowSparkline data={spark} color={hue.line} />
+          <div className="-mx-4 -mb-4 mt-auto overflow-hidden rounded-b-[inherit] pt-2">
+            <GlowSparkline data={spark} color={hue.line} height={34} />
           </div>
         )}
       </TiltCard>
@@ -449,7 +524,7 @@ export function StagePanel({
     >
       <div
         className={cn(
-          'stage-glass p-5 transition-all duration-300',
+          'stage-glass flex h-full min-h-0 flex-col overflow-hidden p-5 transition-all duration-300',
           className
         )}
       >
@@ -468,7 +543,7 @@ export function StagePanel({
             {badge}
           </div>
         </div>
-        {children}
+        <div className="min-h-0 flex-1">{children}</div>
       </div>
     </motion.div>
   )
@@ -513,7 +588,7 @@ export function StageBadge({
   return (
     <span
       className={cn(
-        'inline-flex items-center whitespace-nowrap rounded-full border px-2.5 py-1 text-[11px] font-semibold backdrop-blur-sm',
+        'inline-flex items-center gap-1 whitespace-nowrap rounded-full border px-2.5 py-1 text-[11px] font-semibold backdrop-blur-sm',
         className
       )}
       style={{ color: v.fg, backgroundColor: v.bg, borderColor: v.border, ...style }}
@@ -545,6 +620,8 @@ export function StageButton({
   disabled?: boolean
 }) {
   const theme = useStageTheme()
+  const accent = useStageAccent()
+  const dark = theme === 'dark'
   return (
     <motion.button
       type="button"
@@ -555,20 +632,19 @@ export function StageButton({
         'relative inline-flex items-center justify-center gap-1.5 overflow-hidden rounded-xl font-semibold transition-all duration-200 disabled:opacity-40 disabled:pointer-events-none',
         size === 'sm' ? 'h-8 px-3 text-xs' : 'h-9 px-4 text-sm',
         variant === 'primary'
-          ? theme === 'dark'
-            ? 'border border-white/20 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.45),0_8px_20px_-6px_rgba(124,92,255,0.6)]'
-            : 'border border-white/60 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.5),0_10px_22px_-8px_rgba(13,148,136,0.55)]'
-          : theme === 'dark'
+          ? 'border border-white/20 text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.42)] hover:brightness-110'
+          : dark
             ? 'border border-white/12 text-slate-300 shadow-[inset_0_1px_0_rgba(255,255,255,0.1)] hover:text-white'
             : 'border border-teal-900/12 text-slate-600 shadow-[inset_0_1px_0_rgba(255,255,255,0.9)] hover:text-teal-800',
         className
       )}
       style={
         variant === 'primary'
-          ? theme === 'dark'
-            ? { backgroundImage: 'linear-gradient(145deg, #8B7CFF 0%, #6C5ECF 55%, #5646C9 100%)' }
-            : { backgroundImage: 'linear-gradient(145deg, #2DD4BF 0%, #14B8A6 55%, #0D9488 100%)' }
-          : theme === 'dark'
+          ? {
+              backgroundImage: `linear-gradient(145deg, ${accent.a} 0%, ${accent.b} 55%, ${accent.b} 100%)`,
+              boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.45), 0 8px 22px -6px ' + accent.glow,
+            }
+          : dark
             ? { backgroundImage: 'linear-gradient(180deg, rgba(255,255,255,0.09), rgba(255,255,255,0.03))' }
             : { backgroundImage: 'linear-gradient(180deg, rgba(255,255,255,0.9), rgba(255,255,255,0.5))' }
       }
@@ -606,6 +682,8 @@ export function StageTabs({
   onChange: (id: string) => void
 }) {
   const theme = useStageTheme()
+  const dark = theme === 'dark'
+  const accent = useStageAccent()
   return (
     <div className="stage-glass grid w-full grid-cols-2 gap-1 p-1.5 sm:grid-cols-3 lg:grid-cols-5">
       {tabs.map(tab => {
@@ -620,7 +698,7 @@ export function StageTabs({
               'relative flex items-center justify-center gap-2 rounded-xl px-2 py-2.5 text-[13px] font-semibold transition-colors duration-200',
               active
                 ? 'text-white'
-                : theme === 'dark'
+                : dark
                   ? 'text-slate-400 hover:text-slate-200'
                   : 'text-slate-500 hover:text-teal-900'
             )}
@@ -630,19 +708,15 @@ export function StageTabs({
                 layoutId="stage-tab-pill"
                 className="absolute inset-0 rounded-xl border border-white/20"
                 style={{
-                  backgroundImage: theme === 'dark'
-                    ? 'linear-gradient(145deg, #8B7CFF 0%, #6C5ECF 60%, #5646C9 100%)'
-                    : 'linear-gradient(145deg, #2DD4BF 0%, #14B8A6 60%, #0D9488 100%)',
-                  boxShadow: theme === 'dark'
-                    ? 'inset 0 1px 0 rgba(255,255,255,0.4), 0 10px 26px -8px rgba(124,92,255,0.65)'
-                    : 'inset 0 1px 0 rgba(255,255,255,0.5), 0 10px 26px -10px rgba(13,148,136,0.6)',
+                  backgroundImage: `linear-gradient(145deg, ${accent.a} 0%, ${accent.b} 60%, ${accent.b} 100%)`,
+                  boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.4), 0 10px 26px -8px ' + accent.glow,
                 }}
                 transition={{ type: 'spring', stiffness: 380, damping: 32 }}
               />
             )}
             {!active && (
               <span className={cn('absolute inset-0 rounded-xl transition-colors',
-                theme === 'dark' ? 'hover:bg-white/5' : 'hover:bg-teal-900/5')} />
+                dark ? 'hover:bg-white/5' : 'hover:bg-teal-900/5')} />
             )}
             <Icon size={15} className="relative z-10" />
             <span className="relative z-10 truncate">{tab.label}</span>
@@ -745,8 +819,13 @@ export function StageAreaChart({
   height?: number
 }) {
   return (
-    <div className="stage-chart-glow" style={{ height }}>
-      <ResponsiveContainer width="100%" height="100%">
+    <div
+      className="stage-chart-glow relative overflow-hidden rounded-2xl border border-white/[0.06] bg-gradient-to-br from-white/[0.06] via-transparent to-black/[0.08] px-1"
+      style={{ height, perspective: '1200px' }}
+    >
+      <div className="pointer-events-none absolute inset-x-5 top-0 h-px bg-gradient-to-r from-transparent via-white/30 to-transparent" />
+      <div className="h-full [transform:rotateX(2deg)]">
+        <ResponsiveContainer width="100%" height="100%">
         <AreaChart data={data} margin={{ top: 12, right: 8, left: -16, bottom: 0 }}>
           <defs>
             {series.map(s => (
@@ -790,7 +869,8 @@ export function StageAreaChart({
             />
           ))}
         </AreaChart>
-      </ResponsiveContainer>
+        </ResponsiveContainer>
+      </div>
     </div>
   )
 }
@@ -805,8 +885,13 @@ export function StageBarChart({
   height?: number
 }) {
   return (
-    <div style={{ height }}>
-      <ResponsiveContainer width="100%" height="100%">
+    <div
+      className="relative overflow-hidden rounded-2xl border border-white/[0.06] bg-gradient-to-br from-white/[0.06] via-transparent to-black/[0.08] px-1"
+      style={{ height, perspective: '1200px' }}
+    >
+      <div className="pointer-events-none absolute inset-x-5 top-0 h-px bg-gradient-to-r from-transparent via-white/25 to-transparent" />
+      <div className="h-full [transform:rotateX(4deg)]">
+        <ResponsiveContainer width="100%" height="100%">
         <BarChart data={data} margin={{ top: 12, right: 8, left: -16, bottom: 0 }} barCategoryGap="28%">
           <defs>
             {series.map(s => (
@@ -832,7 +917,8 @@ export function StageBarChart({
             />
           ))}
         </BarChart>
-      </ResponsiveContainer>
+        </ResponsiveContainer>
+      </div>
     </div>
   )
 }
@@ -929,12 +1015,14 @@ export function ShimmerProgress({
   colorTo,
   glow,
   height = 8,
+  intense = false,
 }: {
   pct: number
   colorFrom: string
   colorTo: string
   glow: string
   height?: number
+  intense?: boolean
 }) {
   const theme = useStageTheme()
   return (
@@ -943,14 +1031,19 @@ export function ShimmerProgress({
       style={{
         height,
         backgroundColor: theme === 'dark' ? 'rgba(255,255,255,0.07)' : 'rgba(15,23,42,0.08)',
+        boxShadow: intense ? 'inset 0 2px 5px rgba(0,0,0,0.55), inset 0 -1px 0 rgba(255,255,255,0.06)' : undefined,
       }}
     >
       <motion.div
         className="shimmer-bar relative h-full rounded-full"
         style={{
           width: `${pct}%`,
-          backgroundImage: `linear-gradient(90deg, ${colorTo}, ${colorFrom})`,
-          boxShadow: `0 0 14px ${glow}, inset 0 1px 0 rgba(255,255,255,0.35)`,
+          backgroundImage: intense
+            ? `linear-gradient(180deg, rgba(255,255,255,0.32), rgba(255,255,255,0) 46%), linear-gradient(90deg, ${colorTo}, ${colorFrom})`
+            : `linear-gradient(90deg, ${colorTo}, ${colorFrom})`,
+          boxShadow: intense
+            ? `0 0 10px ${glow}, 0 0 22px ${glow}, 0 4px 12px ${glow}, inset 0 1px 0 rgba(255,255,255,0.55), inset 0 -3px 6px rgba(0,0,0,0.35)`
+            : `0 0 14px ${glow}, inset 0 1px 0 rgba(255,255,255,0.35)`,
         }}
         initial={{ width: 0 }}
         whileInView={{ width: `${pct}%` }}

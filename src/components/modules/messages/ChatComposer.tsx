@@ -84,13 +84,14 @@ export function ChatComposer({ onSendText, onSendVoice, onAttach, onCapture, sho
   const isDark = theme === 'dark'
   const ghostBtn = isDark
     ? 'text-slate-400 hover:text-white hover:bg-white/5'
-    : 'text-slate-500 hover:text-teal-900 hover:bg-teal-900/5'
-  const sendBtnStyle = isDark
-    ? { backgroundImage: 'linear-gradient(145deg, #8B7CFF 0%, #6C5ECF 60%, #5646C9 100%)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.4), 0 8px 20px -6px rgba(124,92,255,0.65)' }
-    : { backgroundImage: 'linear-gradient(145deg, #2DD4BF 0%, #14B8A6 60%, #0D9488 100%)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.5), 0 8px 20px -8px rgba(13,148,136,0.6)' }
+    : 'text-slate-500 hover:text-[color:var(--msg-accent-line)] hover:bg-[var(--msg-accent-soft)]'
+  const sendBtnStyle = {
+    backgroundImage: 'linear-gradient(145deg, var(--msg-accent-a, #8B7CFF) 0%, var(--msg-accent-b, #5B4BD4) 100%)',
+    boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.4), 0 8px 20px -6px var(--msg-accent-glow, rgba(124,92,255,0.65))',
+  }
   const stageField = isDark
-    ? 'bg-white/[0.05] border-white/10 text-white placeholder:text-slate-500 focus:border-violet-400/60 focus:ring-violet-400/20'
-    : 'bg-white border-teal-900/10 text-slate-900 placeholder:text-slate-400 focus:border-teal-500/50 focus:ring-teal-500/15'
+    ? 'bg-white/[0.05] border-white/10 text-white placeholder:text-slate-500 focus:border-[color:var(--msg-accent-line)] focus:ring-[var(--msg-accent-soft)]'
+    : 'bg-white border-[color:var(--msg-hairline)] text-slate-900 placeholder:text-slate-400 focus:border-[color:var(--msg-accent-line)] focus:ring-[var(--msg-accent-soft)]'
 
   useEffect(() => {
     return () => {
@@ -397,7 +398,7 @@ export function ChatComposer({ onSendText, onSendVoice, onAttach, onCapture, sho
   }, [attachOpen, emojiOpen])
 
   return (
-    <div className={cn('px-4 py-3 border-t backdrop-blur-md shrink-0 relative', isDark ? 'border-white/10 bg-white/[0.02]' : 'border-teal-900/10 bg-white/60')}>
+    <div className={cn('px-4 py-3 border-t backdrop-blur-md shrink-0 relative', isDark ? 'border-white/10 bg-white/[0.02]' : 'border-[color:var(--msg-hairline)] bg-white/60')}>
       <input
         ref={fileInputRef}
         type="file"
@@ -430,9 +431,9 @@ export function ChatComposer({ onSendText, onSendVoice, onAttach, onCapture, sho
                       key={item.kind}
                       type="button"
                       onClick={() => { openPicker(item.kind); closeAll() }}
-                      className={cn('w-full flex items-center gap-3 px-3 py-2.5 text-sm font-medium rounded-xl transition-colors', isDark ? 'text-slate-200 hover:bg-white/5' : 'text-slate-700 hover:bg-teal-900/5')}
+                      className={cn('w-full flex items-center gap-3 px-3 py-2.5 text-sm font-medium rounded-xl transition-colors', isDark ? 'text-slate-200 hover:bg-white/5' : 'text-slate-700 hover:bg-[var(--msg-accent-soft)]')}
                     >
-                      <span className={cn('w-8 h-8 rounded-lg flex items-center justify-center', isDark ? 'bg-violet-400/10 text-indigo-300' : 'bg-teal-500/10 text-teal-700')}>
+                      <span className="w-8 h-8 rounded-lg flex items-center justify-center bg-[var(--msg-accent-soft)] text-[color:var(--msg-accent-line)]">
                         {item.icon}
                       </span>
                       {item.label}
@@ -445,7 +446,7 @@ export function ChatComposer({ onSendText, onSendVoice, onAttach, onCapture, sho
 
         {/* Pending attachment preview */}
         {pendingFile ? (
-          <div className={cn('flex-1 flex items-center gap-3 border rounded-2xl px-3 py-2 backdrop-blur-md', isDark ? 'bg-violet-400/10 border-violet-400/25' : 'bg-teal-500/[0.07] border-teal-500/25')}>
+          <div className={cn('flex-1 flex items-center gap-3 border rounded-2xl px-3 py-2 backdrop-blur-md', isDark ? 'bg-white/[0.05] border-white/10' : 'bg-[var(--msg-accent-soft)] border-[color:var(--msg-accent-border)]')}>
             <div className={cn('w-10 h-10 rounded-lg overflow-hidden shrink-0 flex items-center justify-center', isDark ? 'bg-white/5' : 'bg-white')}>
               {pendingKind !== 'document' && pendingPreview ? (
                 pendingKind === 'video' ? (
@@ -454,9 +455,9 @@ export function ChatComposer({ onSendText, onSendVoice, onAttach, onCapture, sho
                   <img src={pendingPreview} alt="" className="w-full h-full object-cover" />
                 )
               ) : pendingKind === 'audio' ? (
-                <Mic size={16} className={isDark ? 'text-indigo-300' : 'text-teal-600'} />
+                <Mic size={16} className="text-[color:var(--msg-accent-line)]" />
               ) : (
-                <FileText size={16} className={isDark ? 'text-indigo-300' : 'text-teal-600'} />
+                <FileText size={16} className="text-[color:var(--msg-accent-line)]" />
               )}
             </div>
             <div className="flex-1 min-w-0">
@@ -469,7 +470,7 @@ export function ChatComposer({ onSendText, onSendVoice, onAttach, onCapture, sho
             </div>
             {sending ? (
               <span className="w-9 h-9 flex items-center justify-center shrink-0" title="Envoi en cours...">
-                <span className={cn('w-5 h-5 rounded-full border-2 animate-spin', isDark ? 'border-violet-400/30 border-t-violet-300' : 'border-teal-500/30 border-t-teal-600')} />
+                <span className="w-5 h-5 rounded-full border-2 animate-spin border-[color:var(--msg-accent-border)] border-t-[color:var(--msg-accent-line)]" />
               </span>
             ) : (
               <>
@@ -539,7 +540,7 @@ export function ChatComposer({ onSendText, onSendVoice, onAttach, onCapture, sho
             </button>
             {sending ? (
               <span className="w-9 h-9 flex items-center justify-center shrink-0" title="Envoi en cours...">
-                <span className={cn('w-5 h-5 rounded-full border-2 animate-spin', isDark ? 'border-violet-400/30 border-t-violet-300' : 'border-teal-500/30 border-t-teal-600')} />
+                <span className="w-5 h-5 rounded-full border-2 animate-spin border-[color:var(--msg-accent-border)] border-t-[color:var(--msg-accent-line)]" />
               </span>
             ) : (
               <button

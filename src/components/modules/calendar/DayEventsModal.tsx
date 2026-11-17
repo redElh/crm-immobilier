@@ -6,7 +6,8 @@ import {
   formatEventRange, readableChipText,
   getEventsForDay,
 } from '../../../types/calendar'
-import StageModal, { useStageFormClasses } from './StageModal'
+import { useStageScope } from '../../dashboard/Stage'
+import StageModal, { useStageFormClasses, useStageModalButtons } from './StageModal'
 
 interface DayEventsModalProps {
   isOpen: boolean
@@ -21,7 +22,9 @@ const PAGE_SIZE = 5
 
 export default function DayEventsModal({ isOpen, date, events, agents, onClose, onEventClick }: DayEventsModalProps) {
   const [page, setPage] = useState(0)
-  const { staged, dark } = useStageFormClasses()
+  const { staged, dark, accent } = useStageFormClasses()
+  const btns = useStageModalButtons()
+  const isAdmin = useStageScope() === 'admin'
 
   const dayEvents = useMemo(() => {
     if (!date) return []
@@ -44,7 +47,10 @@ export default function DayEventsModal({ isOpen, date, events, agents, onClose, 
       }
       subtitle={`${dayEvents.length} événement${dayEvents.length > 1 ? 's' : ''} programmé${dayEvents.length > 1 ? 's' : ''}`}
       icon={Calendar}
+      hue={accent}
+      accent={staged ? (dark ? accent.a : accent.b) : undefined}
       maxWidth="max-w-lg"
+      centered
       bodyClassName="max-h-[52vh] overflow-y-auto scrollbar-thin space-y-2 pt-1"
       footer={
         dayEvents.length > PAGE_SIZE ? (
@@ -52,7 +58,7 @@ export default function DayEventsModal({ isOpen, date, events, agents, onClose, 
             <button
               onClick={() => setPage(p => Math.max(0, p - 1))}
               disabled={currentPage === 0}
-              className={`${staged ? (dark ? 'border-white/12 bg-white/5 text-slate-300 hover:bg-white/10' : 'border-teal-900/12 bg-white/70 text-teal-900/70 hover:bg-white') : 'btn-ghost'} inline-flex h-8 items-center gap-1 rounded-xl border px-3 text-xs font-semibold transition-all disabled:opacity-30`}
+              className={`${btns.ghost} !h-8 !px-3 !text-xs disabled:opacity-30`}
             >
               <ChevronLeft size={13} /> Précédent
             </button>
@@ -63,15 +69,24 @@ export default function DayEventsModal({ isOpen, date, events, agents, onClose, 
                   onClick={() => setPage(i)}
                   aria-label={`Page ${i + 1}`}
                   className={`h-1.5 rounded-full transition-all duration-300 ${
-                    i === currentPage ? 'w-5 bg-gradient-to-r from-violet-400 to-indigo-500' : 'w-1.5 bg-slate-500/40 hover:bg-slate-400/60'
+                    i === currentPage ? 'w-5' : 'w-1.5'
+                  } ${
+                    i === currentPage
+                      ? ''
+                      : dark
+                        ? 'bg-slate-500/40 hover:bg-slate-400/60'
+                        : isAdmin
+                          ? 'bg-orange-900/20 hover:bg-orange-900/30'
+                          : 'bg-teal-900/20 hover:bg-teal-900/30'
                   }`}
+                  style={i === currentPage ? { backgroundImage: `linear-gradient(90deg, ${accent.a}, ${accent.b})`, boxShadow: `0 0 8px ${accent.glow}` } : undefined}
                 />
               ))}
             </div>
             <button
               onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))}
               disabled={currentPage >= totalPages - 1}
-              className={`${staged ? (dark ? 'border-white/12 bg-white/5 text-slate-300 hover:bg-white/10' : 'border-teal-900/12 bg-white/70 text-teal-900/70 hover:bg-white') : 'btn-ghost'} inline-flex h-8 items-center gap-1 rounded-xl border px-3 text-xs font-semibold transition-all disabled:opacity-30`}
+              className={`${btns.ghost} !h-8 !px-3 !text-xs disabled:opacity-30`}
             >
               Suivant <ChevronRight size={13} />
             </button>
@@ -80,7 +95,7 @@ export default function DayEventsModal({ isOpen, date, events, agents, onClose, 
       }
     >
       {pageEvents.length === 0 ? (
-        <p className={`py-10 text-center text-sm ${staged ? 'text-slate-500' : 'text-text-secondary'}`}>
+        <p className={`py-10 text-center text-sm ${staged ? (dark ? 'text-slate-500' : isAdmin ? 'text-orange-900/50' : 'text-teal-900/50') : 'text-text-secondary'}`}>
           Aucun événement ce jour
         </p>
       ) : (
@@ -130,7 +145,7 @@ export default function DayEventsModal({ isOpen, date, events, agents, onClose, 
                       {cfg.label}
                     </span>
                   </div>
-                  <div className={`flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs ${staged ? (dark ? 'text-slate-400' : 'text-teal-900/60') : 'text-text-secondary'}`}>
+                  <div className={`flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs ${staged ? (dark ? 'text-slate-400' : isAdmin ? 'text-orange-900/60' : 'text-teal-900/60') : 'text-text-secondary'}`}>
                     <span className="flex items-center gap-1 font-medium">
                       <Clock size={11} />
                       {formatEventRange(event)}
@@ -138,12 +153,12 @@ export default function DayEventsModal({ isOpen, date, events, agents, onClose, 
                     {agentNames.length > 0 && <span>{agentNames.join(' · ')}</span>}
                   </div>
                   {event.clientName && (
-                    <p className={`mt-0.5 text-xs ${staged ? (dark ? 'text-slate-500' : 'text-teal-900/50') : 'text-text-secondary'}`}>
+                    <p className={`mt-0.5 text-xs ${staged ? (dark ? 'text-slate-500' : isAdmin ? 'text-orange-900/50' : 'text-teal-900/50') : 'text-text-secondary'}`}>
                       Client : {event.clientName}
                     </p>
                   )}
                   {event.description && (
-                    <p className={`mt-0.5 line-clamp-1 text-xs opacity-70 ${staged ? (dark ? 'text-slate-500' : 'text-teal-900/50') : 'text-text-secondary'}`}>
+                    <p className={`mt-0.5 line-clamp-1 text-xs opacity-70 ${staged ? (dark ? 'text-slate-500' : isAdmin ? 'text-orange-900/50' : 'text-teal-900/50') : 'text-text-secondary'}`}>
                       {event.description}
                     </p>
                   )}

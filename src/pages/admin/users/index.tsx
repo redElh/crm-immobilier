@@ -1,22 +1,25 @@
-import { useState, useEffect, useRef } from 'react'
+import { Fragment, useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { useParams } from 'react-router-dom'
-import Card from '../../../components/ui/Card'
-import { Button } from '../../../components/ui/Button'
-import { Badge } from '../../../components/ui/Badge'
-import { BackLink } from '../../../components/ui/BackLink'
+import { useNavigate, useParams } from 'react-router-dom'
 import { Select } from '../../../components/ui/Select'
 import { useToast } from '../../../components/ui/Toast'
+import { api } from '../../../services/api'
+import { cn } from '../../../lib/utils'
 import {
   Users, Shield, UserCheck, UserX, Search,
-  Eye, EyeOff, Edit3, Trash2, Mail, Lock,
-  Activity, MoreHorizontal, Plus, Filter,
-  X, ToggleLeft, ToggleRight,
+  Eye, Edit3, Trash2, Mail, Lock,
+  MoreHorizontal, Plus, Filter, X, ToggleLeft, ToggleRight,
   ChevronLeft, ChevronRight, CheckCircle,
-  UserPlus, RefreshCw
+  RefreshCw, ArrowLeft, Clock, Star, Phone, Activity,
 } from 'react-feather'
-import { api } from '../../../services/api'
-import { PhoneInput } from '../../../components/ui/PhoneInput'
+import {
+  StagePanel, StageBadge, StageButton, STAGE_HUES,
+  useStageTheme, useStageAccent, OrbIcon, AnimatedNumber, ShimmerProgress,
+  type StageHue
+} from '../../../components/dashboard/Stage'
+import { AdminStatCard } from '../../../components/dashboard/AdminStatCard'
+import { ResendCredentialsDialog } from '../../../components/ui/ResendCredentialsDialog'
+import { UserFormModal, AGENT_POSITIONS, type UserFormData, type UserFormErrors } from './UserFormModal'
 
 interface UserData {
   id: number
@@ -38,7 +41,6 @@ interface UserData {
 }
 
 const roles = ['Tous', 'admin', 'gerant', 'agent']
-const statuses = ['Tous', 'Actif', 'Inactif', 'Suspendu']
 const ITEMS_PER_PAGE = 5
 
 const roleLabels: Record<string, string> = {
@@ -47,27 +49,24 @@ const roleLabels: Record<string, string> = {
   agent: 'Agent',
 }
 
-const roleColors: Record<string, { bg: string, text: string }> = {
-  admin: { bg: 'bg-amber-100', text: 'text-amber-700' },
-  gerant: { bg: 'bg-orange-100', text: 'text-orange-700' },
-  agent: { bg: 'bg-accent-light', text: 'text-accent' },
+const ROLE_HUES: Record<string, StageHue> = {
+  admin: STAGE_HUES.amber,
+  gerant: STAGE_HUES.violet,
+  agent: STAGE_HUES.sky,
 }
 
-const roleBadgeColors: Record<string, 'primary' | 'default' | 'warning' | 'secondary' | 'success'> = {
-  admin: 'primary',
-  gerant: 'warning',
-  agent: 'default',
+type StageBadgeVariant = 'neutral' | 'violet' | 'ok' | 'warn' | 'danger'
+
+function getRoleHue(role: string): StageHue {
+  return ROLE_HUES[role] || STAGE_HUES.sky
 }
 
-const AGENT_POSITIONS = [
-  { value: 'Responsable agence', label: 'Responsable agence' },
-  { value: 'Responsable secteur', label: 'Responsable secteur' },
-  { value: 'Commercial', label: 'Commercial' },
-  { value: 'Secrétariat', label: 'Secrétariat' },
-  { value: 'Stagiaire', label: 'Stagiaire' },
-  { value: 'Traducteur', label: 'Traducteur' },
-  { value: 'Conciergerie', label: 'Conciergerie' },
-]
+function getStatusMeta(status: string): { label: string; variant: StageBadgeVariant } {
+  if (status === 'actif') return { label: 'Actif', variant: 'ok' }
+  if (status === 'inactif') return { label: 'Inactif', variant: 'warn' }
+  if (status === 'suspendu') return { label: 'Suspendu', variant: 'danger' }
+  return { label: status || '—', variant: 'neutral' }
+}
 
 function getRoleLabel(user: UserData): string {
   if (user.role === 'admin') return 'Administrateur'
@@ -76,34 +75,55 @@ function getRoleLabel(user: UserData): string {
   return 'Agent'
 }
 
-const ADMIN_BUTTON_CLASSES = 'bg-amber-600 hover:bg-amber-700 border-amber-600 hover:border-amber-700 text-white shadow-[0_10px_24px_rgba(217,119,6,0.35)]'
-const GERANT_BUTTON_CLASSES = 'bg-[#905D5D] hover:bg-[#7D5050] border-[#905D5D] hover:border-[#7D5050] text-white shadow-[0_10px_24px_rgba(144,93,93,0.35)]'
-
-function getRoleColor(role: string, isGerant: boolean): { bg: string; text: string } {
-  const base = roleColors[role] || roleColors.agent
-  if (!isGerant) return base
-  return { bg: 'bg-[#E7D5D5]', text: 'text-[#905D5D]' }
+function getInitials(user: UserData): string {
+  const first = user.first_name?.trim()?.[0] || ''
+  const last = user.last_name?.trim()?.[0] || ''
+  return (first + last).toUpperCase() || '?'
 }
 
-interface CreateFormData {
-  firstName: string
-  lastName: string
-  email: string
-  phone: string
-  password: string
-  confirmPassword: string
-  role: string
-  position: string
-  sendEmail: boolean
-  requirePasswordChange: boolean
+function formatLastLogin(value: string | null): string {
+  if (!value) return 'Jamais connecté'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return '—'
+  return date.toLocaleString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
 }
 
-interface FormErrors {
-  firstName?: string
-  lastName?: string
-  email?: string
-  password?: string
-  confirmPassword?: string
+function formatRelativeLogin(value: string | null): string {
+  if (!value) return 'Jamais connecté'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return '—'
+  const minutes = Math.floor((Date.now() - date.getTime()) / 60_000)
+  if (minutes < 1) return "À l'instant"
+  if (minutes < 60) return `il y a ${minutes} min`
+  const hours = Math.floor(minutes / 60)
+  if (hours < 24) return `il y a ${hours} h`
+  const days = Math.floor(hours / 24)
+  if (days === 1) return 'hier'
+  if (days < 7) return `il y a ${days} j`
+  return date.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })
+}
+
+function FilterChip({ label, onClear, isDark }: { label: string; onClear: () => void; isDark: boolean }) {
+  return (
+    <span
+      className={cn(
+        'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-semibold',
+        isDark
+          ? 'border-white/10 bg-white/[0.05] text-slate-300'
+          : 'border-orange-900/10 bg-white/80 text-slate-600'
+      )}
+    >
+      {label}
+      <button
+        type="button"
+        onClick={onClear}
+        aria-label={`Retirer le filtre ${label}`}
+        className="transition-colors hover:text-rose-500"
+      >
+        <X size={10} />
+      </button>
+    </span>
+  )
 }
 
 interface MenuPosition {
@@ -128,6 +148,8 @@ interface ActionMenuProps {
 
 function ActionMenu({ user, position, currentUserId, currentUserRole, onClose, onEdit, onToggleStatus, onReactivate, onDelete, onResetPassword, onResendCredentials, adminId }: ActionMenuProps) {
   const ref = useRef<HTMLDivElement>(null)
+  const theme = useStageTheme()
+  const dark = theme === 'dark'
 
   useEffect(() => {
     const handleClick = (e: MouseEvent) => {
@@ -161,6 +183,8 @@ function ActionMenu({ user, position, currentUserId, currentUserRole, onClose, o
       : []),
   ]
 
+  const firstDangerIndex = actions.findIndex(action => action.danger)
+
   return (
     <AnimatePresence>
       <>
@@ -175,21 +199,38 @@ function ActionMenu({ user, position, currentUserId, currentUserRole, onClose, o
           exit={{ opacity: 0, y: 8, scale: 0.96 }}
           transition={{ duration: 0.12 }}
           style={{ position: 'fixed', top: position.top, right: position.right }}
-          className="w-56 bg-card rounded-xl border border-border/50 shadow-dropdown py-1 z-50 max-h-[300px] overflow-y-auto scrollbar-thin"
+          className="pop-glass z-50 max-h-[360px] w-60 overflow-y-auto rounded-2xl py-1 scrollbar-thin"
         >
+          <div className={cn('border-b px-4 pb-2.5 pt-2', dark ? 'border-white/10' : 'border-orange-900/10')}>
+            <p className={cn('truncate text-xs font-bold', dark ? 'text-white' : 'text-slate-900')}>
+              {user.first_name} {user.last_name}
+            </p>
+            <p className={cn('mt-0.5 truncate text-[10px]', dark ? 'text-slate-500' : 'text-slate-400')}>
+              {user.email}
+            </p>
+          </div>
           {actions.map((action, i) => (
-            <button
-              key={i}
-              onClick={() => { action.onClick(); onClose() }}
-              className={`flex w-full items-center gap-3 px-4 py-2.5 text-sm transition-colors ${
-                action.danger
-                  ? 'text-error hover:bg-error/5'
-                  : 'text-text-secondary hover:text-text hover:bg-background'
-              }`}
-            >
-              <action.icon size={14} />
-              {action.label}
-            </button>
+            <Fragment key={i}>
+              {i === firstDangerIndex && firstDangerIndex > 0 && (
+                <div className={cn('my-1 border-t', dark ? 'border-white/10' : 'border-orange-900/10')} />
+              )}
+              <button
+                onClick={() => { action.onClick(); onClose() }}
+                className={cn(
+                  'flex w-full items-center gap-3 px-4 py-2.5 text-left text-[13px] font-medium transition-colors',
+                  action.danger
+                    ? dark
+                      ? 'text-rose-300 hover:bg-rose-500/10'
+                      : 'text-rose-600 hover:bg-rose-500/10'
+                    : dark
+                      ? 'text-slate-300 hover:bg-white/[0.06] hover:text-white'
+                      : 'text-slate-600 hover:bg-orange-900/[0.04] hover:text-orange-900'
+                )}
+              >
+                <action.icon size={14} />
+                {action.label}
+              </button>
+            </Fragment>
           ))}
         </motion.div>
       </>
@@ -197,24 +238,141 @@ function ActionMenu({ user, position, currentUserId, currentUserRole, onClose, o
   )
 }
 
-function getPasswordStrength(pw: string): { label: string; color: string; width: string } {
-  if (!pw) return { label: '', color: '', width: '0%' }
-  const score = Math.min(
-    (pw.length >= 8 ? 1 : 0) +
-    (/[a-z]/.test(pw) ? 1 : 0) +
-    (/[A-Z]/.test(pw) ? 1 : 0) +
-    (/[0-9]/.test(pw) ? 1 : 0) +
-    (/[^a-zA-Z0-9]/.test(pw) ? 1 : 0),
-    5
+function StageUserRow({
+  user,
+  index,
+  isDark,
+  isSelf,
+  onMenu,
+}: {
+  user: UserData
+  index: number
+  isDark: boolean
+  isSelf: boolean
+  onMenu: (e: React.MouseEvent) => void
+}) {
+  const hue = getRoleHue(user.role)
+  const status = getStatusMeta(user.status)
+  const roleBadgeStyle = isDark
+    ? { color: hue.a, backgroundColor: `${hue.a}1F`, borderColor: `${hue.a}42` }
+    : { color: hue.b, backgroundColor: `${hue.a}14`, borderColor: `${hue.a}38` }
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.35, delay: Math.min(index * 0.04, 0.3), ease: [0.22, 1, 0.36, 1] }}
+      className={cn(
+        'group relative grid flex-1 grid-cols-1 gap-3 overflow-hidden rounded-2xl border p-3 transition-all duration-200 lg:min-h-[64px] lg:grid-cols-[minmax(0,1.55fr)_minmax(0,1fr)_auto_auto] lg:items-center lg:gap-4',
+        isDark
+          ? 'border-white/[0.06] bg-white/[0.03] hover:border-white/[0.14] hover:bg-white/[0.055]'
+          : 'border-slate-200/70 bg-white/70 shadow-[0_1px_2px_rgba(15,23,42,0.03)] hover:border-orange-300/70 hover:bg-white'
+      )}
+    >
+      <span
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-y-0 left-0 w-[3px] opacity-0 transition-opacity duration-200 group-hover:opacity-100"
+        style={{ backgroundImage: `linear-gradient(180deg, ${hue.a}, ${hue.b})` }}
+      />
+
+      <div className="flex min-w-0 items-center gap-3">
+        <div
+          className="orb-icon relative flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl text-[11px] font-extrabold"
+          style={{ '--orb-a': hue.a, '--orb-b': hue.b, '--orb-glow': hue.glow } as React.CSSProperties}
+        >
+          {getInitials(user)}
+          {user.status === 'actif' && (
+            <span
+              className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2"
+              style={{ borderColor: isDark ? '#0D0A18' : '#FFFFFF', backgroundColor: '#34D399' }}
+            />
+          )}
+        </div>
+        <div className="min-w-0">
+          <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+            <p className={cn('truncate text-[13.5px] font-extrabold tracking-[-0.2px]', isDark ? 'text-white' : 'text-slate-900')}>
+              {user.first_name} {user.last_name}
+            </p>
+            {user.is_owner && (
+              <StageBadge variant="warn" className="!px-1.5 !py-0.5 !text-[9px]">
+                <Star size={9} /> Propriétaire
+              </StageBadge>
+            )}
+            {isSelf && (
+              <StageBadge variant="violet" className="!px-1.5 !py-0.5 !text-[9px]">Vous</StageBadge>
+            )}
+          </div>
+          <div className={cn('mt-0.5 flex min-w-0 items-center gap-1.5 text-[11px]', isDark ? 'text-slate-400' : 'text-slate-500')}>
+            <Mail size={11} className="shrink-0 opacity-70" />
+            <span className="truncate" title={user.email}>{user.email}</span>
+          </div>
+        </div>
+      </div>
+
+      <div className="flex min-w-0 flex-wrap items-center gap-1.5 lg:pl-1">
+        <StageBadge variant="neutral" style={roleBadgeStyle}>{getRoleLabel(user)}</StageBadge>
+        {user.phone && (
+          <span
+            className={cn(
+              'inline-flex max-w-full items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold',
+              isDark
+                ? 'border-white/[0.08] bg-white/[0.03] text-slate-300'
+                : 'border-slate-200/80 bg-white/80 text-slate-600'
+            )}
+          >
+            <Phone size={9} className="shrink-0 opacity-60" />
+            <span className="truncate">{user.phone}</span>
+          </span>
+        )}
+      </div>
+
+      <div className="flex items-center gap-2 lg:justify-end">
+        <StageBadge variant={status.variant}>
+          <span className="h-1.5 w-1.5 rounded-full bg-current" />
+          {status.label}
+        </StageBadge>
+        {user.days_since_last_login !== null && user.days_since_last_login > 0 && (
+          <span className={cn('text-[10px] font-semibold tabular-nums', isDark ? 'text-slate-500' : 'text-slate-400')}>
+            {user.days_since_last_login}j
+          </span>
+        )}
+      </div>
+
+      <div className="flex items-center justify-between gap-3 lg:justify-end">
+        <div className="text-left lg:text-right">
+          <p className={cn('text-[8.5px] font-bold uppercase tracking-[0.16em]', isDark ? 'text-slate-500' : 'text-slate-400')}>
+            Dernière connexion
+          </p>
+          <p className={cn('mt-0.5 inline-flex items-center gap-1 text-[10.5px] font-semibold tabular-nums', isDark ? 'text-slate-300' : 'text-slate-600')}>
+            <Clock size={10} className="shrink-0 opacity-60" />
+            {formatLastLogin(user.last_login_at)}
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={onMenu}
+          aria-label={`Actions pour ${user.first_name} ${user.last_name}`}
+          className={cn(
+            'flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border backdrop-blur-md transition-all duration-200 hover:scale-105 active:scale-95',
+            isDark
+              ? 'border-white/10 bg-white/[0.05] text-slate-400 hover:border-white/20 hover:bg-white/10 hover:text-white'
+              : 'border-slate-200/80 bg-white text-slate-500 shadow-sm hover:bg-white hover:text-slate-900'
+          )}
+        >
+          <MoreHorizontal size={16} />
+        </button>
+      </div>
+    </motion.div>
   )
-  if (score <= 2) return { label: 'Faible', color: 'bg-error', width: '40%' }
-  if (score <= 3) return { label: 'Moyen', color: 'bg-amber-500', width: '60%' }
-  if (score <= 4) return { label: 'Fort', color: 'bg-emerald-500', width: '80%' }
-  return { label: 'Très fort', color: 'bg-emerald-600', width: '100%' }
 }
 
 export default function AdminUsersPage() {
   const { adminId } = useParams<{ adminId: string }>()
+  const navigate = useNavigate()
+  const theme = useStageTheme()
+  const isDark = theme === 'dark'
+  const accent = useStageAccent()
+
   const [users, setUsers] = useState<UserData[]>([])
   const [filteredUsers, setFilteredUsers] = useState<UserData[]>([])
   const [loading, setLoading] = useState(true)
@@ -224,22 +382,23 @@ export default function AdminUsersPage() {
   const [positionFilter, setPositionFilter] = useState('Tous')
   const [showFilters, setShowFilters] = useState(false)
   const [showCreateModal, setShowCreateModal] = useState(false)
+  const [savingUser, setSavingUser] = useState(false)
   const [editingUser, setEditingUser] = useState<UserData | null>(null)
   const [menuTarget, setMenuTarget] = useState<{ user: UserData; position: MenuPosition } | null>(null)
+  const [resendTarget, setResendTarget] = useState<UserData | null>(null)
+  const [resending, setResending] = useState(false)
   const [currentPage, setCurrentPage] = useState(1)
-  const [formData, setFormData] = useState<CreateFormData>({
+  const [formData, setFormData] = useState<UserFormData>({
     firstName: '', lastName: '', email: '', phone: '',
     password: '', confirmPassword: '', role: 'agent', position: AGENT_POSITIONS[0].value,
     sendEmail: true, requirePasswordChange: true
   })
-  const [formErrors, setFormErrors] = useState<FormErrors>({})
+  const [formErrors, setFormErrors] = useState<UserFormErrors>({})
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [currentUser, setCurrentUser] = useState<{ id: number; role: string } | null>(null)
 
   const { toast } = useToast()
-
-  const isGerant = currentUser?.role === 'gerant'
 
   useEffect(() => {
     const load = async () => {
@@ -295,8 +454,61 @@ export default function AdminUsersPage() {
   const stats = {
     total: users.length,
     admins: users.filter(u => u.role === 'admin' || u.role === 'gerant').length,
+    adminsOnly: users.filter(u => u.role === 'admin').length,
+    gerantsOnly: users.filter(u => u.role === 'gerant').length,
     agents: users.filter(u => u.role === 'agent').length,
+    actifs: users.filter(u => u.status === 'actif').length,
     inactifs: users.filter(u => u.status === 'inactif' || u.status === 'suspendu').length,
+    inactifsOnly: users.filter(u => u.status === 'inactif').length,
+    suspendusOnly: users.filter(u => u.status === 'suspendu').length,
+  }
+
+  const activeAgents = users.filter(u => u.role === 'agent' && u.status === 'actif').length
+  const activationRate = stats.total > 0 ? Math.round((stats.actifs / stats.total) * 100) : 0
+  const neverConnected = users.filter(u => !u.last_login_at).length
+  const distinctPositions = new Set(
+    users.filter(u => u.role === 'agent' && u.position).map(u => u.position)
+  ).size
+
+  const recentConnections = users
+    .filter(u => u.last_login_at && !Number.isNaN(new Date(u.last_login_at).getTime()))
+    .sort((a, b) => new Date(b.last_login_at as string).getTime() - new Date(a.last_login_at as string).getTime())
+    .slice(0, 5)
+
+  const statusTabs = [
+    { value: 'Tous', label: 'Tous', count: stats.total },
+    { value: 'Actif', label: 'Actifs', count: stats.actifs },
+    { value: 'Inactif', label: 'Inactifs', count: stats.inactifsOnly },
+    { value: 'Suspendu', label: 'Suspendus', count: stats.suspendusOnly },
+  ]
+
+  const buildSpark = (predicate: (u: UserData) => boolean) => {
+    const now = new Date()
+    return Array.from({ length: 6 }, (_, i) => {
+      const end = new Date(now.getFullYear(), now.getMonth() - (5 - i) + 1, 1)
+      return users.filter(u => {
+        if (!predicate(u)) return false
+        const created = new Date(u.created_at)
+        return !Number.isNaN(created.getTime()) && created.getTime() < end.getTime()
+      }).length
+    })
+  }
+
+  const sparkTotal = buildSpark(() => true)
+  const sparkAdmins = buildSpark(u => u.role === 'admin' || u.role === 'gerant')
+  const sparkAgents = buildSpark(u => u.role === 'agent')
+  const sparkActifs = buildSpark(u => u.status === 'actif')
+  const sparkInactifs = buildSpark(u => u.status === 'inactif' || u.status === 'suspendu')
+
+  const activeFiltersCount =
+    (roleFilter !== 'Tous' ? 1 : 0) +
+    (positionFilter !== 'Tous' ? 1 : 0)
+
+  const resetFilters = () => {
+    setRoleFilter('Tous')
+    setPositionFilter('Tous')
+    setStatusFilter('Tous')
+    setSearch('')
   }
 
   const handleToggleStatus = async (id: number) => {
@@ -337,15 +549,24 @@ export default function AdminUsersPage() {
     }
   }
 
-  const handleResendCredentials = async (id: number) => {
+  const handleResendCredentials = (id: number) => {
     const target = users.find(u => String(u.id) === String(id))
-    if (!window.confirm(`Renvoyer les identifiants à ${target?.first_name || ''} ${target?.last_name || ''} ? Un nouveau mot de passe sera généré et l'ancien sera invalidé.`)) return
+    if (!target) return
+    setResendTarget(target)
+  }
+
+  const confirmResendCredentials = async () => {
+    if (!resendTarget || resending) return
+    setResending(true)
     try {
-      await api.post(`/admin/users/${id}/resend-credentials`)
-      toast('success', `Identifiants renvoyés par email à ${target?.first_name || ''} ${target?.last_name || ''}.`)
+      await api.post(`/admin/users/${resendTarget.id}/resend-credentials`)
+      toast('success', `Identifiants renvoyés par email à ${resendTarget.first_name} ${resendTarget.last_name}.`)
+      setResendTarget(null)
     } catch (err) {
       console.error('Error resending credentials:', err)
       toast('error', 'Erreur lors du renvoi des identifiants.')
+    } finally {
+      setResending(false)
     }
   }
 
@@ -387,8 +608,15 @@ export default function AdminUsersPage() {
     setShowCreateModal(true)
   }
 
+  const closeUserModal = () => {
+    if (savingUser) return
+    setShowCreateModal(false)
+    setEditingUser(null)
+    setFormErrors({})
+  }
+
   const validateUserForm = () => {
-    const errors: FormErrors = {}
+    const errors: UserFormErrors = {}
     if (!formData.firstName.trim()) errors.firstName = 'Le prénom est requis'
     if (!formData.lastName.trim()) errors.lastName = 'Le nom est requis'
     if (!formData.email.trim()) {
@@ -418,6 +646,7 @@ export default function AdminUsersPage() {
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!validateUserForm()) return
+    setSavingUser(true)
 
     try {
       await api.post('/admin/users', {
@@ -438,6 +667,8 @@ export default function AdminUsersPage() {
     } catch (err) {
       console.error('Error creating user:', err)
       toast('error', err instanceof Error ? err.message : 'Erreur lors de la création de l\'utilisateur.')
+    } finally {
+      setSavingUser(false)
     }
   }
 
@@ -445,6 +676,7 @@ export default function AdminUsersPage() {
     e.preventDefault()
     if (!editingUser) return
     if (!validateUserForm()) return
+    setSavingUser(true)
 
     try {
       await api.put(`/admin/users/${editingUser.id}`, {
@@ -466,569 +698,663 @@ export default function AdminUsersPage() {
     } catch (err) {
       console.error('Error updating user:', err)
       toast('error', err instanceof Error ? err.message : 'Erreur lors de la modification de l\'utilisateur.')
+    } finally {
+      setSavingUser(false)
     }
   }
 
-  const pwStrength = getPasswordStrength(formData.password)
+  const labelClass = cn(
+    'mb-1.5 block text-[11px] font-bold uppercase tracking-[0.12em]',
+    isDark ? 'text-slate-400/85' : 'text-orange-900/60'
+  )
+
+  const gradientTitle = isDark
+    ? 'bg-clip-text text-transparent bg-gradient-to-r from-[#F43F5E] via-[#FB7185] to-[#8B7CFF]'
+    : 'bg-clip-text text-transparent bg-gradient-to-r from-[#EA580C] via-[#F97316] to-[#FBBF24]'
 
   return (
-    <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
-      <BackLink to={`/admin/${adminId}`} />
-
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${isGerant ? 'bg-[#E7D5D5]' : 'bg-amber-100'}`}>
-            <Users size={20} className={isGerant ? 'text-[#905D5D]' : 'text-amber-700'} />
+    <div className="space-y-5 pb-24">
+      <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}>
+        <div className="flex flex-wrap items-end justify-between gap-4">
+          <div className="min-w-0">
+            <p className={cn('flex items-center gap-2 text-[10px] font-extrabold uppercase tracking-[3px]', isDark ? 'text-slate-400' : 'text-teal-900/50')}>
+              <span className="live-dot inline-block h-1.5 w-1.5 rounded-full bg-emerald-400" />
+              Square Immo · Espace administrateur · Temps réel
+            </p>
+            <h1 className={cn('mt-2 text-4xl font-black tracking-[-2px] sm:text-5xl', gradientTitle)}>
+              ÉQUIPE & ACCÈS
+            </h1>
+            <p className={cn('mt-1.5 text-sm', isDark ? 'text-slate-400' : 'text-teal-900/60')}>
+              Pilotez les comptes, rôles et permissions de l'agence — {stats.total} compte{stats.total !== 1 ? 's' : ''}, {stats.actifs} actif{stats.actifs !== 1 ? 's' : ''} sur la plateforme.
+            </p>
           </div>
-          <div>
-            <h1 className="text-2xl font-semibold tracking-tight">Gestion des utilisateurs</h1>
-            <p className="text-sm text-text-secondary mt-0.5">Gérez les administrateurs et les agents de votre agence</p>
+          <div className="flex flex-wrap items-center gap-2">
+            <StageButton variant="glass" size="md" icon={<ArrowLeft size={14} />} onClick={() => navigate(`/admin/${adminId}`)}>
+              Dashboard
+            </StageButton>
+            <StageButton
+              variant="glass"
+              size="md"
+              icon={<RefreshCw size={14} className={loading ? 'animate-spin' : ''} />}
+              onClick={fetchUsers}
+              disabled={loading}
+            >
+              Actualiser
+            </StageButton>
+            <StageButton size="md" icon={<Plus size={14} />} onClick={openCreateModal}>
+              Ajouter un utilisateur
+            </StageButton>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" icon={<RefreshCw size={14} />} onClick={fetchUsers} />
-          <Button variant="default" className={isGerant ? GERANT_BUTTON_CLASSES : ADMIN_BUTTON_CLASSES} icon={<Plus size={14} />} onClick={openCreateModal}>
-            Ajouter un utilisateur
-          </Button>
+      </motion.div>
+
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+        <AdminStatCard
+          icon={Users}
+          label="Total comptes"
+          value={stats.total}
+          unit="comptes"
+          detail={`${stats.actifs} actifs · ${stats.inactifs} inactifs`}
+          hue={accent}
+          spark={sparkTotal}
+          facts={[
+            { label: 'Actifs', value: stats.actifs },
+            { label: 'Inactifs', value: stats.inactifs },
+          ]}
+          delay={0}
+        />
+        <AdminStatCard
+          icon={Shield}
+          label="Encadrement"
+          value={stats.admins}
+          unit="comptes"
+          detail="Admins & gérants"
+          hue={STAGE_HUES.amber}
+          spark={sparkAdmins}
+          facts={[
+            { label: 'Admins', value: stats.adminsOnly },
+            { label: 'Gérants', value: stats.gerantsOnly },
+          ]}
+          delay={0.06}
+        />
+        <AdminStatCard
+          icon={UserCheck}
+          label="Agents"
+          value={stats.agents}
+          unit="agents"
+          detail={`${distinctPositions} sous-rôles`}
+          hue={STAGE_HUES.sky}
+          spark={sparkAgents}
+          facts={[
+            { label: 'Actifs', value: activeAgents },
+            { label: 'À relancer', value: stats.agents - activeAgents },
+          ]}
+          delay={0.12}
+        />
+        <AdminStatCard
+          icon={Activity}
+          label="Comptes actifs"
+          value={stats.actifs}
+          unit="actifs"
+          detail={`${activationRate}% du répertoire`}
+          hue={STAGE_HUES.emerald}
+          spark={sparkActifs}
+          facts={[
+            { label: 'Taux', value: `${activationRate}%` },
+            { label: 'Jamais connectés', value: neverConnected },
+          ]}
+          delay={0.18}
+        />
+        <AdminStatCard
+          icon={UserX}
+          label="Comptes inactifs"
+          value={stats.inactifs}
+          unit="à relancer"
+          detail="Inactifs & suspendus"
+          hue={STAGE_HUES.fuchsia}
+          spark={sparkInactifs}
+          facts={[
+            { label: 'Inactifs', value: stats.inactifsOnly },
+            { label: 'Suspendus', value: stats.suspendusOnly },
+          ]}
+          delay={0.24}
+        />
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-3">
+        <div className="h-full lg:col-span-2">
+          <StagePanel
+            title="Répertoire de l'équipe"
+            icon={Users}
+            hue={accent}
+            outerClassName="h-full"
+            badge={
+              <StageBadge variant="neutral">
+                {filteredUsers.length} compte{filteredUsers.length !== 1 ? 's' : ''}
+              </StageBadge>
+            }
+          >
+          <div className="flex h-full min-h-0 flex-col gap-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+              <div className="relative flex-1">
+                <Search size={14} className={cn('absolute left-3 top-1/2 -translate-y-1/2', isDark ? 'text-slate-500' : 'text-orange-900/40')} />
+                <input
+                  type="text"
+                  placeholder="Rechercher par nom ou email..."
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className={cn(
+                    'h-10 w-full rounded-xl border pl-9 pr-9 text-sm outline-none transition-all',
+                    isDark
+                      ? 'border-white/10 bg-white/[0.04] text-white placeholder:text-slate-500 focus:border-violet-400/40'
+                      : 'border-orange-900/10 bg-white/80 text-slate-900 placeholder:text-slate-400 focus:border-orange-400/50'
+                  )}
+                />
+                {search && (
+                  <button
+                    type="button"
+                    onClick={() => setSearch('')}
+                    aria-label="Effacer la recherche"
+                    className={cn('absolute right-3 top-1/2 -translate-y-1/2 transition-colors', isDark ? 'text-slate-500 hover:text-slate-200' : 'text-slate-400 hover:text-slate-700')}
+                  >
+                    <X size={13} />
+                  </button>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                {activeFiltersCount > 0 && (
+                  <button
+                    type="button"
+                    onClick={resetFilters}
+                    className={cn(
+                      'inline-flex h-10 flex-1 items-center justify-center gap-1.5 rounded-xl border px-3 text-xs font-semibold transition-all sm:flex-none',
+                      isDark
+                        ? 'border-white/10 bg-white/[0.04] text-slate-300 hover:bg-white/10 hover:text-white'
+                        : 'border-orange-900/10 bg-white/70 text-slate-600 hover:bg-white hover:text-slate-900'
+                    )}
+                  >
+                    <X size={12} /> Réinitialiser ({activeFiltersCount})
+                  </button>
+                )}
+                  <button
+                    type="button"
+                    onClick={() => setShowFilters(v => !v)}
+                    aria-expanded={showFilters}
+                    className={cn(
+                    'inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-xl border px-4 text-sm font-semibold backdrop-blur-md transition-all sm:flex-none',
+                    showFilters || activeFiltersCount > 0
+                      ? isDark
+                        ? 'border-rose-400/30 bg-rose-500/15 text-rose-200'
+                        : 'border-orange-400/40 bg-orange-500/10 text-orange-800'
+                      : isDark
+                        ? 'border-white/10 bg-white/[0.04] text-slate-300 hover:bg-white/10'
+                        : 'border-orange-900/10 bg-white/80 text-slate-600 hover:bg-white'
+                  )}
+                >
+                  <Filter size={14} />
+                  Filtres
+                  {activeFiltersCount > 0 && (
+                    <span
+                      className="inline-flex h-5 min-w-[20px] items-center justify-center rounded-full px-1.5 text-[10px] font-bold text-white"
+                      style={{ backgroundImage: `linear-gradient(145deg, ${accent.a}, ${accent.b})` }}
+                    >
+                      {activeFiltersCount}
+                    </span>
+                  )}
+                </button>
+              </div>
+            </div>
+
+            <div className="stage-glass flex flex-wrap items-center gap-1 rounded-2xl p-1.5">
+              {statusTabs.map(tab => {
+                const active = statusFilter === tab.value
+                return (
+                  <button
+                    key={tab.value}
+                    type="button"
+                    onClick={() => setStatusFilter(tab.value)}
+                    aria-pressed={active}
+                    className={cn(
+                      'relative flex items-center justify-center gap-1.5 rounded-xl px-3 py-2 text-[12px] font-semibold transition-colors',
+                      active
+                        ? 'text-white'
+                        : isDark
+                          ? 'text-slate-400 hover:text-slate-200'
+                          : 'text-slate-500 hover:text-teal-900'
+                    )}
+                  >
+                    {active && (
+                      <motion.span
+                        layoutId="users-status-pill"
+                        className="absolute inset-0 rounded-xl border border-white/20"
+                        style={{
+                          backgroundImage: `linear-gradient(145deg, ${accent.a} 0%, ${accent.b} 60%, ${accent.b} 100%)`,
+                          boxShadow: `inset 0 1px 0 rgba(255,255,255,0.4), 0 8px 20px -8px ${accent.glow}`,
+                        }}
+                        transition={{ type: 'spring', stiffness: 380, damping: 32 }}
+                      />
+                    )}
+                    <span className="relative z-10">{tab.label}</span>
+                    <span
+                      className={cn(
+                        'relative z-10 rounded-full px-1.5 py-0.5 text-[9px] font-extrabold tabular-nums',
+                        active
+                          ? 'bg-white/20 text-white'
+                          : isDark
+                            ? 'bg-white/[0.06] text-slate-400'
+                            : 'bg-slate-900/[0.05] text-slate-500'
+                      )}
+                    >
+                      {tab.count}
+                    </span>
+                  </button>
+                )
+              })}
+            </div>
+
+            {(roleFilter !== 'Tous' || positionFilter !== 'Tous') && (
+              <div className="flex flex-wrap items-center gap-1.5">
+                {roleFilter !== 'Tous' && (
+                  <FilterChip
+                    label={`Rôle : ${roleLabels[roleFilter] || roleFilter}`}
+                    isDark={isDark}
+                    onClear={() => handleRoleFilterChange('Tous')}
+                  />
+                )}
+                {positionFilter !== 'Tous' && (
+                  <FilterChip
+                    label={`Sous-rôle : ${positionFilter}`}
+                    isDark={isDark}
+                    onClear={() => setPositionFilter('Tous')}
+                  />
+                )}
+              </div>
+            )}
+
+            <AnimatePresence>
+              {showFilters && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: 'auto', opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  className="overflow-hidden"
+                >
+                  <div className={cn(
+                    'grid grid-cols-1 gap-3 rounded-2xl border p-3',
+                    roleFilter === 'agent' && 'sm:grid-cols-2',
+                    isDark ? 'border-white/[0.07] bg-white/[0.02]' : 'border-orange-900/[0.07] bg-white/50'
+                  )}>
+                    <div>
+                      <label className={labelClass}>Rôle</label>
+                      <Select
+                        value={roleFilter}
+                        onChange={handleRoleFilterChange}
+                        options={roles.map(r => ({ value: r, label: r === 'Tous' ? 'Tous les rôles' : (roleLabels[r] || r) }))}
+                      />
+                    </div>
+                    {roleFilter === 'agent' && (
+                      <div>
+                        <label className={labelClass}>Sous-rôle</label>
+                        <Select
+                          value={positionFilter}
+                          onChange={setPositionFilter}
+                          options={[
+                            { value: 'Tous', label: 'Tous les sous-rôles' },
+                            ...AGENT_POSITIONS.map(p => ({ value: p.value, label: p.label })),
+                          ]}
+                        />
+                      </div>
+                    )}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            <div className={cn(
+              'hidden gap-4 px-3 pb-1 lg:grid lg:grid-cols-[minmax(0,1.55fr)_minmax(0,1fr)_auto_auto]',
+              isDark ? 'text-slate-500' : 'text-slate-400'
+            )}>
+              <span className="text-[9px] font-bold uppercase tracking-[0.16em]">Membre</span>
+              <span className="text-[9px] font-bold uppercase tracking-[0.16em]">Rôle & contact</span>
+              <span className="text-[9px] font-bold uppercase tracking-[0.16em]">Statut</span>
+              <span className="pr-11 text-right text-[9px] font-bold uppercase tracking-[0.16em]">Dernière connexion</span>
+            </div>
+
+            {loading ? (
+              <div className="flex min-h-0 flex-1 flex-col gap-2">
+                {[0, 1, 2, 3, 4].map(i => (
+                  <div
+                    key={i}
+                    className={cn(
+                      'min-h-[64px] flex-1 animate-pulse rounded-2xl border',
+                      isDark ? 'border-white/[0.06] bg-white/[0.03]' : 'border-orange-900/[0.06] bg-white/50'
+                    )}
+                  />
+                ))}
+              </div>
+            ) : paginatedUsers.length > 0 ? (
+              <div className="flex min-h-0 flex-1 flex-col gap-2">
+                {paginatedUsers.map((user, index) => (
+                  <StageUserRow
+                    key={user.id}
+                    user={user}
+                    index={index}
+                    isDark={isDark}
+                    isSelf={currentUser?.id != null && String(currentUser.id) === String(user.id)}
+                    onMenu={(e) => {
+                      if (menuTarget?.user.id === user.id) {
+                        setMenuTarget(null)
+                      } else {
+                        const rect = e.currentTarget.getBoundingClientRect()
+                        const menuHeight = 360
+                        let top = rect.bottom + 4
+                        if (top + menuHeight > window.innerHeight) {
+                          top = Math.max(8, rect.top - menuHeight - 4)
+                        }
+                        setMenuTarget({
+                          user,
+                          position: { top, right: window.innerWidth - rect.right }
+                        })
+                      }
+                    }}
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className={cn(
+                'flex min-h-0 flex-1 flex-col items-center justify-center gap-3 rounded-2xl border border-dashed px-6 py-12 text-center',
+                isDark ? 'border-white/10 bg-white/[0.02]' : 'border-orange-900/15 bg-white/40'
+              )}>
+                <OrbIcon icon={UserX} hue={STAGE_HUES.fuchsia} size={44} radius={14} />
+                <div>
+                  <p className={cn('text-sm font-bold', isDark ? 'text-white' : 'text-slate-900')}>
+                    Aucun utilisateur trouvé
+                  </p>
+                  <p className={cn('mt-1 text-xs', isDark ? 'text-slate-400' : 'text-slate-500')}>
+                    Ajustez vos filtres ou ajoutez un nouveau membre à l'équipe.
+                  </p>
+                </div>
+                <StageButton variant="glass" size="sm" icon={<X size={13} />} onClick={resetFilters}>
+                  Réinitialiser les filtres
+                </StageButton>
+              </div>
+            )}
+
+            {totalPages > 1 && (
+              <div className={cn(
+                'mt-auto flex flex-col gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between',
+                isDark ? 'border-white/[0.08]' : 'border-orange-900/[0.08]'
+              )}>
+                <p className={cn('text-[11px] font-medium', isDark ? 'text-slate-500' : 'text-slate-400')}>
+                  Affichage {(currentPage - 1) * ITEMS_PER_PAGE + 1}-{Math.min(currentPage * ITEMS_PER_PAGE, filteredUsers.length)} sur {filteredUsers.length} utilisateur{filteredUsers.length !== 1 ? 's' : ''}
+                </p>
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                    disabled={currentPage === 1}
+                    className={cn(
+                      'flex h-8 w-8 items-center justify-center rounded-xl border transition-all disabled:pointer-events-none disabled:opacity-30',
+                      isDark
+                        ? 'border-white/10 bg-white/[0.04] text-slate-400 hover:bg-white/10 hover:text-white'
+                        : 'border-orange-900/10 bg-white/70 text-slate-500 hover:bg-white hover:text-slate-900'
+                    )}
+                  >
+                    <ChevronLeft size={15} />
+                  </button>
+                  {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
+                    <button
+                      key={page}
+                      type="button"
+                      onClick={() => setCurrentPage(page)}
+                      className={cn(
+                        'flex h-8 w-8 items-center justify-center rounded-xl border text-xs font-bold transition-all',
+                        page === currentPage
+                          ? 'text-white'
+                          : isDark
+                            ? 'border-white/10 bg-white/[0.04] text-slate-400 hover:bg-white/10 hover:text-white'
+                            : 'border-orange-900/10 bg-white/70 text-slate-500 hover:bg-white hover:text-slate-900'
+                      )}
+                      style={page === currentPage
+                        ? {
+                            backgroundImage: `linear-gradient(145deg, ${accent.a}, ${accent.b})`,
+                            borderColor: 'transparent',
+                            boxShadow: `0 6px 18px -6px ${accent.glow}`,
+                          }
+                        : undefined}
+                    >
+                      {page}
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                    disabled={currentPage === totalPages}
+                    className={cn(
+                      'flex h-8 w-8 items-center justify-center rounded-xl border transition-all disabled:pointer-events-none disabled:opacity-30',
+                      isDark
+                        ? 'border-white/10 bg-white/[0.04] text-slate-400 hover:bg-white/10 hover:text-white'
+                        : 'border-orange-900/10 bg-white/70 text-slate-500 hover:bg-white hover:text-slate-900'
+                    )}
+                  >
+                    <ChevronRight size={15} />
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </StagePanel>
+        </div>
+
+        <div className="flex h-full flex-col gap-4">
+          <StagePanel
+            title="Répartition de l'équipe"
+            icon={Shield}
+            hue={STAGE_HUES.violet}
+            badge={<StageBadge variant="neutral">{stats.total} comptes</StageBadge>}
+          >
+            <div className="space-y-3">
+              <div className={cn(
+                'relative overflow-hidden rounded-2xl border p-3.5',
+                isDark ? 'border-white/[0.07] bg-white/[0.035]' : 'border-slate-200/70 bg-white/65'
+              )}>
+                <span
+                  aria-hidden="true"
+                  className="pointer-events-none absolute -right-8 -top-10 h-24 w-24 rounded-full opacity-70"
+                  style={{ background: `radial-gradient(circle, ${STAGE_HUES.emerald.glow}, transparent 70%)` }}
+                />
+                <div className="relative flex items-center gap-3">
+                  <div
+                    className="relative flex h-[86px] w-[86px] shrink-0 items-center justify-center rounded-full"
+                    style={{
+                      background: `conic-gradient(${STAGE_HUES.emerald.a} ${activationRate * 3.6}deg, ${isDark ? 'rgba(255,255,255,0.08)' : 'rgba(15,23,42,0.07)'} ${activationRate * 3.6}deg)`,
+                      boxShadow: `0 16px 32px -22px ${STAGE_HUES.emerald.glow}`,
+                    }}
+                  >
+                    <div className={cn('absolute inset-[7px] rounded-full', isDark ? 'bg-[#0D0A18]' : 'bg-white')} />
+                    <div className="relative z-10 text-center">
+                      <p className={cn('text-[20px] font-black leading-none tracking-[-0.8px]', isDark ? 'text-white' : 'text-slate-900')}>
+                        <AnimatedNumber value={activationRate} suffix="%" />
+                      </p>
+                      <p className={cn('mt-0.5 text-[7.5px] font-bold uppercase tracking-[1.1px]', isDark ? 'text-slate-500' : 'text-teal-900/45')}>
+                        actifs
+                      </p>
+                    </div>
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className={cn('text-[9px] font-extrabold uppercase tracking-[1.5px]', isDark ? 'text-slate-500' : 'text-teal-900/45')}>
+                      Taux d'activation
+                    </p>
+                    <p className={cn('mt-1 text-[13px] font-bold', isDark ? 'text-white' : 'text-slate-900')}>
+                      {stats.actifs} sur {stats.total} comptes
+                    </p>
+                    <p className={cn('mt-0.5 text-[10px] font-semibold', isDark ? 'text-slate-500' : 'text-teal-900/45')}>
+                      {stats.inactifs} à relancer · {neverConnected} jamais connectés
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                {[
+                  { label: 'Admins & gérants', value: stats.admins, hue: STAGE_HUES.amber },
+                  { label: 'Agents', value: stats.agents, hue: STAGE_HUES.sky },
+                  { label: 'Comptes actifs', value: stats.actifs, hue: STAGE_HUES.emerald },
+                  { label: 'Comptes inactifs', value: stats.inactifs, hue: STAGE_HUES.fuchsia },
+                ].map(row => {
+                  const pct = stats.total > 0 ? Math.round((row.value / stats.total) * 100) : 0
+                  return (
+                    <div key={row.label}>
+                      <div className="flex items-center justify-between gap-2 text-[10.5px] font-semibold">
+                        <span className="flex min-w-0 items-center gap-1.5">
+                          <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: row.hue.line, boxShadow: `0 0 6px ${row.hue.glow}` }} />
+                          <span className={cn('truncate', isDark ? 'text-slate-400' : 'text-slate-600')}>{row.label}</span>
+                        </span>
+                        <span className={cn('shrink-0 tabular-nums', isDark ? 'text-slate-200' : 'text-slate-800')}>
+                          {row.value} <span className={isDark ? 'text-slate-500' : 'text-slate-400'}>({pct}%)</span>
+                        </span>
+                      </div>
+                      <div className="mt-1.5">
+                        <ShimmerProgress pct={pct} colorFrom={row.hue.a} colorTo={row.hue.b} glow={row.hue.glow} height={5} />
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+
+              <div className={cn(
+                'rounded-xl border p-2.5',
+                isDark ? 'border-white/[0.06] bg-white/[0.03]' : 'border-slate-200/70 bg-white/60'
+              )}>
+                <div className="flex items-center justify-between gap-2 text-[10px] font-semibold">
+                  <span className={isDark ? 'text-slate-500' : 'text-teal-900/45'}>Comptes à relancer</span>
+                  <span className={isDark ? 'text-slate-200' : 'text-slate-800'}>{stats.inactifs}</span>
+                </div>
+              </div>
+            </div>
+          </StagePanel>
+
+          <StagePanel
+            title="Dernières connexions"
+            icon={Clock}
+            hue={STAGE_HUES.sky}
+            outerClassName="flex-1"
+            badge={
+              <StageBadge variant={recentConnections.length > 0 ? 'ok' : 'neutral'}>
+                {recentConnections.length} récente{recentConnections.length !== 1 ? 's' : ''}
+              </StageBadge>
+            }
+          >
+            <div className="flex h-full min-h-0 flex-col">
+              <div className="flex-1 space-y-1">
+              {recentConnections.map(u => {
+                const hue = getRoleHue(u.role)
+                const status = getStatusMeta(u.status)
+                return (
+                  <div
+                    key={u.id}
+                    className={cn(
+                      'flex items-center gap-2.5 rounded-xl px-2.5 py-2 transition-colors',
+                      isDark ? 'hover:bg-white/[0.04]' : 'hover:bg-orange-900/[0.04]'
+                    )}
+                  >
+                    <span
+                      className="orb-icon flex h-8 w-8 shrink-0 items-center justify-center rounded-xl text-[10px] font-extrabold"
+                      style={{ '--orb-a': hue.a, '--orb-b': hue.b, '--orb-glow': hue.glow } as React.CSSProperties}
+                    >
+                      {getInitials(u)}
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className={cn('block truncate text-[12px] font-bold', isDark ? 'text-slate-200' : 'text-slate-800')}>
+                        {u.first_name} {u.last_name}
+                      </span>
+                      <span className={cn('block truncate text-[9.5px] font-semibold', isDark ? 'text-slate-500' : 'text-teal-900/45')}>
+                        {getRoleLabel(u)} · {formatRelativeLogin(u.last_login_at)}
+                      </span>
+                    </span>
+                    <StageBadge variant={status.variant} className="!px-1.5 !py-0.5 !text-[9px]">
+                      {status.label}
+                    </StageBadge>
+                  </div>
+                )
+              })}
+              {recentConnections.length === 0 && (
+                <div className={cn(
+                  'flex min-h-[90px] flex-col items-center justify-center rounded-xl border border-dashed px-4 text-center',
+                  isDark ? 'border-white/10' : 'border-slate-300/70'
+                )}>
+                  <p className={cn('text-[12px] font-bold', isDark ? 'text-slate-400' : 'text-slate-500')}>
+                    Aucune connexion enregistrée
+                  </p>
+                  <p className={cn('mt-1 text-[10.5px]', isDark ? 'text-slate-500' : 'text-teal-900/45')}>
+                    Les prochaines connexions apparaîtront ici.
+                  </p>
+                </div>
+              )}
+              </div>
+              <div className={cn(
+                'mt-auto rounded-xl border p-2.5',
+                isDark ? 'border-white/[0.06] bg-white/[0.03]' : 'border-slate-200/70 bg-white/60'
+              )}>
+                <div className="flex items-center justify-between gap-2 text-[10px] font-semibold">
+                  <span className={isDark ? 'text-slate-500' : 'text-teal-900/45'}>Jamais connectés</span>
+                  <span className={isDark ? 'text-slate-200' : 'text-slate-800'}>
+                    {neverConnected} compte{neverConnected !== 1 ? 's' : ''}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </StagePanel>
         </div>
       </div>
 
-      {/* Stats */}
-      <motion.div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {[
-          { icon: Users, label: 'Total', value: stats.total, color: isGerant ? 'bg-[#E7D5D5] text-[#905D5D]' : 'bg-accent-light text-accent' },
-          { icon: Shield, label: 'Admin', value: stats.admins, color: isGerant ? 'bg-[#E7D5D5] text-[#905D5D]' : 'bg-amber-50 text-amber-600' },
-          { icon: UserCheck, label: 'Agents', value: stats.agents, color: 'bg-emerald-50 text-emerald-600' },
-          { icon: UserX, label: 'Inactifs', value: stats.inactifs, color: 'bg-red-50 text-red-600' },
-        ].map((stat) => {
-          const Icon = stat.icon
-          return (
-            <Card key={stat.label} className="p-4">
-              <div className="flex items-center gap-3">
-                <div className={`w-10 h-10 rounded-lg ${stat.color} flex items-center justify-center`}>
-                  <Icon size={18} />
-                </div>
-                <div>
-                  <p className="text-lg font-semibold leading-tight">{stat.value}</p>
-                  <p className="text-xs text-text-secondary">{stat.label}</p>
-                </div>
-              </div>
-            </Card>
-          )
-        })}
-      </motion.div>
-
-      {/* Search + Filters */}
-      <Card className="p-4">
-        <div className="flex items-center gap-3">
-          <div className="relative flex-1">
-            <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary/60" />
-            <input
-              type="text"
-              placeholder="Rechercher par nom, email..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-9 pr-4 py-2 rounded-lg border border-border/50 bg-card text-sm focus:outline-none focus:ring-2 focus:ring-accent/20"
-            />
-          </div>
-          <button
-            onClick={() => setShowFilters(!showFilters)}
-            className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-sm font-medium transition-all ${
-              showFilters || roleFilter !== 'Tous' || statusFilter !== 'Tous' || positionFilter !== 'Tous'
-                ? isGerant ? 'border-[#905D5D] bg-[#E7D5D5] text-[#905D5D]' : 'border-accent bg-accent-light text-accent'
-                : 'border-border/50 text-text-secondary hover:text-text hover:bg-background'
-            }`}
-          >
-            <Filter size={14} />
-            Filtres
-            {(roleFilter !== 'Tous' || statusFilter !== 'Tous' || positionFilter !== 'Tous') && (
-              <span className={`w-1.5 h-1.5 rounded-full ${isGerant ? 'bg-[#905D5D]' : 'bg-accent'}`} />
-            )}
-          </button>
-        </div>
-        <AnimatePresence>
-          {showFilters && (
-            <motion.div
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: 'auto', opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              className="overflow-hidden"
-            >
-              <div className="flex flex-wrap items-end gap-4 pt-4 pb-3 mt-3 border-t border-border/30 px-3">
-                <div className="w-44">
-                  <label className="block text-xs text-text-secondary mb-1.5 font-medium">Rôle</label>
-                  <Select
-                    value={roleFilter}
-                    onChange={handleRoleFilterChange}
-                    options={roles.map(r => ({ value: r, label: r === 'Tous' ? 'Tous les rôles' : (roleLabels[r] || r) }))}
-                  />
-                </div>
-                {roleFilter === 'agent' && (
-                  <div className="w-52">
-                    <label className="block text-xs text-text-secondary mb-1.5 font-medium">Sous-rôle</label>
-                    <Select
-                      value={positionFilter}
-                      onChange={setPositionFilter}
-                      options={[
-                        { value: 'Tous', label: 'Tous les sous-rôles' },
-                        ...AGENT_POSITIONS.map(p => ({ value: p.value, label: p.label })),
-                      ]}
-                    />
-                  </div>
-                )}
-                <div className="w-40">
-                  <label className="block text-xs text-text-secondary mb-1.5 font-medium">Statut</label>
-                  <Select
-                    value={statusFilter}
-                    onChange={(val) => setStatusFilter(val)}
-                    options={statuses.map(s => ({ value: s, label: s === 'Tous' ? 'Tous les statuts' : s }))}
-                  />
-                </div>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => { setRoleFilter('Tous'); setPositionFilter('Tous'); setStatusFilter('Tous'); setSearch('') }}
-                >
-                  Réinitialiser
-                </Button>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </Card>
-
-      {/* Users Table */}
-      <Card className="p-5">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="font-semibold text-sm">
-            {loading ? 'Chargement...' : `${filteredUsers.length} utilisateur${filteredUsers.length > 1 ? 's' : ''}`}
-          </h3>
-        </div>
-
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-border/30 text-left text-xs text-text-secondary">
-                <th className="pb-3 font-medium">Utilisateur</th>
-                <th className="pb-3 font-medium">Email</th>
-                <th className="pb-3 font-medium">Rôle</th>
-                <th className="pb-3 font-medium">Statut</th>
-                <th className="pb-3 font-medium">Dernière connexion</th>
-                <th className="pb-3 font-medium w-12"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {paginatedUsers.map((user) => {
-                const roleColor = getRoleColor(user.role, isGerant)
-                return (
-                  <tr key={user.id} className="border-b border-border/20 hover:bg-background/50 transition-colors group">
-                    <td className="py-3">
-                      <div className="flex items-center gap-3">
-                        <div className={`w-9 h-9 rounded-full ${roleColor.bg} ${roleColor.text} flex items-center justify-center text-xs font-semibold flex-shrink-0`}>
-                          {user.first_name[0]}{user.last_name[0]}
-                        </div>
-                        <div>
-                          <p className="font-medium text-sm">{user.first_name} {user.last_name}</p>
-                          <p className="text-xs text-text-secondary/60">{user.phone}</p>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="py-3 text-text-secondary text-xs">{user.email}</td>
-                    <td className="py-3">
-                      <Badge variant={roleBadgeColors[user.role] || 'default'} size="sm">
-                        {getRoleLabel(user)}
-                      </Badge>
-                    </td>
-                    <td className="py-3">
-                      <div className="flex items-center gap-1.5">
-                        {user.status === 'actif' && (
-                          <><span className="w-2 h-2 rounded-full bg-emerald-500" /><span className="text-xs font-medium text-emerald-600">Actif</span></>
-                        )}
-                        {user.status === 'inactif' && (
-                          <><span className={`w-2 h-2 rounded-full ${isGerant ? 'bg-[#905D5D]' : 'bg-amber-500'}`} /><span className={`text-xs font-medium ${isGerant ? 'text-[#905D5D]' : 'text-amber-600'}`}>Inactif</span></>
-                        )}
-                        {user.status === 'suspendu' && (
-                          <><span className="w-2 h-2 rounded-full bg-red-500" /><span className="text-xs font-medium text-red-600">Suspendu</span></>
-                        )}
-                        {user.days_since_last_login !== null && user.days_since_last_login > 0 && (
-                          <span className="text-[10px] text-text-secondary/60 ml-1">{user.days_since_last_login}j</span>
-                        )}
-                      </div>
-                    </td>
-                    <td className="py-3 text-xs text-text-secondary">
-                      {user.last_login_at
-                        ? new Date(user.last_login_at).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
-                        : '-'}
-                    </td>
-                    <td className="py-3">
-                      <button
-                        onClick={(e) => {
-                          if (menuTarget?.user.id === user.id) {
-                            setMenuTarget(null)
-                          } else {
-                            const rect = e.currentTarget.getBoundingClientRect()
-                            const menuHeight = 300
-                            let top = rect.bottom + 4
-                            if (top + menuHeight > window.innerHeight) {
-                              top = rect.top - menuHeight - 4
-                            }
-                            setMenuTarget({
-                              user,
-                              position: { top, right: window.innerWidth - rect.right }
-                            })
-                          }
-                        }}
-                        className="p-1.5 rounded-lg hover:bg-background text-text-secondary hover:text-text transition-colors opacity-0 group-hover:opacity-100"
-                      >
-                        <MoreHorizontal size={16} />
-                      </button>
-                    </td>
-                  </tr>
-                )
-              })}
-              {paginatedUsers.length === 0 && (
-                <tr>
-                  <td colSpan={6} className="py-10 text-center text-text-secondary text-sm">
-                    Aucun utilisateur trouvé
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Pagination */}
-        {totalPages > 1 && (
-          <div className="flex items-center justify-between pt-4 mt-3 border-t border-border/30">
-            <p className="text-xs text-text-secondary">
-              Affichage {(currentPage - 1) * ITEMS_PER_PAGE + 1}-{Math.min(currentPage * ITEMS_PER_PAGE, filteredUsers.length)} sur {filteredUsers.length} utilisateurs
-            </p>
-            <div className="flex items-center gap-1">
-              <button
-                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                disabled={currentPage === 1}
-                className="p-1.5 rounded-lg hover:bg-background text-text-secondary hover:text-text disabled:opacity-30 disabled:pointer-events-none transition-colors"
-              >
-                <ChevronLeft size={15} />
-              </button>
-              {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
-                <button
-                  key={page}
-                  onClick={() => setCurrentPage(page)}
-                  className={`w-8 h-8 rounded-lg text-xs font-medium transition-colors ${
-                    page === currentPage
-                      ? isGerant ? 'bg-[#905D5D] text-white' : 'bg-accent text-white'
-                      : 'text-text-secondary hover:text-text hover:bg-background'
-                  }`}
-                >
-                  {page}
-                </button>
-              ))}
-              <button
-                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                disabled={currentPage === totalPages}
-                className="p-1.5 rounded-lg hover:bg-background text-text-secondary hover:text-text disabled:opacity-30 disabled:pointer-events-none transition-colors"
-              >
-                <ChevronRight size={15} />
-              </button>
-            </div>
-          </div>
+        {menuTarget && (
+          <ActionMenu
+            user={menuTarget.user}
+            position={menuTarget.position}
+            adminId={adminId!}
+            currentUserId={currentUser?.id}
+            currentUserRole={currentUser?.role}
+            onClose={() => setMenuTarget(null)}
+            onEdit={openEditModal}
+            onToggleStatus={handleToggleStatus}
+            onReactivate={handleReactivate}
+            onDelete={handleDelete}
+            onResetPassword={handleResetPassword}
+            onResendCredentials={handleResendCredentials}
+          />
         )}
-      </Card>
 
-      {/* Floating Action Menu */}
-      {menuTarget && (
-        <ActionMenu
-          user={menuTarget.user}
-          position={menuTarget.position}
-          adminId={adminId!}
-          currentUserId={currentUser?.id}
-          currentUserRole={currentUser?.role}
-          onClose={() => setMenuTarget(null)}
-          onEdit={openEditModal}
-          onToggleStatus={handleToggleStatus}
-          onReactivate={handleReactivate}
-          onDelete={handleDelete}
-          onResetPassword={handleResetPassword}
-          onResendCredentials={handleResendCredentials}
+        <ResendCredentialsDialog
+          open={!!resendTarget}
+          onClose={() => { if (!resending) setResendTarget(null) }}
+          onConfirm={confirmResendCredentials}
+          pending={resending}
+          user={resendTarget ? {
+            first_name: resendTarget.first_name,
+            last_name: resendTarget.last_name,
+            email: resendTarget.email,
+            roleLabel: getRoleLabel(resendTarget),
+          } : null}
         />
-      )}
 
-      {/* Create User Modal */}
-      <AnimatePresence>
-        {showCreateModal && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-start justify-center pt-8 pb-8 overflow-y-auto bg-black/40 backdrop-blur-sm"
-          >
-            <motion.div
-              initial={{ opacity: 0, y: 20, scale: 0.97 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 20, scale: 0.97 }}
-              transition={{ duration: 0.2 }}
-              className="w-full max-w-2xl mx-4"
-            >
-              <Card className="p-0 overflow-hidden">
-                <div className="flex items-center justify-between px-6 py-4 border-b border-border/50">
-                  <div className="flex items-center gap-3">
-                    <div className={`w-9 h-9 rounded-lg flex items-center justify-center ${isGerant ? 'bg-[#E7D5D5]' : 'bg-amber-100'}`}>
-                      {editingUser ? <Edit3 size={16} className={isGerant ? 'text-[#905D5D]' : 'text-amber-700'} /> : <UserPlus size={16} className={isGerant ? 'text-[#905D5D]' : 'text-amber-700'} />}
-                    </div>
-                    <h2 className="font-semibold">{editingUser ? 'Modifier l\'utilisateur' : 'Ajouter un utilisateur'}</h2>
-                  </div>
-                  <button
-                    onClick={() => { setShowCreateModal(false); setEditingUser(null); setFormErrors({}) }}
-                    className="p-1.5 rounded-lg hover:bg-background text-text-secondary hover:text-text transition-colors"
-                  >
-                    <X size={18} />
-                  </button>
-                </div>
-
-                <form onSubmit={editingUser ? handleUpdateUser : handleCreateUser} className="p-6 space-y-6">
-                  {/* Personal Info */}
-                  <div>
-                    <p className="text-xs text-text-secondary uppercase tracking-wider font-medium mb-3">Informations personnelles</p>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm text-text-secondary mb-1">Prénom <span className="text-error">*</span></label>
-                        <input
-                          type="text"
-                          value={formData.firstName}
-                          onChange={(e) => { setFormData({ ...formData, firstName: e.target.value }); setFormErrors({ ...formErrors, firstName: undefined }) }}
-                          className={`w-full px-3 py-2.5 rounded-lg border bg-card text-sm focus:outline-none focus:ring-2 focus:ring-accent/20 ${formErrors.firstName ? 'border-error' : 'border-border/50'}`}
-                        />
-                        {formErrors.firstName && <p className="text-xs text-error mt-1">{formErrors.firstName}</p>}
-                      </div>
-                      <div>
-                        <label className="block text-sm text-text-secondary mb-1">Nom <span className="text-error">*</span></label>
-                        <input
-                          type="text"
-                          value={formData.lastName}
-                          onChange={(e) => { setFormData({ ...formData, lastName: e.target.value }); setFormErrors({ ...formErrors, lastName: undefined }) }}
-                          className={`w-full px-3 py-2.5 rounded-lg border bg-card text-sm focus:outline-none focus:ring-2 focus:ring-accent/20 ${formErrors.lastName ? 'border-error' : 'border-border/50'}`}
-                        />
-                        {formErrors.lastName && <p className="text-xs text-error mt-1">{formErrors.lastName}</p>}
-                      </div>
-                      <div>
-                        <label className="block text-sm text-text-secondary mb-1">Email <span className="text-error">*</span></label>
-                        <input
-                          type="email"
-                          value={formData.email}
-                          onChange={(e) => { setFormData({ ...formData, email: e.target.value }); setFormErrors({ ...formErrors, email: undefined }) }}
-                          className={`w-full px-3 py-2.5 rounded-lg border bg-card text-sm focus:outline-none focus:ring-2 focus:ring-accent/20 ${formErrors.email ? 'border-error' : 'border-border/50'}`}
-                        />
-                        {formErrors.email && <p className="text-xs text-error mt-1">{formErrors.email}</p>}
-                      </div>
-                      <div>
-                        <label className="block text-sm text-text-secondary mb-1">Téléphone</label>
-                        <PhoneInput
-                          value={formData.phone || ''}
-                          onChange={(v) => setFormData({ ...formData, phone: v })}
-                        />
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Professional Info */}
-                  <div>
-                    <p className="text-xs text-text-secondary uppercase tracking-wider font-medium mb-3">Informations professionnelles</p>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                      <div>
-                        <label className="block text-sm text-text-secondary mb-1">Agence <span className="text-error">*</span></label>
-                        <Select value="M2 Square Meter" onChange={() => {}} options={[{ value: 'M2 Square Meter', label: 'M2 Square Meter' }]} />
-                      </div>
-                    </div>
-                    <div>
-                      <p className="block text-sm text-text-secondary mb-2">Rôle <span className="text-error">*</span></p>
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                        {[
-                          { value: 'admin', label: 'Administrateur', desc: 'Propriétaire original unique. Ne peut pas être supprimé ni retiré.' },
-                          { value: 'gerant', label: 'Gérant', desc: 'Comme l\'admin : peut tout faire et supprimer tout utilisateur, sauf l\'administrateur d\'origine.' },
-                          { value: 'agent', label: 'Agent', desc: 'Interface agent avec un rôle spécifique.' },
-                        ].map((opt) => (
-                          <label
-                            key={opt.value}
-                            className={`p-3 rounded-xl border cursor-pointer transition-all ${
-                              formData.role === opt.value
-                                ? isGerant ? 'border-[#905D5D] bg-[#E7D5D5]/30 ring-1 ring-[#905D5D]/20' : 'border-accent bg-accent-light/30 ring-1 ring-accent/20'
-                                : 'border-border/50 hover:border-border hover:bg-background'
-                            }`}
-                          >
-                            <input
-                              type="radio"
-                              name="role"
-                              value={opt.value}
-                              checked={formData.role === opt.value}
-                              onChange={(e) => setFormData({
-                                ...formData,
-                                role: e.target.value,
-                                position: e.target.value === 'agent' ? formData.position || AGENT_POSITIONS[0].value : ''
-                              })}
-                              className="sr-only"
-                            />
-                            <p className="text-sm font-medium">{opt.label}</p>
-                            <p className="text-xs text-text-secondary mt-0.5 leading-snug">{opt.desc}</p>
-                          </label>
-                        ))}
-                      </div>
-
-                      {formData.role === 'agent' && (
-                        <div className="mt-3">
-                          <p className="text-xs text-text-secondary font-medium mb-2">Sous-rôle de l'agent <span className="text-error">*</span></p>
-                          <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                            {AGENT_POSITIONS.map((pos) => (
-                              <label
-                                key={pos.value}
-                                className={`flex items-center gap-2.5 p-2.5 rounded-lg border cursor-pointer transition-all text-sm ${
-                                  formData.position === pos.value
-                                    ? isGerant ? 'border-[#905D5D] bg-[#E7D5D5]/30 ring-1 ring-[#905D5D]/20' : 'border-accent bg-accent-light/30 ring-1 ring-accent/20'
-                                    : 'border-border/50 hover:border-border hover:bg-background'
-                                }`}
-                              >
-                                <input
-                                  type="radio"
-                                  name="position"
-                                  value={pos.value}
-                                  checked={formData.position === pos.value}
-                                  onChange={(e) => setFormData({ ...formData, position: e.target.value })}
-                                  className="sr-only"
-                                />
-                                <span className={`w-2.5 h-2.5 rounded-full border-2 flex-shrink-0 ${
-                                  formData.position === pos.value ? (isGerant ? 'border-[#905D5D] bg-[#905D5D]' : 'border-accent bg-accent') : 'border-border'
-                                }`} />
-                                {pos.label}
-                              </label>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Security */}
-                  <div>
-                    <p className="text-xs text-text-secondary uppercase tracking-wider font-medium mb-3">Sécurité</p>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-3">
-                      <div>
-                        <label className="block text-sm text-text-secondary mb-1">
-                          Mot de passe {!editingUser && <span className="text-error">*</span>}
-                        </label>
-                        <div className="relative">
-                          <input
-                            type={showPassword ? 'text' : 'password'}
-                            placeholder={editingUser ? 'Laisser vide pour ne pas modifier' : ''}
-                            value={formData.password}
-                            onChange={(e) => { setFormData({ ...formData, password: e.target.value }); setFormErrors({ ...formErrors, password: undefined }) }}
-                            className={`w-full px-3 py-2.5 pr-10 rounded-lg border bg-card text-sm focus:outline-none focus:ring-2 focus:ring-accent/20 ${formErrors.password ? 'border-error' : 'border-border/50'}`}
-                          />
-                          <button
-                            type="button"
-                            onClick={() => setShowPassword(!showPassword)}
-                            className="absolute right-3 top-1/2 -translate-y-1/2 text-text-secondary hover:text-text transition-colors"
-                            tabIndex={-1}
-                          >
-                            {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                          </button>
-                        </div>
-                        {formErrors.password && <p className="text-xs text-error mt-1">{formErrors.password}</p>}
-                      </div>
-                      <div>
-                        <label className="block text-sm text-text-secondary mb-1">
-                          Confirmer {!editingUser && <span className="text-error">*</span>}
-                        </label>
-                        <div className="relative">
-                          <input
-                            type={showConfirmPassword ? 'text' : 'password'}
-                            value={formData.confirmPassword}
-                            onChange={(e) => { setFormData({ ...formData, confirmPassword: e.target.value }); setFormErrors({ ...formErrors, confirmPassword: undefined }) }}
-                            className={`w-full px-3 py-2.5 pr-10 rounded-lg border bg-card text-sm focus:outline-none focus:ring-2 focus:ring-accent/20 ${formErrors.confirmPassword ? 'border-error' : 'border-border/50'}`}
-                          />
-                          <button
-                            type="button"
-                            onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                            className="absolute right-3 top-1/2 -translate-y-1/2 text-text-secondary hover:text-text transition-colors"
-                            tabIndex={-1}
-                          >
-                            {showConfirmPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                          </button>
-                        </div>
-                        {formErrors.confirmPassword && <p className="text-xs text-error mt-1">{formErrors.confirmPassword}</p>}
-                      </div>
-                    </div>
-                    {formData.password && (
-                      <div className="flex items-center gap-3 mb-3">
-                        <div className="flex-1 h-1.5 bg-border/60 rounded-full overflow-hidden">
-                          <div className={`h-full rounded-full transition-all duration-300 ${pwStrength.color}`} style={{ width: pwStrength.width }} />
-                        </div>
-                        <span className={`text-xs font-medium ${
-                          pwStrength.label === 'Faible' ? 'text-error' :
-                          pwStrength.label === 'Moyen' ? 'text-amber-600' :
-                          'text-emerald-600'
-                        }`}>
-                          {pwStrength.label}
-                        </span>
-                      </div>
-                    )}
-                    {!editingUser && (
-                      <div className="space-y-2">
-                        <label className="flex items-center gap-2.5 text-sm text-text-secondary cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={formData.sendEmail}
-                            onChange={(e) => setFormData({ ...formData, sendEmail: e.target.checked })}
-                            className={`rounded border-border/50 ${isGerant ? 'accent-[#905D5D]' : 'accent-accent'}`}
-                          />
-                          Envoyer les identifiants par email à l'utilisateur
-                        </label>
-                        <label className="flex items-center gap-2.5 text-sm text-text-secondary cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={formData.requirePasswordChange}
-                            onChange={(e) => setFormData({ ...formData, requirePasswordChange: e.target.checked })}
-                            className={`rounded border-border/50 ${isGerant ? 'accent-[#905D5D]' : 'accent-accent'}`}
-                          />
-                          Exiger un changement de mot de passe à la première connexion
-                        </label>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Permissions (shown for admin & gerant roles) */}
-                  {(formData.role === 'admin' || formData.role === 'gerant') && (
-                    <div>
-                      <p className="text-xs text-text-secondary uppercase tracking-wider font-medium mb-3">Permissions</p>
-                      <div className="p-4 rounded-xl bg-background border border-border/50 space-y-2.5">
-                        {[
-                          'Accès à tous les modules',
-                          'Gestion des utilisateurs',
-                          'Gestion de l\'agence',
-                          'Export des données',
-                          'Paramètres système',
-                        ].map((perm) => (
-                          <label key={perm} className="flex items-center gap-2.5 text-sm text-text cursor-pointer">
-                            <input type="checkbox" defaultChecked className={`rounded border-border/50 ${isGerant ? 'accent-[#905D5D]' : 'accent-accent'}`} />
-                            {perm}
-                          </label>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Actions */}
-                  <div className="flex items-center justify-end gap-3 pt-4 border-t border-border/50">
-                    <Button type="button" variant="outline" onClick={() => { setShowCreateModal(false); setEditingUser(null); setFormErrors({}) }}>Annuler</Button>
-                    <Button type="submit" variant="default" className={isGerant ? GERANT_BUTTON_CLASSES : ADMIN_BUTTON_CLASSES} icon={editingUser ? <Edit3 size={14} /> : <UserPlus size={14} />}>
-                      {editingUser ? 'Enregistrer les modifications' : 'Créer l\'utilisateur'}
-                    </Button>
-                  </div>
-                </form>
-              </Card>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </motion.div>
+        <UserFormModal
+          open={showCreateModal}
+          editingUser={editingUser}
+          formData={formData}
+          formErrors={formErrors}
+          showPassword={showPassword}
+          showConfirmPassword={showConfirmPassword}
+          savingUser={savingUser}
+          isDark={isDark}
+          accent={accent}
+          onClose={closeUserModal}
+          onSubmit={editingUser ? handleUpdateUser : handleCreateUser}
+          setFormData={setFormData}
+          setFormErrors={setFormErrors}
+          setShowPassword={setShowPassword}
+          setShowConfirmPassword={setShowConfirmPassword}
+        />
+    </div>
   )
 }

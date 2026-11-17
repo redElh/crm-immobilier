@@ -4,6 +4,7 @@ import {
   CalendarEvent, getEventTypeConfig, Agent, getEventUserColor, withAlpha, formatEventRange,
   getEventsForMonth, getMonthDays, isToday,
 } from '../../../types/calendar'
+import { useStageAccent, useStageScope } from '../../dashboard/Stage'
 import { useStageChrome } from './useStageChrome'
 
 interface MonthViewProps {
@@ -21,6 +22,8 @@ export default function MonthView({
   currentDate, events, selectedEventTypes, agents, onEventClick, onDayClick,
 }: MonthViewProps) {
   const { staged, dark } = useStageChrome()
+  const accent = useStageAccent()
+  const isAdmin = useStageScope() === 'admin'
   const monthDays = useMemo(() => getMonthDays(currentDate), [currentDate])
   const monthEvents = useMemo(() => getEventsForMonth(events, currentDate), [events, currentDate])
 
@@ -43,9 +46,9 @@ export default function MonthView({
     ? {
         container: 'stage-glass overflow-hidden',
         headBg: dark ? 'bg-white/[0.03]' : 'bg-white/40',
-        headBorder: dark ? 'border-white/[0.08]' : 'border-teal-900/[0.10]',
-        cellLine: dark ? 'border-white/[0.05]' : 'border-teal-900/[0.07]',
-        label: dark ? 'text-slate-500' : 'text-teal-900/35',
+        headBorder: dark ? 'border-white/[0.08]' : isAdmin ? 'border-orange-900/[0.10]' : 'border-teal-900/[0.10]',
+        cellLine: dark ? 'border-white/[0.05]' : isAdmin ? 'border-orange-900/[0.07]' : 'border-teal-900/[0.07]',
+        label: dark ? 'text-slate-500' : isAdmin ? 'text-orange-900/35' : 'text-teal-900/35',
       }
     : {
         container: 'bg-card overflow-hidden rounded-2xl border border-border/50 shadow-card',
@@ -90,16 +93,17 @@ export default function MonthView({
             >
               {todayCell && (
                 <>
-                  <div className="cal-today-beam" />
+                  <div
+                    className="pointer-events-none absolute inset-0"
+                    style={{
+                      background: `radial-gradient(120% 90% at 50% 0%, ${withAlpha(accent.a, dark ? '17' : '14')} 0%, transparent 60%)`,
+                    }}
+                  />
                   <span
                     className="pointer-events-none absolute inset-1 rounded-xl"
                     style={{
-                      boxShadow: dark
-                        ? 'inset 0 0 0 1px rgba(139,124,255,0.35)'
-                        : 'inset 0 0 0 1px rgba(13,148,136,0.30)',
-                      background: dark
-                        ? 'radial-gradient(120% 90% at 50% 0%, rgba(139,124,255,0.08) 0%, transparent 60%)'
-                        : 'radial-gradient(120% 90% at 50% 0%, rgba(13,148,136,0.07) 0%, transparent 60%)',
+                      boxShadow: `inset 0 0 0 1px ${withAlpha(accent.a, dark ? '59' : '4D')}`,
+                      background: `radial-gradient(120% 90% at 50% 0%, ${withAlpha(accent.a, dark ? '14' : '12')} 0%, transparent 60%)`,
                     }}
                   />
                 </>
@@ -111,14 +115,15 @@ export default function MonthView({
                     <span
                       className={`inline-flex items-center justify-center text-xs font-semibold leading-none ${
                         todayCell
-                          ? 'cal-day-orb cal-day-orb-sm'
+                          ? 'cal-day-orb cal-day-orb-sm flex h-6 w-6 items-center justify-center rounded-full'
                           : `h-6 w-6 rounded-full ${weekend ? 'text-text-secondary/70' : 'text-text-secondary'} group-hover:text-text`
                       }`}
                       style={
-                        todayCell && !dark
+                        todayCell
                           ? {
-                              backgroundImage: 'linear-gradient(145deg,#2DD4BF,#0D9488)',
-                              boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.5), 0 6px 18px -4px rgba(13,148,136,0.55)',
+                              color: '#fff',
+                              backgroundImage: `linear-gradient(145deg, ${accent.a}, ${accent.b})`,
+                              boxShadow: `inset 0 1px 0 rgba(255,255,255,0.5), 0 6px 18px -4px ${accent.glow}`,
                             }
                           : undefined
                       }

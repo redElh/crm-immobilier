@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Pin, Check, CheckCheck } from 'lucide-react'
@@ -22,8 +22,13 @@ import {
   StageButton,
   OrbIcon,
   STAGE_HUES,
+  GERANT_MAUVE_HUE,
+  useStageAccent,
   useStageTheme,
+  type StageHue,
 } from '../../components/dashboard/Stage'
+import StageModal, { useStageModalButtons } from '../../components/modules/calendar/StageModal'
+import { stagePillStyle } from '../../components/modules/prospects/ProspectDetailStage'
 import {
   fetchCurrentUser, fetchConversations, fetchMessages, sendMessage,
   markConversationRead, deleteConversation, clearConversation, fetchMessageUsers, currentUserToParticipant,
@@ -56,6 +61,13 @@ function isAdminRoute() {
 
 const EMPTY_PARTICIPANT: MessageParticipant = {
   id: '', name: '', type: 'agent', role: '', email: '', presence: 'offline',
+}
+
+const DANGER_HUE: StageHue = {
+  a: '#FB7185',
+  b: '#E11D48',
+  glow: 'rgba(244,63,94,0.45)',
+  line: '#F43F5E',
 }
 
 type ListFilter = 'all' | 'unread' | 'starred' | 'attachments'
@@ -102,11 +114,11 @@ function TypingBubble({ isDark }: { isDark: boolean }) {
       animate={{ opacity: 1, y: 0 }}
       className="flex justify-start"
     >
-      <div className={cn('rounded-2xl rounded-bl-md px-4 py-3 flex items-center gap-1 border backdrop-blur-md', isDark ? 'bg-white/[0.06] border-white/10' : 'bg-white/80 border-teal-900/10')}>
+      <div className={cn('rounded-2xl rounded-bl-md px-4 py-3 flex items-center gap-1 border backdrop-blur-md', isDark ? 'bg-white/[0.06] border-white/10' : 'bg-white/80 border-[color:var(--msg-hairline)]')}>
         {[0, 1, 2].map(i => (
           <motion.span
             key={i}
-            className={cn('w-1.5 h-1.5 rounded-full', isDark ? 'bg-indigo-300' : 'bg-teal-600')}
+            className="w-1.5 h-1.5 rounded-full bg-[var(--msg-accent-line)]"
             animate={{ y: [0, -4, 0], opacity: [0.4, 1, 0.4] }}
             transition={{ duration: 0.9, repeat: Infinity, delay: i * 0.15 }}
           />
@@ -123,7 +135,7 @@ function RecordingBubble({ isDark }: { isDark: boolean }) {
       animate={{ opacity: 1, y: 0 }}
       className="flex justify-start"
     >
-      <div className={cn('rounded-2xl rounded-bl-md px-4 py-3 flex items-center gap-2 border backdrop-blur-md', isDark ? 'bg-white/[0.06] border-white/10' : 'bg-white/80 border-teal-900/10')}>
+      <div className={cn('rounded-2xl rounded-bl-md px-4 py-3 flex items-center gap-2 border backdrop-blur-md', isDark ? 'bg-white/[0.06] border-white/10' : 'bg-white/80 border-[color:var(--msg-hairline)]')}>
         <span className="w-2 h-2 rounded-full bg-error animate-pulse" />
         <span className={cn('text-xs', isDark ? 'text-slate-300' : 'text-slate-500')}>enregistre un message vocal...</span>
       </div>
@@ -138,6 +150,7 @@ export default function MessagesPage() {
   const [searchParams] = useSearchParams()
 
   const [currentUser, setCurrentUser] = useState<MessageParticipant>(EMPTY_PARTICIPANT)
+  const [currentRole, setCurrentRole] = useState('')
   const [agentReady, setAgentReady] = useState(false)
 
   const [conversations, setConversations] = useState<Conversation[]>([])
@@ -230,6 +243,7 @@ export default function MessagesPage() {
         const me = await fetchCurrentUser()
         if (cancelled) return
         currentUserIdRef.current = String(me.id)
+        setCurrentRole(me.role)
         setCurrentUser(currentUserToParticipant(me))
         const [convs, dir] = await Promise.all([
           fetchConversations(),
@@ -824,33 +838,64 @@ export default function MessagesPage() {
   const zoomStyle = messageZoomStyle(appearance.messageSize)
   const theme = useStageTheme()
   const isDark = theme === 'dark'
+  const stageAccent = useStageAccent()
+  const isGerant = admin && currentRole === 'gerant'
+  const interfaceHue = isGerant ? GERANT_MAUVE_HUE : stageAccent
+  const btns = useStageModalButtons()
+  const ghostBtn = cn(
+    btns.ghost,
+    isDark
+      ? ''
+      : isGerant
+        ? '!border-[#905D5D]/15 !text-[#7D5050]/70 hover:!bg-white hover:!text-[#7D5050]'
+        : '',
+  )
+  const msgVars = {
+    '--msg-accent-a': interfaceHue.a,
+    '--msg-accent-b': interfaceHue.b,
+    '--msg-accent-line': interfaceHue.line,
+    '--msg-accent-glow': interfaceHue.glow,
+    '--msg-accent-soft': `${interfaceHue.a}18`,
+    '--msg-accent-border': `${interfaceHue.a}42`,
+    '--msg-hairline': isDark ? 'rgba(255,255,255,0.10)' : `${interfaceHue.line}1F`,
+    '--msg-hairline-soft': isDark ? 'rgba(255,255,255,0.05)' : `${interfaceHue.line}12`,
+    '--msg-ink': isDark ? '#E2E8F0' : interfaceHue.line,
+    '--msg-ink-soft': isDark ? 'rgba(148,163,184,0.8)' : `${interfaceHue.line}B3`,
+  } as CSSProperties
+  const gradientTitle = isDark
+    ? (admin ? 'from-[#F43F5E] via-[#FB7185] to-[#8B7CFF]' : 'from-white via-indigo-100 to-indigo-300')
+    : (isGerant
+        ? 'from-[#905D5D] via-[#A56E6E] to-[#C89292]'
+        : admin ? 'from-[#EA580C] via-[#F97316] to-[#FBBF24]' : 'from-teal-900 via-teal-700 to-emerald-600')
+  const lightInk = isDark ? 'text-slate-400' : isGerant ? 'text-[#905D5D]/65' : admin ? 'text-orange-900/60' : 'text-teal-900/60'
   const stageInput = isDark
-    ? 'bg-white/[0.05] border-white/10 text-white placeholder:text-slate-500 focus:bg-white/[0.07] focus:border-violet-400/60 focus:ring-2 focus:ring-violet-400/20'
-    : 'bg-white border-teal-900/10 text-slate-900 placeholder:text-slate-400 focus:border-teal-500/50 focus:ring-2 focus:ring-teal-500/15'
-  const chatWallpaper = isDark
-    ? { backgroundImage: 'radial-gradient(rgba(148,163,184,0.12) 1px, transparent 1.4px)', backgroundSize: '18px 18px' }
-    : { backgroundImage: 'radial-gradient(rgba(13,148,136,0.12) 1px, transparent 1.4px)', backgroundSize: '18px 18px' }
+    ? 'bg-white/[0.05] border-white/10 text-white placeholder:text-slate-500 focus:bg-white/[0.07] focus:border-[color:var(--msg-accent-line)] focus:ring-2 focus:ring-[var(--msg-accent-soft)]'
+    : 'bg-white border-[color:var(--msg-hairline)] text-slate-900 placeholder:text-slate-400 focus:border-[color:var(--msg-accent-line)] focus:ring-2 focus:ring-[var(--msg-accent-soft)]'
+  const chatWallpaper = {
+    backgroundImage: `radial-gradient(${isDark ? `${interfaceHue.line}24` : `${interfaceHue.line}1F`} 1px, transparent 1.4px)`,
+    backgroundSize: '18px 18px',
+  }
 
   return (
-    <div className={cn('flex flex-col h-full w-full animate-fade-in', isDark ? 'stage-dark' : 'stage-light', appearance.theme === 'dark' && 'dark bg-background')} style={zoomStyle}>
+    <div className={cn('flex flex-col h-full w-full animate-fade-in', appearance.theme === 'dark' && 'dark bg-background')} style={{ ...zoomStyle, ...msgVars }}>
       {/* Hero */}
       <div className="relative z-10 flex flex-wrap items-end justify-between gap-4 shrink-0 pb-5">
         <div className="flex items-center gap-3">
-          <OrbIcon icon={MessageSquare} hue={STAGE_HUES.violet} size={48} radius={14} />
+          <OrbIcon icon={MessageSquare} hue={interfaceHue} size={48} radius={14} />
           <div>
             <div className="flex items-center gap-2">
               <span className="relative flex h-2 w-2">
                 <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60" />
                 <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.9)]" />
               </span>
-              <p className={`text-[10px] font-bold uppercase tracking-[0.24em] ${isDark ? 'text-slate-400/80' : 'text-teal-900/50'}`}>
-                Messagerie · Temps réel
+              <p className={`text-[10px] font-bold uppercase tracking-[0.24em] ${isDark ? 'text-slate-400/80' : lightInk}`}>
+                Square Immo · Messagerie · Temps réel
               </p>
             </div>
-            <h1 className={`mt-1 text-3xl font-extrabold tracking-tight ${isDark ? 'bg-gradient-to-r from-white via-indigo-100 to-indigo-300 bg-clip-text text-transparent' : 'bg-gradient-to-r from-teal-900 via-teal-700 to-emerald-600 bg-clip-text text-transparent'}`}>
+            <h1 className={`mt-1 bg-gradient-to-r bg-clip-text text-4xl font-black tracking-[-1.5px] text-transparent ${gradientTitle}`}>
               Messagerie
             </h1>
-            <p className={`mt-0.5 text-sm ${isDark ? 'text-slate-400' : 'text-teal-900/60'}`}>
+            <p className={`mt-0.5 text-sm ${lightInk}`}>
               Communications en temps réel{stats.unread > 0 ? ` · ${stats.unread} non lu${stats.unread > 1 ? 's' : ''}` : ''}
             </p>
           </div>
@@ -878,7 +923,7 @@ export default function MessagesPage() {
       {admin && (
         <div className="relative z-10 grid grid-cols-2 lg:grid-cols-4 gap-3 shrink-0 pb-1">
           {[
-            { label: 'Conversations', value: stats.total, sub: "dans l'agence", hue: STAGE_HUES.violet },
+            { label: 'Conversations', value: stats.total, sub: "dans l'agence", hue: interfaceHue },
             { label: 'Non lus', value: stats.unread, sub: 'messages en attente', hue: STAGE_HUES.sky },
             { label: 'Messages envoyés', value: stats.sentThisMonth, sub: 'ce mois-ci', hue: STAGE_HUES.emerald },
             { label: 'Favoris', value: stats.starred, sub: 'conversations suivies', hue: STAGE_HUES.amber },
@@ -905,8 +950,8 @@ export default function MessagesPage() {
           />
         )}
         {/* Conversation list */}
-        <aside className={cn('w-[330px] shrink-0 border-r flex flex-col min-h-0', isDark ? 'border-white/10' : 'border-teal-900/10')}>
-          <div className={cn('p-3 border-b space-y-2.5', isDark ? 'border-white/10' : 'border-teal-900/10')}>
+        <aside className={cn('w-[330px] shrink-0 border-r flex flex-col min-h-0', isDark ? 'border-white/10' : 'border-[color:var(--msg-hairline)]')}>
+          <div className={cn('p-3 border-b space-y-2.5', isDark ? 'border-white/10' : 'border-[color:var(--msg-hairline)]')}>
             <div className="flex items-center gap-2">
               <div className="relative flex-1">
                 <Search size={15} className={cn('absolute left-3.5 top-1/2 -translate-y-1/2', isDark ? 'text-slate-500' : 'text-slate-400')} />
@@ -922,12 +967,8 @@ export default function MessagesPage() {
                 onClick={() => navigate(`${basePath}/messages/compose`)}
                 className="w-9 h-9 rounded-full text-white flex items-center justify-center active:scale-95 transition-all"
                 style={{
-                  backgroundImage: isDark
-                    ? 'linear-gradient(145deg, #8B7CFF 0%, #6C5ECF 60%, #5646C9 100%)'
-                    : 'linear-gradient(145deg, #2DD4BF 0%, #14B8A6 60%, #0D9488 100%)',
-                  boxShadow: isDark
-                    ? 'inset 0 1px 0 rgba(255,255,255,0.4), 0 8px 20px -6px rgba(124,92,255,0.65)'
-                    : 'inset 0 1px 0 rgba(255,255,255,0.5), 0 8px 20px -8px rgba(13,148,136,0.6)',
+                  backgroundImage: 'linear-gradient(145deg, var(--msg-accent-a) 0%, var(--msg-accent-b) 100%)',
+                  boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.4), 0 8px 20px -6px var(--msg-accent-glow)',
                 }}
                 title="Nouvelle conversation"
               >
@@ -948,15 +989,11 @@ export default function MessagesPage() {
                         ? 'text-white border-transparent'
                         : isDark
                           ? 'text-slate-400 border-white/10 hover:text-white hover:border-white/25 hover:bg-white/5'
-                          : 'text-slate-500 border-teal-900/10 bg-white/60 hover:text-teal-900 hover:border-teal-900/25'
+                          : 'text-slate-500 border-[color:var(--msg-hairline)] bg-white/60 hover:text-[color:var(--msg-ink)] hover:border-[color:var(--msg-accent-border)]'
                     )}
                     style={isActive ? {
-                      backgroundImage: isDark
-                        ? 'linear-gradient(135deg, #8B7CFF 0%, #6C5ECF 100%)'
-                        : 'linear-gradient(135deg, #2DD4BF 0%, #0D9488 100%)',
-                      boxShadow: isDark
-                        ? 'inset 0 1px 0 rgba(255,255,255,0.35), 0 6px 16px -6px rgba(124,92,255,0.6)'
-                        : 'inset 0 1px 0 rgba(255,255,255,0.5), 0 6px 16px -8px rgba(13,148,136,0.55)',
+                      backgroundImage: 'linear-gradient(135deg, var(--msg-accent-a) 0%, var(--msg-accent-b) 100%)',
+                      boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.4), 0 6px 16px -6px var(--msg-accent-glow)',
                     } : undefined}
                   >
                     {filter.label}
@@ -1027,9 +1064,9 @@ export default function MessagesPage() {
                     }}
                     className={cn(
                       'relative flex items-center gap-3 px-3 py-3 border-b cursor-pointer transition-colors group',
-                      isDark ? 'border-white/5' : 'border-teal-900/5',
+                      isDark ? 'border-white/5' : 'border-[color:var(--msg-hairline-soft)]',
                       isSelected
-                        ? isDark ? 'bg-violet-400/10' : 'bg-teal-500/10'
+                        ? 'bg-[var(--msg-accent-soft)]'
                         : isDark ? 'hover:bg-white/[0.04]' : 'hover:bg-white/60'
                     )}
                   >
@@ -1037,10 +1074,8 @@ export default function MessagesPage() {
                       <span
                         className="absolute left-0 top-2 bottom-2 w-[3px] rounded-full"
                         style={{
-                          backgroundImage: isDark
-                            ? 'linear-gradient(180deg, #8B7CFF, #5B4BD4)'
-                            : 'linear-gradient(180deg, #2DD4BF, #0D9488)',
-                          boxShadow: isDark ? '0 0 12px rgba(124,92,255,0.65)' : '0 0 12px rgba(13,148,136,0.55)',
+                          backgroundImage: 'linear-gradient(180deg, var(--msg-accent-a), var(--msg-accent-b))',
+                          boxShadow: '0 0 12px var(--msg-accent-glow)',
                         }}
                       />
                     )}
@@ -1050,7 +1085,10 @@ export default function MessagesPage() {
                         <span className={cn('flex items-center gap-1.5 text-sm truncate', hasUnread ? 'font-bold' : 'font-semibold', isDark ? 'text-white' : 'text-slate-900')}>
                           {other.name}
                           {other.type !== 'client' && other.type !== 'group' && (
-                            <span className={cn('text-[9px] font-bold px-1.5 py-0.5 rounded-md uppercase tracking-wide shrink-0 border', isDark ? 'bg-violet-400/10 text-indigo-300 border-violet-400/25' : 'bg-teal-500/10 text-teal-700 border-teal-500/25')}>
+                            <span
+                              className="text-[9px] font-bold px-1.5 py-0.5 rounded-md uppercase tracking-wide shrink-0 border"
+                              style={stagePillStyle(interfaceHue, isDark)}
+                            >
                               {other.type === 'admin' ? 'Admin' : 'Agent'}
                             </span>
                           )}
@@ -1079,10 +1117,8 @@ export default function MessagesPage() {
                             <span
                               className="px-1.5 py-0.5 text-[9px] font-bold rounded-full text-white leading-none min-w-[18px] text-center"
                               style={{
-                                backgroundImage: isDark
-                                  ? 'linear-gradient(135deg, #8B7CFF 0%, #6C5ECF 100%)'
-                                  : 'linear-gradient(135deg, #2DD4BF 0%, #0D9488 100%)',
-                                boxShadow: isDark ? '0 0 10px rgba(124,92,255,0.55)' : '0 0 10px rgba(13,148,136,0.5)',
+                                backgroundImage: 'linear-gradient(135deg, var(--msg-accent-a) 0%, var(--msg-accent-b) 100%)',
+                                boxShadow: '0 0 10px var(--msg-accent-glow)',
                               }}
                             >
                               {conv.unreadCount}
@@ -1103,7 +1139,7 @@ export default function MessagesPage() {
                               : { convId: conv.id, x: rect.right - 184, y: rect.bottom + 4 }
                           )
                         }}
-                        className={cn('p-1.5 rounded-lg transition-colors opacity-0 group-hover:opacity-100 shrink-0', isDark ? 'text-slate-500 hover:text-white hover:bg-white/5' : 'text-slate-400 hover:text-teal-900 hover:bg-teal-900/5')}
+                        className={cn('p-1.5 rounded-lg transition-colors opacity-0 group-hover:opacity-100 shrink-0', isDark ? 'text-slate-500 hover:text-white hover:bg-white/5' : 'text-slate-400 hover:text-[color:var(--msg-ink)] hover:bg-[var(--msg-accent-soft)]')}
                         title="Actions"
                       >
                         <MoreVertical size={15} />
@@ -1121,11 +1157,11 @@ export default function MessagesPage() {
           {selectedConv ? (
             <>
               {/* Chat header */}
-              <div className={cn('relative flex items-center gap-3 px-4 py-3 border-b backdrop-blur-md shrink-0 z-10', isDark ? 'border-white/10 bg-white/[0.02]' : 'border-teal-900/10 bg-white/60')}>
-                <span aria-hidden="true" className="pointer-events-none absolute inset-x-8 bottom-0 h-px" style={{ background: isDark ? 'linear-gradient(90deg, transparent, rgba(139,124,255,0.55), rgba(94,234,212,0.3), transparent)' : 'linear-gradient(90deg, transparent, rgba(45,212,191,0.55), rgba(124,92,255,0.3), transparent)' }} />
+              <div className={cn('relative flex items-center gap-3 px-4 py-3 border-b backdrop-blur-md shrink-0 z-10', isDark ? 'border-white/10 bg-white/[0.02]' : 'border-[color:var(--msg-hairline)] bg-white/60')}>
+                <span aria-hidden="true" className="pointer-events-none absolute inset-x-8 bottom-0 h-px" style={{ background: 'linear-gradient(90deg, transparent, var(--msg-accent-line), transparent)' }} />
                 <button
                   onClick={() => setSelectedId(null)}
-                  className={cn('lg:hidden p-1.5 rounded-lg transition-colors', isDark ? 'text-slate-400 hover:text-white hover:bg-white/5' : 'text-slate-500 hover:text-teal-900 hover:bg-teal-900/5')}
+                  className={cn('lg:hidden p-1.5 rounded-lg transition-colors', isDark ? 'text-slate-400 hover:text-white hover:bg-white/5' : 'text-slate-500 hover:text-[color:var(--msg-ink)] hover:bg-[var(--msg-accent-soft)]')}
                   title="Retour"
                 >
                   <ArrowLeft size={18} />
@@ -1135,12 +1171,15 @@ export default function MessagesPage() {
                   <div className="flex items-center gap-2">
                     <h3 className={cn('text-sm font-bold tracking-tight truncate', isDark ? 'text-white' : 'text-slate-900')}>{otherParticipant(selectedConv).name}</h3>
                     {selectedConv.isGroup && (
-                      <span className={cn('flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded-md border', isDark ? 'bg-violet-400/10 text-indigo-300 border-violet-400/25' : 'bg-teal-500/10 text-teal-700 border-teal-500/25')}>
+                      <span
+                        className="flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded-md border"
+                        style={stagePillStyle(interfaceHue, isDark)}
+                      >
                         <Users size={9} /> Groupe
                       </span>
                     )}
                   </div>
-                  <p className={cn('text-[11px] flex items-center gap-1.5 truncate', presence ? cn('font-semibold', isDark ? 'text-indigo-300' : 'text-teal-700') : isDark ? 'text-slate-400' : 'text-slate-500')}>
+                  <p className={cn('text-[11px] flex items-center gap-1.5 truncate', presence ? 'font-semibold text-[color:var(--msg-accent-line)]' : isDark ? 'text-slate-400' : 'text-slate-500')}>
                     {presence === 'recording' ? (
                       <>
                         <span className="w-1.5 h-1.5 rounded-full bg-error animate-pulse" />
@@ -1166,7 +1205,7 @@ export default function MessagesPage() {
                 {selectedConv.relatedPropertyTitle && (
                   <button
                     onClick={() => navigate(`${basePath}/properties/${selectedConv.relatedPropertyId}`)}
-                    className={cn('hidden md:flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold rounded-xl border backdrop-blur-md transition-colors shrink-0', isDark ? 'text-indigo-300 bg-violet-400/10 hover:bg-violet-400/20 border-violet-400/25' : 'text-teal-700 bg-teal-500/10 hover:bg-teal-500/20 border-teal-500/25')}
+                    className="hidden md:flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold rounded-xl border backdrop-blur-md transition-colors shrink-0 text-[color:var(--msg-accent-line)] bg-[var(--msg-accent-soft)] hover:bg-[var(--msg-accent-border)] border-[color:var(--msg-accent-border)]"
                   >
                     <Home size={12} />
                     {selectedConv.relatedPropertyTitle}
@@ -1177,8 +1216,8 @@ export default function MessagesPage() {
                   <button
                     onClick={() => setChatSearchOpen(o => !o)}
                     className={cn('p-2 rounded-xl border transition-colors', chatSearchOpen
-                      ? isDark ? 'text-indigo-300 bg-violet-400/10 border-violet-400/30' : 'text-teal-700 bg-teal-500/10 border-teal-500/30'
-                      : isDark ? 'text-slate-400 border-transparent hover:text-white hover:bg-white/5 hover:border-white/10' : 'text-slate-500 border-transparent hover:text-teal-900 hover:bg-teal-900/5 hover:border-teal-900/10')}
+                      ? 'text-[color:var(--msg-accent-line)] bg-[var(--msg-accent-soft)] border-[color:var(--msg-accent-border)]'
+                      : isDark ? 'text-slate-400 border-transparent hover:text-white hover:bg-white/5 hover:border-white/10' : 'text-slate-500 border-transparent hover:text-[color:var(--msg-ink)] hover:bg-[var(--msg-accent-soft)] hover:border-[color:var(--msg-hairline)]')}
                     title="Rechercher dans la conversation"
                   >
                     <Search size={17} />
@@ -1187,8 +1226,8 @@ export default function MessagesPage() {
                     data-chat-menu-toggle
                     onClick={() => setMoreMenu(moreMenu === 'chat' ? null : 'chat')}
                     className={cn('p-2 rounded-xl border transition-colors', moreMenu === 'chat'
-                      ? isDark ? 'text-indigo-300 bg-violet-400/10 border-violet-400/30' : 'text-teal-700 bg-teal-500/10 border-teal-500/30'
-                      : isDark ? 'text-slate-400 border-transparent hover:text-white hover:bg-white/5 hover:border-white/10' : 'text-slate-500 border-transparent hover:text-teal-900 hover:bg-teal-900/5 hover:border-teal-900/10')}
+                      ? 'text-[color:var(--msg-accent-line)] bg-[var(--msg-accent-soft)] border-[color:var(--msg-accent-border)]'
+                      : isDark ? 'text-slate-400 border-transparent hover:text-white hover:bg-white/5 hover:border-white/10' : 'text-slate-500 border-transparent hover:text-[color:var(--msg-ink)] hover:bg-[var(--msg-accent-soft)] hover:border-[color:var(--msg-hairline)]')}
                     title="Plus d'options"
                   >
                     <MoreVertical size={17} />
@@ -1225,7 +1264,7 @@ export default function MessagesPage() {
                               'w-full flex items-center gap-2.5 px-3 py-2 text-sm rounded-xl transition-colors',
                               (item as any).danger
                                 ? 'text-error hover:bg-error/5'
-                                : isDark ? 'text-slate-200 hover:bg-white/5' : 'text-slate-700 hover:bg-teal-900/5'
+                                : isDark ? 'text-slate-200 hover:bg-white/5' : 'text-slate-700 hover:bg-[var(--msg-accent-soft)]'
                             )}
                           >
                             {item.icon} {item.label}
@@ -1244,7 +1283,7 @@ export default function MessagesPage() {
                     animate={{ height: 'auto', opacity: 1 }}
                     exit={{ height: 0, opacity: 0 }}
                     transition={{ duration: 0.15 }}
-                    className={cn('overflow-hidden border-b', isDark ? 'border-white/10 bg-white/[0.02]' : 'border-teal-900/10 bg-white/60')}
+                    className={cn('overflow-hidden border-b', isDark ? 'border-white/10 bg-white/[0.02]' : 'border-[color:var(--msg-hairline)] bg-white/60')}
                   >
                     <div className="px-4 py-2 flex items-center gap-2">
                       <div className="relative flex-1">
@@ -1288,8 +1327,11 @@ export default function MessagesPage() {
                       <button
                         onClick={handleTrustContact}
                         disabled={trusting}
-                        className={cn('px-3 py-1.5 text-xs font-bold rounded-lg transition-all shrink-0 disabled:opacity-50 text-white',
-                          isDark ? 'bg-gradient-to-b from-[#8B7CFF] to-[#5646C9] shadow-[0_0_12px_rgba(124,92,255,0.5)]' : 'bg-gradient-to-b from-teal-400 to-emerald-600 shadow-[0_0_12px_rgba(20,184,166,0.4)]')}
+                        className="px-3 py-1.5 text-xs font-bold rounded-lg transition-all shrink-0 disabled:opacity-50 text-white"
+                        style={{
+                          backgroundImage: 'linear-gradient(180deg, var(--msg-accent-a), var(--msg-accent-b))',
+                          boxShadow: '0 0 12px var(--msg-accent-glow)',
+                        }}
                       >
                         {trusting ? 'Vérification…' : 'Faire confiance'}
                       </button>
@@ -1382,7 +1424,7 @@ export default function MessagesPage() {
                   <div className="flex items-center gap-1 shrink-0">
                     <button
                       onClick={() => setSelectionMode(false)}
-                      className={cn('px-3 py-1.5 text-xs font-medium rounded-lg transition-colors', isDark ? 'text-slate-400 hover:text-white hover:bg-white/5' : 'text-slate-500 hover:text-teal-900 hover:bg-teal-900/5')}
+                      className={cn('px-3 py-1.5 text-xs font-medium rounded-lg transition-colors', isDark ? 'text-slate-400 hover:text-white hover:bg-white/5' : 'text-slate-500 hover:text-[color:var(--msg-ink)] hover:bg-[var(--msg-accent-soft)]')}
                     >
                       Annuler
                     </button>
@@ -1427,9 +1469,9 @@ export default function MessagesPage() {
                 transition={{ duration: 0.25 }}
                 className="mb-5"
               >
-                <OrbIcon icon={MessageSquare} hue={STAGE_HUES.violet} size={88} radius={24} />
+                <OrbIcon icon={MessageSquare} hue={interfaceHue} size={88} radius={24} />
               </motion.div>
-              <h2 className={`text-lg font-extrabold tracking-tight ${isDark ? 'bg-gradient-to-r from-white via-indigo-100 to-indigo-300 bg-clip-text text-transparent' : 'text-slate-900'}`}>Sélectionnez une conversation</h2>
+              <h2 className={`bg-gradient-to-r bg-clip-text text-xl font-black tracking-tight text-transparent ${gradientTitle}`}>Sélectionnez une conversation</h2>
               <p className={`text-sm max-w-sm mt-2 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
                 Choisissez une discussion dans la liste pour consulter vos échanges et envoyer des messages en temps réel.
               </p>
@@ -1477,7 +1519,7 @@ export default function MessagesPage() {
                     'w-full flex items-center gap-2.5 px-3 py-2 text-sm rounded-xl transition-colors',
                     (item as any).danger
                       ? 'text-error hover:bg-error/5'
-                      : isDark ? 'text-slate-200 hover:bg-white/5' : 'text-slate-700 hover:bg-teal-900/5'
+                      : isDark ? 'text-slate-200 hover:bg-white/5' : 'text-slate-700 hover:bg-[var(--msg-accent-soft)]'
                   )}
                 >
                   {item.icon} {item.label}
@@ -1488,99 +1530,121 @@ export default function MessagesPage() {
       })()}
 
       {/* Assign modal */}
-      {admin && assignTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div className="absolute inset-0 bg-black/40" onClick={() => setAssignTarget(null)} />
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95, y: 10 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            transition={{ duration: 0.16 }}
-            className="relative stage-glass rounded-2xl p-5 w-80"
-          >
-            <div className="flex items-center justify-between mb-4">
-              <h3 className={cn('text-sm font-bold', isDark ? 'text-white' : 'text-slate-900')}>Affecter la conversation</h3>
-              <button onClick={() => setAssignTarget(null)} className={cn('p-1.5 rounded-lg transition-colors', isDark ? 'text-slate-400 hover:text-white hover:bg-white/5' : 'text-slate-500 hover:text-teal-900 hover:bg-teal-900/5')}>
-                <X size={15} />
-              </button>
-            </div>
-            <div className="space-y-1">
-              {users.filter(d => d.type !== 'admin').map(a => (
-                <button
-                  key={a.id}
-                  onClick={() => setAssignTarget(null)}
-                  className={cn('w-full flex items-center gap-3 px-3 py-2 rounded-xl transition-colors', isDark ? 'hover:bg-white/5' : 'hover:bg-teal-900/5')}
-                >
-                  <Avatar participant={{ id: a.id, name: a.name, type: a.type, role: a.role }} />
-                  <div className="text-left">
-                    <p className="text-sm font-medium text-text">{a.name}</p>
-                    <p className="text-[11px] text-text-secondary">{a.role}</p>
-                  </div>
-                </button>
-              ))}
-            </div>
-          </motion.div>
+      <StageModal
+        open={admin && !!assignTarget}
+        onClose={() => setAssignTarget(null)}
+        centered
+        maxWidth="max-w-md"
+        title="Affecter la conversation"
+        eyebrow="Messagerie"
+        subtitle="Choisissez le collaborateur qui suivra cette conversation."
+        icon={Users}
+        hue={interfaceHue}
+        accent={interfaceHue.line}
+        footer={
+          <button type="button" className={ghostBtn} onClick={() => setAssignTarget(null)}>
+            Fermer
+          </button>
+        }
+      >
+        <div className="space-y-1" style={msgVars}>
+          {users.filter(d => d.type !== 'admin').map(a => (
+            <button
+              key={a.id}
+              type="button"
+              onClick={() => setAssignTarget(null)}
+              className={cn(
+                'w-full flex items-center gap-3 px-3 py-2.5 rounded-xl border border-transparent transition-colors',
+                isDark ? 'hover:border-white/10 hover:bg-white/5' : 'hover:border-[color:var(--msg-hairline)] hover:bg-[var(--msg-accent-soft)]',
+              )}
+            >
+              <Avatar participant={{ id: a.id, name: a.name, type: a.type, role: a.role }} />
+              <div className="text-left min-w-0">
+                <p className={cn('text-sm font-semibold truncate', isDark ? 'text-white' : 'text-slate-900')}>{a.name}</p>
+                <p className={cn('text-[11px] truncate', isDark ? 'text-slate-400' : 'text-slate-500')}>{a.role}</p>
+              </div>
+            </button>
+          ))}
         </div>
-      )}
+      </StageModal>
 
       {/* Clear conversation confirmation */}
-      {clearTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div className="absolute inset-0 bg-black/40" onClick={() => setClearTarget(null)} />
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95, y: 10 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            transition={{ duration: 0.16 }}
-            className="relative stage-glass rounded-2xl p-6 w-full max-w-sm"
-          >
-            <h3 className={cn('text-base font-extrabold tracking-tight mb-2', isDark ? 'text-white' : 'text-slate-900')}>Vider la conversation ?</h3>
-            <p className={cn('text-sm leading-relaxed mb-5', isDark ? 'text-slate-400' : 'text-slate-500')}>
-              Les messages seront supprimés de votre vue uniquement. L'autre participant continuera de les voir.
-            </p>
-            <div className="flex items-center justify-end gap-2">
-              <StageButton variant="glass" onClick={() => setClearTarget(null)}>
-                Annuler
-              </StageButton>
-              <button
-                onClick={() => handleClearConversation(clearTarget)}
-                className="px-4 h-8 text-xs font-semibold rounded-xl bg-error text-white hover:bg-error/90 transition-colors"
-              >
-                Vider
-              </button>
-            </div>
-          </motion.div>
+      <StageModal
+        open={!!clearTarget}
+        onClose={() => setClearTarget(null)}
+        centered
+        maxWidth="max-w-md"
+        title="Vider la conversation ?"
+        eyebrow="Messagerie"
+        subtitle="Les messages seront supprimés de votre vue uniquement."
+        icon={Delete}
+        hue={DANGER_HUE}
+        accent={DANGER_HUE.a}
+        footer={
+          <>
+            <button type="button" className={ghostBtn} onClick={() => setClearTarget(null)}>
+              Annuler
+            </button>
+            <button
+              type="button"
+              onClick={() => clearTarget && handleClearConversation(clearTarget)}
+              className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-white/25 px-4 text-sm font-semibold text-white transition-all duration-200 hover:brightness-110 active:scale-[0.97]"
+              style={{
+                backgroundImage: `linear-gradient(145deg, ${DANGER_HUE.a}, ${DANGER_HUE.b})`,
+                boxShadow: `0 8px 20px -8px ${DANGER_HUE.glow}, inset 0 1px 0 rgba(255,255,255,0.3)`,
+              }}
+            >
+              Vider
+            </button>
+          </>
+        }
+      >
+        <div
+          className="rounded-2xl border p-4 text-sm leading-relaxed"
+          style={{ borderColor: `${DANGER_HUE.a}30`, background: `${DANGER_HUE.a}12` }}
+        >
+          L'autre participant continuera de voir les messages de son côté.
         </div>
-      )}
+      </StageModal>
 
       {/* Delete selected messages confirmation */}
-      {deleteTargets && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center">
-          <div className="absolute inset-0 bg-black/40" onClick={() => setDeleteTargets(null)} />
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95, y: 10 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            transition={{ duration: 0.16 }}
-            className="relative stage-glass rounded-2xl p-6 w-full max-w-sm"
-          >
-            <h3 className={cn('text-base font-extrabold tracking-tight mb-2', isDark ? 'text-white' : 'text-slate-900')}>
-              Supprimer {deleteTargets.length} message{deleteTargets.length > 1 ? 's' : ''} ?
-            </h3>
-            <p className={cn('text-sm leading-relaxed mb-5', isDark ? 'text-slate-400' : 'text-slate-500')}>
-              Les messages seront supprimés pour tout le monde et remplacés par « Ce message a été supprimé ».
-            </p>
-            <div className="flex items-center justify-end gap-2">
-              <StageButton variant="glass" onClick={() => setDeleteTargets(null)}>
-                Annuler
-              </StageButton>
-              <button
-                onClick={() => handleDeleteMessages(deleteTargets)}
-                className="px-4 h-8 text-xs font-semibold rounded-xl bg-error text-white hover:bg-error/90 transition-colors"
-              >
-                Supprimer
-              </button>
-            </div>
-          </motion.div>
+      <StageModal
+        open={!!deleteTargets}
+        onClose={() => setDeleteTargets(null)}
+        centered
+        maxWidth="max-w-md"
+        title={`Supprimer ${deleteTargets?.length ?? 0} message${(deleteTargets?.length ?? 0) > 1 ? 's' : ''} ?`}
+        eyebrow="Messagerie"
+        subtitle="Cette action est définitive pour tous les participants."
+        icon={Trash2}
+        hue={DANGER_HUE}
+        accent={DANGER_HUE.a}
+        footer={
+          <>
+            <button type="button" className={ghostBtn} onClick={() => setDeleteTargets(null)}>
+              Annuler
+            </button>
+            <button
+              type="button"
+              onClick={() => deleteTargets && handleDeleteMessages(deleteTargets)}
+              className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-white/25 px-4 text-sm font-semibold text-white transition-all duration-200 hover:brightness-110 active:scale-[0.97]"
+              style={{
+                backgroundImage: `linear-gradient(145deg, ${DANGER_HUE.a}, ${DANGER_HUE.b})`,
+                boxShadow: `0 8px 20px -8px ${DANGER_HUE.glow}, inset 0 1px 0 rgba(255,255,255,0.3)`,
+              }}
+            >
+              Supprimer
+            </button>
+          </>
+        }
+      >
+        <div
+          className="rounded-2xl border p-4 text-sm leading-relaxed"
+          style={{ borderColor: `${DANGER_HUE.a}30`, background: `${DANGER_HUE.a}12` }}
+        >
+          Les messages seront remplacés par « Ce message a été supprimé ».
         </div>
-      )}
+      </StageModal>
 
       {/* Members management */}
       {membersModal && selectedConv && (

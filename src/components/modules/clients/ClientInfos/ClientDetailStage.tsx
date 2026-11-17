@@ -5,7 +5,7 @@ import {
   Folder, TrendingUp, MessageSquare, User, Calendar, Shield, Home, Tag, Info,
   Navigation, ShoppingBag, BookOpen, Activity, Coffee, Tv, Eye, Layers, ChevronRight,
 } from 'react-feather';
-import { useStageTheme, STAGE_HUES, ShimmerProgress, type StageHue } from '../../../dashboard/Stage';
+import { useStageTheme, useStageScope, useStageAccent, STAGE_HUES, ShimmerProgress, type StageHue } from '../../../dashboard/Stage';
 import { getClientStatusHue } from '../ClientCard';
 
 /* =====================================================================
@@ -46,10 +46,12 @@ export const SKY_PILL_HUE: StageHue = {
 /** Theme + accent resolution shared by every detail tab component. */
 export function useDetailAccent(clientType?: string, isGerant = false) {
   const theme = useStageTheme();
+  const scope = useStageScope();
+  const stageAccent = useStageAccent();
   const isDark = theme === 'dark';
   const typeHue = DETAIL_TYPE_HUE[clientType || ''] || STAGE_HUES.violet;
-  const accent = isGerant ? GERANT_HUE : (isDark ? typeHue : SIDEBAR_EMERALD);
-  const ink = isGerant ? '#905D5D' : (isDark ? typeHue.a : LIGHT_INK);
+  const accent = scope === 'admin' ? stageAccent : (isGerant ? GERANT_HUE : (isDark ? typeHue : SIDEBAR_EMERALD));
+  const ink = scope === 'admin' ? (isDark ? stageAccent.a : stageAccent.b) : (isGerant ? '#905D5D' : (isDark ? typeHue.a : LIGHT_INK));
   return { isDark, accent, ink };
 }
 
@@ -150,12 +152,12 @@ export function ClientTabsShell({
                     className="absolute inset-0 rounded-xl border border-white/20"
                     style={{
                       backgroundImage: isGerant
-                        ? 'linear-gradient(145deg, #C9A0A0 0%, #905D5D 100%)'
+                        ? `linear-gradient(145deg, ${accent.a} 0%, ${accent.b} 100%)`
                         : isDark
                           ? 'linear-gradient(145deg, #8B7CFF 0%, #6C5ECF 60%, #5646C9 100%)'
                           : 'linear-gradient(145deg, #2DD4BF 0%, #14B8A6 60%, #0D9488 100%)',
                       boxShadow: isDark || isGerant
-                        ? 'inset 0 1px 0 rgba(255,255,255,0.35), 0 8px 20px -8px rgba(0,0,0,0.5)'
+                        ? `inset 0 1px 0 rgba(255,255,255,0.35), 0 8px 20px -8px ${accent.glow}`
                         : 'inset 0 1px 0 rgba(255,255,255,0.5), 0 8px 20px -10px rgba(13,148,136,0.55)',
                     }}
                     transition={{ type: 'spring', stiffness: 420, damping: 34 }}
@@ -921,9 +923,9 @@ export function StageLinkCard({
 /* ------------------------------------------------------------------ */
 
 /** Convenient hue for a 0-100 compatibility score. */
-export function getScoreHue(score: number, isGerant = false): StageHue {
+export function getScoreHue(score: number, isGerant = false, accent?: StageHue): StageHue {
   if (score >= 80) return STAGE_HUES.emerald;
-  if (score >= 60) return isGerant ? GERANT_HUE : STAGE_HUES.amber;
+  if (score >= 60) return isGerant ? (accent || GERANT_HUE) : STAGE_HUES.amber;
   return RED_STAGE_HUE;
 }
 
@@ -933,19 +935,251 @@ export function scoreLabel(score: number): string {
   return 'Faible';
 }
 
+/* ------------------------------------------------------------------ */
+/* Documents primitives — staged dossier checklist + hero + mandat    */
+/* ------------------------------------------------------------------ */
+
+export interface StageDocumentItem {
+  label: string;
+  required: boolean;
+  url?: string | null;
+  name?: string | null;
+}
+
+/** Staged documents tab — hero + completeness + checklist + mandat. */
+export function StageDocumentsTab({
+  items,
+  clientName,
+  mandatTitle = 'Mandat signé',
+  mandatUrl,
+  mandatName,
+  accent,
+  ink,
+  isDark,
+  isGerant = false,
+  onOpen,
+}: {
+  items: StageDocumentItem[];
+  clientName?: string;
+  mandatTitle?: string;
+  mandatUrl?: string | null;
+  mandatName?: string | null;
+  accent: StageHue;
+  ink: string;
+  isDark: boolean;
+  isGerant?: boolean;
+  onOpen: (url: string, label: string) => void;
+}) {
+  const uploadedCount = items.filter((d) => !!d.url).length;
+  const requiredTotal = items.filter((d) => d.required).length;
+  const requiredDone = items.filter((d) => d.required && !!d.url).length;
+  const pct = items.length > 0 ? Math.round((uploadedCount / items.length) * 100) : 0;
+  const scoreHue = getScoreHue(pct, isGerant, accent);
+  const isComplete = requiredTotal > 0 ? requiredDone === requiredTotal : uploadedCount === items.length;
+  const completeHue = isComplete ? STAGE_HUES.emerald : requiredDone === 0 ? RED_STAGE_HUE : STAGE_HUES.amber;
+
+  return (
+    <div className="space-y-5">
+      {/* Hero header — staged */}
+      <motion.div
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+        className={`relative overflow-hidden rounded-2xl border p-4 backdrop-blur-sm sm:p-5 ${
+          isDark ? 'border-white/[0.07] bg-white/[0.03]' : 'border-slate-200/70 bg-white/70 shadow-sm'
+        }`}
+      >
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0"
+          style={{ background: `radial-gradient(80% 120% at 100% 0%, ${accent.a}1F, transparent 60%)` }}
+        />
+        <div className="relative flex min-w-0 flex-1 items-start gap-3">
+          <span
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border"
+            style={
+              isDark
+                ? { background: `${accent.a}14`, borderColor: `${accent.a}30`, color: accent.a }
+                : { background: `${accent.a}12`, borderColor: `${accent.a}30`, color: ink }
+            }
+          >
+            <Folder size={17} />
+          </span>
+          <div className="min-w-0 flex-1">
+            <h3 className={`text-sm font-extrabold tracking-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>
+              Documents{clientName ? ` — ${clientName}` : ''}
+            </h3>
+            <p className={`mt-0.5 truncate text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+              {uploadedCount}/{items.length} reçu{uploadedCount > 1 ? 's' : ''}
+              <span className="mx-1.5 opacity-40">—</span>
+              {requiredDone}/{requiredTotal} obligatoire{requiredTotal > 1 ? 's' : ''}
+            </p>
+            <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
+              <span
+                className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-extrabold tabular-nums backdrop-blur-md ${
+                  isDark ? 'border-white/10 bg-white/[0.04]' : 'border-slate-200/80 bg-white/70'
+                }`}
+                style={{ color: isDark ? scoreHue.a : scoreHue.b }}
+              >
+                <span className="h-1.5 w-1.5 rounded-full" style={{ background: scoreHue.line, boxShadow: `0 0 6px ${scoreHue.glow}` }} />
+                {pct}%
+                <span className={`text-[10px] font-semibold ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>complétude</span>
+              </span>
+              <StagePill label={isComplete ? 'Dossier complet' : 'Dossier incomplet'} hue={completeHue} isDark={isDark} />
+              {mandatUrl ? (
+                <StagePill label="Mandat reçu" hue={STAGE_HUES.emerald} isDark={isDark} dot={false} />
+              ) : null}
+            </div>
+          </div>
+          <ScoreRing score={pct} size={52} isGerant={isGerant} isDark={isDark} accent={accent} />
+        </div>
+      </motion.div>
+
+      <StageProgressCard
+        icon={Folder}
+        label="Complétude du dossier"
+        value={`${uploadedCount}/${items.length} documents`}
+        pct={pct}
+        message={
+          isComplete
+            ? 'Tous les documents obligatoires ont été reçus.'
+            : requiredTotal - requiredDone > 0
+              ? `Il manque ${requiredTotal - requiredDone} document${requiredTotal - requiredDone > 1 ? 's' : ''} obligatoire${requiredTotal - requiredDone > 1 ? 's' : ''}.`
+              : 'Documents obligatoires reçus, pièces recommandées manquantes.'
+        }
+        hue={scoreHue}
+        isDark={isDark}
+        delay={0.05}
+      />
+
+      {/* Checklist */}
+      <StageSection icon={FileText} title="Documents justificatifs" accent={accent} ink={ink} isDark={isDark} delay={0.1}>
+        {items.map((doc, i) => {
+          const uploaded = !!doc.url;
+          const statusHue = uploaded ? STAGE_HUES.emerald : doc.required ? RED_STAGE_HUE : SLATE_STAGE_HUE;
+          return (
+            <motion.div
+              key={`${doc.label}-${i}`}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.1 + i * 0.04, duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+              className={`flex items-center gap-3 rounded-2xl border p-3 backdrop-blur-sm transition-all duration-200 hover:-translate-y-0.5 ${
+                isDark
+                  ? 'border-white/[0.07] bg-white/[0.04] hover:border-white/[0.14]'
+                  : 'border-slate-200/70 bg-white/75 shadow-[0_1px_2px_rgba(15,23,42,0.05)] hover:shadow-md'
+              }`}
+            >
+              <span
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border"
+                style={
+                  uploaded
+                    ? isDark
+                      ? { background: 'rgba(52,211,153,0.12)', borderColor: 'rgba(52,211,153,0.30)', color: '#6EE7B7' }
+                      : { background: 'rgba(5,150,105,0.08)', borderColor: 'rgba(5,150,105,0.28)', color: '#047857' }
+                    : isDark
+                      ? { background: `${accent.a}14`, borderColor: `${accent.a}30`, color: accent.a }
+                      : { background: `${accent.a}12`, borderColor: `${accent.a}30`, color: ink }
+                }
+              >
+                <FileText size={15} />
+              </span>
+              <span className="min-w-0 flex-1 leading-tight">
+                <span className={`block truncate text-sm font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                  {doc.label}
+                </span>
+                {doc.name ? (
+                  <span className={`block truncate text-[11px] ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+                    {doc.name}
+                  </span>
+                ) : (
+                  <span className={`block truncate text-[11px] ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+                    {uploaded ? 'Fichier joint' : 'En attente de réception'}
+                  </span>
+                )}
+                <span className="mt-1.5 flex flex-wrap gap-1.5">
+                  <StagePill label={doc.required ? 'Obligatoire' : 'Recommandé'} hue={doc.required ? RED_STAGE_HUE : STAGE_HUES.sky} isDark={isDark} dot={false} />
+                  <StagePill label={uploaded ? 'Reçu' : 'Manquant'} hue={statusHue} isDark={isDark} />
+                </span>
+              </span>
+              {uploaded && doc.url ? (
+                <button
+                  type="button"
+                  onClick={() => onOpen(doc.url as string, doc.label)}
+                  className="inline-flex shrink-0 items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-bold transition-all duration-200 hover:scale-[1.04] active:scale-95"
+                  style={
+                    isDark
+                      ? { background: `${STAGE_HUES.emerald.a}1E`, color: STAGE_HUES.emerald.a, border: `1px solid ${STAGE_HUES.emerald.a}36` }
+                      : { background: `${STAGE_HUES.emerald.a}14`, color: STAGE_HUES.emerald.b, border: `1px solid ${STAGE_HUES.emerald.a}36` }
+                  }
+                >
+                  <Eye size={10} /> Voir
+                </button>
+              ) : null}
+            </motion.div>
+          );
+        })}
+      </StageSection>
+
+      {/* Mandat / contrat signé */}
+      <StageSection icon={Shield} title={mandatTitle} accent={accent} ink={ink} isDark={isDark} delay={0.15}>
+        <div className="md:col-span-2">
+          {mandatUrl ? (
+            <StageDocButton
+              title={mandatTitle}
+              name={mandatName || 'Voir le document signé'}
+              onOpen={() => onOpen(mandatUrl, mandatTitle)}
+              accent={accent}
+              ink={ink}
+              isDark={isDark}
+            />
+          ) : (
+            <div
+              className={`flex w-full items-center gap-3 rounded-2xl border border-dashed p-3 backdrop-blur-sm ${
+                isDark ? 'border-white/15 bg-white/[0.02]' : 'border-slate-300/80 bg-white/50'
+              }`}
+            >
+              <span
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border"
+                style={
+                  isDark
+                    ? { background: `${accent.a}14`, borderColor: `${accent.a}30`, color: accent.a }
+                    : { background: `${accent.a}12`, borderColor: `${accent.a}30`, color: ink }
+                }
+              >
+                <Shield size={15} />
+              </span>
+              <span className="min-w-0 flex-1 leading-tight">
+                <span className={`block text-[10px] font-bold uppercase tracking-[0.12em] ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+                  {mandatTitle}
+                </span>
+                <span className={`block truncate text-sm font-bold ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
+                  En attente de signature
+                </span>
+              </span>
+              <StagePill label="Non reçu" hue={SLATE_STAGE_HUE} isDark={isDark} />
+            </div>
+          )}
+        </div>
+      </StageSection>
+    </div>
+  );
+}
+
 /** Conic score ring — glowing gauge lens, readable in both themes. */
 export function ScoreRing({
   score,
   size = 48,
   isGerant = false,
   isDark,
+  accent,
 }: {
   score: number;
   size?: number;
   isGerant?: boolean;
   isDark: boolean;
+  accent?: StageHue;
 }) {
-  const hue = getScoreHue(score, isGerant);
+  const hue = getScoreHue(score, isGerant, accent);
   const track = isDark ? 'rgba(255,255,255,0.10)' : 'rgba(15,23,42,0.10)';
   return (
     <div

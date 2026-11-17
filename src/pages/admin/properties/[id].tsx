@@ -1,11 +1,9 @@
 import { useParams, useNavigate } from 'react-router-dom'
 import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Button } from '../../../components/ui/Button'
-import Card from '../../../components/ui/Card'
-import { Badge } from '../../../components/ui/Badge'
-import { Dialog } from '../../../components/ui/Dialog'
 import { Select } from '../../../components/ui/Select'
+import { Input } from '../../../components/ui/Input'
+import { Textarea } from '../../../components/ui/Textarea'
 import { PropertyGallery } from '../../../components/modules/properties/PropertyGallery'
 import { PropertyMediaGallery } from '../../../components/modules/properties/PropertyMediaGallery'
 import { PropertyDetails } from '../../../components/modules/properties/PropertyDetails'
@@ -27,16 +25,14 @@ import PropertyCommercial from '../../../components/modules/properties/PropertyC
 import PropertyLand from '../../../components/modules/properties/PropertyLand'
 import PropertyOwnerDetail from '../../../components/modules/properties/PropertyOwnerDetail'
 import PropertyInventory from '../../../components/modules/properties/PropertyInventory'
-import { BackLink } from '../../../components/ui/BackLink'
-import { PROPERTY_TYPE_LABELS, TRANSACTION_TYPE_LABELS, STATUS_LABELS, STATUS_COLORS } from '../../../types/property'
+import { PROPERTY_TYPE_LABELS, TRANSACTION_TYPE_LABELS, STATUS_LABELS } from '../../../types/property'
 import {
   Info, DollarSign, FileText, Users, Clock, Map, Heart, Globe, Sun, Image as ImageIcon, Key,
   Edit3, ExternalLink, Phone, Mail, MessageSquare, BookOpen, Repeat, Trash2, RefreshCw,
-  AlertTriangle, ChevronDown, Shield, CheckCircle, User,
-  Briefcase, Grid as GridIcon, MapPin, Home, List, Percent
+  AlertTriangle, ChevronDown, Shield, CheckCircle, User, ArrowLeft,
+  Briefcase, Grid as GridIcon, MapPin, Home, List, Percent, Maximize2, Droplet, Layers, Activity
 } from 'react-feather'
 import { AGENTS, ADMINS } from './mockData';
-import { CompletionRing } from '../../../components/ui/CompletionRing';
 import { ConfidentialProvider } from '../../../components/modules/confidentiality/ConfidentialContext';
 import { ConfidentialBanner } from '../../../components/modules/confidentiality/ConfidentialBanner';
 import { ConfidentialValue } from '../../../components/modules/confidentiality/ConfidentialField';
@@ -46,6 +42,13 @@ import { api } from '../../../services/api'
 import { fetchPropertyById, deleteProperty, reassignProperty } from '../../../services/propertyService'
 import { useToast } from '../../../components/ui/Toast'
 import { PropertyCompletionModal } from '../../../components/modules/properties/PropertyCompletionModal'
+import {
+  STAGE_HUES, SLATE_HUE, useStageTheme, useStageAccent, OrbIcon,
+  StageButton, StageBadge, ShimmerProgress, type StageHue,
+} from '../../../components/dashboard/Stage'
+import StageModal, { useStageModalButtons } from '../../../components/modules/calendar/StageModal'
+import { stagePillStyle } from '../../../components/modules/prospects/ProspectDetailStage'
+import { cn } from '../../../lib/utils'
 
 const STATUS_BY_TYPE: Record<string, string[]> = {
   residential: ['for_sale', 'for_rent', 'mandate_pending', 'negotiation', 'under_compromise', 'signing', 'sold', 'rented', 'withdrawn'],
@@ -61,19 +64,96 @@ const STATUS_BY_TRANSACTION: Record<string, string[]> = {
   location_saisonniere: ['available', 'option', 'reserved', 'occupied', 'unavailable', 'withdrawn'],
 };
 
-const GERANT_STATUS_OVERRIDES: Record<string, string> = {
-  mandate_pending: 'bg-[#E7D5D5] text-[#905D5D] border-[#E0C6C6]',
-  negotiation: 'bg-[#E7D5D5] text-[#905D5D] border-[#E0C6C6]',
-  under_compromise: 'bg-[#F0E2E2] text-[#7D5050] border-[#E0C6C6]',
-  under_promise: 'bg-[#F0E2E2] text-[#7D5050] border-[#E0C6C6]',
-  signing: 'bg-[#E7D5D5] text-[#905D5D] border-[#E0C6C6]',
-  option: 'bg-[#E7D5D5] text-[#905D5D] border-[#E0C6C6]',
-  urbanism: 'bg-[#E7D5D5] text-[#905D5D] border-[#E0C6C6]',
+const TYPE_HUE_MAP: Record<string, StageHue> = {
+  residential: STAGE_HUES.sky,
+  commercial: STAGE_HUES.amber,
+  land: STAGE_HUES.emerald,
+  vacation: STAGE_HUES.fuchsia,
+  luxury: STAGE_HUES.violet,
 };
-const statusColorCls = (status: string, isGerant: boolean) =>
-  isGerant && GERANT_STATUS_OVERRIDES[status] ? GERANT_STATUS_OVERRIDES[status] : STATUS_COLORS[status];
 
-const GERANT_BUTTON_CLASSES = 'bg-[#905D5D] hover:bg-[#7D5050] border-[#905D5D] hover:border-[#7D5050] text-white shadow-[0_10px_24px_rgba(144,93,93,0.35)]'
+const STATUS_HUE_MAP: Record<string, StageHue> = {
+  for_sale: STAGE_HUES.emerald,
+  for_rent: STAGE_HUES.emerald,
+  for_sale_or_rent: STAGE_HUES.emerald,
+  mandate_pending: STAGE_HUES.amber,
+  negotiation: STAGE_HUES.amber,
+  under_compromise: STAGE_HUES.fuchsia,
+  under_promise: STAGE_HUES.fuchsia,
+  signing: STAGE_HUES.amber,
+  sold: STAGE_HUES.sky,
+  rented: STAGE_HUES.violet,
+  sold_or_rented: STAGE_HUES.sky,
+  available: STAGE_HUES.emerald,
+  option: STAGE_HUES.amber,
+  reserved: STAGE_HUES.fuchsia,
+  occupied: STAGE_HUES.violet,
+  unavailable: SLATE_HUE,
+  confidential: SLATE_HUE,
+  urbanism: STAGE_HUES.amber,
+  withdrawn: { a: '#F87171', b: '#B91C1C', glow: 'rgba(248,113,113,0.4)', line: '#F87171' },
+};
+
+const TRANS_HUE_MAP: Record<string, StageHue> = {
+  vente: STAGE_HUES.emerald,
+  location_ld: STAGE_HUES.sky,
+  location_saisonniere: STAGE_HUES.amber,
+};
+
+const DANGER_HUE: StageHue = {
+  a: '#FB7185',
+  b: '#E11D48',
+  glow: 'rgba(244,63,94,0.45)',
+  line: '#F43F5E',
+};
+
+function SpecCell({
+  icon: Icon, hue, label, value,
+}: {
+  icon: any;
+  hue: StageHue;
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="stage-glass flex items-center gap-2.5 px-3 py-2.5">
+      <OrbIcon icon={Icon} hue={hue} size={30} radius={9} />
+      <div className="min-w-0">
+        <p className="text-[9px] font-bold uppercase tracking-[0.14em] text-slate-500">{label}</p>
+        <p className="truncate text-sm font-extrabold" style={{ color: 'var(--text-primary)' }}>{value}</p>
+      </div>
+    </div>
+  );
+}
+
+function PropertySummaryCard({ property, isDark, hue }: { property: any; isDark: boolean; hue: StageHue }) {
+  const statusKey = STATUS_LABELS[property.status as keyof typeof STATUS_LABELS] || property.status || '—';
+  const statusHue = STATUS_HUE_MAP[property.status] || hue;
+  const price = property.prixSurDemande
+    ? 'Prix sur demande'
+    : new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'MAD', maximumFractionDigits: 0 }).format(property.prixNetVendeur || property.price || 0);
+  return (
+    <div className={cn('flex items-center gap-3 rounded-2xl border p-3', isDark ? 'border-white/[0.08] bg-white/[0.03]' : 'border-orange-900/10 bg-white/70')}>
+      <div
+        className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-xl text-sm font-bold text-white"
+        style={{ background: `linear-gradient(145deg, ${hue.a}, ${hue.b})`, boxShadow: `inset 0 1px 0 rgba(255,255,255,0.35), 0 8px 18px -8px ${hue.glow}` }}
+      >
+        {property.images?.[0]
+          ? <img src={property.images[0]} alt="" className="h-full w-full object-cover" />
+          : <Home size={16} />}
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className={cn('truncate text-sm font-semibold', isDark ? 'text-white' : 'text-slate-900')}>{property.title || 'Bien sans titre'}</p>
+        <p className={cn('truncate text-xs', isDark ? 'text-slate-400' : 'text-orange-900/55')}>
+          {[property.reference, property.city, price].filter(Boolean).join(' · ')}
+        </p>
+      </div>
+      <span className="shrink-0 rounded-full border px-2.5 py-1 text-[11px] font-bold" style={stagePillStyle(statusHue, isDark)}>
+        {statusKey}
+      </span>
+    </div>
+  );
+}
 
 interface TabItem {
   id: string
@@ -105,6 +185,8 @@ export default function AdminPropertyPage() {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showStatusDialog, setShowStatusDialog] = useState(false);
   const [selectedAgent, setSelectedAgent] = useState('');
+  const [reassignNote, setReassignNote] = useState('');
+  const [sendNotification, setSendNotification] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState('');
   const [deleteReason, setDeleteReason] = useState('');
   const [newStatus, setNewStatus] = useState('');
@@ -114,6 +196,11 @@ export default function AdminPropertyPage() {
   const [currentAgent, setCurrentAgent] = useState('')
   const [showCompletionModal, setShowCompletionModal] = useState(false);
   const [isGerant, setIsGerant] = useState(false);
+  const theme = useStageTheme();
+  const isDark = theme === 'dark';
+  const accent = useStageAccent();
+  const btns = useStageModalButtons();
+  const ghostBtn = cn(btns.ghost, isDark ? '' : '!border-orange-900/12 !text-orange-900/70 hover:!bg-white hover:!text-orange-900');
 
   useEffect(() => {
     api.get<any>('/auth/me')
@@ -161,37 +248,11 @@ export default function AdminPropertyPage() {
     return person ? person.name : 'Ancien agent';
   };
 
-  const getAgentInitials = (agentId?: string) => {
-    if (!agentId) return 'NA';
-    const person = findPerson(agentId);
-    return person ? person.initials : agentId.slice(0, 2).toUpperCase();
-  };
-
-  const getAgentColor = (agentId?: string) => {
-    if (!agentId) return 'bg-gray-400';
-    const person = findPerson(agentId);
-    return person ? person.color : 'bg-violet-400';
-  };
-
   const isOtherAdmin = (agentId?: string) => {
     if (!agentId || agentId === adminId) return false;
     if (ADMINS.some(a => a.id === agentId)) return true;
     const user = users.find(u => String(u.id) === agentId);
     return user ? user.role === 'admin' : false;
-  };
-
-  const getRoleBadge = (person?: { role?: string; position?: string } | null, isGerant = false) => {
-    if (!person) return null;
-    if (person.role === 'agent') {
-      return { label: person.position || 'Agent', cls: 'bg-emerald-100 text-emerald-700' };
-    }
-    if (person.role === 'gerant') {
-      return { label: 'Gérant', cls: isGerant ? 'bg-[#E7D5D5] text-[#905D5D]' : 'bg-orange-100 text-orange-700' };
-    }
-    if (person.role === 'admin') {
-      return { label: 'Admin', cls: 'bg-indigo-100 text-indigo-700' };
-    }
-    return null;
   };
 
   const handleStatusChange = async () => {
@@ -203,6 +264,34 @@ export default function AdminPropertyPage() {
       toast('success', 'Statut mis à jour avec succès');
     } catch (e: any) {
       toast('error', e.message || 'Erreur lors de la mise à jour du statut');
+    }
+  };
+
+  const handleReassign = async () => {
+    if (!selectedAgent || !id) return;
+    try {
+      const updated = await reassignProperty(id, selectedAgent, reassignNote);
+      setProperty((prev: any) => ({ ...prev, ...updated }));
+      setShowReassignDialog(false);
+      setSelectedAgent('');
+      setReassignNote('');
+      setSendNotification(false);
+      toast('success', 'Bien réaffecté avec succès');
+    } catch (e: any) {
+      toast('error', e.message || 'Erreur lors de la réaffectation');
+    }
+  };
+
+  const handleDelete = async () => {
+    if (deleteConfirm !== 'SUPPRIMER' || !id) return;
+    try {
+      await deleteProperty(id);
+      setShowDeleteDialog(false);
+      setDeleteConfirm('');
+      toast('success', 'Bien supprimé avec succès');
+      navigate(`/admin/${adminId}/properties`, { replace: true });
+    } catch (e: any) {
+      toast('error', e.message || 'Erreur lors de la suppression');
     }
   };
 
@@ -219,23 +308,57 @@ export default function AdminPropertyPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-20">
-        <div className={`w-6 h-6 border-2 border-t-transparent rounded-full animate-spin ${isGerant ? 'border-[#905D5D]' : 'border-accent'}`} />
+      <div className="flex h-[60vh] flex-col items-center justify-center gap-4">
+        <motion.div
+          className="h-11 w-11 rounded-full border-[3px]"
+          animate={{ rotate: 360 }}
+          transition={{ repeat: Infinity, duration: 0.9, ease: 'linear' }}
+          style={{ borderColor: `${accent.a}30`, borderTopColor: accent.a, filter: `drop-shadow(0 0 14px ${accent.glow})` }}
+        />
+        <p className={cn('text-xs font-semibold uppercase tracking-[0.22em]', isDark ? 'text-slate-500' : 'text-orange-900/45')}>
+          Chargement du dossier…
+        </p>
       </div>
     );
   }
 
   if (!property) {
     return (
-      <div className="text-center py-20 text-text-secondary">Bien non trouvé</div>
+      <div className="flex h-[60vh] flex-col items-center justify-center gap-3 text-center">
+        <OrbIcon icon={AlertTriangle} hue={STAGE_HUES.amber} size={52} radius={16} />
+        <p className={cn('mt-1 font-bold', isDark ? 'text-white' : 'text-slate-900')}>Bien introuvable</p>
+        <StageButton variant="glass" icon={<ArrowLeft size={14} />} onClick={() => navigate(`/admin/${adminId}/properties`)}>
+          Retour aux biens
+        </StageButton>
+      </div>
     );
   }
 
   const statusLabel = STATUS_LABELS[property.status as keyof typeof STATUS_LABELS]
-  const statusColor = statusColorCls(property.status as string, isGerant)
   const typeLabel = PROPERTY_TYPE_LABELS[property.propertyType as keyof typeof PROPERTY_TYPE_LABELS]
   const transactionLabel = TRANSACTION_TYPE_LABELS[property.transactionType as keyof typeof TRANSACTION_TYPE_LABELS]
   const completion = property.completion
+
+  const ink = isDark ? accent.a : accent.b
+  const typeHue = TYPE_HUE_MAP[property.propertyType] || accent
+  const statusHue = STATUS_HUE_MAP[property.status] || SLATE_HUE
+  const transHue = TRANS_HUE_MAP[property.transactionType] || accent
+  const completionHue = completion == null ? null
+    : completion >= 80 ? STAGE_HUES.emerald
+      : completion >= 50 ? STAGE_HUES.amber
+        : DANGER_HUE
+  const canManage = !isOtherAdmin(property.agentId)
+  const agentPerson = property.agentId ? findPerson(property.agentId) : undefined
+  const agentRoleHue = agentPerson?.role === 'agent'
+    ? STAGE_HUES.emerald
+    : agentPerson?.role === 'gerant'
+      ? STAGE_HUES.amber
+      : STAGE_HUES.violet
+  const agentRoleLabel = agentPerson?.role === 'admin'
+    ? 'Admin responsable'
+    : agentPerson?.role === 'gerant'
+      ? 'Gérant responsable'
+      : 'Agent responsable'
 
   const ownerType = property.ownerType;
   let ownerDisplayName = property.owner?.name || '';
@@ -276,318 +399,521 @@ export default function AdminPropertyPage() {
     { id: 'transactions', label: 'Transactions', icon: <BookOpen size={15} /> },
     { id: 'contrats', label: 'Contrats', icon: <FileText size={15} /> },
   ]
-  const tabs = [...mainTabs, ...extraTabs, ...restTabs]
-
-  if (!property) {
-    return (
-      <div className="text-center py-20 text-text-secondary">Bien non trouvé</div>
-    );
-  }
 
   return (
     <ConfidentialProvider>
-    <div className="space-y-6 animate-fade-in pb-8">
+    <div className="space-y-5 animate-fade-in pb-10">
       {/* Top bar */}
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <BackLink />
-        <div className="flex items-center gap-2">
-          <Button variant="ghost" size="sm" icon={<Heart size={14} />}
-            className={liked ? 'text-red-500' : ''}
-            onClick={() => setLiked(!liked)}
-          />
-          <Button variant="outline" size="sm" icon={<Edit3 size={14} />}
-            onClick={() => navigate(`/admin/${adminId}/properties/type/${property.propertyType}/edit/${id}`)}>
-            Modifier
-          </Button>
-          {canExport && (
-            <Button variant="default" size="sm" icon={<ExternalLink size={14} />} className={isGerant ? GERANT_BUTTON_CLASSES : ''}>
-              Partager
-            </Button>
+      <motion.div
+        initial={{ opacity: 0, y: -12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+        className="flex flex-wrap items-center justify-between gap-3"
+      >
+        <motion.button
+          type="button"
+          onClick={() => navigate(`/admin/${adminId}/properties`)}
+          whileHover="hover"
+          whileTap={{ scale: 0.96 }}
+          title="Retour aux biens"
+          className={cn(
+            'group/back relative flex h-9 shrink-0 items-center gap-2 overflow-hidden rounded-xl border pl-2.5 pr-4 text-xs font-bold backdrop-blur-md transition-all',
+            isDark
+              ? 'border-white/10 bg-white/[0.04] text-slate-400 hover:border-white/20 hover:bg-white/10 hover:text-white'
+              : 'border-orange-900/10 bg-white/70 text-orange-900/55 shadow-sm hover:border-orange-900/20 hover:bg-white hover:text-orange-900',
           )}
-          <Button variant="ghost" size="sm" icon={<Trash2 size={14} />}
-            className="text-error hover:bg-error/5"
-            onClick={() => { setDeleteConfirm(''); setDeleteReason(''); setShowDeleteDialog(true) }}>
-            Supprimer
-          </Button>
+        >
+          <motion.span
+            className="flex h-6 w-6 items-center justify-center rounded-lg"
+            style={{ background: isDark ? 'rgba(255,255,255,0.07)' : 'rgba(15,23,42,0.05)' }}
+            variants={{ hover: { x: -3 } }}
+            transition={{ type: 'spring', stiffness: 500, damping: 28 }}
+          >
+            <ArrowLeft size={14} style={{ color: ink }} />
+          </motion.span>
+          <span>Retour aux biens</span>
+          <motion.span
+            className="absolute inset-x-3 bottom-1 h-[2px] origin-left rounded-full"
+            style={{ background: `linear-gradient(90deg, ${accent.a}, ${accent.b})` }}
+            initial={{ scaleX: 0, opacity: 0 }}
+            variants={{ hover: { scaleX: 1, opacity: 0.8 } }}
+            transition={{ duration: 0.25, ease: 'easeOut' }}
+          />
+        </motion.button>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <motion.button
+            type="button"
+            whileTap={{ scale: 0.85 }}
+            title="J'aime"
+            onClick={() => setLiked(!liked)}
+            className={cn(
+              'flex h-9 w-9 items-center justify-center rounded-xl border backdrop-blur-md transition-all duration-200 hover:scale-105 active:scale-95',
+              isDark
+                ? 'border-white/10 bg-white/[0.04] text-slate-400 hover:border-white/20 hover:bg-white/10 hover:text-white'
+                : 'border-orange-900/10 bg-white/70 text-orange-900/50 shadow-sm hover:bg-white hover:text-orange-900',
+            )}
+          >
+            <Heart size={15} fill={liked ? 'currentColor' : 'none'} className={liked ? 'text-rose-500' : ''} />
+          </motion.button>
+          {canWrite && (
+            <StageButton
+              variant="primary"
+              size="md"
+              icon={<Edit3 size={13} />}
+              onClick={() => navigate(`/admin/${adminId}/properties/type/${property.propertyType}/edit/${id}`)}
+            >
+              Modifier
+            </StageButton>
+          )}
+          {canExport && (
+            <StageButton variant="glass" size="md" icon={<ExternalLink size={13} />}>
+              Partager
+            </StageButton>
+          )}
+          <button
+            type="button"
+            onClick={() => { setDeleteConfirm(''); setDeleteReason(''); setShowDeleteDialog(true) }}
+            className={cn(
+              'inline-flex h-9 items-center gap-1.5 rounded-xl border px-3 text-xs font-bold backdrop-blur-md transition-all duration-200 hover:scale-[1.02] active:scale-95',
+              isDark
+                ? 'border-rose-400/20 bg-rose-500/10 text-rose-300 hover:bg-rose-500/20 hover:text-rose-200'
+                : 'border-rose-200/80 bg-rose-50/70 text-rose-600 shadow-sm hover:bg-rose-50 hover:text-rose-700',
+            )}
+          >
+            <Trash2 size={13} /> Supprimer
+          </button>
         </div>
-      </div>
+      </motion.div>
 
       {/* Admin actions bar */}
-      {!isOtherAdmin(property.agentId) && (
-      <Card className={`p-3 ${isGerant ? 'border-[#905D5D]/20 bg-[#905D5D]/5' : 'border-accent/20 bg-accent/5'}`}>
-        <div className="flex items-center gap-2 flex-wrap">
-          <Shield size={14} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />
-          <span className={`text-xs font-medium mr-2 ${isGerant ? 'text-[#905D5D]' : 'text-accent'}`}>Actions Administrateur :</span>
-          <Button variant="outline" size="sm" icon={<Repeat size={12} />}
-            onClick={() => { setSelectedAgent(property.agentId || ''); setShowReassignDialog(true); }}>
-            Reaffecter
-          </Button>
-          <Button variant="outline" size="sm" icon={<RefreshCw size={12} />}
-            onClick={() => { setNewStatus(property.status); setShowStatusDialog(true); }}>
-            Changer le statut
-          </Button>
-          <Button variant="ghost" size="sm" icon={<Trash2 size={12} />}
-            className="text-error hover:bg-error/5"
-            onClick={() => { setDeleteConfirm(''); setDeleteReason(''); setShowDeleteDialog(true); }}>
-            Supprimer
-          </Button>
-        </div>
-      </Card>
+      {canManage && (
+        <motion.div
+          initial={{ opacity: 0, y: -8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, delay: 0.05, ease: [0.22, 1, 0.36, 1] }}
+          className="stage-glass relative overflow-hidden !rounded-[20px] px-3.5 py-2.5"
+        >
+          <div className="flex flex-wrap items-center gap-2">
+            <span
+              className="mr-1 inline-flex items-center gap-1.5 text-[10px] font-extrabold uppercase tracking-[0.12em]"
+              style={{ color: ink }}
+            >
+              <Shield size={13} /> Actions administrateur
+            </span>
+            {[
+              { label: 'Réaffecter', icon: Repeat, onClick: () => { setSelectedAgent(property.agentId || ''); setShowReassignDialog(true) } },
+              { label: 'Changer le statut', icon: RefreshCw, onClick: () => { setNewStatus(property.status); setShowStatusDialog(true) } },
+            ].map(({ label, icon: Icon, onClick }) => (
+              <button
+                key={label}
+                type="button"
+                onClick={onClick}
+                className={cn(
+                  'inline-flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-[11px] font-bold backdrop-blur-md transition-all duration-200 hover:scale-[1.02] active:scale-95',
+                  isDark
+                    ? 'border-white/10 bg-white/[0.04] text-slate-300 hover:bg-white/10 hover:text-white'
+                    : 'border-orange-900/10 bg-white/70 text-orange-900/65 shadow-sm hover:bg-white hover:text-orange-900',
+                )}
+              >
+                <Icon size={13} /> {label}
+              </button>
+            ))}
+            <button
+              type="button"
+              onClick={() => { setDeleteConfirm(''); setDeleteReason(''); setShowDeleteDialog(true) }}
+              className={cn(
+                'inline-flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-[11px] font-bold backdrop-blur-md transition-all duration-200 hover:scale-[1.02] active:scale-95',
+                isDark
+                  ? 'border-rose-400/20 bg-rose-500/10 text-rose-300 hover:bg-rose-500/20 hover:text-rose-200'
+                  : 'border-rose-200/80 bg-rose-50/70 text-rose-600 shadow-sm hover:bg-rose-50 hover:text-rose-700',
+              )}
+            >
+              <Trash2 size={13} /> Supprimer
+            </button>
+            <span
+              className="ml-auto inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.1em]"
+              style={stagePillStyle(statusHue, isDark)}
+            >
+              <span className="h-1.5 w-1.5 rounded-full" style={{ background: statusHue.line }} />
+              {statusLabel}
+            </span>
+          </div>
+        </motion.div>
       )}
 
       {/* Hero section */}
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-5">
         {/* Gallery */}
-        <div className="lg:col-span-3 space-y-4">
+        <motion.div
+          className="space-y-3 lg:col-span-3"
+          initial={{ opacity: 0, x: -24 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
+        >
           <PropertyMediaGallery property={property} editable={canWrite} variant="carousel" onUpdated={(p) => setProperty(p)} />
           <ConfidentialBanner isGerant={isGerant} />
-        </div>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <SpecCell icon={Maximize2} hue={typeHue} label="Surface" value={`${property.surface || 0} m²`} />
+            <SpecCell icon={Home} hue={STAGE_HUES.sky} label="Chambres" value={`${(property as any).bedrooms_total ?? property.bedrooms ?? 0}`} />
+            <SpecCell icon={Droplet} hue={STAGE_HUES.fuchsia} label="Salles de bain" value={`${(property as any).bathroom_count ?? property.bathrooms ?? 0}`} />
+            {property.sleepingCapacity ? (
+              <SpecCell icon={Users} hue={STAGE_HUES.emerald} label="Couchages" value={`${property.sleepingCapacity}`} />
+            ) : property.landSize ? (
+              <SpecCell icon={Layers} hue={STAGE_HUES.emerald} label="Terrain" value={`${property.landSize} m²`} />
+            ) : (
+              <SpecCell icon={GridIcon} hue={SLATE_HUE} label="Type" value={typeLabel || '—'} />
+            )}
+          </div>
+        </motion.div>
 
         {/* Quick info card */}
-        <div className="lg:col-span-2 space-y-4">
-          <Card className="p-5">
-              <div className="flex items-start justify-between mb-3">
-                <div>
-                  <p className="text-[11px] text-text-secondary/60 font-mono">{property.reference}</p>
-                  <div className="flex items-center gap-2 mt-0.5">
-                    <h1 className="text-xl font-bold leading-snug">{property.title}</h1>
-                    {property.originalPropertyId ? (
-                      <span className={`inline-flex items-center px-1.5 py-0.5 text-[9px] font-semibold rounded-full uppercase tracking-wider shrink-0 ${isGerant ? 'bg-[#F0E2E2] text-[#7D5050]' : 'bg-orange-100 text-orange-700'}`}>
-                        Copie
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center px-1.5 py-0.5 text-[9px] font-semibold rounded-full uppercase tracking-wider bg-blue-100 text-blue-700 shrink-0">
-                        Original
-                      </span>
-                    )}
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  {completion != null ? (
-                    <button
-                      type="button"
-                      onClick={() => setShowCompletionModal(true)}
-                      title="Modifier la complétion"
-                      className="transition-transform hover:scale-105"
-                    >
-                      <CompletionRing percent={completion} size={32} strokeWidth={3} />
-                    </button>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => setShowCompletionModal(true)}
-                      className={`inline-flex items-center gap-1 px-2 py-1 rounded-md border border-dashed border-border/70 text-text-secondary text-[11px] font-medium transition-colors ${isGerant ? 'hover:border-[#905D5D]/50 hover:text-[#905D5D]' : 'hover:border-accent/50 hover:text-accent'}`}
-                      title="Définir la complétion"
-                    >
-                      <Percent size={12} />
-                      Complétion
-                    </button>
-                  )}
-                  <Badge className={statusColor}>{statusLabel}</Badge>
-                </div>
+        <motion.div
+          className="space-y-3 lg:col-span-2"
+          initial={{ opacity: 0, y: 24 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.55, delay: 0.08, ease: [0.22, 1, 0.36, 1] }}
+        >
+          <div className="stage-glass relative overflow-hidden p-5">
+            <div
+              aria-hidden="true"
+              className="pointer-events-none absolute -right-16 -top-16 h-44 w-44 rounded-full"
+              style={{ background: `radial-gradient(circle, ${accent.glow.replace(/[\d.]+\)$/, '0.18)')}, transparent 70%)` }}
+            />
+            <div className="relative flex items-center justify-between gap-2">
+              <div className="flex min-w-0 items-center gap-2">
+                <span className={cn('font-mono text-[11px] font-semibold tracking-wider', isDark ? 'text-slate-500' : 'text-orange-900/45')}>
+                  {property.reference}
+                </span>
+                {property.originalPropertyId ? (
+                  <StageBadge variant="warn">Copie</StageBadge>
+                ) : (
+                  <StageBadge variant="violet">Original</StageBadge>
+                )}
               </div>
-
-            <div className="flex items-center gap-2 text-sm text-text-secondary mb-3">
-              <Map size={13} />
-              <span>{property.city}{property.district ? `, ${property.district}` : ''}</span>
+              <span
+                className="inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.12em]"
+                style={{
+                  color: statusHue.line,
+                  borderColor: `${statusHue.a}44`,
+                  backgroundColor: `${statusHue.a}14`,
+                  boxShadow: `0 0 14px ${statusHue.glow}`,
+                }}
+              >
+                <span className="relative flex h-1.5 w-1.5">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full opacity-60" style={{ backgroundColor: statusHue.line }} />
+                  <span className="relative inline-flex h-1.5 w-1.5 rounded-full" style={{ backgroundColor: statusHue.line, boxShadow: `0 0 6px ${statusHue.line}` }} />
+                </span>
+                {statusLabel}
+              </span>
             </div>
 
-            <div className="flex items-baseline gap-2 mb-4">
+            <h1
+              className="relative mt-2.5 bg-clip-text text-[22px] font-extrabold leading-tight tracking-[-0.4px] text-transparent"
+              style={{ backgroundImage: `linear-gradient(100deg, ${accent.a}, ${accent.b})` }}
+            >
+              {property.title}
+            </h1>
+
+            <div className="relative mt-2 flex items-center gap-1.5">
+              <MapPin size={13} style={{ color: typeHue.a }} />
+              <span className={cn('text-sm font-medium', isDark ? 'text-slate-300' : 'text-slate-600')}>
+                {property.city}{property.district ? `, ${property.district}` : ''}
+              </span>
+            </div>
+
+            <div className="relative mt-4 border-t pt-4" style={{ borderColor: isDark ? 'rgba(255,255,255,0.07)' : 'rgba(15,23,42,0.06)' }}>
               {property.prixSurDemande ? (
-                <span className={`text-2xl font-bold ${isGerant ? 'text-[#905D5D]' : 'text-accent'}`}><ConfidentialValue>Prix sur demande</ConfidentialValue></span>
+                <p
+                  className="bg-clip-text text-[26px] font-extrabold tracking-tight text-transparent"
+                  style={{ backgroundImage: `linear-gradient(100deg, ${accent.a}, ${accent.b})` }}
+                >
+                  Prix sur demande
+                </p>
               ) : isSeasonal && (property.seasonalPriceMin || property.seasonalPriceMax) ? (
-                <>
-                  <span className={`text-2xl font-bold ${isGerant ? 'text-[#905D5D]' : 'text-accent'}`}>
-                    <ConfidentialValue>
+                <p className="flex items-baseline gap-1.5">
+                  <ConfidentialValue>
+                    <span
+                      className="bg-clip-text text-[26px] font-extrabold tracking-tight text-transparent"
+                      style={{ backgroundImage: `linear-gradient(100deg, ${accent.a}, ${accent.b})` }}
+                    >
                       {property.seasonalPriceMin ? formatPrice(property.seasonalPriceMin) : '?'} ~ {property.seasonalPriceMax ? formatPrice(property.seasonalPriceMax) : '?'}
-                    </ConfidentialValue>
-                  </span>
-                  <span className="text-sm text-text-secondary">/nuit</span>
-                </>
+                    </span>
+                  </ConfidentialValue>
+                  <span className={cn('text-sm font-semibold', isDark ? 'text-slate-400' : 'text-slate-500')}>/nuit</span>
+                </p>
               ) : (
-                <>
-                  <span className={`text-2xl font-bold ${isGerant ? 'text-[#905D5D]' : 'text-accent'}`}><ConfidentialValue>{formatPrice(displayPrice)}</ConfidentialValue></span>
-                  {property.transactionType === 'location_ld' && <span className="text-sm text-text-secondary">/mois</span>}
-                </>
+                <p className="flex items-baseline gap-1.5">
+                  <ConfidentialValue>
+                    <span
+                      className="bg-clip-text text-[28px] font-extrabold tracking-tight text-transparent"
+                      style={{ backgroundImage: `linear-gradient(100deg, ${accent.a}, ${accent.b})` }}
+                    >
+                      {formatPrice(displayPrice)}
+                    </span>
+                  </ConfidentialValue>
+                  {property.transactionType === 'location_ld' && (
+                    <span className={cn('text-sm font-semibold', isDark ? 'text-slate-400' : 'text-slate-500')}>/mois</span>
+                  )}
+                </p>
               )}
+              <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
+                <StageBadge variant="neutral">{typeLabel}</StageBadge>
+                <span
+                  className="inline-flex items-center whitespace-nowrap rounded-full border px-2.5 py-1 text-[11px] font-semibold"
+                  style={{
+                    color: transHue.line,
+                    borderColor: `${transHue.a}38`,
+                    backgroundColor: `${transHue.a}12`,
+                  }}
+                >
+                  {transactionLabel}
+                </span>
+              </div>
             </div>
 
             {property.priceEstimate && (
-              <div className={`flex items-center gap-2 p-3 rounded-lg border mb-4 ${isGerant ? 'bg-[#E7D5D5] border-[#E0C6C6]' : 'bg-amber-50 border-amber-200'}`}>
-                <DollarSign size={14} className={isGerant ? 'text-[#905D5D]' : 'text-amber-600'} />
-                <div>
-                  <p className={`text-xs ${isGerant ? 'text-[#7D5050]' : 'text-amber-700'}`}>
-                    Estimation: <strong><ConfidentialValue>{formatPrice(property.priceEstimate)}</ConfidentialValue></strong>
+              <div
+                className="relative mt-3.5 flex items-start gap-2.5 rounded-xl border p-3"
+                style={{
+                  borderColor: isDark ? 'rgba(251,191,36,0.25)' : 'rgba(180,83,9,0.20)',
+                  background: isDark ? 'rgba(251,191,36,0.07)' : 'rgba(254,243,199,0.55)',
+                }}
+              >
+                <OrbIcon icon={Percent} hue={STAGE_HUES.amber} size={30} radius={9} />
+                <div className="min-w-0">
+                  <p className={cn('text-xs font-semibold', isDark ? 'text-amber-200' : 'text-amber-800')}>
+                    Estimation&nbsp;: <ConfidentialValue>{formatPrice(property.priceEstimate)}</ConfidentialValue>
                   </p>
-                  <p className={`text-[10px] ${isGerant ? 'text-[#905D5D]/70' : 'text-amber-600/70'}`}>
+                  <p className={cn('mt-0.5 text-[10px]', isDark ? 'text-amber-300/60' : 'text-amber-700/70')}>
                     <ConfidentialValue>
                       {property.priceEstimate > property.price
-                        ? 'Sous-estime par rapport au marche'
-                        : 'Sur-estime par rapport au marche'}
+                        ? 'Sous-estimé par rapport au marché'
+                        : 'Sur-estimé par rapport au marché'}
                     </ConfidentialValue>
                   </p>
                 </div>
               </div>
             )}
 
-            <div className="flex items-center gap-4 text-sm text-text-secondary flex-wrap">
-              <span>{property.surface} m²</span>
-              <span>{((property as any).bathroom_count ?? property.bathrooms)} sdb</span>
-              <span>{((property as any).bedrooms_total ?? property.bedrooms)} chambres</span>
-              {property.sleepingCapacity && <span>{property.sleepingCapacity} couchages</span>}
-              {property.landSize && <span>Terrain {property.landSize} m²</span>}
+            <div className="relative mt-4 border-t pt-4" style={{ borderColor: isDark ? 'rgba(255,255,255,0.07)' : 'rgba(15,23,42,0.06)' }}>
+              {completion != null && completionHue ? (
+                <button
+                  type="button"
+                  onClick={canWrite ? () => setShowCompletionModal(true) : undefined}
+                  className={cn('group block w-full text-left', canWrite ? 'cursor-pointer' : 'cursor-default')}
+                  title={canWrite ? 'Modifier la complétion' : undefined}
+                >
+                  <div className="mb-2 flex items-center justify-between">
+                    <span className={cn('text-[10px] font-bold uppercase tracking-[0.18em]', isDark ? 'text-slate-500' : 'text-orange-900/45')}>
+                      Dossier de complétion
+                    </span>
+                    <span className="text-sm font-extrabold tabular-nums" style={{ color: completionHue.a }}>{completion}%</span>
+                  </div>
+                  <ShimmerProgress pct={completion} colorFrom={completionHue.a} colorTo={completionHue.b} glow={completionHue.glow} height={7} />
+                </button>
+              ) : canWrite ? (
+                <button
+                  type="button"
+                  onClick={() => setShowCompletionModal(true)}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-dashed px-2.5 py-1.5 text-[11px] font-semibold transition-colors"
+                  style={{
+                    borderColor: isDark ? 'rgba(255,255,255,0.18)' : 'rgba(15,23,42,0.18)',
+                    color: isDark ? 'rgba(255,255,255,0.45)' : 'rgba(15,23,42,0.45)',
+                  }}
+                >
+                  <Percent size={12} /> Définir la complétion
+                </button>
+              ) : (
+                <span
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-dashed px-2.5 py-1.5 text-[11px] font-semibold"
+                  style={{
+                    borderColor: isDark ? 'rgba(255,255,255,0.18)' : 'rgba(15,23,42,0.18)',
+                    color: isDark ? 'rgba(255,255,255,0.35)' : 'rgba(15,23,42,0.35)',
+                  }}
+                >
+                  <Percent size={12} /> Complétion non définie
+                </span>
+              )}
             </div>
-          </Card>
+          </div>
 
           {/* Owner quick card */}
-          <Card className="p-4">
-            <p className="text-[11px] text-text-secondary/60 font-medium mb-2 flex items-center gap-1.5">
-              <User size={12} /> Propriétaire{ownerType === 'societe' ? ' (Société)' : ''}
+          <div className="stage-glass p-4">
+            <p className={cn('mb-2.5 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.18em]', isDark ? 'text-slate-500' : 'text-orange-900/45')}>
+              <User size={11} /> Propriétaire{ownerType === 'societe' ? ' · Société' : ''}
             </p>
             <div className="flex items-center gap-3">
-              <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${isGerant ? 'bg-[#E7D5D5]' : 'bg-accent-light'}`}>
-                <span className={`font-bold text-sm ${isGerant ? 'text-[#905D5D]' : 'text-accent'}`}>
-                  {ownerInitials}
-                </span>
+              <div
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border text-sm font-extrabold"
+                style={{
+                  backgroundImage: `linear-gradient(135deg, ${typeHue.a}26, ${typeHue.b}14)`,
+                  borderColor: `${typeHue.a}33`,
+                  color: typeHue.a,
+                  boxShadow: `0 4px 14px ${typeHue.glow}`,
+                }}
+              >
+                {ownerInitials || '—'}
               </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium"><ConfidentialValue><PermissionValue allowed={canSeeName && canSeeCoords}>{ownerDisplayName}</PermissionValue></ConfidentialValue></p>
-                <p className="text-xs text-text-secondary truncate"><ConfidentialValue><PermissionValue allowed={canSeeCoords}>{property.owner?.phone ?? property.owner_phone ?? ''}</PermissionValue></ConfidentialValue></p>
-                <p className="text-xs text-text-secondary truncate"><ConfidentialValue><PermissionValue allowed={canSeeCoords}>{property.owner?.email || property.owner_email || ''}</PermissionValue></ConfidentialValue></p>
+              <div className="min-w-0 flex-1">
+                <p className={cn('truncate text-sm font-bold', isDark ? 'text-white' : 'text-slate-900')}>
+                  <ConfidentialValue><PermissionValue allowed={canSeeName && canSeeCoords}>{ownerDisplayName || 'Non renseigné'}</PermissionValue></ConfidentialValue>
+                </p>
+                <p className={cn('truncate text-xs', isDark ? 'text-slate-400' : 'text-slate-500')}>
+                  <ConfidentialValue><PermissionValue allowed={canSeeCoords}>{property.owner?.phone ?? property.owner_phone ?? ''}</PermissionValue></ConfidentialValue>
+                </p>
+                <p className={cn('truncate text-xs', isDark ? 'text-slate-400' : 'text-slate-500')}>
+                  <ConfidentialValue><PermissionValue allowed={canSeeCoords}>{property.owner?.email || property.owner_email || ''}</PermissionValue></ConfidentialValue>
+                </p>
               </div>
-              <div className="flex gap-1">
-                <button className="btn-ghost p-1.5"><Phone size={14} /></button>
-                <button className="btn-ghost p-1.5"><Mail size={14} /></button>
-                <button className="btn-ghost p-1.5"><MessageSquare size={14} /></button>
+              <div className="flex shrink-0 flex-col gap-1 sm:flex-row">
+                {[Phone, Mail, MessageSquare].map((Icon, i) => (
+                  <button
+                    key={i}
+                    className={cn(
+                      'flex h-7 w-7 items-center justify-center rounded-lg border transition-all hover:scale-110',
+                      isDark ? 'border-white/10 text-slate-400 hover:bg-white/10 hover:text-white' : 'border-orange-900/10 text-orange-900/50 hover:bg-orange-900/5 hover:text-orange-900',
+                    )}
+                  >
+                    <Icon size={13} />
+                  </button>
+                ))}
               </div>
             </div>
-          </Card>
+          </div>
 
-          {/* Agent card (admin only) */}
-          <Card className={`p-4 ${isGerant ? 'border-[#905D5D]/20' : 'border-accent/20'}`}>
-            <div className="flex items-center gap-3">
-              <div className={`w-10 h-10 rounded-xl ${property.agentId ? getAgentColor(property.agentId) : 'bg-gray-400'} flex items-center justify-center flex-shrink-0`}>
-                <span className="text-white font-bold text-sm">
-                  {property.agentId ? getAgentInitials(property.agentId) : 'NA'}
-                </span>
-              </div>
-              <div className="flex-1 min-w-0">
-                {(() => {
-                  const person = property.agentId ? findPerson(property.agentId) : null;
-                  const roleLabel = person?.role === 'admin' ? 'Admin responsable' : 'Agent responsable';
-                  return <p className={`text-xs font-medium uppercase tracking-wider ${isGerant ? 'text-[#905D5D]' : 'text-accent'}`}>{roleLabel}</p>;
-                })()}
-                <div className="flex items-center gap-1.5">
-                  <p className="text-sm font-medium">{getAgentName(property.agentId)}</p>
-                  {(() => {
-                    const person = property.agentId ? findPerson(property.agentId) : null;
-                    const badge = getRoleBadge(person, isGerant);
-                    return badge ? (
-                      <span className={`inline-flex items-center px-1.5 py-0.5 text-[9px] font-semibold rounded-full uppercase tracking-wider ${badge.cls}`}>
-                        {badge.label}
-                      </span>
-                    ) : null;
-                  })()}
-                </div>
-                {property.agentId && (
-                  <p className="text-xs text-text-secondary">
-                    Mandat: {property.mandateType || 'N/A'} · {property.mandateStatus === 'actif' ? 'Actif' : property.mandateStatus}
-                  </p>
+          {/* Agent card */}
+          <div className="stage-glass flex items-center gap-3 p-4">
+            <OrbIcon icon={User} hue={agentRoleHue} size={40} radius={12} />
+            <div className="min-w-0 flex-1">
+              <p className="text-[10px] font-bold uppercase tracking-[0.18em]" style={{ color: agentRoleHue.a }}>
+                {agentRoleLabel}
+              </p>
+              <div className="flex items-center gap-1.5">
+                <p className={cn('truncate text-sm font-bold', isDark ? 'text-white' : 'text-slate-900')}>
+                  {getAgentName(property.agentId)}
+                </p>
+                {agentPerson && (
+                  <span className="shrink-0 rounded-full border px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.1em]" style={stagePillStyle(agentRoleHue, isDark)}>
+                    {agentPerson.role === 'agent' ? (agentPerson.position || 'Agent') : agentPerson.role === 'gerant' ? 'Gérant' : 'Admin'}
+                  </span>
                 )}
               </div>
-              <Button variant="ghost" size="sm" icon={<Repeat size={12} />}
-                onClick={() => { setSelectedAgent(property.agentId || ''); setShowReassignDialog(true); }}>
-                Changer
-              </Button>
+              {property.agentId && (
+                <p className={cn('truncate text-xs', isDark ? 'text-slate-400' : 'text-slate-500')}>
+                  Mandat&nbsp;: {property.mandateType || 'N/A'} · {property.mandateStatus === 'actif' ? 'Actif' : property.mandateStatus}
+                </p>
+              )}
             </div>
-          </Card>
-
-          {/* Quick stats */}
-          <div className="grid grid-cols-2 gap-3">
-            <Card className="p-3 text-center">
-              <p className="text-xs text-text-secondary">Type</p>
-              <p className="text-sm font-semibold mt-0.5">{typeLabel}</p>
-            </Card>
-            <Card className="p-3 text-center">
-              <p className="text-xs text-text-secondary">Transaction</p>
-              <p className="text-sm font-semibold mt-0.5">{transactionLabel}</p>
-            </Card>
+            {canManage && (
+              <button
+                type="button"
+                onClick={() => { setSelectedAgent(property.agentId || ''); setShowReassignDialog(true) }}
+                className={cn(
+                  'inline-flex shrink-0 items-center gap-1 rounded-lg border px-2 py-1.5 text-[11px] font-bold transition-all hover:scale-[1.02] active:scale-95',
+                  isDark ? 'border-white/10 bg-white/[0.04] text-slate-300 hover:bg-white/10 hover:text-white' : 'border-orange-900/10 bg-white/70 text-orange-900/60 hover:bg-white hover:text-orange-900',
+                )}
+              >
+                <Repeat size={12} /> Changer
+              </button>
+            )}
           </div>
+
           <button
             onClick={() => setShowExtra(v => !v)}
-            className={`w-full inline-flex items-center justify-center gap-1.5 h-8 px-3 text-xs font-medium rounded-lg border transition-all ${
+            className={cn(
+              'inline-flex h-8 w-full items-center justify-center gap-1.5 rounded-xl border px-3 text-xs font-bold transition-all',
               showExtra
-                ? isGerant ? 'bg-[#905D5D]/10 text-[#905D5D] border-[#905D5D]/30' : 'bg-accent/10 text-accent border-accent/30'
-                : 'bg-card text-text-secondary border-border/40 hover:bg-card hover:text-text'
-            }`}
+                ? 'text-white'
+                : isDark ? 'border-white/10 bg-white/[0.04] text-slate-400 hover:bg-white/[0.07] hover:text-white' : 'border-orange-900/10 bg-white/70 text-orange-900/55 hover:bg-white hover:text-orange-900',
+            )}
+            style={showExtra ? {
+              backgroundImage: `linear-gradient(145deg, ${accent.a}, ${accent.b})`,
+              borderColor: 'transparent',
+              boxShadow: `0 8px 20px -10px ${accent.glow}`,
+            } : undefined}
           >
             <ChevronDown size={13} className={`transition-transform ${showExtra ? 'rotate-180' : ''}`} />
             Plus d'infos
           </button>
-        </div>
+        </motion.div>
       </div>
 
       {/* Tabs */}
-      <div className="bg-card rounded-xl border border-border/50 shadow-card overflow-hidden">
-        <div className="overflow-x-auto scrollbar-thin border-b border-border/40">
-          <div className="flex px-1 min-w-max items-stretch">
-            {mainTabs.map(tab => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-all whitespace-nowrap ${
-                  activeTab === tab.id
-                    ? isGerant ? 'text-[#905D5D] border-[#905D5D]' : 'text-accent border-accent'
-                    : 'text-text-secondary border-transparent hover:text-text hover:border-border'
-                }`}
-              >
-                {tab.icon}
-                {tab.label}
-              </button>
-            ))}
-            {restTabs.map(tab => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-all whitespace-nowrap ${
-                  activeTab === tab.id
-                    ? isGerant ? 'text-[#905D5D] border-[#905D5D]' : 'text-accent border-accent'
-                    : 'text-text-secondary border-transparent hover:text-text hover:border-border'
-                }`}
-              >
-                {tab.icon}
-                {tab.label}
-              </button>
-            ))}
+      <div className="stage-glass overflow-hidden !rounded-[24px]">
+        <div className="scrollbar-thin overflow-x-auto border-b" style={{ borderColor: isDark ? 'rgba(255,255,255,0.07)' : 'rgba(15,23,42,0.06)' }}>
+          <div className="flex w-full items-center justify-between gap-1 px-2 py-2">
+            {[...mainTabs, ...restTabs].map(tab => {
+              const active = activeTab === tab.id
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setActiveTab(tab.id)}
+                  className={cn(
+                    'relative flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-xl px-3 py-2 text-xs font-bold transition-colors duration-200',
+                    active
+                      ? 'text-white'
+                      : isDark ? 'text-slate-400 hover:bg-white/[0.05] hover:text-white' : 'text-orange-900/50 hover:bg-orange-900/[0.04] hover:text-orange-900',
+                  )}
+                >
+                  {active && (
+                    <motion.span
+                      layoutId="adminPropTab"
+                      className="absolute inset-0 rounded-xl"
+                      style={{ backgroundImage: `linear-gradient(145deg, ${accent.a}, ${accent.b})`, boxShadow: `0 8px 20px -10px ${accent.glow}` }}
+                      transition={{ type: 'spring', stiffness: 420, damping: 34 }}
+                    />
+                  )}
+                  <span className="relative flex items-center gap-1.5">{tab.icon}{tab.label}</span>
+                </button>
+              )
+            })}
           </div>
         </div>
         {showExtra && (
-          <div className="flex flex-wrap gap-1.5 px-4 py-3 border-b border-border/30 bg-background/30">
-            {extraTabs.map(tab => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border transition-all ${
-                  activeTab === tab.id
-                    ? isGerant ? 'bg-[#905D5D]/10 text-[#905D5D] border-[#905D5D]/30' : 'bg-accent/10 text-accent border-accent/30'
-                    : 'text-text-secondary border-border/40 hover:bg-card hover:text-text'
-                }`}
-              >
-                {tab.icon}
-                {tab.label}
-              </button>
-            ))}
+          <div
+            className="flex flex-wrap gap-1.5 border-b px-3 py-2.5"
+            style={{
+              borderColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(15,23,42,0.05)',
+              background: isDark ? 'rgba(255,255,255,0.02)' : 'rgba(15,23,42,0.015)',
+            }}
+          >
+            {extraTabs.map(tab => {
+              const active = activeTab === tab.id
+              return (
+                <button
+                  key={tab.id}
+                  type="button"
+                  onClick={() => setActiveTab(tab.id)}
+                  className={cn(
+                    'flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[11px] font-semibold transition-all',
+                    active
+                      ? 'text-white'
+                      : isDark ? 'border-white/10 bg-white/[0.03] text-slate-400 hover:bg-white/[0.07] hover:text-white' : 'border-orange-900/10 bg-white/60 text-orange-900/55 hover:bg-white hover:text-orange-900',
+                  )}
+                  style={active ? {
+                    backgroundImage: `linear-gradient(145deg, ${accent.a}, ${accent.b})`,
+                    borderColor: 'transparent',
+                    boxShadow: `0 6px 16px -10px ${accent.glow}`,
+                  } : undefined}
+                >
+                  {tab.icon}
+                  {tab.label}
+                </button>
+              )
+            })}
           </div>
         )}
 
-        <div className="p-5">
+        <div className="p-4 sm:p-5">
           <AnimatePresence mode="wait">
             <motion.div
               key={activeTab}
-              initial={{ opacity: 0, y: 8 }}
+              initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -8 }}
-              transition={{ duration: 0.15 }}
+              transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
             >
               {activeTab === 'informations' && (
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
@@ -601,8 +927,10 @@ export default function AdminPropertyPage() {
               )}
               {activeTab === 'media' && (
                 <div className="space-y-5">
-                  <div className="bg-card rounded-xl border border-border/50 shadow-card p-5">
-                    <h3 className="font-semibold mb-4">Galerie photos & vidéos</h3>
+                  <div>
+                    <h3 className={cn('mb-4 text-[11px] font-bold uppercase tracking-[0.18em]', isDark ? 'text-slate-500' : 'text-orange-900/45')}>
+                      Galerie photos & vidéos
+                    </h3>
                     <PropertyMediaGallery
                       property={property}
                       editable={canWrite}
@@ -649,29 +977,46 @@ export default function AdminPropertyPage() {
       </div>
 
       {/* Reassign Dialog */}
-      <Dialog isOpen={showReassignDialog} onClose={() => setShowReassignDialog(false)} title="Reaffecter un bien" size="lg">
+      <StageModal
+        open={showReassignDialog}
+        onClose={() => setShowReassignDialog(false)}
+        title="Réaffecter un bien"
+        eyebrow="Attribution"
+        subtitle={[property.reference, property.city].filter(Boolean).join(' · ')}
+        icon={Repeat}
+        hue={accent}
+        maxWidth="max-w-xl"
+        centered
+        footer={
+          <>
+            <button type="button" className={ghostBtn} onClick={() => setShowReassignDialog(false)}>Annuler</button>
+            <button type="button" className={btns.primary} onClick={handleReassign} disabled={!selectedAgent} style={{ opacity: selectedAgent ? 1 : 0.5 }}>
+              <Repeat size={14} /> Réaffecter
+            </button>
+          </>
+        }
+      >
         <div className="space-y-4">
-          <div className="p-3 rounded-lg bg-background border border-border/50">
-            <p className="text-sm font-medium">{property.title}</p>
-            <p className="text-xs text-text-secondary">#{property.reference}</p>
-          </div>
+          <PropertySummaryCard property={property} isDark={isDark} hue={accent} />
           <div>
-            <p className="text-xs text-text-secondary mb-1.5">Responsable actuel :</p>
+            <p className={cn('mb-1.5 text-[11px] font-bold uppercase tracking-[0.14em]', isDark ? 'text-slate-400' : 'text-orange-900/55')}>
+              Responsable actuel
+            </p>
             <div className="flex items-center gap-2 text-sm">
               {property.agentId ? (
                 <>
-                  <div className={`w-6 h-6 rounded-full ${getAgentColor(property.agentId)} flex items-center justify-center text-white text-[10px] font-bold`}>
-                    {getAgentInitials(property.agentId)}
-                  </div>
-                  <span>{getAgentName(property.agentId)}</span>
+                  <OrbIcon icon={User} hue={agentRoleHue} size={24} radius={7} />
+                  <span className={isDark ? 'text-slate-200' : 'text-slate-700'}>{getAgentName(property.agentId)}</span>
                 </>
               ) : (
-                <span className="text-text-secondary italic">Non assigne</span>
+                <span className="italic text-slate-400">Non assigné</span>
               )}
             </div>
           </div>
           <div>
-            <label className="text-sm font-medium mb-1.5 block">Nouveau responsable</label>
+            <label className={cn('mb-1.5 block text-[11px] font-bold uppercase tracking-[0.14em]', isDark ? 'text-slate-400' : 'text-orange-900/55')}>
+              Nouveau responsable
+            </label>
             <Select
               placeholder="Sélectionner un agent"
               value={selectedAgent}
@@ -682,122 +1027,149 @@ export default function AdminPropertyPage() {
               }))}
             />
           </div>
-          <div className="flex items-center justify-end gap-3 pt-2">
-            <Button variant="ghost" onClick={() => setShowReassignDialog(false)}>Annuler</Button>
-            <Button variant="default" className={isGerant ? GERANT_BUTTON_CLASSES : ''} onClick={async () => {
-              if (!selectedAgent || !id) return;
-              try {
-                const updated = await reassignProperty(id, selectedAgent);
-                setProperty((prev: any) => ({ ...prev, ...updated }));
-                setShowReassignDialog(false);
-                setSelectedAgent('');
-                toast('success', 'Bien réaffecté avec succès');
-              } catch (e: any) {
-                toast('error', e.message || 'Erreur lors de la réaffectation');
-              }
-            }} disabled={!selectedAgent}>Reaffecter</Button>
+          <div>
+            <label className={cn('mb-1.5 block text-[11px] font-bold uppercase tracking-[0.14em]', isDark ? 'text-slate-400' : 'text-orange-900/55')}>
+              Note pour l'agent
+            </label>
+            <Textarea
+              placeholder="Je vous confie ce bien pour le suivi..."
+              value={reassignNote}
+              onChange={(e) => setReassignNote(e.target.value)}
+            />
           </div>
+          <label className={cn('flex cursor-pointer items-center gap-2 text-sm', isDark ? 'text-slate-300' : 'text-slate-600')}>
+            <input type="checkbox" className="h-4 w-4 rounded border" checked={sendNotification} onChange={(e) => setSendNotification(e.target.checked)} />
+            Envoyer une notification à l'agent
+          </label>
         </div>
-      </Dialog>
+      </StageModal>
 
       {/* Delete Confirmation Dialog */}
-      <Dialog isOpen={showDeleteDialog} onClose={() => setShowDeleteDialog(false)} title="Supprimer le bien" size="lg">
+      <StageModal
+        open={showDeleteDialog}
+        onClose={() => setShowDeleteDialog(false)}
+        title="Supprimer le bien"
+        eyebrow="Zone sensible"
+        subtitle={[property.reference, property.city].filter(Boolean).join(' · ')}
+        icon={Trash2}
+        hue={DANGER_HUE}
+        accent={DANGER_HUE.a}
+        maxWidth="max-w-xl"
+        centered
+        footer={
+          <>
+            <button type="button" className={ghostBtn} onClick={() => setShowDeleteDialog(false)}>Annuler</button>
+            <button
+              type="button"
+              className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-white/20 bg-gradient-to-br from-rose-400 to-rose-600 px-4 text-sm font-semibold text-white shadow-[0_10px_24px_-10px_rgba(244,63,94,0.7)] transition-all hover:brightness-110 active:scale-[0.97] disabled:pointer-events-none disabled:opacity-40"
+              onClick={handleDelete}
+              disabled={deleteConfirm !== 'SUPPRIMER'}
+            >
+              <Trash2 size={14} /> Confirmer la suppression
+            </button>
+          </>
+        }
+      >
         <div className="space-y-4">
-          <div className="p-3 rounded-lg bg-background border border-border/50">
-            <p className="text-sm font-medium">{property.title}</p>
-            <p className="text-xs text-text-secondary">#{property.reference}</p>
-          </div>
-          <div className="p-3 rounded-lg bg-red-50 border border-red-200">
-            <div className="flex items-start gap-2">
-              <AlertTriangle size={16} className="text-red-500 flex-shrink-0 mt-0.5" />
-              <div className="text-xs text-red-700 space-y-1">
-                <p className="font-medium">Attention :</p>
-                <ul className="list-disc list-inside space-y-0.5">
+          <PropertySummaryCard property={property} isDark={isDark} hue={DANGER_HUE} />
+          <div className={cn('rounded-2xl border p-3.5', isDark ? 'border-rose-400/25 bg-rose-500/10' : 'border-rose-200 bg-rose-50')}>
+            <div className="flex items-start gap-2.5">
+              <AlertTriangle size={16} className={cn('mt-0.5 shrink-0', isDark ? 'text-rose-300' : 'text-rose-500')} />
+              <div className={cn('space-y-1 text-xs', isDark ? 'text-rose-200/85' : 'text-rose-700')}>
+                <p className="font-semibold">Attention — action irréversible</p>
+                <ul className="list-inside list-disc space-y-0.5">
                   <li>Cette action est IRREVERSIBLE</li>
-                  <li>Tous les documents associes seront supprimes</li>
-                  <li>Tous les mandats lies seront supprimes</li>
-                  <li>L'historique du bien sera efface</li>
+                  <li>Tous les documents associés seront supprimés</li>
+                  <li>Tous les mandats liés seront supprimés</li>
+                  <li>L'historique du bien sera effacé</li>
                 </ul>
               </div>
             </div>
           </div>
           <div>
-            <label className="text-sm font-medium mb-1.5 block">Confirmation</label>
-            <input
-              type="text"
-              className="w-full h-10 px-3 text-sm rounded-lg border border-border bg-card placeholder:text-text-secondary/50 focus:outline-none focus:ring-2 focus:ring-error/20 focus:border-error transition-all"
+            <label className={cn('mb-1.5 block text-[11px] font-bold uppercase tracking-[0.14em]', isDark ? 'text-slate-400' : 'text-orange-900/55')}>
+              Confirmation
+            </label>
+            <Input
               placeholder='Tapez "SUPPRIMER" pour confirmer'
               value={deleteConfirm}
               onChange={(e) => setDeleteConfirm(e.target.value)}
             />
           </div>
           <div>
-            <label className="text-sm font-medium mb-1.5 block">Motif de suppression (optionnel)</label>
-            <select
-              className={`w-full h-10 px-3 text-sm rounded-lg border border-border bg-card focus:outline-none focus:ring-2 transition-all ${isGerant ? 'focus:ring-[#905D5D]/20 focus:border-[#905D5D]' : 'focus:ring-accent/20 focus:border-accent'}`}
-              value={deleteReason}
-              onChange={(e) => setDeleteReason(e.target.value)}
-            >
-              <option value="">Selectionner un motif</option>
-              <option value="doublon">Erreur de saisie - Doublon</option>
-              <option value="vendu">Bien vendu hors agence</option>
-              <option value="retire">Bien retire par le proprietaire</option>
-              <option value="autre">Autre</option>
-            </select>
-          </div>
-          <div className="flex items-center justify-end gap-3 pt-2">
-            <Button variant="ghost" onClick={() => setShowDeleteDialog(false)}>Annuler</Button>
-            <Button variant="danger" onClick={async () => {
-              if (deleteConfirm !== 'SUPPRIMER' || !id) return;
-              try {
-                await deleteProperty(id);
-                setShowDeleteDialog(false);
-                setDeleteConfirm('');
-                toast('success', 'Bien supprimé avec succès');
-                navigate(`/admin/${adminId}/properties`, { replace: true });
-              } catch (e: any) {
-                toast('error', e.message || 'Erreur lors de la suppression');
-              }
-            }} disabled={deleteConfirm !== 'SUPPRIMER'}>
-              Confirmer la suppression
-            </Button>
-          </div>
-        </div>
-      </Dialog>
-
-      {/* Change Status Dialog */}
-      <Dialog isOpen={showStatusDialog} onClose={() => setShowStatusDialog(false)} title="Changer le statut" size="md">
-        <div className="space-y-4">
-          <div className="p-3 rounded-lg bg-background border border-border/50">
-            <p className="text-sm font-medium">{property.title}</p>
-            <p className="text-xs text-text-secondary">#{property.reference}</p>
-          </div>
-          <div>
-            <label className="text-sm font-medium mb-1.5 block">Statut actuel</label>
-            <span className={`inline-flex items-center px-2.5 py-1 text-xs font-medium rounded-md border ${statusColor}`}>
-              {statusLabel}
-            </span>
-          </div>
-          <div>
-            <label className="text-sm font-medium mb-1.5 block">Nouveau statut</label>
+            <label className={cn('mb-1.5 block text-[11px] font-bold uppercase tracking-[0.14em]', isDark ? 'text-slate-400' : 'text-orange-900/55')}>
+              Motif de suppression (optionnel)
+            </label>
             <Select
-              placeholder="Sélectionner un statut"
-              value={newStatus}
-              onValueChange={(v) => setNewStatus(v)}
-              options={(STATUS_BY_TRANSACTION[property.transactionType] || Object.keys(STATUS_LABELS)).map(s => ({
-                value: s,
-                label: STATUS_LABELS[s] || s,
-              }))}
+              value={deleteReason}
+              onValueChange={setDeleteReason}
+              placeholder="Sélectionner un motif"
+              options={[
+                { value: 'doublon', label: 'Erreur de saisie - Doublon' },
+                { value: 'vendu', label: 'Bien vendu hors agence' },
+                { value: 'retire', label: 'Bien retiré par le propriétaire' },
+                { value: 'autre', label: 'Autre' },
+              ]}
             />
           </div>
-          <div className="flex items-center justify-end gap-3 pt-2">
-            <Button variant="ghost" onClick={() => setShowStatusDialog(false)}>Annuler</Button>
-            <Button variant="default" className={isGerant ? GERANT_BUTTON_CLASSES : ''} onClick={handleStatusChange} disabled={newStatus === property.status}>
+        </div>
+      </StageModal>
+
+      {/* Change Status Dialog */}
+      <StageModal
+        open={showStatusDialog}
+        onClose={() => setShowStatusDialog(false)}
+        title="Changer le statut"
+        eyebrow="Cycle de vie"
+        subtitle={`${property.title || 'Bien'} · ${property.reference || ''}`}
+        icon={Activity}
+        hue={accent}
+        maxWidth="max-w-lg"
+        centered
+        footer={
+          <>
+            <button type="button" className={ghostBtn} onClick={() => setShowStatusDialog(false)}>Annuler</button>
+            <button
+              type="button"
+              className={btns.primary}
+              onClick={handleStatusChange}
+              disabled={newStatus === property.status}
+              style={{ opacity: newStatus === property.status ? 0.5 : 1 }}
+            >
               Changer le statut
-            </Button>
+            </button>
+          </>
+        }
+      >
+        <div className="space-y-4">
+          <PropertySummaryCard property={property} isDark={isDark} hue={accent} />
+          <div>
+            <p className={cn('mb-2 text-[11px] font-bold uppercase tracking-[0.14em]', isDark ? 'text-slate-400' : 'text-orange-900/55')}>
+              Nouveau statut
+            </p>
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+              {(STATUS_BY_TRANSACTION[property.transactionType] || Object.keys(STATUS_LABELS)).map(s => {
+                const statusHue = STATUS_HUE_MAP[s] || accent
+                const selected = newStatus === s
+                return (
+                  <button
+                    key={s}
+                    type="button"
+                    onClick={() => setNewStatus(s)}
+                    className={cn(
+                      'rounded-xl border px-3 py-2 text-left text-xs font-semibold transition-all duration-200 active:scale-[0.98]',
+                      selected ? 'border-transparent' : isDark ? 'border-white/[0.06] bg-white/[0.03] text-slate-300 hover:bg-white/[0.06]' : 'border-orange-900/10 bg-white/70 text-slate-600 hover:bg-white',
+                    )}
+                    style={selected ? stagePillStyle(statusHue, isDark) : undefined}
+                  >
+                    {STATUS_LABELS[s] || s}
+                  </button>
+                )
+              })}
+            </div>
           </div>
         </div>
-      </Dialog>
+      </StageModal>
 
       <PropertyCompletionModal
         property={property}

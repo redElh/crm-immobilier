@@ -1,9 +1,6 @@
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { useState, useEffect, useRef } from 'react'
-import { motion } from 'framer-motion'
-import { Button } from '../../../components/ui/Button'
-import Card from '../../../components/ui/Card'
-import { Dialog } from '../../../components/ui/Dialog'
+import { motion, AnimatePresence } from 'framer-motion'
 import { ClientHeader } from '../../../components/modules/clients/ClientHeader'
 import { ClientInfos } from '../../../components/modules/clients/ClientInfos'
 import { BuyerDetailTabs } from '../../../components/modules/clients/ClientInfos/BuyerDetailTabs'
@@ -11,8 +8,9 @@ import { SellerDetailTabs } from '../../../components/modules/clients/ClientInfo
 import { BailleurDetailTabs } from '../../../components/modules/clients/ClientInfos/BailleurDetailTabs'
 import { LocataireDetailTabs } from '../../../components/modules/clients/ClientInfos/LocataireDetailTabs'
 import { VoyageurDetailTabs } from '../../../components/modules/clients/ClientInfos/VoyageurDetailTabs'
-import { BackLink } from '../../../components/ui/BackLink'
 import { Select } from '../../../components/ui/Select'
+import { Input } from '../../../components/ui/Input'
+import { Textarea } from '../../../components/ui/Textarea'
 import { useToast } from '../../../components/ui/Toast'
 import { api } from '../../../services/api'
 import { deleteClient, duplicateClient } from '../../../services/clientService'
@@ -22,11 +20,23 @@ import { BailleurFormModal } from '../../../components/modules/clients/BailleurF
 import { LocataireFormModal } from '../../../components/modules/clients/LocataireFormModal'
 import { VoyageurFormModal } from '../../../components/modules/clients/VoyageurFormModal'
 import type { Client } from '../../../types/client'
-import { Repeat, Trash2, RefreshCw, AlertTriangle, Shield, Copy, Heart, Edit3, ExternalLink, ArrowLeft } from 'react-feather'
+import {
+  Repeat, Trash2, RefreshCw, AlertTriangle, Shield, Copy, Heart, Edit3,
+  ArrowLeft, Check, Share2,
+} from 'react-feather'
 import { triggerMandatExpireNotification } from '../../../services/automatorTrigger'
-import { useStageTheme } from '../../../components/dashboard/Stage'
+import { useStageTheme, useStageAccent, STAGE_HUES, type StageHue } from '../../../components/dashboard/Stage'
+import StageModal, { useStageModalButtons } from '../../../components/modules/calendar/StageModal'
+import { stagePillStyle } from '../../../components/modules/prospects/ProspectDetailStage'
+import { getClientStatusHue, getClientInitials } from '../../../components/modules/clients/ClientCard'
+import { cn } from '../../../lib/utils'
 
-const GERANT_BUTTON_CLASSES = 'bg-[#905D5D] hover:bg-[#7D5050] border-[#905D5D] hover:border-[#7D5050] text-white shadow-[0_10px_24px_rgba(144,93,93,0.35)]'
+const DANGER_HUE: StageHue = {
+  a: '#FB7185',
+  b: '#E11D48',
+  glow: 'rgba(244,63,94,0.45)',
+  line: '#F43F5E',
+}
 
 const STATUS_BY_TYPE: Record<string, string[]> = {
   Acheteur: ['En qualification', 'En recherche', 'En negociation', 'En compromis', 'Vendu / Achete', 'Inactif', 'Perdu'],
@@ -34,40 +44,45 @@ const STATUS_BY_TYPE: Record<string, string[]> = {
   Bailleur: ['En attente de signature', 'En mandat', 'En location', 'Inactif', 'Perdu'],
   Locataire: ['En recherche', 'En visite', 'En dossier', 'Bail signe', 'Installe', 'Inactif', 'Perdu'],
   Voyageur: ['En recherche', 'Reservation en cours', 'Confirme', 'En sejour', 'Termine', 'Annule', 'Inactif'],
-};
-
-const STATUS_COLORS: Record<string, string> = {
-  'En qualification': 'bg-blue-50 text-blue-700 border-blue-200',
-  'En recherche': 'bg-cyan-50 text-cyan-700 border-cyan-200',
-  'En negociation': 'bg-amber-50 text-amber-700 border-amber-200',
-  'En compromis': 'bg-violet-50 text-violet-700 border-violet-200',
-  'Vendu / Achete': 'bg-emerald-50 text-emerald-700 border-emerald-200',
-  'Vendu': 'bg-emerald-50 text-emerald-700 border-emerald-200',
-  'En attente de signature': 'bg-orange-50 text-orange-700 border-orange-200',
-  'En mandat': 'bg-indigo-50 text-indigo-700 border-indigo-200',
-  'En location': 'bg-teal-50 text-teal-700 border-teal-200',
-  'En visite': 'bg-purple-50 text-purple-700 border-purple-200',
-  'En dossier': 'bg-pink-50 text-pink-700 border-pink-200',
-  'Bail signe': 'bg-emerald-50 text-emerald-700 border-emerald-200',
-  'Installe': 'bg-green-50 text-green-700 border-green-200',
-  'Reservation en cours': 'bg-cyan-50 text-cyan-700 border-cyan-200',
-  'Confirme': 'bg-emerald-50 text-emerald-700 border-emerald-200',
-  'En sejour': 'bg-blue-50 text-blue-700 border-blue-200',
-  'Termine': 'bg-gray-50 text-gray-700 border-gray-200',
-  'Annule': 'bg-red-50 text-red-700 border-red-200',
-  'Inactif': 'bg-gray-50 text-gray-500 border-gray-200',
-  'Perdu': 'bg-red-50 text-red-600 border-red-200',
-  'Actif': 'bg-emerald-50 text-emerald-700 border-emerald-200',
-};
+}
 
 const typeToRoute: Record<string, string> = {
   Acheteur: 'acheteur', Vendeur: 'vendeur', Bailleur: 'bailleur', Locataire: 'locataire', Voyageur: 'voyageur',
-};
+}
 
-const COLORS = ['bg-violet-500', 'bg-blue-500', 'bg-emerald-500', 'bg-amber-500', 'bg-rose-500', 'bg-indigo-500', 'bg-cyan-500', 'bg-pink-500'];
+const getRoleBadge = (role?: string, position?: string) => {
+  if (role === 'agent') return { label: position || 'Agent', hue: STAGE_HUES.emerald }
+  if (role === 'gerant') return { label: 'Gérant', hue: STAGE_HUES.amber }
+  if (role === 'admin') return { label: 'Admin', hue: STAGE_HUES.violet }
+  return null
+}
+
+function ClientSummaryCard({ client, isDark, hue }: { client: Client; isDark: boolean; hue: StageHue }) {
+  const statusKey = (client.statutMetier || client.status || '').trim() || '—'
+  const statusHue = getClientStatusHue(statusKey) || hue
+  return (
+    <div className={cn('flex items-center gap-3 rounded-2xl border p-3', isDark ? 'border-white/[0.08] bg-white/[0.03]' : 'border-slate-200/70 bg-white/70')}>
+      <div
+        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-sm font-bold text-white"
+        style={{ background: `linear-gradient(145deg, ${hue.a}, ${hue.b})`, boxShadow: `inset 0 1px 0 rgba(255,255,255,0.35), 0 8px 18px -8px ${hue.glow}` }}
+      >
+        {getClientInitials(client.name || 'Client')}
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className={cn('truncate text-sm font-semibold', isDark ? 'text-white' : 'text-slate-900')}>{client.name || 'Client'}</p>
+        <p className={cn('truncate text-xs', isDark ? 'text-slate-400' : 'text-slate-500')}>
+          {[client.type, client.phone].filter(Boolean).join(' · ') || '—'}
+        </p>
+      </div>
+      <span className="shrink-0 rounded-full border px-2.5 py-1 text-[11px] font-bold" style={stagePillStyle(statusHue, isDark)}>
+        {statusKey}
+      </span>
+    </div>
+  )
+}
 
 export default function AdminClientPage() {
-  const { id, adminId, type } = useParams()
+  const { id, adminId } = useParams()
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const highlightActivityId = searchParams.get('tab') === 'notes_activite' ? Number(searchParams.get('activityId')) || undefined : undefined
@@ -78,41 +93,44 @@ export default function AdminClientPage() {
   const [loading, setLoading] = useState(true)
 
   const lastKnownMandatRef = useRef<string | undefined>(undefined)
-  const [triggeredStatutRef, setTriggeredStatutRef] = useState(false)
 
-  const [showReassignDialog, setShowReassignDialog] = useState(false);
-  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
-  const [showStatusDialog, setShowStatusDialog] = useState(false);
-  const [selectedAgent, setSelectedAgent] = useState('');
-  const [deleteConfirm, setDeleteConfirm] = useState('');
-  const [deleteReason, setDeleteReason] = useState('');
-  const [newStatus, setNewStatus] = useState('');
-  const [liked, setLiked] = useState(false);
-  const [showEditModal, setShowEditModal] = useState(false);
-  const [dataRefreshKey, setDataRefreshKey] = useState(0);
-  const [isGerant, setIsGerant] = useState(false);
-  const stageTheme = useStageTheme();
-  const isDark = stageTheme === 'dark';
+  const [showReassignDialog, setShowReassignDialog] = useState(false)
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false)
+  const [showStatusDialog, setShowStatusDialog] = useState(false)
+  const [selectedAgent, setSelectedAgent] = useState('')
+  const [reassignNote, setReassignNote] = useState('')
+  const [deleteConfirm, setDeleteConfirm] = useState('')
+  const [deleteReason, setDeleteReason] = useState('')
+  const [newStatus, setNewStatus] = useState('')
+  const [liked, setLiked] = useState(false)
+  const [showEditModal, setShowEditModal] = useState(false)
+  const [dataRefreshKey, setDataRefreshKey] = useState(0)
+  const [isGerant, setIsGerant] = useState(false)
+
+  const stageTheme = useStageTheme()
+  const isDark = stageTheme === 'dark'
+  const stageAccent = useStageAccent()
+  const btns = useStageModalButtons()
 
   useEffect(() => {
     api.get<any>('/auth/me')
       .then(u => u && setIsGerant(u.role === 'gerant'))
-      .catch(() => {});
-  }, []);
+      .catch(() => {})
+  }, [])
 
   useEffect(() => {
-    if (!id) return;
-    setLoading(true);
+    if (!id) return
+    setLoading(true)
     Promise.all([
       api.get<Client>(`/clients/${id}`),
       api.get<any[]>('/admin/users'),
     ]).then(([c, u]) => {
-      setClient(c);
-      setUsers(Array.isArray(u) ? u : []);
+      setClient(c)
+      setUsers(Array.isArray(u) ? u : [])
     }).catch(() => {
-      setClient(null);
-    }).finally(() => setLoading(false));
-  }, [id]);
+      setClient(null)
+    }).finally(() => setLoading(false))
+  }, [id])
 
   useEffect(() => {
     if (!client) return
@@ -125,6 +143,10 @@ export default function AdminClientPage() {
       const clientParts = (client.name || '').split(' ')
       const prenom = clientParts[0] || ''
       const nom = clientParts.slice(1).join(' ') || ''
+      const agentUser = client.agentId
+        ? users.find((u: any) => String(u.id) === client.agentId)
+          || users.find((u: any) => `${u.first_name || ''} ${u.last_name || ''}`.trim().toLowerCase() === client.agentId!.toLowerCase())
+        : undefined
       try {
         triggerMandatExpireNotification({
           bienTitre: `${(client as any).propertyType || 'Bien'} - ${client.area || ''}`.trim(),
@@ -135,7 +157,7 @@ export default function AdminClientPage() {
           mandatType: (client as any).typeMandat || 'Mandat standard',
           mandatNumero: (client as any).numeroMandat,
           dateExpiration: client.dateExpiration ? new Date(client.dateExpiration).toLocaleDateString('fr-FR') : new Date().toLocaleDateString('fr-FR'),
-          agentNom: (client.agentId ? findPerson(client.agentId)?.name : null) || 'Non assigne',
+          agentNom: (agentUser ? `${agentUser.first_name || ''} ${agentUser.last_name || ''}`.trim() : null) || client.agentDesigne || 'Non assigne',
         })
       } catch (e) {
         console.error('triggerMandatExpireNotification failed:', e)
@@ -143,149 +165,138 @@ export default function AdminClientPage() {
     } else {
       lastKnownMandatRef.current = client.statutMandat
     }
-  }, [client?.statutMandat, client?.name, client?.area, client?.type, client?.agentId, client?.dateExpiration])
+  }, [client, users])
 
   const findPerson = (agentId: string) => {
-    if (!agentId) return undefined;
-    const byId = users.find(u => String(u.id) === agentId);
-    if (byId) {
-      const initials = `${(byId.first_name || '')[0]}${(byId.last_name || '')[0]}`.toUpperCase() || '?';
-      const color = COLORS[Math.abs(Number(byId.id) || byId.id.length) % COLORS.length];
-      return { name: `${byId.first_name || ''} ${byId.last_name || ''}`.trim(), initials, color, role: byId.role };
+    if (!agentId) return undefined
+    const normalized = agentId.toLowerCase()
+    const person = users.find((u: any) => String(u.id) === agentId)
+      || users.find((u: any) => {
+        const fullName = `${u.first_name || ''} ${u.last_name || ''}`.trim().toLowerCase()
+        const reverseName = `${u.last_name || ''} ${u.first_name || ''}`.trim().toLowerCase()
+        return fullName === normalized || reverseName === normalized
+      })
+    if (!person) return undefined
+    const initials = `${(person.first_name || '')[0] || ''}${(person.last_name || '')[0] || ''}`.toUpperCase() || '?'
+    return {
+      name: `${person.first_name || ''} ${person.last_name || ''}`.trim(),
+      initials,
+      role: person.role as string | undefined,
+      position: person.position as string | undefined,
     }
-    const byName = users.find(u => {
-      const fullName = `${u.first_name || ''} ${u.last_name || ''}`.trim();
-      return fullName.toLowerCase() === agentId.toLowerCase() || `${u.last_name || ''} ${u.first_name || ''}`.trim().toLowerCase() === agentId.toLowerCase();
-    });
-    if (byName) {
-      const initials = `${(byName.first_name || '')[0]}${(byName.last_name || '')[0]}`.toUpperCase() || '?';
-      const color = COLORS[Math.abs(Number(byName.id) || byName.id.length) % COLORS.length];
-      return { name: `${byName.first_name || ''} ${byName.last_name || ''}`.trim(), initials, color, role: byName.role };
-    }
-    return undefined;
-  };
+  }
 
   const getAgentName = (agentId?: string) => {
-    if (!agentId) return 'Non assigne';
-    const person = findPerson(agentId);
-    return person ? person.name : client?.agentDesigne || 'Non assigne';
-  };
+    if (!agentId) return 'Non assigné'
+    const person = findPerson(agentId)
+    return person ? person.name : client?.agentDesigne || 'Non assigné'
+  }
 
   const getAgentInitials = (agentId?: string) => {
-    if (!agentId) return 'NA';
-    const person = findPerson(agentId);
-    return person ? person.initials : (client?.agentDesigne || 'NA').split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase();
-  };
-
-  const getAgentColor = (agentId?: string) => {
-    if (!agentId) return 'bg-violet-400';
-    const person = findPerson(agentId);
-    return person ? person.color : 'bg-violet-400';
-  };
-
-  const formatBudget = (p?: number) =>
-    p ? new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'MAD', maximumFractionDigits: 0 }).format(p) : '-';
+    if (!agentId) return 'NA'
+    const person = findPerson(agentId)
+    return person ? person.initials : (client?.agentDesigne || 'NA').split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase()
+  }
 
   if (loading) {
     return (
-      <div className="space-y-6 animate-fade-in">
-        <BackLink to={adminId ? `/admin/${adminId}/clients` : '/admin/clients'} />
-        <div className="text-center py-12">
-          <p className="text-text-secondary">Chargement...</p>
+      <div className="flex items-center justify-center py-24">
+        <div className="relative flex h-12 w-12 items-center justify-center">
+          <span
+            className="absolute inline-flex h-full w-full animate-ping rounded-full"
+            style={{ background: isDark ? 'rgba(139,124,255,0.2)' : 'rgba(45,212,191,0.25)' }}
+          />
+          <span
+            className="relative inline-flex h-8 w-8 animate-spin rounded-full border-2 border-t-transparent"
+            style={{ borderColor: isDark ? 'rgba(139,124,255,0.8)' : 'rgba(20,184,166,0.8)', borderTopColor: 'transparent' }}
+          />
         </div>
       </div>
-    );
+    )
   }
 
   if (!client) {
     return (
-      <div className="space-y-6 animate-fade-in">
-        <BackLink to={adminId ? `/admin/${adminId}/clients` : '/admin/clients'} />
-        <div className="text-center py-12">
-          <p className="text-text/60">Client non trouve</p>
+      <div className="flex flex-col items-center justify-center py-24 text-center">
+        <div className={cn('mb-4 flex h-16 w-16 items-center justify-center rounded-2xl', isDark ? 'bg-white/[0.04] text-slate-500' : 'bg-slate-100 text-slate-400')}>
+          <AlertTriangle size={26} />
         </div>
+        <h2 className={cn('text-lg font-semibold', isDark ? 'text-white' : 'text-slate-900')}>Client non trouvé</h2>
+        <p className={cn('mt-1 max-w-sm text-sm', isDark ? 'text-slate-400' : 'text-slate-500')}>
+          Ce client n&apos;existe plus ou vous n&apos;avez pas les droits pour le consulter.
+        </p>
+        <button
+          type="button"
+          onClick={() => navigate(adminId ? `/admin/${adminId}/clients` : '/admin/clients')}
+          className={cn('mt-6 inline-flex items-center gap-2 rounded-xl border px-4 py-2 text-xs font-bold transition-all', isDark ? 'border-white/10 bg-white/[0.04] text-slate-300 hover:bg-white/10' : 'border-slate-200/80 bg-white/70 text-slate-600 hover:bg-white')}
+        >
+          <ArrowLeft size={14} /> Retour aux clients
+        </button>
       </div>
-    );
+    )
   }
 
   const handleDelete = async () => {
-    if (deleteConfirm !== 'SUPPRIMER' || !client) return;
+    if (deleteConfirm !== 'SUPPRIMER' || !client) return
     try {
-      await deleteClient(String(client.id));
-      toast('success', `${client.name || 'Client'} supprim\u00e9`);
-      navigate(client.type && adminId ? `/admin/${adminId}/clients/type/${typeToRoute[client.type] || ''}` : adminId ? `/admin/${adminId}/clients` : '/admin/clients');
+      await deleteClient(String(client.id))
+      toast('success', `${client.name || 'Client'} supprimé`)
+      navigate(client.type && adminId ? `/admin/${adminId}/clients/type/${typeToRoute[client.type] || ''}` : adminId ? `/admin/${adminId}/clients` : '/admin/clients')
     } catch (err: any) {
-      toast('error', err.message || 'Erreur lors de la suppression');
+      toast('error', err.message || 'Erreur lors de la suppression')
     }
-    setShowDeleteDialog(false);
-  };
+    setShowDeleteDialog(false)
+    setDeleteConfirm('')
+    setDeleteReason('')
+  }
 
   const handleStatusChange = async () => {
-    if (!client || newStatus === (client.statutMetier || client.status)) return;
+    if (!client || newStatus === (client.statutMetier || client.status)) return
     try {
-      await api.put(`/clients/${client.id}`, { statutMetier: newStatus });
-      setClient({ ...client, statutMetier: newStatus } as Client);
-      toast('success', 'Statut mis \u00e0 jour');
+      await api.put(`/clients/${client.id}`, { statutMetier: newStatus })
+      setClient({ ...client, statutMetier: newStatus } as Client)
+      setDataRefreshKey(k => k + 1)
+      toast('success', 'Statut mis à jour')
     } catch (err: any) {
-      toast('error', err.message || 'Erreur lors du changement de statut');
+      toast('error', err.message || 'Erreur lors du changement de statut')
     }
-    setShowStatusDialog(false);
-  };
+    setShowStatusDialog(false)
+  }
 
   const handleReassign = async () => {
-    if (!client || !selectedAgent) return;
+    if (!client || !selectedAgent) return
     try {
-      const agentUser = users.find((u: any) => String(u.id) === selectedAgent);
-      const agentName = agentUser ? `${agentUser.first_name || ''} ${agentUser.last_name || ''}`.trim() : '';
-      await api.put(`/clients/${client.id}`, { agentId: selectedAgent, agentDesigne: agentName });
-      setClient({ ...client, agentId: selectedAgent, agentDesigne: agentName } as Client);
-      toast('success', 'Client r\u00e9affect\u00e9 avec succ\u00e8s');
+      const agentUser = users.find((u: any) => String(u.id) === selectedAgent)
+      const agentName = agentUser ? `${agentUser.first_name || ''} ${agentUser.last_name || ''}`.trim() : ''
+      await api.put(`/clients/${client.id}`, { agentId: selectedAgent, agentDesigne: agentName })
+      setClient({ ...client, agentId: selectedAgent, agentDesigne: agentName } as Client)
+      setDataRefreshKey(k => k + 1)
+      toast('success', 'Client réaffecté avec succès')
     } catch (err: any) {
-      toast('error', err.message || 'Erreur lors de la r\u00e9affectation');
+      toast('error', err.message || 'Erreur lors de la réaffectation')
     }
-    setShowReassignDialog(false);
-    setSelectedAgent('');
-  };
+    setShowReassignDialog(false)
+    setSelectedAgent('')
+    setReassignNote('')
+  }
 
   const handleDuplicate = async () => {
-    if (!client) return;
+    if (!client) return
     try {
-      const duplicated = await duplicateClient(String(client.id));
-      toast('success', `${duplicated.name || 'Client'} dupliqu\u00e9 avec succ\u00e8s`);
-      navigate(adminId && duplicated.type ? `/admin/${adminId}/clients/type/${typeToRoute[duplicated.type] || ''}/${duplicated.id}` : `/admin/clients/${duplicated.id}`);
+      const duplicated = await duplicateClient(String(client.id))
+      toast('success', `${duplicated.name || 'Client'} dupliqué avec succès`)
+      navigate(adminId && duplicated.type ? `/admin/${adminId}/clients/type/${typeToRoute[duplicated.type] || ''}/${duplicated.id}` : `/admin/clients/${duplicated.id}`)
     } catch (err: any) {
-      toast('error', err.message || 'Erreur lors de la duplication');
+      toast('error', err.message || 'Erreur lors de la duplication')
     }
-  };
-
-  const eventTypeMap: Record<string, 'email' | 'call' | 'meeting' | 'property_visit'> = {
-    email: 'email', appel: 'call', visite: 'property_visit', contrat: 'meeting', autre: 'meeting',
-  };
-
-  const mappedEvents = ((client as any).events || []).map((e: any) => ({
-    id: e.id,
-    type: eventTypeMap[e.type] || 'email' as const,
-    date: e.date,
-    summary: e.summary,
-    agent: e.agent,
-  }));
-
-  const timelineEvents = mappedEvents.length
-    ? mappedEvents
-    : [{
-        id: `event-${client.id}-1`,
-        type: 'email' as const,
-        date: client.createdAt ? new Date(client.createdAt).toISOString() : new Date().toISOString(),
-        summary: `Premier contact avec ${client.name}`,
-        agent: getAgentName(client.agentId),
-      }];
+  }
 
   const handleUpdateClient = async (clientData: Omit<Client, 'id'>) => {
     try {
-      await api.put(`/clients/${client.id}`, clientData);
-      const refreshed = await api.get<Client>(`/clients/${client.id}`);
-      setClient(refreshed);
-      setDataRefreshKey(k => k + 1);
+      await api.put(`/clients/${client.id}`, clientData)
+      const refreshed = await api.get<Client>(`/clients/${client.id}`)
+      setClient(refreshed)
+      setDataRefreshKey(k => k + 1)
 
       const newStatutMandat = (clientData as any).statutMandat
       const newDateExpiration = (clientData as any).dateExpiration
@@ -317,13 +328,13 @@ export default function AdminClientPage() {
         }
       }
 
-      toast('success', `${client.type || 'Client'} modifié avec succès`);
+      toast('success', `${client.type || 'Client'} modifié avec succès`)
     } catch (err) {
-      console.error('Failed to update client:', err);
-      toast('error', `Erreur lors de la modification`);
+      console.error('Failed to update client:', err)
+      toast('error', `Erreur lors de la modification`)
     }
-    setShowEditModal(false);
-  };
+    setShowEditModal(false)
+  }
 
   const enhancedClient = {
     ...client,
@@ -339,36 +350,68 @@ export default function AdminClientPage() {
     documents: (client as any).documents || [],
     lastContact: (client as any).lastContact || new Date().toISOString(),
     events: (client as any).events || [],
-  };
+  }
 
-  const statusLabel = client.statutMetier || client.status;
-  const statusColor = STATUS_COLORS[statusLabel || ''] || 'bg-gray-50 text-gray-500 border-gray-200';
-  const backRoute = adminId && client.type ? `/admin/${adminId}/clients/type/${typeToRoute[client.type] || ''}` : adminId ? `/admin/${adminId}/clients` : '/admin/clients';
+  const accent = stageAccent
+  const ink = isDark ? accent.a : accent.b
+  const statusLabel = client.statutMetier || client.status
+  const backRoute = adminId && client.type ? `/admin/${adminId}/clients/type/${typeToRoute[client.type] || ''}` : adminId ? `/admin/${adminId}/clients` : '/admin/clients'
+
+  const person = findPerson(client.agentId || '')
+  const roleBadge = getRoleBadge(person?.role, person?.position)
+
+  const primaryBtn = 'inline-flex items-center gap-2 rounded-xl border border-white/20 px-4 py-2 text-xs font-bold text-white shadow-lg transition-all hover:scale-[1.02] active:scale-95'
+  const glassBtn = `inline-flex items-center gap-2 rounded-xl border px-4 py-2 text-xs font-bold backdrop-blur-md transition-all duration-200 hover:scale-[1.02] active:scale-95 ${isDark ? 'border-white/10 bg-white/[0.04] text-slate-300 hover:bg-white/10 hover:text-white' : 'border-slate-200/80 bg-white/70 text-slate-600 shadow-sm hover:bg-white hover:text-slate-900'}`
+  const roseBtn = `inline-flex items-center gap-2 rounded-xl border px-4 py-2 text-xs font-bold backdrop-blur-md transition-all duration-200 hover:scale-[1.02] active:scale-95 ${isDark ? 'border-rose-400/20 bg-rose-500/10 text-rose-300 hover:bg-rose-500/20 hover:text-rose-200' : 'border-rose-200/80 bg-rose-50/70 text-rose-600 shadow-sm hover:bg-rose-50 hover:text-rose-700'}`
+  const adminBtn = `inline-flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-[11px] font-bold backdrop-blur-md transition-all duration-200 hover:scale-[1.02] active:scale-95 ${isDark ? 'border-white/10 bg-white/[0.04] text-slate-300 hover:bg-white/10 hover:text-white' : 'border-slate-200/80 bg-white/70 text-slate-600 shadow-sm hover:bg-white hover:text-slate-900'}`
+  const adminDangerBtn = `inline-flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-[11px] font-bold backdrop-blur-md transition-all duration-200 hover:scale-[1.02] active:scale-95 ${isDark ? 'border-rose-400/20 bg-rose-500/10 text-rose-300 hover:bg-rose-500/20 hover:text-rose-200' : 'border-rose-200/80 bg-rose-50/70 text-rose-600 shadow-sm hover:bg-rose-50 hover:text-rose-700'}`
 
   return (
-    <div className="space-y-6 animate-fade-in pb-8">
-      {/* Top bar — staged: Retour + quick actions (fluid entrance) */}
+    <div className="space-y-5 animate-fade-in pb-10">
+      {/* ── Top action bar: Retour + quick actions ── */}
       <motion.div
         initial={{ opacity: 0, y: -12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
-        className="flex items-center justify-between flex-wrap gap-3"
+        className="flex flex-wrap items-center justify-between gap-3"
       >
-        <button
+        <motion.button
           type="button"
           onClick={() => navigate(backRoute)}
-          className={`group inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-bold backdrop-blur-md transition-all ${isDark ? 'border-white/10 bg-white/[0.04] text-slate-400 hover:border-white/20 hover:bg-white/10 hover:text-white' : 'border-teal-900/10 bg-white/60 text-teal-900/60 hover:border-teal-900/20 hover:bg-white hover:text-teal-900'}`}
+          whileHover="hover"
+          whileTap={{ scale: 0.96 }}
+          title="Retour aux clients"
+          className={`group/back relative flex h-9 shrink-0 items-center gap-2 overflow-hidden rounded-xl border pl-2.5 pr-4 text-xs font-bold backdrop-blur-md transition-all ${
+            isDark
+              ? 'border-white/10 bg-white/[0.04] text-slate-400 hover:border-violet-400/30 hover:bg-white/10 hover:text-white'
+              : 'border-slate-200/80 bg-white/70 text-slate-500 shadow-sm hover:border-slate-300 hover:bg-white hover:text-slate-900'
+          }`}
         >
-          <ArrowLeft size={14} className="transition-transform duration-200 group-hover:-translate-x-0.5" />
-          Retour
-        </button>
+          <motion.span
+            className="flex h-6 w-6 items-center justify-center rounded-lg"
+            style={{ background: isDark ? 'rgba(255,255,255,0.07)' : 'rgba(15,23,42,0.05)' }}
+            variants={{ hover: { x: -3 } }}
+            transition={{ type: 'spring', stiffness: 500, damping: 28 }}
+          >
+            <ArrowLeft size={14} style={{ color: isDark ? accent.a : ink }} />
+          </motion.span>
+          <span>Retour aux clients</span>
+          <motion.span
+            className="absolute inset-x-3 bottom-1 h-[2px] origin-left rounded-full"
+            style={{ background: `linear-gradient(90deg, ${accent.a}, ${accent.b})` }}
+            initial={{ scaleX: 0, opacity: 0 }}
+            variants={{ hover: { scaleX: 1, opacity: 0.8 } }}
+            transition={{ duration: 0.25, ease: 'easeOut' }}
+          />
+        </motion.button>
+
         <div className="flex flex-wrap items-center gap-2">
           <motion.button
             type="button"
             whileTap={{ scale: 0.85 }}
             title="J'aime"
             onClick={() => setLiked(!liked)}
-            className={`flex h-9 w-9 items-center justify-center rounded-xl border backdrop-blur-md transition-all duration-200 hover:scale-105 active:scale-95 ${isDark ? 'border-white/10 bg-white/[0.04] text-slate-400 hover:border-white/20 hover:bg-white/10 hover:text-white' : 'border-teal-900/10 bg-white/60 text-slate-500 shadow-sm hover:bg-white hover:text-slate-900'}`}
+            className={`flex h-9 w-9 items-center justify-center rounded-xl border backdrop-blur-md transition-all duration-200 hover:scale-105 active:scale-95 ${isDark ? 'border-white/10 bg-white/[0.04] text-slate-400 hover:border-white/20 hover:bg-white/10 hover:text-white' : 'border-slate-200/80 bg-white/70 text-slate-500 shadow-sm hover:bg-white hover:text-slate-900'}`}
           >
             <Heart size={15} fill={liked ? 'currentColor' : 'none'} className={liked ? 'text-rose-500' : ''} />
           </motion.button>
@@ -376,27 +419,23 @@ export default function AdminClientPage() {
             type="button"
             whileTap={{ scale: 0.96 }}
             onClick={() => setShowEditModal(true)}
-            className="inline-flex items-center gap-2 rounded-xl border border-white/20 px-4 py-2 text-xs font-bold text-white shadow-lg transition-all hover:scale-[1.02] active:scale-95"
-            style={isGerant
-              ? { backgroundImage: 'linear-gradient(145deg, #C9A0A0 0%, #905D5D 100%)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.4), 0 10px 26px -10px rgba(144,93,93,0.6)' }
-              : isDark
-                ? { backgroundImage: 'linear-gradient(145deg, #8B7CFF 0%, #6C5ECF 60%, #5646C9 100%)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.4), 0 10px 26px -8px rgba(124,92,255,0.65)' }
-                : { backgroundImage: 'linear-gradient(145deg, #2DD4BF 0%, #14B8A6 60%, #0D9488 100%)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.5), 0 10px 26px -10px rgba(13,148,136,0.6)' }}
+            className={primaryBtn}
+            style={{
+              backgroundImage: `linear-gradient(145deg, ${accent.a} 0%, ${accent.b} 100%)`,
+              boxShadow: `inset 0 1px 0 rgba(255,255,255,0.4), 0 10px 26px -10px ${accent.glow}`,
+            }}
           >
             <Edit3 size={14} />
             Modifier
           </motion.button>
-          <button
-            type="button"
-            className={`inline-flex items-center gap-2 rounded-xl border px-4 py-2 text-xs font-bold backdrop-blur-md transition-all duration-200 hover:scale-[1.02] active:scale-95 ${isDark ? 'border-white/10 bg-white/[0.04] text-slate-300 hover:bg-white/10 hover:text-white' : 'border-teal-900/10 bg-white/60 text-slate-600 shadow-sm hover:bg-white hover:text-slate-900'}`}
-          >
-            <ExternalLink size={14} />
+          <button type="button" className={glassBtn}>
+            <Share2 size={14} />
             Partager
           </button>
           <button
             type="button"
-            onClick={() => { setDeleteConfirm(''); setDeleteReason(''); setShowDeleteDialog(true); }}
-            className={`inline-flex items-center gap-2 rounded-xl border px-4 py-2 text-xs font-bold backdrop-blur-md transition-all duration-200 hover:scale-[1.02] active:scale-95 ${isDark ? 'border-rose-400/20 bg-rose-500/10 text-rose-300 hover:bg-rose-500/20 hover:text-rose-200' : 'border-rose-200/80 bg-rose-50/70 text-rose-600 shadow-sm hover:bg-rose-50 hover:text-rose-700'}`}
+            onClick={() => { setDeleteConfirm(''); setDeleteReason(''); setShowDeleteDialog(true) }}
+            className={roseBtn}
           >
             <Trash2 size={14} />
             Supprimer
@@ -404,512 +443,69 @@ export default function AdminClientPage() {
         </div>
       </motion.div>
 
-      {/* Admin actions bar */}
-      <Card className={`p-3 ${isGerant ? 'border-[#905D5D]/20 bg-[#905D5D]/5' : 'border-accent/20 bg-accent/5'}`}>
-        <div className="flex items-center gap-2 flex-wrap">
-          <Shield size={14} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />
-          <span className={`text-xs font-medium mr-2 ${isGerant ? 'text-[#905D5D]' : 'text-accent'}`}>Actions Administrateur :</span>
-          <Button variant="outline" size="sm" icon={<Repeat size={12} />}
+      {/* ── Admin actions ── */}
+      <motion.div
+        initial={{ opacity: 0, y: -8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4, delay: 0.05, ease: [0.22, 1, 0.36, 1] }}
+        className="stage-glass relative overflow-hidden !rounded-[20px] px-3.5 py-2.5"
+      >
+        <div className="flex flex-wrap items-center gap-2">
+          <span
+            className="mr-1 inline-flex items-center gap-1.5 text-[10px] font-extrabold uppercase tracking-[0.12em]"
+            style={{ color: isDark ? accent.a : ink }}
+          >
+            <Shield size={13} /> Actions administrateur
+          </span>
+          <button
+            type="button"
+            className={adminBtn}
             onClick={() => {
-              const rawId = String(client.agentId || '');
+              const rawId = String(client.agentId || '')
               const matchedUser = users.find((u: any) => String(u.id) === rawId)
                 || users.find((u: any) => {
-                  const full = `${u.first_name || ''} ${u.last_name || ''}`.trim();
-                  return full.toLowerCase() === rawId.toLowerCase();
-                });
-              setSelectedAgent(matchedUser ? String(matchedUser.id) : '');
-              setShowReassignDialog(true);
-            }}>
-            Reaffecter
-          </Button>
-          <Button variant="outline" size="sm" icon={<Copy size={12} />}
-            onClick={handleDuplicate}>
-            Dupliquer
-          </Button>
-          <Button variant="ghost" size="sm" icon={<Trash2 size={12} />}
-            className="text-error hover:bg-error/5"
-            onClick={() => { setDeleteConfirm(''); setDeleteReason(''); setShowDeleteDialog(true); }}>
-            Supprimer
-          </Button>
+                  const full = `${u.first_name || ''} ${u.last_name || ''}`.trim()
+                  return full.toLowerCase() === rawId.toLowerCase()
+                })
+              setSelectedAgent(matchedUser ? String(matchedUser.id) : '')
+              setReassignNote('')
+              setShowReassignDialog(true)
+            }}
+          >
+            <Repeat size={13} /> Réaffecter
+          </button>
+          <button
+            type="button"
+            className={adminBtn}
+            onClick={() => { setNewStatus(client.statutMetier || client.status || ''); setShowStatusDialog(true) }}
+          >
+            <RefreshCw size={13} /> Changer le statut
+          </button>
+          <button type="button" className={adminBtn} onClick={handleDuplicate}>
+            <Copy size={13} /> Dupliquer
+          </button>
+          <button
+            type="button"
+            className={adminDangerBtn}
+            onClick={() => { setDeleteConfirm(''); setDeleteReason(''); setShowDeleteDialog(true) }}
+          >
+            <Trash2 size={13} /> Supprimer
+          </button>
+          {client.originalClientId && (
+            <span
+              className="ml-auto inline-flex items-center rounded-full px-2 py-1 text-[10px] font-extrabold uppercase tracking-[0.08em]"
+              style={stagePillStyle(STAGE_HUES.amber, isDark)}
+            >
+              Copie
+            </span>
+          )}
         </div>
-      </Card>
+      </motion.div>
 
-      {/* Hero section - ClientHeader spans full width */}
+      {/* ── Stage hero header ── */}
       <ClientHeader key={dataRefreshKey} client={enhancedClient} isGerant={isGerant} />
 
-      {/* Info section - Quick info + Stats stacked vertically */}
-      <div className="space-y-6">
-        {/* Quick info card - TYPE SPECIFIC */}
-        <Card className="p-5">
-          <div className="grid grid-cols-3 lg:grid-cols-5 gap-4 items-start">
-            {/* Status row always first */}
-            <div>
-              <p className="text-[11px] text-text-secondary/60 uppercase tracking-wider">Type</p>
-              <p className="text-sm font-semibold mt-0.5">{client.type}</p>
-            </div>
-
-            {client.type === 'Acheteur' && (<>
-              <div>
-                <p className="text-[11px] text-text-secondary/60 uppercase tracking-wider">Secteur</p>
-                <p className="text-sm font-semibold mt-0.5">{(client as any).secteur || '-'}</p>
-              </div>
-              <div>
-                <p className="text-[11px] text-text-secondary/60 uppercase tracking-wider">Type Bien</p>
-                <p className="text-sm font-semibold mt-0.5">{(client as any).propertyType || (client as any).categorie || '-'}</p>
-              </div>
-              <div>
-                <p className="text-[11px] text-text-secondary/60 uppercase tracking-wider">Budget</p>
-                <p className={`text-sm font-semibold mt-0.5 ${isGerant ? 'text-[#905D5D]' : 'text-accent'}`}>
-                  {(client as any).prixMin || (client as any).prixMax
-                    ? `${formatBudget((client as any).prixMin)}${(client as any).prixMax ? ` - ${formatBudget((client as any).prixMax)}` : ''}`
-                    : formatBudget(client.budget)}
-                </p>
-              </div>
-              <div>
-                <p className="text-[11px] text-text-secondary/60 uppercase tracking-wider">Surface</p>
-                <p className="text-sm font-semibold mt-0.5">
-                  {client.minSurface || (client as any).surfaceMin
-                    ? `${client.minSurface || (client as any).surfaceMin} m2`
-                    : '-'}{client.surfaceMax ? ` - ${client.surfaceMax} m2` : ''}
-                </p>
-              </div>
-              <div>
-                <p className="text-[11px] text-text-secondary/60 uppercase tracking-wider">Pieces / Chambres</p>
-                <p className="text-sm font-semibold mt-0.5">
-                  {(client as any).pieces || '-'} / {(client as any).chambres || '-'}
-                </p>
-              </div>
-              <div>
-                <p className="text-[11px] text-text-secondary/60 uppercase tracking-wider">Situation</p>
-                <p className="text-sm font-semibold mt-0.5">{(client as any).situationActuelle || '-'}</p>
-              </div>
-              <div>
-                <p className="text-[11px] text-text-secondary/60 uppercase tracking-wider">Urgence</p>
-                <p className={`text-sm font-semibold mt-0.5 ${(client as any).urgence === 'Haute' ? 'text-red-600' : (client as any).urgence === 'Moyenne' ? 'text-amber-600' : ''}`}>
-                  {(client as any).urgence || '-'}
-                </p>
-              </div>
-            </>)}
-
-            {client.type === 'Vendeur' && (<>
-              <div>
-                <p className="text-[11px] text-text-secondary/60 uppercase tracking-wider">Secteur</p>
-                <p className="text-sm font-semibold mt-0.5">{(client as any).secteur || '-'}</p>
-              </div>
-              <div>
-                <p className="text-[11px] text-text-secondary/60 uppercase tracking-wider">Adresse</p>
-                <p className="text-sm font-semibold mt-0.5">{(client as any).adresseComplete || '-'}</p>
-              </div>
-              <div>
-                <p className="text-[11px] text-text-secondary/60 uppercase tracking-wider">Type Bien</p>
-                <p className="text-sm font-semibold mt-0.5">{(client as any).propertyType || (client as any).categorie || '-'}</p>
-              </div>
-              <div>
-                <p className="text-[11px] text-text-secondary/60 uppercase tracking-wider">Prix Net Vendeur</p>
-                <p className={`text-sm font-semibold mt-0.5 ${isGerant ? 'text-[#905D5D]' : 'text-accent'}`}>{formatBudget((client as any).prixNetVendeur)}</p>
-              </div>
-              <div>
-                <p className="text-[11px] text-text-secondary/60 uppercase tracking-wider">Prix FAI</p>
-                <p className="text-sm font-semibold mt-0.5">{formatBudget((client as any).prixVenteFAI)}</p>
-              </div>
-              <div>
-                <p className="text-[11px] text-text-secondary/60 uppercase tracking-wider">Surface / Pieces</p>
-                <p className="text-sm font-semibold mt-0.5">
-                  {(client.minSurface || (client as any).surfaceMin) ? `${client.minSurface || (client as any).surfaceMin} m2` : '-'}
-                  {(client as any).pieces ? ` / ${(client as any).pieces} p.` : ''}
-                </p>
-              </div>
-              <div>
-                <p className="text-[11px] text-text-secondary/60 uppercase tracking-wider">Etat</p>
-                <p className="text-sm font-semibold mt-0.5">{(client as any).etat || '-'}</p>
-              </div>
-              <div>
-                <p className="text-[11px] text-text-secondary/60 uppercase tracking-wider">Standing</p>
-                <p className="text-sm font-semibold mt-0.5">{(client as any).standing || '-'}</p>
-              </div>
-            </>)}
-
-            {client.type === 'Bailleur' && (<>
-              <div>
-                <p className="text-[11px] text-text-secondary/60 uppercase tracking-wider">Secteur</p>
-                <p className="text-sm font-semibold mt-0.5">{(client as any).secteur || '-'}</p>
-              </div>
-              <div>
-                <p className="text-[11px] text-text-secondary/60 uppercase tracking-wider">Adresse</p>
-                <p className="text-sm font-semibold mt-0.5">{(client as any).adresseComplete || '-'}</p>
-              </div>
-              <div>
-                <p className="text-[11px] text-text-secondary/60 uppercase tracking-wider">Type Bien</p>
-                <p className="text-sm font-semibold mt-0.5">{(client as any).propertyType || (client as any).categorie || '-'}</p>
-              </div>
-              <div>
-                <p className="text-[11px] text-text-secondary/60 uppercase tracking-wider">Loyer HC</p>
-                <p className={`text-sm font-semibold mt-0.5 ${isGerant ? 'text-[#905D5D]' : 'text-accent'}`}>{formatBudget((client as any).loyerHC)}</p>
-              </div>
-              <div>
-                <p className="text-[11px] text-text-secondary/60 uppercase tracking-wider">Charges</p>
-                <p className="text-sm font-semibold mt-0.5">{formatBudget((client as any).charges)}</p>
-              </div>
-              <div>
-                <p className="text-[11px] text-text-secondary/60 uppercase tracking-wider">Depot Garantie</p>
-                <p className="text-sm font-semibold mt-0.5">{formatBudget((client as any).depotGarantie)}</p>
-              </div>
-              <div>
-                <p className="text-[11px] text-text-secondary/60 uppercase tracking-wider">Type Loyer</p>
-                <p className="text-sm font-semibold mt-0.5">{(client as any).typeLoyer || '-'}</p>
-              </div>
-              <div>
-                <p className="text-[11px] text-text-secondary/60 uppercase tracking-wider">Surface / Pieces</p>
-                <p className="text-sm font-semibold mt-0.5">
-                  {(client.minSurface || (client as any).surfaceMin) ? `${client.minSurface || (client as any).surfaceMin} m2` : '-'}
-                  {(client as any).pieces ? ` / ${(client as any).pieces} p.` : ''}
-                </p>
-              </div>
-            </>)}
-
-            {client.type === 'Locataire' && (<>
-              <div>
-                <p className="text-[11px] text-text-secondary/60 uppercase tracking-wider">Secteur</p>
-                <p className="text-sm font-semibold mt-0.5">{(client as any).secteur || '-'}</p>
-              </div>
-              <div>
-                <p className="text-[11px] text-text-secondary/60 uppercase tracking-wider">Type Bien</p>
-                <p className="text-sm font-semibold mt-0.5">{(client as any).propertyType || (client as any).categorie || '-'}</p>
-              </div>
-              <div>
-                <p className="text-[11px] text-text-secondary/60 uppercase tracking-wider">Loyer Max</p>
-                <p className={`text-sm font-semibold mt-0.5 ${isGerant ? 'text-[#905D5D]' : 'text-accent'}`}>{formatBudget((client as any).loyerMax || client.budget)}</p>
-              </div>
-              <div>
-                <p className="text-[11px] text-text-secondary/60 uppercase tracking-wider">Surface</p>
-                <p className="text-sm font-semibold mt-0.5">
-                  {client.minSurface || (client as any).surfaceMin
-                    ? `${client.minSurface || (client as any).surfaceMin} m2`
-                    : '-'}{client.surfaceMax ? ` - ${client.surfaceMax} m2` : ''}
-                </p>
-              </div>
-              <div>
-                <p className="text-[11px] text-text-secondary/60 uppercase tracking-wider">Pieces / Chambres</p>
-                <p className="text-sm font-semibold mt-0.5">
-                  {(client as any).pieces || '-'} / {(client as any).chambres || '-'}
-                </p>
-              </div>
-              <div>
-                <p className="text-[11px] text-text-secondary/60 uppercase tracking-wider">Situation</p>
-                <p className="text-sm font-semibold mt-0.5">{(client as any).situationPro || '-'}</p>
-              </div>
-              <div>
-                <p className="text-[11px] text-text-secondary/60 uppercase tracking-wider">Statut Occupation</p>
-                <p className="text-sm font-semibold mt-0.5">{(client as any).statutOccupation || '-'}</p>
-              </div>
-              <div>
-                <p className="text-[11px] text-text-secondary/60 uppercase tracking-wider">Garant</p>
-                <p className="text-sm font-semibold mt-0.5">
-                  {(client as any).guarantor ? `Oui - ${(client as any).guarantorName || ''}` : 'Non'}
-                </p>
-              </div>
-            </>)}
-
-            {client.type === 'Voyageur' && (<>
-              <div>
-                <p className="text-[11px] text-text-secondary/60 uppercase tracking-wider">Secteur</p>
-                <p className="text-sm font-semibold mt-0.5">{(client as any).secteur || '-'}</p>
-              </div>
-              <div>
-                <p className="text-[11px] text-text-secondary/60 uppercase tracking-wider">Type Bien</p>
-                <p className="text-sm font-semibold mt-0.5">{(client as any).propertyType || '-'}</p>
-              </div>
-              <div>
-                <p className="text-[11px] text-text-secondary/60 uppercase tracking-wider">Arrivee</p>
-                <p className="text-sm font-semibold mt-0.5">{(client as any).dateArrivee || '-'}</p>
-              </div>
-              <div>
-                <p className="text-[11px] text-text-secondary/60 uppercase tracking-wider">Depart</p>
-                <p className="text-sm font-semibold mt-0.5">{(client as any).dateDepart || '-'}</p>
-              </div>
-              <div>
-                <p className="text-[11px] text-text-secondary/60 uppercase tracking-wider">Nuits / Voyageurs</p>
-                <p className="text-sm font-semibold mt-0.5">
-                  {(client as any).nbNuits || '-'} / {(client as any).nbVoyageurs || (client as any).nbPersonnes || '-'}
-                </p>
-              </div>
-              <div>
-                <p className="text-[11px] text-text-secondary/60 uppercase tracking-wider">Tarif / Nuit</p>
-                <p className={`text-sm font-semibold mt-0.5 ${isGerant ? 'text-[#905D5D]' : 'text-accent'}`}>{formatBudget((client as any).tarifNuit || (client as any).budgetNuitMax)}</p>
-              </div>
-              <div>
-                <p className="text-[11px] text-text-secondary/60 uppercase tracking-wider">Budget Total</p>
-                <p className="text-sm font-semibold mt-0.5">{formatBudget((client as any).budgetTotal || (client as any).montantTotalAvecOptions)}</p>
-              </div>
-              <div>
-                <p className="text-[11px] text-text-secondary/60 uppercase tracking-wider">Condition Annulation</p>
-                <p className="text-sm font-semibold mt-0.5">{(client as any).conditionsAnnulation || '-'}</p>
-              </div>
-            </>)}
-
-            {/* Status row always last with Original/Copy badge */}
-            <div className="col-span-full">
-              <p className="text-[11px] text-text-secondary/60 uppercase tracking-wider">Statut</p>
-              <div className="flex items-center gap-1.5 mt-0.5">
-                <span className={`inline-flex items-center px-2 py-0.5 text-[10px] font-medium rounded-md border ${statusColor}`}>
-                  {statusLabel}
-                </span>
-                {client.originalClientId ? (
-                  <span className="inline-flex items-center px-1.5 py-0.5 text-[9px] font-semibold rounded-full uppercase tracking-wider bg-orange-100 text-orange-700">
-                    Copie
-                  </span>
-                ) : (
-                  <span className="inline-flex items-center px-1.5 py-0.5 text-[9px] font-semibold rounded-full uppercase tracking-wider bg-blue-100 text-blue-700">
-                    Original
-                  </span>
-                )}
-              </div>
-            </div>
-          </div>
-        </Card>
-
-        {/* Quick stats - TYPE SPECIFIC */}
-        <Card className="p-4">
-          <div className="grid grid-cols-3 lg:grid-cols-5 gap-4 items-start">
-            <div>
-              <span className="text-[11px] text-text-secondary/60 uppercase tracking-wider">Date d'inscription</span>
-              <p className="text-sm font-semibold mt-0.5">{client.createdAt ? new Date(client.createdAt).toLocaleDateString('fr-FR') : '-'}</p>
-            </div>
-            <div>
-              <span className="text-[11px] text-text-secondary/60 uppercase tracking-wider">Dernier contact</span>
-              <p className="text-sm font-semibold mt-0.5">{(client as any).lastContact ? new Date((client as any).lastContact).toLocaleDateString('fr-FR') : '-'}</p>
-            </div>
-
-            {client.type === 'Acheteur' && (<>
-              <div>
-                <span className="text-[11px] text-text-secondary/60 uppercase tracking-wider">Statut mandat</span>
-                <p className={`text-sm font-semibold mt-0.5 ${
-                  (client as any).statutMandat === 'actif' || (client as any).statutMandat === 'Actif' ? 'text-emerald-600' :
-                  (client as any).statutMandat === 'expire' || (client as any).statutMandat === 'Expiré' ? 'text-red-500' :
-                  (client as any).statutMandat === 'resilie' || (client as any).statutMandat === 'Résilié' ? 'text-rose-500' :
-                  (client as any).statutMandat === 'termine' || (client as any).statutMandat === 'Terminé' ? 'text-gray-500' :
-                  'text-text-secondary/50'
-                }`}>
-                  {(client as any).statutMandat || 'N/A'}
-                </p>
-              </div>
-              {(client as any).numeroMandat && (
-                <div>
-                  <span className="text-[11px] text-text-secondary/60 uppercase tracking-wider">N° Mandat</span>
-                  <p className="text-sm font-semibold font-mono mt-0.5">{(client as any).numeroMandat}</p>
-                </div>
-              )}
-              <div>
-                <span className="text-[11px] text-text-secondary/60 uppercase tracking-wider">Financement</span>
-                <p className="text-sm font-semibold mt-0.5">{(client as any).financingType || (client as any).statutFinancement || '-'}</p>
-              </div>
-              {(client as any).moveInDate && (
-                <div>
-                  <span className="text-[11px] text-text-secondary/60 uppercase tracking-wider">Date emmenagement</span>
-                  <p className="text-sm font-semibold mt-0.5">{new Date((client as any).moveInDate).toLocaleDateString('fr-FR')}</p>
-                </div>
-              )}
-              {(client as any).conjoint && (
-                <div>
-                  <span className="text-[11px] text-text-secondary/60 uppercase tracking-wider">Conjoint</span>
-                  <p className="text-sm font-semibold mt-0.5">{(client as any).conjoint}</p>
-                </div>
-              )}
-              {(client as any).bienConcerneId && (
-                <div>
-                  <span className="text-[11px] text-text-secondary/60 uppercase tracking-wider">Bien concerne</span>
-                  <button
-                    type="button"
-                    onClick={() => navigate(`/admin/${adminId}/properties/${(client as any).bienConcerneId}`)}
-                    className={`text-sm font-semibold mt-0.5 ${isGerant ? 'text-[#905D5D]' : 'text-accent'} hover:underline cursor-pointer text-left`}
-                  >
-                    #{(client as any).bienConcerneId}
-                  </button>
-                </div>
-              )}
-            </>)}
-
-            {client.type === 'Vendeur' && (<>
-              <div>
-                <span className="text-[11px] text-text-secondary/60 uppercase tracking-wider">Statut mandat</span>
-                <p className={`text-sm font-semibold mt-0.5 ${
-                  (client as any).statutMandat === 'Actif' ? 'text-emerald-600' :
-                  (client as any).statutMandat === 'Expiré' ? 'text-red-500' :
-                  (client as any).statutMandat === 'Résilié' ? 'text-rose-500' :
-                  'text-text-secondary/50'
-                }`}>
-                  {(client as any).statutMandat || 'N/A'}
-                </p>
-              </div>
-              {(client as any).numeroMandat && (
-                <div>
-                  <span className="text-[11px] text-text-secondary/60 uppercase tracking-wider">N° Mandat</span>
-                  <p className="text-sm font-semibold font-mono mt-0.5">{(client as any).numeroMandat}</p>
-                </div>
-              )}
-              {(client as any).dateSouhaiteeVente && (
-                <div>
-                  <span className="text-[11px] text-text-secondary/60 uppercase tracking-wider">Date vente souhaitee</span>
-                  <p className="text-sm font-semibold mt-0.5">{new Date((client as any).dateSouhaiteeVente).toLocaleDateString('fr-FR')}</p>
-                </div>
-              )}
-              {(client as any).reasonForSelling && (
-                <div>
-                  <span className="text-[11px] text-text-secondary/60 uppercase tracking-wider">Raison vente</span>
-                  <p className="text-sm font-semibold mt-0.5">{(client as any).reasonForSelling}</p>
-                </div>
-              )}
-              {(client as any).creditRestantDu != null && (client as any).creditRestantDu > 0 && (
-                <div>
-                  <span className="text-[11px] text-text-secondary/60 uppercase tracking-wider">Credit restant</span>
-                  <p className="text-sm font-semibold mt-0.5">{formatBudget((client as any).creditRestantDu)}</p>
-                </div>
-              )}
-              <div>
-                <span className="text-[11px] text-text-secondary/60 uppercase tracking-wider">Honoraires</span>
-                <p className="text-sm font-semibold mt-0.5">{(client as any).typeHonoraires || '-'}</p>
-              </div>
-              {(client as any).bienConcerneId && (
-                <div>
-                  <span className="text-[11px] text-text-secondary/60 uppercase tracking-wider">Bien concerne</span>
-                  <button
-                    type="button"
-                    onClick={() => navigate(`/admin/${adminId}/properties/${(client as any).bienConcerneId}`)}
-                    className={`text-sm font-semibold mt-0.5 ${isGerant ? 'text-[#905D5D]' : 'text-accent'} hover:underline cursor-pointer text-left`}
-                  >
-                    #{(client as any).bienConcerneId}
-                  </button>
-                </div>
-              )}
-            </>)}
-
-            {client.type === 'Bailleur' && (<>
-              <div>
-                <span className="text-[11px] text-text-secondary/60 uppercase tracking-wider">Statut mandat</span>
-                <p className={`text-sm font-semibold mt-0.5 ${
-                  (client as any).statutMandat === 'Actif' ? 'text-emerald-600' :
-                  (client as any).statutMandat === 'Expiré' ? 'text-red-500' :
-                  'text-text-secondary/50'
-                }`}>
-                  {(client as any).statutMandat || 'N/A'}
-                </p>
-              </div>
-              {(client as any).numeroMandat && (
-                <div>
-                  <span className="text-[11px] text-text-secondary/60 uppercase tracking-wider">N° Mandat</span>
-                  <p className="text-sm font-semibold font-mono mt-0.5">{(client as any).numeroMandat}</p>
-                </div>
-              )}
-              <div>
-                <span className="text-[11px] text-text-secondary/60 uppercase tracking-wider">Type mandat</span>
-                <p className="text-sm font-semibold mt-0.5">{(client as any).typeMandat || '-'}</p>
-              </div>
-              {(client as any).raisonMiseEnLocation && (
-                <div>
-                  <span className="text-[11px] text-text-secondary/60 uppercase tracking-wider">Raison location</span>
-                  <p className="text-sm font-semibold mt-0.5">{(client as any).raisonMiseEnLocation}</p>
-                </div>
-              )}
-              {(client as any).dateDisponibilite && (
-                <div>
-                  <span className="text-[11px] text-text-secondary/60 uppercase tracking-wider">Disponibilite</span>
-                  <p className="text-sm font-semibold mt-0.5">{new Date((client as any).dateDisponibilite).toLocaleDateString('fr-FR')}</p>
-                </div>
-              )}
-              <div>
-                <span className="text-[11px] text-text-secondary/60 uppercase tracking-wider">Credit en cours</span>
-                <p className={`text-sm font-semibold mt-0.5 ${(client as any).creditEnCours ? 'text-red-500' : 'text-emerald-600'}`}>
-                  {(client as any).creditEnCours ? 'Oui' : 'Non'}
-                </p>
-              </div>
-            </>)}
-
-            {client.type === 'Locataire' && (<>
-              <div>
-                <span className="text-[11px] text-text-secondary/60 uppercase tracking-wider">Statut mandat</span>
-                <p className={`text-sm font-semibold mt-0.5 ${
-                  (client as any).statutMandat === 'Actif' ? 'text-emerald-600' :
-                  (client as any).statutMandat === 'Expiré' ? 'text-red-500' :
-                  'text-text-secondary/50'
-                }`}>
-                  {(client as any).statutMandat || 'N/A'}
-                </p>
-              </div>
-              {(client as any).numeroMandat && (
-                <div>
-                  <span className="text-[11px] text-text-secondary/60 uppercase tracking-wider">N° Mandat</span>
-                  <p className="text-sm font-semibold font-mono mt-0.5">{(client as any).numeroMandat}</p>
-                </div>
-              )}
-              <div>
-                <span className="text-[11px] text-text-secondary/60 uppercase tracking-wider">Situation pro</span>
-                <p className="text-sm font-semibold mt-0.5">{(client as any).situationPro || '-'}</p>
-              </div>
-              {(client as any).revenusMensuelsNets != null && (
-                <div>
-                  <span className="text-[11px] text-text-secondary/60 uppercase tracking-wider">Revenus mensuels</span>
-                  <p className="text-sm font-semibold mt-0.5">{formatBudget((client as any).revenusMensuelsNets)}</p>
-                </div>
-              )}
-              {(client as any).nomEmployeur && (
-                <div>
-                  <span className="text-[11px] text-text-secondary/60 uppercase tracking-wider">Employeur</span>
-                  <p className="text-sm font-semibold mt-0.5">{(client as any).nomEmployeur}</p>
-                </div>
-              )}
-              {(client as any).anciennete != null && (
-                <div>
-                  <span className="text-[11px] text-text-secondary/60 uppercase tracking-wider">Anciennete</span>
-                  <p className="text-sm font-semibold mt-0.5">{(client as any).anciennete} ans</p>
-                </div>
-              )}
-            </>)}
-
-            {client.type === 'Voyageur' && (<>
-              {(client as any).numeroReservation && (
-                <div>
-                  <span className="text-[11px] text-text-secondary/60 uppercase tracking-wider">N° Reservation</span>
-                  <p className="text-sm font-semibold font-mono mt-0.5">{(client as any).numeroReservation}</p>
-                </div>
-              )}
-              <div>
-                <span className="text-[11px] text-text-secondary/60 uppercase tracking-wider">Statut reservation</span>
-                <p className={`text-sm font-semibold mt-0.5 ${
-                  (client as any).statutReservation === 'Confirmee' || (client as any).statutReservation === 'Confirme' ? 'text-emerald-600' :
-                  (client as any).statutReservation === 'Annulee' ? 'text-red-500' :
-                  'text-text-secondary/50'
-                }`}>
-                  {(client as any).statutReservation || (client as any).statutMetier || 'N/A'}
-                </p>
-              </div>
-              <div>
-                <span className="text-[11px] text-text-secondary/60 uppercase tracking-wider">Mode paiement</span>
-                <p className="text-sm font-semibold mt-0.5">{(client as any).modePaiement || '-'}</p>
-              </div>
-              <div>
-                <span className="text-[11px] text-text-secondary/60 uppercase tracking-wider">Check-in / Check-out</span>
-                <p className="text-sm font-semibold mt-0.5">{(client as any).checkInHeure || '-'}/{(client as any).checkOutHeure || '-'}</p>
-              </div>
-              {(client as any).animaux != null && (
-                <div>
-                  <span className="text-[11px] text-text-secondary/60 uppercase tracking-wider">Animaux</span>
-                  <p className={`text-sm font-semibold mt-0.5 ${(client as any).animaux ? 'text-amber-600' : 'text-emerald-600'}`}>
-                    {(client as any).animaux ? 'Oui' : 'Non'}
-                  </p>
-                </div>
-              )}
-              {(client as any).flexibilite && (
-                <div>
-                  <span className="text-[11px] text-text-secondary/60 uppercase tracking-wider">Flexibilite</span>
-                  <p className="text-sm font-semibold mt-0.5">{(client as any).flexibilite}</p>
-                </div>
-              )}
-            </>)}
-          </div>
-        </Card>
-      </div>
-
-      {/* Client detail tabs (type-specific) */}
+      {/* ── Client detail tabs (type-specific) ── */}
       <div>
         {client.type === 'Acheteur' ? (
           <BuyerDetailTabs key={dataRefreshKey} client={enhancedClient} adminId={adminId} highlightActivityId={highlightActivityId} isGerant={isGerant} />
@@ -926,151 +522,281 @@ export default function AdminClientPage() {
         )}
       </div>
 
-      {/* Reassign Dialog */}
-      <Dialog isOpen={showReassignDialog} onClose={() => setShowReassignDialog(false)} title="Reaffecter un client" size="lg">
-        <div className="space-y-4">
-          <div className="p-3 rounded-lg bg-background border border-border/50">
-            <p className="text-sm font-medium">{client.name}</p>
-            <p className="text-xs text-text-secondary">{client.type} \u00b7 {client.phone}</p>
-          </div>
-          <div>
-            <p className="text-xs text-text-secondary mb-1.5">Responsable actuel :</p>
-            <div className="flex items-center gap-2 text-sm">
-              {client.agentId ? (
-                <>
-                  <div className={`w-6 h-6 rounded-full ${getAgentColor(client.agentId)} flex items-center justify-center text-white text-[10px] font-bold`}>
-                    {getAgentInitials(client.agentId)}
-                  </div>
-                  <span>{getAgentName(client.agentId)}</span>
-                </>
-              ) : (
-                <span className="text-text-secondary italic">Non assigne</span>
+      {/* Reassign Modal */}
+      <StageModal
+        open={showReassignDialog}
+        onClose={() => setShowReassignDialog(false)}
+        eyebrow="Administration"
+        title="Réaffecter un client"
+        subtitle={[client.type, client.phone].filter(Boolean).join(' · ')}
+        icon={Repeat}
+        hue={accent}
+        accent={accent.a}
+        maxWidth="max-w-lg"
+        centered
+        bodyClassName="space-y-4 pt-1"
+        footer={
+          <>
+            <button type="button" onClick={() => setShowReassignDialog(false)} className={btns.ghost}>
+              Annuler
+            </button>
+            <button
+              type="button"
+              onClick={handleReassign}
+              disabled={!selectedAgent}
+              className={cn(btns.primary, !selectedAgent && 'pointer-events-none opacity-40')}
+            >
+              <Repeat size={14} /> Réaffecter
+            </button>
+          </>
+        }
+      >
+        <ClientSummaryCard client={client} isDark={isDark} hue={accent} />
+
+        <div>
+          <p className={cn('mb-1.5 text-[11px] font-bold uppercase tracking-[0.14em]', isDark ? 'text-slate-400/85' : 'text-slate-500')}>
+            Responsable actuel
+          </p>
+          <div
+            className={cn(
+              'flex items-center gap-3 rounded-2xl border p-3',
+              isDark ? 'border-white/[0.08] bg-white/[0.03]' : 'border-slate-200/70 bg-white/70',
+            )}
+          >
+            <div
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-[11px] font-extrabold text-white"
+              style={{
+                background: person
+                  ? `linear-gradient(145deg, ${accent.a}, ${accent.b})`
+                  : isDark
+                    ? 'rgba(148,163,184,0.25)'
+                    : 'rgba(148,163,184,0.35)',
+                boxShadow: person ? `0 6px 16px -6px ${accent.glow}` : undefined,
+              }}
+            >
+              {getAgentInitials(client.agentId)}
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className={cn('truncate text-sm font-bold', isDark ? 'text-white' : 'text-slate-900')}>
+                {getAgentName(client.agentId)}
+              </p>
+              {!client.agentId && (
+                <p className={cn('text-[11px]', isDark ? 'text-slate-500' : 'text-slate-400')}>Aucun responsable</p>
               )}
             </div>
-          </div>
-          <div>
-            <label className="text-sm font-medium mb-1.5 block">Nouvel responsable</label>
-            <Select
-              placeholder="Selectionner un responsable"
-              value={selectedAgent}
-              onValueChange={(v) => setSelectedAgent(v)}
-              options={users.map((u: any) => ({
-                value: String(u.id),
-                label: `${u.first_name || ''} ${u.last_name || ''}`.trim(),
-              }))}
-            />
-          </div>
-          <div className="flex items-center justify-end gap-3 pt-2">
-            <Button variant="ghost" onClick={() => setShowReassignDialog(false)}>Annuler</Button>
-            <Button variant="default" onClick={handleReassign} disabled={!selectedAgent}>Reaffecter</Button>
+            {roleBadge && (
+              <span
+                className="inline-flex items-center rounded-full px-2 py-0.5 text-[9px] font-extrabold uppercase tracking-[0.08em]"
+                style={stagePillStyle(roleBadge.hue, isDark)}
+              >
+                {roleBadge.label}
+              </span>
+            )}
           </div>
         </div>
-      </Dialog>
 
-      {/* Delete Confirmation Dialog */}
-      <Dialog isOpen={showDeleteDialog} onClose={() => setShowDeleteDialog(false)} title="Supprimer le client" size="lg">
-        <div className="space-y-4">
-          <div className="p-3 rounded-lg bg-background border border-border/50">
-            <p className="text-sm font-medium">{client.name}</p>
-            <p className="text-xs text-text-secondary">{client.type} \u00b7 {client.phone}</p>
-          </div>
-          <div className="p-3 rounded-lg bg-red-50 border border-red-200">
-            <div className="flex items-start gap-2">
-              <AlertTriangle size={16} className="text-red-500 flex-shrink-0 mt-0.5" />
-              <div className="text-xs text-red-700 space-y-1">
-                <p className="font-medium">Attention :</p>
-                <ul className="list-disc list-inside space-y-0.5">
-                  <li>Cette action est IRREVERSIBLE</li>
-                  <li>Tous les documents associes seront supprimes</li>
-                  <li>Tous les mandats lies seront supprimes</li>
-                  <li>L'historique du client sera efface</li>
-                </ul>
-              </div>
-            </div>
-          </div>
-          <div>
-            <label className="text-sm font-medium mb-1.5 block">Confirmation</label>
-            <input
-              type="text"
-              className="w-full h-10 px-3 text-sm rounded-lg border border-border bg-card placeholder:text-text-secondary/50 focus:outline-none focus:ring-2 focus:ring-error/20 focus:border-error transition-all"
-              placeholder='Tapez "SUPPRIMER" pour confirmer'
-              value={deleteConfirm}
-              onChange={(e) => setDeleteConfirm(e.target.value)}
-            />
-          </div>
-          <div>
-            <label className="text-sm font-medium mb-1.5 block">Motif de suppression (optionnel)</label>
-            <select
-              className="w-full h-10 px-3 text-sm rounded-lg border border-border bg-card focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent transition-all"
-              value={deleteReason}
-              onChange={(e) => setDeleteReason(e.target.value)}
-            >
-              <option value="">Selectionner un motif</option>
-              <option value="doublon">Erreur de saisie - Doublon</option>
-              <option value="retire">Client retire</option>
-              <option value="decede">Client decede</option>
-              <option value="autre">Autre</option>
-            </select>
-          </div>
-          <div className="flex items-center justify-end gap-3 pt-2">
-            <Button variant="ghost" onClick={() => setShowDeleteDialog(false)}>Annuler</Button>
-            <Button variant="danger" onClick={handleDelete} disabled={deleteConfirm !== 'SUPPRIMER'}>
-              Confirmer la suppression
-            </Button>
-          </div>
-        </div>
-      </Dialog>
+        <Select
+          label="Nouveau responsable"
+          placeholder="Sélectionner un responsable"
+          value={selectedAgent}
+          onValueChange={setSelectedAgent}
+          options={[
+            { value: '', label: 'Non assigné' },
+            ...users.filter((u: any) => u.status !== 'supprimé').map((u: any) => ({
+              value: String(u.id),
+              label: `${u.first_name || ''} ${u.last_name || ''}`.trim(),
+            })),
+          ]}
+        />
 
-      {/* Change Status Dialog */}
-      <Dialog isOpen={showStatusDialog} onClose={() => setShowStatusDialog(false)} title="Changer le statut" size="md">
-        <div className="space-y-4">
-          <div className="p-3 rounded-lg bg-background border border-border/50">
-            <p className="text-sm font-medium">{client.name}</p>
-            <p className="text-xs text-text-secondary">{client.type} \u00b7 {client.phone}</p>
-          </div>
-          <div>
-            <label className="text-sm font-medium mb-1.5 block">Statut actuel</label>
-            <span className={`inline-flex items-center px-2.5 py-1 text-xs font-medium rounded-md border ${statusColor}`}>
-              {statusLabel}
-            </span>
-          </div>
-          <div>
-            <label className="text-sm font-medium mb-1.5 block">Nouveau statut</label>
-            <select
-              className={`w-full h-10 px-3 text-sm rounded-lg border border-border bg-card focus:outline-none focus:ring-2 ${isGerant ? 'focus:ring-[#905D5D]/20 focus:border-[#905D5D]' : 'focus:ring-accent/20 focus:border-accent'} transition-all`}
-              value={newStatus}
-              onChange={(e) => setNewStatus(e.target.value)}
+        <Textarea
+          label="Note pour le responsable"
+          placeholder="Je vous confie ce client pour le suivi..."
+          value={reassignNote}
+          onChange={(e) => setReassignNote(e.target.value)}
+          rows={3}
+        />
+      </StageModal>
+
+      {/* Delete Confirmation Modal */}
+      <StageModal
+        open={showDeleteDialog}
+        onClose={() => setShowDeleteDialog(false)}
+        eyebrow="Zone sensible"
+        title="Supprimer le client"
+        subtitle={[client.type, client.phone].filter(Boolean).join(' · ')}
+        icon={Trash2}
+        hue={DANGER_HUE}
+        accent={DANGER_HUE.a}
+        maxWidth="max-w-lg"
+        centered
+        bodyClassName="space-y-4 pt-1"
+        footer={
+          <>
+            <button type="button" onClick={() => setShowDeleteDialog(false)} className={btns.ghost}>
+              Annuler
+            </button>
+            <button
+              type="button"
+              onClick={handleDelete}
+              disabled={deleteConfirm !== 'SUPPRIMER'}
+              className={cn(
+                'inline-flex h-9 items-center gap-1.5 rounded-xl border px-4 text-sm font-semibold transition-all duration-200 active:scale-[0.97] disabled:pointer-events-none disabled:opacity-40',
+                isDark
+                  ? 'border-rose-500/30 bg-rose-500/15 text-rose-200 hover:bg-rose-500/25'
+                  : 'border-rose-500 bg-rose-500 text-white shadow-[0_10px_24px_-10px_rgba(244,63,94,0.7)] hover:bg-rose-600',
+              )}
             >
-              {(STATUS_BY_TYPE[client.type || ''] || []).map(s => (
-                <option key={s} value={s}>{s}</option>
-              ))}
-            </select>
-          </div>
-          <div className="flex items-center justify-end gap-3 pt-2">
-            <Button variant="ghost" onClick={() => setShowStatusDialog(false)}>Annuler</Button>
-            <Button variant="default" onClick={handleStatusChange} disabled={newStatus === statusLabel}>
-              Changer le statut
-            </Button>
+              <Trash2 size={14} /> Confirmer la suppression
+            </button>
+          </>
+        }
+      >
+        <ClientSummaryCard client={client} isDark={isDark} hue={DANGER_HUE} />
+
+        <div
+          className={cn(
+            'flex items-start gap-2.5 rounded-2xl border p-3.5',
+            isDark ? 'border-rose-400/25 bg-rose-500/10' : 'border-rose-200/80 bg-rose-50/80',
+          )}
+        >
+          <AlertTriangle size={16} className="mt-0.5 shrink-0 text-rose-500" />
+          <div className={cn('space-y-1 text-xs', isDark ? 'text-rose-200' : 'text-rose-700')}>
+            <p className="font-bold">Attention :</p>
+            <ul className="list-inside list-disc space-y-0.5">
+              <li>Cette action est IRRÉVERSIBLE</li>
+              <li>Tous les documents associés seront supprimés</li>
+              <li>Tous les mandats liés seront supprimés</li>
+              <li>L&apos;historique du client sera effacé</li>
+            </ul>
           </div>
         </div>
-      </Dialog>
+
+        <Input
+          label="Confirmation"
+          placeholder='Tapez "SUPPRIMER" pour confirmer'
+          value={deleteConfirm}
+          onChange={(e) => setDeleteConfirm(e.target.value)}
+        />
+
+        <Select
+          label="Motif de suppression (optionnel)"
+          placeholder="Sélectionner un motif"
+          value={deleteReason}
+          onValueChange={setDeleteReason}
+          options={[
+            { value: '', label: 'Sélectionner un motif' },
+            { value: 'doublon', label: 'Erreur de saisie - Doublon' },
+            { value: 'retire', label: 'Client retiré' },
+            { value: 'decede', label: 'Client décédé' },
+            { value: 'autre', label: 'Autre' },
+          ]}
+        />
+      </StageModal>
+
+      {/* Change Status Modal */}
+      <StageModal
+        open={showStatusDialog}
+        onClose={() => setShowStatusDialog(false)}
+        eyebrow="Cycle de vie"
+        title="Changer le statut"
+        subtitle={`${client.name || 'Client'} · ${client.type || ''}`}
+        icon={RefreshCw}
+        hue={accent}
+        accent={accent.a}
+        maxWidth="max-w-lg"
+        centered
+        bodyClassName="space-y-4 pt-1"
+        footer={
+          <>
+            <button type="button" onClick={() => setShowStatusDialog(false)} className={btns.ghost}>
+              Annuler
+            </button>
+            <button
+              type="button"
+              onClick={handleStatusChange}
+              disabled={newStatus === statusLabel}
+              className={cn(btns.primary, newStatus === statusLabel && 'pointer-events-none opacity-40')}
+            >
+              <RefreshCw size={14} /> Changer le statut
+            </button>
+          </>
+        }
+      >
+        <ClientSummaryCard client={client} isDark={isDark} hue={accent} />
+
+        <div>
+          <p className={cn('mb-1.5 text-[11px] font-bold uppercase tracking-[0.14em]', isDark ? 'text-slate-400/85' : 'text-slate-500')}>
+            Statut actuel
+          </p>
+          <span
+            className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-extrabold uppercase tracking-[0.08em]"
+            style={stagePillStyle(getClientStatusHue(statusLabel || '') || accent, isDark)}
+          >
+            <span
+              className="h-1.5 w-1.5 rounded-full"
+              style={{ background: (getClientStatusHue(statusLabel || '') || accent).line }}
+            />
+            {statusLabel}
+          </span>
+        </div>
+
+        <div>
+          <p className={cn('mb-1.5 text-[11px] font-bold uppercase tracking-[0.14em]', isDark ? 'text-slate-400/85' : 'text-slate-500')}>
+            Nouveau statut
+          </p>
+          <div className="grid grid-cols-2 gap-2">
+            {(STATUS_BY_TYPE[client.type || ''] || []).map((s) => {
+              const hue = getClientStatusHue(s) || accent
+              const selected = newStatus === s
+              return (
+                <motion.button
+                  key={s}
+                  type="button"
+                  whileTap={{ scale: 0.97 }}
+                  onClick={() => setNewStatus(s)}
+                  className={cn(
+                    'flex items-center justify-between gap-2 rounded-xl border px-3 py-2.5 text-xs font-bold transition-all duration-200',
+                    !selected &&
+                      (isDark
+                        ? 'border-white/[0.08] bg-white/[0.03] text-slate-300 hover:border-white/15 hover:bg-white/[0.06]'
+                        : 'border-slate-200/70 bg-white/70 text-slate-600 hover:border-slate-300 hover:bg-white'),
+                  )}
+                  style={selected ? stagePillStyle(hue, isDark) : undefined}
+                >
+                  <span className="flex items-center gap-2">
+                    <span
+                      className="h-2 w-2 shrink-0 rounded-full"
+                      style={{ background: hue.line, boxShadow: `0 0 8px ${hue.glow}` }}
+                    />
+                    {s}
+                  </span>
+                  {selected && <Check size={13} />}
+                </motion.button>
+              )
+            })}
+          </div>
+        </div>
+      </StageModal>
 
       {/* Edit Modal */}
-      {showEditModal && client.type === 'Acheteur' && (
-        <BuyerFormModal onClose={() => setShowEditModal(false)} onSubmit={handleUpdateClient} client={client} isGerant={isGerant} />
-      )}
-      {showEditModal && client.type === 'Vendeur' && (
-        <SellerFormModal onClose={() => setShowEditModal(false)} onSubmit={handleUpdateClient} client={client} isGerant={isGerant} />
-      )}
-      {showEditModal && client.type === 'Bailleur' && (
-        <BailleurFormModal onClose={() => setShowEditModal(false)} onSubmit={handleUpdateClient} client={client} isGerant={isGerant} />
-      )}
-      {showEditModal && client.type === 'Locataire' && (
-        <LocataireFormModal onClose={() => setShowEditModal(false)} onSubmit={handleUpdateClient} client={client} isGerant={isGerant} />
-      )}
-      {showEditModal && client.type === 'Voyageur' && (
-        <VoyageurFormModal onClose={() => setShowEditModal(false)} onSubmit={handleUpdateClient} client={client} isGerant={isGerant} />
-      )}
+      <AnimatePresence>
+        {showEditModal && client.type === 'Acheteur' && (
+          <BuyerFormModal onClose={() => setShowEditModal(false)} onSubmit={handleUpdateClient} client={client} isGerant={isGerant} />
+        )}
+        {showEditModal && client.type === 'Vendeur' && (
+          <SellerFormModal onClose={() => setShowEditModal(false)} onSubmit={handleUpdateClient} client={client} isGerant={isGerant} />
+        )}
+        {showEditModal && client.type === 'Bailleur' && (
+          <BailleurFormModal onClose={() => setShowEditModal(false)} onSubmit={handleUpdateClient} client={client} isGerant={isGerant} />
+        )}
+        {showEditModal && client.type === 'Locataire' && (
+          <LocataireFormModal onClose={() => setShowEditModal(false)} onSubmit={handleUpdateClient} client={client} isGerant={isGerant} />
+        )}
+        {showEditModal && client.type === 'Voyageur' && (
+          <VoyageurFormModal onClose={() => setShowEditModal(false)} onSubmit={handleUpdateClient} client={client} isGerant={isGerant} />
+        )}
+      </AnimatePresence>
     </div>
   )
 }

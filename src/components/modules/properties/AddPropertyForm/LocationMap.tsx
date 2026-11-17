@@ -7,7 +7,6 @@ import { Layers, Navigation, Maximize2, X } from 'react-feather';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { useStageChrome } from '../../calendar/useStageChrome';
-import { STAGE_HUES } from '../../../dashboard/Stage';
 
 const defaultIcon = new L.Icon({
   iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
@@ -19,7 +18,7 @@ const defaultIcon = new L.Icon({
   shadowSize: [41, 41],
 });
 
-function stageMarkerIcon(color: string): L.DivIcon {
+function stageMarkerIcon(): L.DivIcon {
   return new L.DivIcon({
     className: '',
     iconSize: [44, 56],
@@ -28,11 +27,11 @@ function stageMarkerIcon(color: string): L.DivIcon {
     html: `
       <div style="position:relative;width:44px;height:56px;display:flex;flex-direction:column;align-items:center;">
         <style>@keyframes pd-pin-pulse{0%{transform:scale(0.6);opacity:0.8}70%{transform:scale(1.8);opacity:0}100%{transform:scale(1.8);opacity:0}}</style>
-        <div style="position:absolute;top:10px;width:44px;height:44px;border-radius:50%;background:${color};opacity:0.5;animation:pd-pin-pulse 2s ease-out infinite;"></div>
-        <div style="width:40px;height:40px;margin-top:4px;display:flex;align-items:center;justify-content:center;background:linear-gradient(145deg,${color},#5646C9);border-radius:50%;border:2px solid rgba(255,255,255,0.75);box-shadow:0 0 22px ${color}B3,0 6px 16px rgba(0,0,0,0.45),inset 0 1px 0 rgba(255,255,255,0.35);">
+        <div style="position:absolute;top:10px;width:44px;height:44px;border-radius:50%;background:var(--pf-line);opacity:0.5;animation:pd-pin-pulse 2s ease-out infinite;"></div>
+        <div style="width:40px;height:40px;margin-top:4px;display:flex;align-items:center;justify-content:center;background:linear-gradient(145deg,var(--pf-a),var(--pf-b));border-radius:50%;border:2px solid rgba(255,255,255,0.75);box-shadow:0 0 22px var(--pf-glow),0 6px 16px rgba(0,0,0,0.45),inset 0 1px 0 rgba(255,255,255,0.35);">
           <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
         </div>
-        <div style="width:7px;height:7px;background:${color};border-radius:50%;margin-top:-3px;filter:drop-shadow(0 2px 3px rgba(0,0,0,0.4));"></div>
+        <div style="width:7px;height:7px;background:var(--pf-line);border-radius:50%;margin-top:-3px;filter:drop-shadow(0 2px 3px rgba(0,0,0,0.4));"></div>
       </div>
     `,
   });
@@ -106,10 +105,20 @@ function StageMapContent({ latitude, longitude, onLocationSelect, height, dark, 
   latitude: number; longitude: number; onLocationSelect: (lat: number, lng: number) => void; height: number; dark: boolean; mapRef: React.MutableRefObject<LeafletMap | null>;
 }) {
   const center: [number, number] = latitude !== 0 || longitude !== 0 ? [latitude, longitude] : DEFAULT_CENTER;
-  const pinColor = dark ? '#A78BFA' : '#14B8A6';
   return (
-    <div style={{ height }} className={`relative w-full overflow-hidden rounded-xl ${dark ? 'pd-map-dark' : ''}`}>
-      <style>{`.pd-map-dark .leaflet-tile{filter:invert(1) hue-rotate(190deg) brightness(0.92) contrast(0.92) saturate(0.65)}.pd-map-dark .leaflet-tile-pane{background:#0B1022}`}</style>
+    <div style={{ height }} className={`pd-map relative w-full overflow-hidden rounded-xl ${dark ? 'pd-map-dark' : 'pd-map-light'}`}>
+      <style>{`
+        .pd-map .leaflet-container{font-family:inherit;background:transparent}
+        .pd-map-light .leaflet-tile-pane{background:#E6F5F1}
+        .pd-map-light .leaflet-tile{filter:grayscale(0.75) sepia(0.22) hue-rotate(112deg) saturate(0.85) brightness(1.04) contrast(0.94)}
+        .pd-map-dark .leaflet-tile-pane{background:#0E1226}
+        .pd-map-dark .leaflet-tile{filter:grayscale(1) invert(1) brightness(0.95) contrast(0.92) sepia(0.45) saturate(2) hue-rotate(215deg)}
+        .pd-map .leaflet-control-attribution{padding:1px 6px;border-radius:8px;font-size:9px;backdrop-filter:blur(6px)}
+        .pd-map-dark .leaflet-control-attribution{background:rgba(10,15,36,0.72);color:#8B97B8}
+        .pd-map-dark .leaflet-control-attribution a{color:var(--pf-line)}
+        .pd-map-light .leaflet-control-attribution{background:rgba(255,255,255,0.82);color:#0F766E}
+        .pd-map-light .leaflet-control-attribution a{color:var(--pf-line)}
+      `}</style>
       <MapContainer
         center={center}
         zoom={13}
@@ -122,7 +131,7 @@ function StageMapContent({ latitude, longitude, onLocationSelect, height, dark, 
         <StageZoomControls mapRef={mapRef} />
         <MapClickHandler onClick={(latlng) => onLocationSelect(latlng.lat, latlng.lng)} />
         <MapViewSync center={center} />
-        {(latitude !== 0 || longitude !== 0) && <Marker position={[latitude, longitude]} icon={stageMarkerIcon(pinColor)} />}
+        {(latitude !== 0 || longitude !== 0) && <Marker position={[latitude, longitude]} icon={stageMarkerIcon()} />}
       </MapContainer>
       {/* coords chip */}
       <div
@@ -134,13 +143,13 @@ function StageMapContent({ latitude, longitude, onLocationSelect, height, dark, 
       {/* zoom rail */}
       <div
         className="absolute right-3 top-1/2 z-[400] flex -translate-y-1/2 flex-col overflow-hidden rounded-xl border backdrop-blur-xl"
-        style={{ borderColor: dark ? 'rgba(255,255,255,0.14)' : 'rgba(15,23,42,0.12)', background: dark ? 'rgba(10,15,36,0.78)' : 'rgba(255,255,255,0.85)', boxShadow: dark ? '0 10px 30px -12px rgba(0,0,0,0.7)' : '0 10px 30px -14px rgba(13,148,136,0.45)' }}
+        style={{ borderColor: dark ? 'rgba(255,255,255,0.14)' : 'rgba(15,23,42,0.12)', background: dark ? 'rgba(10,15,36,0.78)' : 'rgba(255,255,255,0.85)', boxShadow: dark ? '0 10px 30px -12px rgba(0,0,0,0.7)' : '0 10px 30px -14px var(--pf-glow)' }}
       >
         {[
           { l: '+', t: 'Zoom avant', fn: () => mapRef.current?.zoomIn() },
           { l: '−', t: 'Zoom arrière', fn: () => mapRef.current?.zoomOut() },
         ].map((b, i) => (
-          <button key={i} type="button" aria-label={b.t} onClick={b.fn} className={`relative flex h-8 w-8 items-center justify-center text-base font-bold transition-colors active:scale-90 ${dark ? 'text-slate-200 hover:bg-white/10' : 'text-slate-600 hover:bg-teal-900/[0.06]'}`}>
+          <button key={i} type="button" aria-label={b.t} onClick={b.fn} className={`relative flex h-8 w-8 items-center justify-center text-base font-bold transition-colors active:scale-90 ${dark ? 'text-slate-200 hover:bg-white/10' : 'text-slate-600 hover:bg-slate-900/[0.06]'}`}>
             {i === 1 && <span aria-hidden className="absolute inset-x-2 top-0 h-px" style={{ background: dark ? 'rgba(255,255,255,0.12)' : 'rgba(15,23,42,0.10)' }} />}
             {b.l}
           </button>
@@ -183,25 +192,25 @@ export function LocationMap({ latitude, longitude, onLatitudeChange, onLongitude
           style={{
             borderColor: dark ? 'rgba(255,255,255,0.12)' : 'rgba(15,23,42,0.10)',
             background: dark ? 'rgba(255,255,255,0.02)' : 'rgba(255,255,255,0.55)',
-            boxShadow: dark ? 'inset 0 1px 0 rgba(255,255,255,0.06), 0 24px 60px -28px rgba(2,4,18,0.95)' : 'inset 0 1px 0 rgba(255,255,255,0.9), 0 24px 60px -30px rgba(13,148,136,0.45)',
+            boxShadow: dark ? 'inset 0 1px 0 rgba(255,255,255,0.06), 0 24px 60px -28px rgba(2,4,18,0.95)' : 'inset 0 1px 0 rgba(255,255,255,0.9), 0 24px 60px -30px var(--pf-glow)',
           }}
         >
           <div className="mb-2.5 flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <span className={`flex h-7 w-7 items-center justify-center rounded-lg border ${dark ? 'border-white/10 bg-white/5 text-violet-300' : 'border-teal-900/10 bg-white text-teal-700'}`}>
+              <span className={`flex h-7 w-7 items-center justify-center rounded-lg border ${dark ? 'border-white/10 bg-white/5 text-[color:var(--pf-line)]' : 'border-slate-900/10 bg-white text-[color:var(--pf-line)]'}`}>
                 <Navigation size={13} />
               </span>
               <div>
-                <p className={`text-xs font-bold uppercase tracking-[0.14em] ${dark ? 'text-slate-400' : 'text-teal-900/55'}`}>Localisation</p>
-                <p className={`text-[11px] ${dark ? 'text-slate-500' : 'text-teal-900/45'}`}>Cliquez pour positionner</p>
+                <p className={`text-xs font-bold uppercase tracking-[0.14em] ${dark ? 'text-slate-400' : 'text-slate-500'}`}>Localisation</p>
+                <p className={`text-[11px] ${dark ? 'text-slate-500' : 'text-slate-400'}`}>Cliquez pour positionner</p>
               </div>
             </div>
-            <button type="button" onClick={() => setModalOpen(true)} className={`inline-flex items-center gap-1.5 rounded-xl border px-2.5 py-1 text-xs font-semibold transition-colors active:scale-95 ${dark ? 'border-white/10 bg-white/5 text-slate-300 hover:bg-white/10 hover:text-white' : 'border-teal-900/10 bg-white/70 text-teal-700 hover:bg-white'}`}>
+            <button type="button" onClick={() => setModalOpen(true)} className={`inline-flex items-center gap-1.5 rounded-xl border px-2.5 py-1 text-xs font-semibold transition-colors active:scale-95 ${dark ? 'border-white/10 bg-white/5 text-slate-300 hover:bg-white/10 hover:text-white' : 'border-slate-900/10 bg-white/70 text-[color:var(--pf-line)] hover:bg-white'}`}>
               <Maximize2 size={12} /> Agrandir
             </button>
           </div>
           <StageMapContent latitude={latitude} longitude={longitude} onLocationSelect={handleLocationSelect} height={260} dark={dark} mapRef={mapRef} />
-          <p className={`mt-2 flex items-center gap-1.5 text-[11px] ${dark ? 'text-slate-600' : 'text-teal-900/30'}`}><Layers size={11} /> Molette pour zoomer · glisser pour naviguer · clic pour marquer</p>
+          <p className={`mt-2 flex items-center gap-1.5 text-[11px] ${dark ? 'text-slate-600' : 'text-slate-400'}`}><Layers size={11} /> Molette pour zoomer · glisser pour naviguer · clic pour marquer</p>
         </div>
         {typeof document !== 'undefined' && createPortal(
           <AnimatePresence>
@@ -209,8 +218,8 @@ export function LocationMap({ latitude, longitude, onLatitudeChange, onLongitude
               <motion.div className="fixed inset-0 z-[9990] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setModalOpen(false)}>
                 <motion.div className={`relative w-full max-w-6xl overflow-hidden rounded-3xl border shadow-2xl ${dark ? 'border-white/10 bg-[#0B1022]' : 'border-white/60 bg-white'}`} initial={{ scale: 0.94, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.94, opacity: 0 }} onClick={e => e.stopPropagation()}>
                   <div className="absolute right-4 top-4 z-[1100] flex gap-2">
-                    <div className={`rounded-lg border px-3 py-1 font-mono text-xs backdrop-blur-md ${dark ? 'border-white/10 bg-black/30 text-slate-300' : 'border-teal-900/10 bg-white/80 text-slate-600'}`}>Lat: {latitude.toFixed(5)} · Lng: {longitude.toFixed(5)}</div>
-                    <button type="button" onClick={() => setModalOpen(false)} className={`flex h-8 w-8 items-center justify-center rounded-xl border backdrop-blur-md transition-colors active:scale-95 ${dark ? 'border-white/10 bg-white/5 text-slate-300 hover:bg-white/10 hover:text-white' : 'border-teal-900/10 bg-white text-teal-700 hover:bg-teal-50'}`}><X size={14} /></button>
+                    <div className={`rounded-lg border px-3 py-1 font-mono text-xs backdrop-blur-md ${dark ? 'border-white/10 bg-black/30 text-slate-300' : 'border-slate-900/10 bg-white/80 text-slate-600'}`}>Lat: {latitude.toFixed(5)} · Lng: {longitude.toFixed(5)}</div>
+                    <button type="button" onClick={() => setModalOpen(false)} className={`flex h-8 w-8 items-center justify-center rounded-xl border backdrop-blur-md transition-colors active:scale-95 ${dark ? 'border-white/10 bg-white/5 text-slate-300 hover:bg-white/10 hover:text-white' : 'border-slate-900/10 bg-white text-[color:var(--pf-line)] hover:bg-white'}`}><X size={14} /></button>
                   </div>
                   <div className="p-2">
                     <StageMapContent latitude={latitude} longitude={longitude} onLocationSelect={handleLocationSelect} height={560} dark={dark} mapRef={modalMapRef} />

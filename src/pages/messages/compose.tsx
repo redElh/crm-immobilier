@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
@@ -16,7 +16,7 @@ import { DatePicker } from '../../components/ui/DatePicker'
 import { TimePicker } from '../../components/ui/TimePicker'
 import { useToast } from '../../components/ui/Toast'
 import {
-  OrbIcon, STAGE_HUES, StageBadge, StageButton, useStageTheme,
+  OrbIcon, StageBadge, StageButton, GERANT_MAUVE_HUE, useStageAccent, useStageTheme,
 } from '../../components/dashboard/Stage'
 import {
   fetchMessageUsers, fetchCurrentUser, createConversation, sendMessage, uploadAttachment,
@@ -72,6 +72,7 @@ export default function ComposeMessagePage() {
   const zoomStyle = messageZoomStyle(appearance.messageSize)
   const theme = useStageTheme()
   const isDark = theme === 'dark'
+  const stageAccent = useStageAccent()
   const [searchParams] = useSearchParams()
   const clientId = searchParams.get('clientId')
   const templateId = searchParams.get('templateId')
@@ -97,11 +98,18 @@ export default function ComposeMessagePage() {
   const [markImportant, setMarkImportant] = useState(false)
   const [disableReceipts, setDisableReceipts] = useState(false)
   const [isSending, setIsSending] = useState(false)
+  const [currentRole, setCurrentRole] = useState<string | null>(null)
   const [myId, setMyId] = useState<string>(() => myIdFromToken() ?? '')
+
+  const isGerant = admin && currentRole === 'gerant'
+  const interfaceHue = isGerant ? GERANT_MAUVE_HUE : stageAccent
 
   useEffect(() => {
     fetchCurrentUser()
-      .then(u => setMyId(String(u.id)))
+      .then(u => {
+        setMyId(String(u.id))
+        setCurrentRole(u.role ?? null)
+      })
       .catch(() => {})
   }, [])
 
@@ -345,9 +353,27 @@ export default function ComposeMessagePage() {
     }
   }
 
+  const msgVars = {
+    '--msg-accent-a': interfaceHue.a,
+    '--msg-accent-b': interfaceHue.b,
+    '--msg-accent-line': interfaceHue.line,
+    '--msg-accent-glow': interfaceHue.glow,
+    '--msg-accent-soft': `${interfaceHue.a}18`,
+    '--msg-accent-border': `${interfaceHue.a}42`,
+    '--msg-hairline': isDark ? 'rgba(255,255,255,0.10)' : `${interfaceHue.line}1F`,
+    '--msg-hairline-soft': isDark ? 'rgba(255,255,255,0.05)' : `${interfaceHue.line}12`,
+    '--msg-ink': isDark ? '#E2E8F0' : interfaceHue.line,
+    '--msg-ink-soft': isDark ? 'rgba(148,163,184,0.8)' : `${interfaceHue.line}B3`,
+  } as CSSProperties
+  const gradientTitle = isDark
+    ? (admin ? 'from-[#F43F5E] via-[#FB7185] to-[#8B7CFF]' : 'from-white via-indigo-100 to-indigo-300')
+    : (isGerant
+        ? 'from-[#905D5D] via-[#A56E6E] to-[#C89292]'
+        : admin ? 'from-[#EA580C] via-[#F97316] to-[#FBBF24]' : 'from-teal-900 via-teal-700 to-emerald-600')
+  const lightInk = isDark ? 'text-slate-400' : isGerant ? 'text-[#905D5D]/65' : admin ? 'text-orange-900/60' : 'text-[color:var(--msg-ink-soft)]'
   const stageInput = isDark
-    ? 'bg-white/[0.05] border-white/10 text-white placeholder:text-slate-500 focus:bg-white/[0.07] focus:border-violet-400/60 focus:ring-2 focus:ring-violet-400/20'
-    : 'bg-white border-teal-900/10 text-slate-900 placeholder:text-slate-400 focus:border-teal-500/50 focus:ring-2 focus:ring-teal-500/15'
+    ? 'bg-white/[0.05] border-white/10 text-white placeholder:text-slate-500 focus:bg-white/[0.07] focus:border-[color:var(--msg-accent-line)] focus:ring-2 focus:ring-[var(--msg-accent-soft)]'
+    : 'bg-white border-[color:var(--msg-hairline)] text-slate-900 placeholder:text-slate-400 focus:border-[color:var(--msg-accent-line)] focus:ring-2 focus:ring-[var(--msg-accent-soft)]'
 
   const steps = [
     { n: 1, label: 'Destinataires', done: selected.length > 0, hint: selected.length > 0 ? `${selected.length} choisi${selected.length > 1 ? 's' : ''}` : 'À choisir' },
@@ -356,35 +382,33 @@ export default function ComposeMessagePage() {
   ]
 
   return (
-    <div className={cn('flex flex-col h-full w-full animate-fade-in overflow-y-auto', isDark ? 'stage-dark' : 'stage-light')}>
+    <div className={cn('flex flex-col h-full w-full animate-fade-in overflow-y-auto')} style={{ ...zoomStyle, ...msgVars }}>
       {/* Hero */}
       <div className="relative z-10 flex flex-wrap items-end justify-between gap-4 shrink-0 pb-4">
         <div className="flex items-center gap-3 min-w-0">
           <button
             onClick={() => navigate(`${basePath}/messages`)}
             className={cn('w-10 h-10 rounded-xl border flex items-center justify-center transition-colors shrink-0',
-              isDark ? 'border-white/10 text-slate-300 hover:text-white hover:bg-white/5' : 'border-teal-900/10 text-slate-500 hover:text-teal-900 hover:bg-white/70 bg-white/60')}
+              isDark ? 'border-white/10 text-slate-300 hover:text-white hover:bg-white/5' : 'border-[color:var(--msg-hairline)] text-slate-500 hover:text-[color:var(--msg-ink)] hover:bg-white/70 bg-white/60')}
             title="Retour à la messagerie"
           >
             <ArrowLeft size={17} />
           </button>
-          <OrbIcon icon={MessageSquare} hue={STAGE_HUES.violet} size={48} radius={14} />
+          <OrbIcon icon={MessageSquare} hue={interfaceHue} size={48} radius={14} />
           <div className="min-w-0">
             <div className="flex items-center gap-2">
               <span className="relative flex h-2 w-2 shrink-0">
                 <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60" />
                 <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.9)]" />
               </span>
-              <p className={cn('text-[10px] font-bold uppercase tracking-[0.24em] truncate', isDark ? 'text-slate-400/80' : 'text-teal-900/50')}>
+              <p className={cn('text-[10px] font-bold uppercase tracking-[0.24em] truncate', isDark ? 'text-slate-400/80' : lightInk)}>
                 Messagerie · Nouvelle conversation
               </p>
             </div>
-            <h1 className={cn('mt-1 text-2xl sm:text-3xl font-extrabold tracking-tight truncate',
-              isDark ? 'bg-gradient-to-r from-white via-indigo-100 to-indigo-300 bg-clip-text text-transparent'
-                : 'bg-gradient-to-r from-teal-900 via-teal-700 to-emerald-600 bg-clip-text text-transparent')}>
+            <h1 className={cn('mt-1 bg-gradient-to-r bg-clip-text text-2xl sm:text-3xl font-extrabold tracking-tight truncate text-transparent', gradientTitle)}>
               Nouvelle conversation
             </h1>
-            <p className={cn('mt-0.5 text-sm truncate', isDark ? 'text-slate-400' : 'text-teal-900/60')}>
+            <p className={cn('mt-0.5 text-sm truncate', lightInk)}>
               {isGroup ? `Groupe · ${selected.length} membres · ${groupSubject}` : selected.length === 1 ? `À : ${selected[0].name}` : 'Choisissez un destinataire, rédigez, envoyez'}
             </p>
           </div>
@@ -408,16 +432,13 @@ export default function ComposeMessagePage() {
       <div className="relative z-10 grid grid-cols-3 gap-2 sm:gap-3 shrink-0 pb-4">
         {steps.map((s) => (
           <div key={s.n} className={cn('stage-glass !rounded-2xl px-3 py-2.5 flex items-center gap-2.5 min-w-0',
-            s.done && (isDark ? '!border-violet-400/30' : '!border-emerald-500/25'))}>
+            s.done && '!border-[color:var(--msg-accent-border)]')}>
             <span
               className="w-7 h-7 rounded-xl flex items-center justify-center text-xs font-extrabold text-white shrink-0"
-              style={s.done
-                ? isDark
-                  ? { backgroundImage: 'linear-gradient(145deg,#8B7CFF,#5646C9)', boxShadow: '0 6px 16px -6px rgba(124,92,255,0.65), inset 0 1px 0 rgba(255,255,255,0.4)' }
-                  : { backgroundImage: 'linear-gradient(145deg,#34D399,#059669)', boxShadow: '0 6px 16px -6px rgba(5,150,105,0.6), inset 0 1px 0 rgba(255,255,255,0.5)' }
-                : isDark
-                  ? { backgroundImage: 'linear-gradient(145deg,#8B7CFF,#5646C9)', boxShadow: '0 6px 16px -6px rgba(124,92,255,0.6), inset 0 1px 0 rgba(255,255,255,0.4)' }
-                  : { backgroundImage: 'linear-gradient(145deg,#2DD4BF,#0D9488)', boxShadow: '0 6px 16px -6px rgba(13,148,136,0.55), inset 0 1px 0 rgba(255,255,255,0.5)' }}
+              style={{
+                backgroundImage: 'linear-gradient(145deg, var(--msg-accent-a), var(--msg-accent-b))',
+                boxShadow: '0 6px 16px -6px var(--msg-accent-glow), inset 0 1px 0 rgba(255,255,255,0.4)',
+              }}
             >
               {s.done ? <Check size={13} strokeWidth={3} /> : s.n}
             </span>
@@ -435,11 +456,11 @@ export default function ComposeMessagePage() {
       <div className="relative z-10 flex-1 min-h-0 flex flex-col lg:flex-row stage-glass overflow-hidden">
         {/* ── Colonne destinataires ── */}
         <aside className={cn('lg:w-[310px] shrink-0 border-b lg:border-b-0 lg:border-r flex flex-col min-h-0 max-h-[42vh] lg:max-h-none',
-          isDark ? 'border-white/10' : 'border-teal-900/10')}>
-          <div className={cn('p-3 border-b space-y-2.5 shrink-0', isDark ? 'border-white/10' : 'border-teal-900/10')}>
+          isDark ? 'border-white/10' : 'border-[color:var(--msg-hairline)]')}>
+          <div className={cn('p-3 border-b space-y-2.5 shrink-0', isDark ? 'border-white/10' : 'border-[color:var(--msg-hairline)]')}>
             {/* Titre stagé */}
             <div className="flex items-center gap-2.5">
-              <OrbIcon icon={Users} hue={isDark ? STAGE_HUES.violet : STAGE_HUES.sky} size={34} radius={11} />
+              <OrbIcon icon={Users} hue={interfaceHue} size={34} radius={11} />
               <div className="min-w-0 flex-1">
                 <h2 className={cn('text-sm font-bold tracking-tight leading-tight', isDark ? 'text-white' : 'text-slate-900')}>
                   Destinataires
@@ -473,12 +494,10 @@ export default function ComposeMessagePage() {
                     className={cn('flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold rounded-lg border whitespace-nowrap transition-all',
                       active
                         ? 'text-white border-transparent'
-                        : isDark ? 'text-slate-400 border-white/10 hover:text-white hover:bg-white/5' : 'text-slate-500 border-teal-900/10 hover:text-teal-900 hover:bg-teal-900/5')}
+                        : isDark ? 'text-slate-400 border-white/10 hover:text-white hover:bg-white/5' : 'text-slate-500 border-[color:var(--msg-hairline)] hover:text-[color:var(--msg-ink)] hover:bg-[var(--msg-accent-soft)]')}
                     style={active ? {
-                      backgroundImage: isDark
-                        ? 'linear-gradient(145deg,#8B7CFF,#5646C9)'
-                        : 'linear-gradient(145deg,#2DD4BF,#0D9488)',
-                      boxShadow: isDark ? '0 6px 16px -6px rgba(124,92,255,0.6)' : '0 6px 16px -8px rgba(13,148,136,0.55)',
+                      backgroundImage: 'linear-gradient(145deg, var(--msg-accent-a), var(--msg-accent-b))',
+                      boxShadow: '0 6px 16px -6px var(--msg-accent-glow)',
                     } : undefined}
                   >
                     <Icon size={13} /> {tab.label}
@@ -493,11 +512,11 @@ export default function ComposeMessagePage() {
               <div
                 className={cn('rounded-2xl border p-2 space-y-2 backdrop-blur-md transition-all',
                   isDark
-                    ? 'bg-violet-400/[0.06] border-violet-400/25 shadow-[inset_0_1px_0_rgba(255,255,255,0.06),0_8px_24px_-12px_rgba(124,92,255,0.5)]'
-                    : 'bg-teal-500/[0.06] border-teal-500/25 shadow-[inset_0_1px_0_rgba(255,255,255,0.9),0_8px_24px_-12px_rgba(13,148,136,0.35)]')}
+                    ? 'bg-[var(--msg-accent-soft)] border-[color:var(--msg-accent-border)] shadow-[inset_0_1px_0_rgba(255,255,255,0.06),0_8px_24px_-12px_var(--msg-accent-glow)]'
+                    : 'bg-[var(--msg-accent-soft)] border-[color:var(--msg-accent-border)] shadow-[inset_0_1px_0_rgba(255,255,255,0.9),0_8px_24px_-12px_var(--msg-accent-glow)]')}
               >
                 <div className="flex items-center justify-between gap-2 px-1">
-                  <p className={cn('text-[10px] font-bold uppercase tracking-[0.14em]', isDark ? 'text-indigo-300' : 'text-teal-700')}>
+                  <p className={cn('text-[10px] font-bold uppercase tracking-[0.14em]', isDark ? 'text-[color:var(--msg-accent-line)]' : 'text-[color:var(--msg-accent-line)]')}>
                     Sélection · {selected.length}
                   </p>
                   <button
@@ -514,8 +533,8 @@ export default function ComposeMessagePage() {
                       key={item.id}
                       className={cn('inline-flex items-center gap-2 pl-1 pr-1 py-1 rounded-full text-xs font-semibold border backdrop-blur-md transition-all',
                         isDark
-                          ? 'bg-white/[0.06] border-violet-400/30 text-white shadow-[0_4px_16px_-8px_rgba(124,92,255,0.6)]'
-                          : 'bg-white border-teal-500/30 text-slate-800 shadow-[0_4px_16px_-8px_rgba(13,148,136,0.4)]')}
+                          ? 'bg-white/[0.06] border-[color:var(--msg-accent-border)] text-white shadow-[0_4px_16px_-8px_var(--msg-accent-glow)]'
+                          : 'bg-white border-[color:var(--msg-accent-border)] text-slate-800 shadow-[0_4px_16px_-8px_var(--msg-accent-glow)]')}
                     >
                       <Avatar participant={item} size="xs" />
                       <span className="max-w-[110px] truncate">{item.name}</span>
@@ -596,22 +615,22 @@ export default function ComposeMessagePage() {
                     <div className="flex items-center gap-1.5 min-w-0">
                       <p className={cn('text-sm font-semibold truncate', isDark ? 'text-white' : 'text-slate-900')}>{item.name}</p>
                       <span className={cn('text-[9px] font-bold px-1.5 py-0.5 rounded-md uppercase tracking-wide shrink-0 border',
-                        isDark ? 'bg-violet-400/10 text-indigo-300 border-violet-400/25' : 'bg-teal-500/10 text-teal-700 border-teal-500/25')}>
+                        isDark ? 'bg-[var(--msg-accent-soft)] text-[color:var(--msg-accent-line)] border-[color:var(--msg-accent-border)]' : 'bg-[var(--msg-accent-soft)] text-[color:var(--msg-accent-line)] border-[color:var(--msg-accent-border)]')}>
                         {typeBadgeLabel(item.type)}
                       </span>
                     </div>
                     <p className={cn('text-[11px] truncate', isDark ? 'text-slate-500' : 'text-slate-400')}>{item.email || item.role || '—'}</p>
                   </div>
                   <span className={cn('w-7 h-7 rounded-full flex items-center justify-center shrink-0 transition-all border',
-                    isDark ? 'border-white/15 text-slate-500 group-hover:text-white group-hover:bg-violet-500/20 group-hover:border-violet-400/40'
-                      : 'border-slate-900/15 text-slate-400 group-hover:text-teal-700 group-hover:bg-teal-500/10 group-hover:border-teal-500/40')}>
+                    isDark ? 'border-white/15 text-slate-500 group-hover:text-white group-hover:bg-[var(--msg-accent-soft)] group-hover:border-[color:var(--msg-accent-border)]'
+                      : 'border-slate-900/15 text-slate-400 group-hover:text-[color:var(--msg-accent-line)] group-hover:bg-[var(--msg-accent-soft)] group-hover:border-[color:var(--msg-accent-border)]')}>
                     <Plus size={13} />
                   </span>
                 </button>
               ))
             )}
           </div>
-          <div className={cn('px-3 py-2 border-t text-[11px] shrink-0', isDark ? 'border-white/10 text-slate-500' : 'border-teal-900/10 text-slate-400')}>
+          <div className={cn('px-3 py-2 border-t text-[11px] shrink-0', isDark ? 'border-white/10 text-slate-500' : 'border-[color:var(--msg-hairline)] text-slate-400')}>
             {usersReady ? `${results.length} résultat${results.length > 1 ? 's' : ''} · ${selected.length} sélectionné${selected.length > 1 ? 's' : ''}` : 'Chargement…'}
           </div>
         </aside>
@@ -620,7 +639,7 @@ export default function ComposeMessagePage() {
         <section className={cn('flex-1 min-w-0 flex flex-col', isDark ? 'bg-white/[0.015]' : 'bg-white/40')}>
           {/* Barre destinataires */}
           <div className={cn('flex items-center gap-3 px-4 py-3 border-b shrink-0 min-h-[61px]',
-            isDark ? 'border-white/10 bg-white/[0.02]' : 'border-teal-900/10 bg-white/60')}>
+            isDark ? 'border-white/10 bg-white/[0.02]' : 'border-[color:var(--msg-hairline)] bg-white/60')}>
             <span className={cn('text-[11px] font-bold uppercase tracking-wider shrink-0', isDark ? 'text-slate-500' : 'text-slate-400')}>À :</span>
             {selected.length === 0 ? (
               <span className={cn('text-sm italic', isDark ? 'text-slate-500' : 'text-slate-400')}>Sélectionnez au moins un destinataire…</span>
@@ -644,7 +663,7 @@ export default function ComposeMessagePage() {
                 )}
                 <button
                   onClick={() => setSelected([])}
-                  className={cn('p-1.5 rounded-lg transition-colors shrink-0', isDark ? 'text-slate-500 hover:text-white hover:bg-white/5' : 'text-slate-400 hover:text-teal-900 hover:bg-teal-900/5')}
+                  className={cn('p-1.5 rounded-lg transition-colors shrink-0', isDark ? 'text-slate-500 hover:text-white hover:bg-white/5' : 'text-slate-400 hover:text-[color:var(--msg-ink)] hover:bg-[var(--msg-accent-soft)]')}
                   title="Effacer les destinataires"
                 >
                   <X size={14} />
@@ -664,19 +683,15 @@ export default function ComposeMessagePage() {
                     templateOpen
                       ? 'text-white border-transparent'
                       : isDark
-                        ? 'bg-white/[0.05] border-white/10 text-slate-200 hover:bg-white/[0.08] hover:border-violet-400/40'
-                        : 'bg-white border-teal-900/10 text-slate-700 hover:border-teal-500/40 hover:shadow-[0_0_20px_-6px_rgba(45,212,191,0.5)]')}
+                        ? 'bg-white/[0.05] border-white/10 text-slate-200 hover:bg-white/[0.08] hover:border-[color:var(--msg-accent-border)]'
+                        : 'bg-white border-[color:var(--msg-hairline)] text-slate-700 hover:border-[color:var(--msg-accent-border)] hover:shadow-[0_0_20px_-6px_var(--msg-accent-glow)]')}
                   style={templateOpen ? {
-                    backgroundImage: isDark
-                      ? 'linear-gradient(145deg,#8B7CFF,#5646C9)'
-                      : 'linear-gradient(145deg,#2DD4BF,#0D9488)',
-                    boxShadow: isDark
-                      ? 'inset 0 1px 0 rgba(255,255,255,0.4), 0 8px 20px -8px rgba(124,92,255,0.7)'
-                      : 'inset 0 1px 0 rgba(255,255,255,0.5), 0 8px 20px -8px rgba(13,148,136,0.6)',
+                    backgroundImage: 'linear-gradient(145deg, var(--msg-accent-a), var(--msg-accent-b))',
+                    boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.4), 0 8px 20px -8px var(--msg-accent-glow)',
                   } : undefined}
                   title="Insérer un modèle"
                 >
-                  <FileText size={14} className={cn('shrink-0', templateOpen ? 'text-white' : isDark ? 'text-indigo-300' : 'text-teal-600')} />
+                  <FileText size={14} className={cn('shrink-0', templateOpen ? 'text-white' : 'text-[color:var(--msg-accent-line)]')} />
                   <span className="truncate">{activeTemplate ? activeTemplate.name : 'Modèle…'}</span>
                   {templatePick && (
                     <span
@@ -703,15 +718,15 @@ export default function ComposeMessagePage() {
                       className={cn('!absolute left-0 top-11 z-40 w-72 overflow-hidden rounded-2xl p-1.5 border max-h-[320px] overflow-y-auto',
                         isDark
                           ? 'bg-[#141b34]/95 backdrop-blur-xl border-white/10 shadow-[0_24px_60px_-20px_rgba(0,0,0,0.85),inset_0_1px_0_rgba(255,255,255,0.08)]'
-                          : 'bg-white/95 backdrop-blur-xl border-teal-900/10 shadow-[0_24px_60px_-24px_rgba(13,148,136,0.4),inset_0_1px_0_rgba(255,255,255,0.9)]')}
+                          : 'bg-white/95 backdrop-blur-xl border-[color:var(--msg-hairline)] shadow-[0_24px_60px_-24px_var(--msg-accent-glow),inset_0_1px_0_rgba(255,255,255,0.9)]')}
                     >
                       <button
                         type="button"
                         onClick={() => insertTemplate('')}
                         className={cn('w-full flex items-center gap-2.5 px-3 py-2.5 text-xs font-semibold rounded-xl transition-colors text-left',
                           !templatePick
-                            ? isDark ? 'bg-violet-400/15 text-white' : 'bg-teal-500/10 text-teal-800'
-                            : isDark ? 'text-slate-300 hover:bg-white/5' : 'text-slate-600 hover:bg-teal-900/5')}
+                            ? isDark ? 'bg-[var(--msg-accent-soft)] text-white' : 'bg-[var(--msg-accent-soft)] text-[color:var(--msg-ink)]'
+                            : isDark ? 'text-slate-300 hover:bg-white/5' : 'text-slate-600 hover:bg-[var(--msg-accent-soft)]')}
                       >
                         <span className={cn('w-7 h-7 rounded-lg flex items-center justify-center shrink-0',
                           isDark ? 'bg-white/5 text-slate-400' : 'bg-slate-900/5 text-slate-400')}>
@@ -721,7 +736,7 @@ export default function ComposeMessagePage() {
                           <span className="block truncate">Sans modèle</span>
                           <span className={cn('block text-[11px] font-normal truncate', isDark ? 'text-slate-400' : 'text-slate-400')}>Message libre</span>
                         </span>
-                        {!templatePick && <Check size={13} className={isDark ? 'text-indigo-300' : 'text-teal-600'} />}
+                        {!templatePick && <Check size={13} className={isDark ? 'text-[color:var(--msg-accent-line)]' : 'text-[color:var(--msg-accent-line)]'} />}
                       </button>
                       {mockTemplates.map(t => {
                         const active = t.id === templatePick
@@ -732,22 +747,22 @@ export default function ComposeMessagePage() {
                             onClick={() => insertTemplate(t.id)}
                             className={cn('w-full flex items-center gap-2.5 px-3 py-2.5 text-xs rounded-xl transition-colors text-left',
                               active
-                                ? isDark ? 'bg-violet-400/20 text-white' : 'bg-teal-500/10 text-teal-900'
-                                : isDark ? 'hover:bg-white/10 text-slate-100' : 'hover:bg-teal-900/5 text-slate-700')}
+                                ? isDark ? 'bg-[var(--msg-accent-soft)] text-white' : 'bg-[var(--msg-accent-soft)] text-[color:var(--msg-ink)]'
+                                : isDark ? 'hover:bg-white/10 text-slate-100' : 'hover:bg-[var(--msg-accent-soft)] text-slate-700')}
                           >
                             <span
                               className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 text-white"
                               style={active
-                                ? { backgroundImage: isDark ? 'linear-gradient(145deg,#8B7CFF,#5646C9)' : 'linear-gradient(145deg,#2DD4BF,#0D9488)' }
-                                : isDark ? { background: 'rgba(255,255,255,0.06)' } : { background: 'rgba(13,148,136,0.1)' }}
+                                ? { backgroundImage: 'linear-gradient(145deg, var(--msg-accent-a), var(--msg-accent-b))' }
+                                : isDark ? { background: 'rgba(255,255,255,0.06)' } : { background: 'var(--msg-accent-soft)' }}
                             >
-                              <FileText size={13} className={active ? 'text-white' : isDark ? 'text-indigo-300' : 'text-teal-700'} />
+                              <FileText size={13} className={active ? 'text-white' : isDark ? 'text-[color:var(--msg-accent-line)]' : 'text-[color:var(--msg-accent-line)]'} />
                             </span>
                             <span className="flex-1 min-w-0">
                               <span className="flex items-center gap-1.5">
                                 <span className="font-semibold truncate">{t.name}</span>
                                 <span className={cn('text-[9px] font-bold px-1.5 py-px rounded-md uppercase tracking-wide shrink-0 border',
-                                  isDark ? 'bg-violet-400/10 text-indigo-300 border-violet-400/25' : 'bg-teal-500/10 text-teal-700 border-teal-500/25')}>
+                                  isDark ? 'bg-[var(--msg-accent-soft)] text-[color:var(--msg-accent-line)] border-[color:var(--msg-accent-border)]' : 'bg-[var(--msg-accent-soft)] text-[color:var(--msg-accent-line)] border-[color:var(--msg-accent-border)]')}>
                                   {t.category}
                                 </span>
                               </span>
@@ -755,7 +770,7 @@ export default function ComposeMessagePage() {
                                 {t.body.split('\n')[0]?.slice(0, 60) || 'Voir le contenu…'}
                               </span>
                             </span>
-                            {active && <Check size={13} className={cn('shrink-0', isDark ? 'text-indigo-300' : 'text-teal-600')} />}
+                            {active && <Check size={13} className={cn('shrink-0', isDark ? 'text-[color:var(--msg-accent-line)]' : 'text-[color:var(--msg-accent-line)]')} />}
                           </button>
                         )
                       })}
@@ -769,8 +784,8 @@ export default function ComposeMessagePage() {
                   className={cn('h-9 w-9 rounded-xl border flex items-center justify-center transition-colors',
                     emojiOpen
                       ? 'text-white border-transparent'
-                      : isDark ? 'text-slate-400 border-white/10 hover:text-white hover:bg-white/5' : 'text-slate-500 border-teal-900/10 hover:text-teal-900 hover:bg-white bg-white/60')}
-                  style={emojiOpen ? { backgroundImage: isDark ? 'linear-gradient(145deg,#8B7CFF,#5646C9)' : 'linear-gradient(145deg,#2DD4BF,#0D9488)' } : undefined}
+                      : isDark ? 'text-slate-400 border-white/10 hover:text-white hover:bg-white/5' : 'text-slate-500 border-[color:var(--msg-hairline)] hover:text-[color:var(--msg-ink)] hover:bg-white bg-white/60')}
+                  style={emojiOpen ? { backgroundImage: 'linear-gradient(145deg, var(--msg-accent-a), var(--msg-accent-b))' } : undefined}
                   title="Émoticônes"
                 >
                   <Smile size={16} />
@@ -810,18 +825,16 @@ export default function ComposeMessagePage() {
               className={cn('relative rounded-2xl border transition-all duration-300 overflow-hidden',
                 dragOver
                   ? isDark
-                    ? 'border-violet-400/70 ring-2 ring-violet-400/30 bg-violet-400/[0.08] shadow-[0_0_0_1px_rgba(139,124,255,0.4),0_0_50px_-10px_rgba(139,124,255,0.7)]'
-                    : 'border-teal-500/70 ring-2 ring-teal-500/30 bg-teal-500/[0.08] shadow-[0_0_0_1px_rgba(45,212,191,0.4),0_0_50px_-12px_rgba(45,212,191,0.7)]'
+                    ? 'border-[color:var(--msg-accent-line)] ring-2 ring-[var(--msg-accent-border)] bg-[var(--msg-accent-soft)] shadow-[0_0_0_1px_var(--msg-accent-border),0_0_50px_-10px_var(--msg-accent-glow)]'
+                    : 'border-[color:var(--msg-accent-line)] ring-2 ring-[var(--msg-accent-border)] bg-[var(--msg-accent-soft)] shadow-[0_0_0_1px_var(--msg-accent-border),0_0_50px_-12px_var(--msg-accent-glow)]'
                   : isDark
-                    ? 'bg-white/[0.05] border-white/10 placeholder:text-slate-500 focus-within:bg-white/[0.07] focus-within:border-violet-400/60 focus-within:ring-2 focus-within:ring-violet-400/25 focus-within:shadow-[0_0_0_1px_rgba(139,124,255,0.35),0_0_44px_-10px_rgba(139,124,255,0.65),inset_0_1px_0_rgba(255,255,255,0.06)]'
-                    : 'bg-white border-teal-900/10 placeholder:text-slate-400 focus-within:border-teal-500/60 focus-within:ring-2 focus-within:ring-teal-500/20 focus-within:shadow-[0_0_0_1px_rgba(45,212,191,0.35),0_0_44px_-12px_rgba(45,212,191,0.6),inset_0_1px_0_rgba(255,255,255,0.9)]')}
+                    ? 'bg-white/[0.05] border-white/10 placeholder:text-slate-500 focus-within:bg-white/[0.07] focus-within:border-[color:var(--msg-accent-line)] focus-within:ring-2 focus-within:ring-[var(--msg-accent-border)] focus-within:shadow-[0_0_0_1px_var(--msg-accent-border),0_0_44px_-10px_var(--msg-accent-glow),inset_0_1px_0_rgba(255,255,255,0.06)]'
+                    : 'bg-white border-[color:var(--msg-hairline)] placeholder:text-slate-400 focus-within:border-[color:var(--msg-accent-line)] focus-within:ring-2 focus-within:ring-[var(--msg-accent-border)] focus-within:shadow-[0_0_0_1px_var(--msg-accent-border),0_0_44px_-12px_var(--msg-accent-glow),inset_0_1px_0_rgba(255,255,255,0.9)]')}
             >
               <span
                 aria-hidden="true"
                 className="pointer-events-none absolute inset-x-8 top-0 h-px z-10"
-                style={{ background: isDark
-                  ? 'linear-gradient(90deg, transparent, rgba(139,124,255,0.6), rgba(94,234,212,0.35), transparent)'
-                  : 'linear-gradient(90deg, transparent, rgba(45,212,191,0.6), rgba(124,92,255,0.3), transparent)' }}
+                style={{ background: `linear-gradient(90deg, transparent, ${interfaceHue.line}${isDark ? '99' : 'B3'}, ${interfaceHue.a}66, transparent)` }}
               />
               <textarea
                 ref={textareaRef}
@@ -838,18 +851,18 @@ export default function ComposeMessagePage() {
                 className={cn('w-full bg-transparent px-4 py-3.5 text-sm leading-relaxed resize-none focus:outline-none min-h-[150px]',
                   isDark ? 'text-white placeholder:text-slate-500' : 'text-slate-900 placeholder:text-slate-400')}
               />
-              <div className={cn('flex items-center gap-1.5 px-3 py-2 border-t', isDark ? 'border-white/10 bg-white/[0.02]' : 'border-teal-900/10 bg-white/50')}>
+              <div className={cn('flex items-center gap-1.5 px-3 py-2 border-t', isDark ? 'border-white/10 bg-white/[0.02]' : 'border-[color:var(--msg-hairline)] bg-white/50')}>
                 <input ref={fileInputRef} type="file" multiple className="hidden" onChange={e => { if (e.target.files) addFiles(e.target.files); e.target.value = '' }} />
                 <button
                   onClick={() => fileInputRef.current?.click()}
                   className={cn('flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold rounded-lg transition-colors',
-                    isDark ? 'text-slate-300 hover:text-white hover:bg-white/5' : 'text-slate-600 hover:text-teal-900 hover:bg-teal-900/5')}
+                    isDark ? 'text-slate-300 hover:text-white hover:bg-white/5' : 'text-slate-600 hover:text-[color:var(--msg-ink)] hover:bg-[var(--msg-accent-soft)]')}
                 >
                   <Paperclip size={13} /> Joindre
                 </button>
                 <button
                   onClick={() => fileInputRef.current?.click()}
-                  className={cn('p-1.5 rounded-lg transition-colors', isDark ? 'text-slate-500 hover:text-white hover:bg-white/5' : 'text-slate-400 hover:text-teal-900 hover:bg-teal-900/5')}
+                  className={cn('p-1.5 rounded-lg transition-colors', isDark ? 'text-slate-500 hover:text-white hover:bg-white/5' : 'text-slate-400 hover:text-[color:var(--msg-ink)] hover:bg-[var(--msg-accent-soft)]')}
                   title="Ajouter une image"
                 >
                   <ImageIcon size={15} />
@@ -859,7 +872,7 @@ export default function ComposeMessagePage() {
                 </span>
                 {files.length > 0 && (
                   <span className={cn('ml-auto text-[11px] font-bold px-2 py-0.5 rounded-full border',
-                    isDark ? 'bg-violet-400/10 text-indigo-300 border-violet-400/25' : 'bg-teal-500/10 text-teal-700 border-teal-500/25')}>
+                    isDark ? 'bg-[var(--msg-accent-soft)] text-[color:var(--msg-accent-line)] border-[color:var(--msg-accent-border)]' : 'bg-[var(--msg-accent-soft)] text-[color:var(--msg-accent-line)] border-[color:var(--msg-accent-border)]')}>
                     {files.length} fichier{files.length > 1 ? 's' : ''}
                   </span>
                 )}
@@ -881,13 +894,13 @@ export default function ComposeMessagePage() {
                       const previewUrl = filePreviews.get(i)
                       return (
                         <div key={`${f.name}-${f.size}-${i}`} className={cn('flex items-center gap-3 px-3 py-2 rounded-xl border backdrop-blur-md',
-                          isDark ? 'bg-white/[0.03] border-white/10' : 'bg-white/70 border-teal-900/10')}>
+                          isDark ? 'bg-white/[0.03] border-white/10' : 'bg-white/70 border-[color:var(--msg-hairline)]')}>
                           <div className={cn('w-9 h-9 rounded-lg overflow-hidden shrink-0 flex items-center justify-center',
-                            isDark ? 'bg-white/5' : 'bg-teal-900/5')}>
+                            isDark ? 'bg-white/5' : 'bg-[var(--msg-accent-soft)]')}>
                             {isImg && previewUrl ? (
                               <img src={previewUrl} alt="" className="w-full h-full object-cover" />
                             ) : (
-                              <FileText size={15} className={isDark ? 'text-indigo-300' : 'text-teal-700'} />
+                              <FileText size={15} className={isDark ? 'text-[color:var(--msg-accent-line)]' : 'text-[color:var(--msg-accent-line)]'} />
                             )}
                           </div>
                           <div className="flex-1 min-w-0">
@@ -914,9 +927,10 @@ export default function ComposeMessagePage() {
               <div className="flex justify-end">
                 <div
                   className="max-w-[85%] rounded-2xl rounded-br-md px-4 py-3 text-sm leading-relaxed text-white"
-                  style={isDark
-                    ? { backgroundImage: 'linear-gradient(145deg,#8B7CFF,#5646C9)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.35), 0 10px 24px -10px rgba(124,92,255,0.7)' }
-                    : { backgroundImage: 'linear-gradient(145deg,#2DD4BF,#0D9488)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.45), 0 10px 24px -10px rgba(13,148,136,0.6)' }}
+                  style={{
+                    backgroundImage: 'linear-gradient(145deg, var(--msg-accent-a), var(--msg-accent-b))',
+                    boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.35), 0 10px 24px -10px var(--msg-accent-glow)',
+                  }}
                 >
                   {body.trim()
                     ? <p className="whitespace-pre-wrap break-words">{body.trim()}</p>
@@ -937,12 +951,12 @@ export default function ComposeMessagePage() {
 
         {/* ── Colonne récap + options ── */}
         <aside className={cn('lg:w-[300px] shrink-0 border-t lg:border-t-0 lg:border-l flex flex-col min-h-0 max-h-[46vh] lg:max-h-none',
-          isDark ? 'border-white/10' : 'border-teal-900/10')}>
+          isDark ? 'border-white/10' : 'border-[color:var(--msg-hairline)]')}>
           <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-4">
             {/* Récapitulatif stagé */}
             <div>
               <div className="flex items-center gap-2.5 mb-2">
-                <OrbIcon icon={Send} hue={isDark ? STAGE_HUES.violet : STAGE_HUES.emerald} size={34} radius={11} />
+                <OrbIcon icon={Send} hue={interfaceHue} size={34} radius={11} />
                 <div className="min-w-0 flex-1">
                   <h2 className={cn('text-sm font-bold tracking-tight leading-tight', isDark ? 'text-white' : 'text-slate-900')}>
                     Récapitulatif
@@ -951,25 +965,23 @@ export default function ComposeMessagePage() {
                     {isFormValid ? 'Prêt à envoyer' : 'En cours de préparation'}
                   </p>
                 </div>
-                <StageBadge variant={isFormValid ? (isDark ? 'violet' : 'ok') : 'neutral'}>
+                <StageBadge variant={isFormValid ? 'ok' : 'neutral'}>
                   {isGroup ? 'Groupe' : 'Direct'}
                 </StageBadge>
               </div>
               <div className={cn('relative rounded-2xl border p-3 space-y-2 text-xs overflow-hidden backdrop-blur-md',
                 isDark
                   ? 'bg-white/[0.03] border-white/10 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]'
-                  : 'bg-white/70 border-teal-900/10 shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]')}>
+                  : 'bg-white/70 border-[color:var(--msg-hairline)] shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]')}>
                 <span
                   aria-hidden="true"
                   className="pointer-events-none absolute inset-x-8 top-0 h-px"
-                  style={{ background: isDark
-                    ? 'linear-gradient(90deg, transparent, rgba(139,124,255,0.55), rgba(94,234,212,0.3), transparent)'
-                    : 'linear-gradient(90deg, transparent, rgba(45,212,191,0.5), rgba(124,92,255,0.25), transparent)' }}
+                  style={{ background: `linear-gradient(90deg, transparent, ${interfaceHue.line}${isDark ? '8C' : '80'}, ${interfaceHue.a}4D, transparent)` }}
                 />
                 <div className="flex justify-between gap-2">
                   <span className={cn('flex items-center gap-1.5', isDark ? 'text-slate-400' : 'text-slate-500')}><Users size={12} /> Destinataires</span>
                   <span className={cn('font-bold tabular-nums px-1.5 py-px rounded-md border',
-                    isDark ? 'bg-white/[0.05] border-white/10 text-white' : 'bg-teal-500/10 border-teal-500/20 text-teal-800')}>{selected.length}</span>
+                    isDark ? 'bg-white/[0.05] border-white/10 text-white' : 'bg-[var(--msg-accent-soft)] border-[color:var(--msg-accent-border)] text-[color:var(--msg-ink)]')}>{selected.length}</span>
                 </div>
                 <div className="flex justify-between gap-2">
                   <span className={cn(isDark ? 'text-slate-400' : 'text-slate-500')}>Type</span>
@@ -995,19 +1007,15 @@ export default function ComposeMessagePage() {
                     key={item.label}
                     className={cn('flex items-center gap-2.5 px-2.5 py-2 rounded-xl border text-xs font-medium transition-all',
                       item.ok
-                        ? isDark
-                          ? 'bg-violet-400/[0.10] border-violet-400/30 text-indigo-100 shadow-[0_0_20px_-8px_rgba(124,92,255,0.65)]'
-                          : 'bg-emerald-50 border-emerald-500/25 text-emerald-800 shadow-[0_0_20px_-10px_rgba(5,150,105,0.4)]'
+                        ? 'bg-[var(--msg-accent-soft)] border-[color:var(--msg-accent-border)] text-[color:var(--msg-ink)] shadow-[0_0_20px_-8px_var(--msg-accent-glow)]'
                         : isDark
                           ? 'bg-white/[0.02] border-white/10 text-slate-500'
-                          : 'bg-white/50 border-teal-900/10 text-slate-400')}
+                          : 'bg-white/50 border-[color:var(--msg-hairline)] text-slate-400')}
                   >
                     <span
                       className="w-5 h-5 rounded-full flex items-center justify-center shrink-0 text-white"
                       style={item.ok
-                        ? isDark
-                          ? { backgroundImage: 'linear-gradient(145deg,#8B7CFF,#5646C9)', boxShadow: '0 4px 12px -4px rgba(124,92,255,0.8)' }
-                          : { backgroundImage: 'linear-gradient(145deg,#34D399,#059669)', boxShadow: '0 4px 12px -4px rgba(5,150,105,0.7)' }
+                        ? { backgroundImage: 'linear-gradient(145deg, var(--msg-accent-a), var(--msg-accent-b))', boxShadow: '0 4px 12px -4px var(--msg-accent-glow)' }
                         : isDark
                           ? { background: 'rgba(255,255,255,0.08)' }
                           : { background: 'rgba(15,23,42,0.08)' }}
@@ -1015,7 +1023,7 @@ export default function ComposeMessagePage() {
                       {item.ok ? <Check size={11} strokeWidth={3.5} /> : <Circle size={10} className={isDark ? 'text-slate-500' : 'text-slate-400'} />}
                     </span>
                     <span className="flex-1 min-w-0 truncate">{item.label}</span>
-                    <span className={cn('text-[11px] truncate max-w-[110px]', item.ok ? (isDark ? 'text-indigo-300/90' : 'text-emerald-600') : (isDark ? 'text-slate-600' : 'text-slate-400'))}>
+                    <span className={cn('text-[11px] truncate max-w-[110px]', item.ok ? 'text-[color:var(--msg-accent-line)]' : (isDark ? 'text-slate-600' : 'text-slate-400'))}>
                       {item.detail}
                     </span>
                   </div>
@@ -1026,7 +1034,7 @@ export default function ComposeMessagePage() {
             {/* Options */}
             <div>
               <p className={cn('text-[11px] font-bold uppercase tracking-wider mb-2', isDark ? 'text-slate-500' : 'text-slate-400')}>Options d'envoi</p>
-              <div className={cn('rounded-2xl border divide-y overflow-hidden', isDark ? 'bg-white/[0.03] border-white/10 divide-white/10' : 'bg-white/60 border-teal-900/10 divide-teal-900/10')}>
+              <div className={cn('rounded-2xl border divide-y overflow-hidden', isDark ? 'bg-white/[0.03] border-white/10 divide-white/10' : 'bg-white/60 border-[color:var(--msg-hairline)] divide-[color:var(--msg-hairline)]')}>
                 <div className="flex items-center justify-between gap-3 px-3 py-2.5">
                   <span className={cn('flex items-center gap-2 text-xs font-medium', isDark ? 'text-slate-200' : 'text-slate-700')}>
                     <CheckCircle size={13} className={isDark ? 'text-slate-500' : 'text-slate-400'} /> Copie à mon adresse
@@ -1066,7 +1074,7 @@ export default function ComposeMessagePage() {
                         </div>
                         {scheduleLabel && (
                           <p className={cn('flex items-center gap-1.5 text-[11px] font-medium px-1',
-                            isDark ? 'text-indigo-300' : 'text-teal-700')}>
+                            isDark ? 'text-[color:var(--msg-accent-line)]' : 'text-[color:var(--msg-accent-line)]')}>
                             <Clock size={11} className="shrink-0" />
                             Envoi prévu : {scheduleLabel}
                           </p>
@@ -1091,7 +1099,7 @@ export default function ComposeMessagePage() {
             </div>
           </div>
 
-          <div className={cn('p-4 border-t shrink-0 space-y-2', isDark ? 'border-white/10' : 'border-teal-900/10')}>
+          <div className={cn('p-4 border-t shrink-0 space-y-2', isDark ? 'border-white/10' : 'border-[color:var(--msg-hairline)]')}>
             <StageButton
               variant="primary"
               size="md"

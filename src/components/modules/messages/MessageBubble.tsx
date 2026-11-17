@@ -146,11 +146,12 @@ export function MessageBubble({
 
   const bubbleBase = isMine
     ? 'text-white rounded-2xl rounded-br-md'
-    : cn('relative rounded-2xl rounded-bl-md border backdrop-blur-md overflow-hidden', isDark ? 'bg-white/[0.08] border-white/10 text-slate-100 shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_12px_28px_-14px_rgba(0,0,0,0.7)]' : 'bg-white/85 border-teal-900/10 text-slate-900 shadow-[inset_0_1px_0_rgba(255,255,255,0.9),0_12px_28px_-16px_rgba(13,148,136,0.35)]')
+    : cn('relative rounded-2xl rounded-bl-md border backdrop-blur-md overflow-hidden', isDark ? 'bg-white/[0.08] border-white/10 text-slate-100 shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_12px_28px_-14px_rgba(0,0,0,0.7)]' : 'bg-white/85 border-[color:var(--msg-hairline)] text-slate-900 shadow-[inset_0_1px_0_rgba(255,255,255,0.9),0_12px_28px_-16px_var(--msg-accent-glow)]')
   const mineBubbleStyle = isMine
-    ? isDark
-      ? { backgroundImage: 'linear-gradient(135deg, #8B7CFF 0%, #6C5ECF 100%)', boxShadow: '0 10px 24px -10px rgba(124,92,255,0.6), inset 0 1px 0 rgba(255,255,255,0.25)' }
-      : { backgroundImage: 'linear-gradient(135deg, #2DD4BF 0%, #0D9488 100%)', boxShadow: '0 10px 24px -10px rgba(13,148,136,0.55), inset 0 1px 0 rgba(255,255,255,0.35)' }
+    ? {
+        backgroundImage: 'linear-gradient(135deg, var(--msg-accent-a, #8B7CFF) 0%, var(--msg-accent-b, #5B4BD4) 100%)',
+        boxShadow: '0 10px 24px -10px var(--msg-accent-glow, rgba(124,92,255,0.6)), inset 0 1px 0 rgba(255,255,255,0.28)',
+      }
     : undefined
 
   const attachmentUrl = sealedMediaActive
@@ -211,7 +212,7 @@ export function MessageBubble({
         className={cn('flex', isMine ? 'justify-end' : 'justify-start')}
       >
         <div className={cn('px-4 py-2.5 rounded-2xl border backdrop-blur-md max-w-[78%]',
-          isDark ? 'bg-white/[0.04] border-white/10' : 'bg-white/70 border-teal-900/10')}>
+          isDark ? 'bg-white/[0.04] border-white/10' : 'bg-white/70 border-[color:var(--msg-hairline)]')}>
           <p className={cn('text-xs italic', isDark ? 'text-slate-400' : 'text-slate-500')}>
             Message illisible sur cet appareil.
           </p>
@@ -299,20 +300,21 @@ export function MessageBubble({
               'absolute -top-2 left-2 z-20 w-5 h-5 rounded-full flex items-center justify-center border shadow-sm transition-colors',
               selected
                 ? 'text-white border-transparent'
-                : isDark ? 'bg-white/10 border-white/20 text-transparent hover:border-violet-400/50' : 'bg-white border-slate-900/20 text-transparent hover:border-teal-500/50'
+                : isDark ? 'bg-white/10 border-white/20 text-transparent hover:border-[color:var(--msg-accent-line)]' : 'bg-white border-slate-900/20 text-transparent hover:border-[color:var(--msg-accent-line)]'
             )}
             style={selected ? {
-              backgroundImage: isDark
-                ? 'linear-gradient(145deg,#8B7CFF,#5646C9)'
-                : 'linear-gradient(145deg,#2DD4BF,#0D9488)',
-              boxShadow: isDark ? '0 0 12px rgba(124,92,255,0.6)' : '0 0 12px rgba(13,148,136,0.5)',
+              backgroundImage: 'linear-gradient(145deg, var(--msg-accent-a, #8B7CFF), var(--msg-accent-b, #5B4BD4))',
+              boxShadow: '0 0 12px var(--msg-accent-glow, rgba(124,92,255,0.55))',
             } : undefined}
           >
             <Check size={12} strokeWidth={3} />
           </button>
         )}
         {showSenderName && !isMine && (
-          <p className={cn('text-[11px] font-bold mb-1 px-1', isDark ? 'text-indigo-300' : 'text-teal-700')}>
+          <p
+            className="text-[11px] font-bold mb-1 px-1"
+            style={{ color: isDark ? 'var(--msg-accent-a)' : 'var(--msg-accent-line)' }}
+          >
             {message.sender.name}
             {senderIsGroupAdmin && (
               <span className="font-medium opacity-70"> (Admin du groupe)</span>
@@ -326,9 +328,7 @@ export function MessageBubble({
               <span
                 aria-hidden="true"
                 className="pointer-events-none absolute inset-x-8 top-0 h-px z-10"
-                style={{ background: isDark
-                  ? 'linear-gradient(90deg, transparent, rgba(139,124,255,0.5), rgba(94,234,212,0.3), transparent)'
-                  : 'linear-gradient(90deg, transparent, rgba(45,212,191,0.5), rgba(124,92,255,0.25), transparent)' }}
+                style={{ background: 'linear-gradient(90deg, transparent, var(--msg-accent-line), transparent)' }}
               />
             )}
             {/* Image */}
@@ -350,7 +350,7 @@ export function MessageBubble({
                   </button>
                 ) : (
                   <div className="h-40 bg-gradient-to-br from-indigo-100 via-violet-100 to-sky-100 flex flex-col items-center justify-center gap-1.5">
-                    <ImageIcon size={28} className={isMine ? 'text-white/70' : isDark ? 'text-indigo-300/60' : 'text-teal-600/60'} />
+                    <ImageIcon size={28} className={isMine ? 'text-white/70' : 'text-[color:var(--msg-accent-line)] opacity-60'} />
                     <span className={cn('text-[11px] font-medium', subText)}>{message.attachments[0].name}</span>
                   </div>
                 )}
@@ -393,13 +393,13 @@ export function MessageBubble({
                 <AudioPlayer src={audioSrc} isMine={isMine} fallbackDuration={message.duration} />
               ) : (
                 <div className="w-60 flex items-center gap-2.5 px-3 py-2.5 opacity-90">
-                  <span className={cn('w-8 h-8 rounded-full flex items-center justify-center', isMine ? 'bg-white/20 text-white' : isDark ? 'bg-violet-400/15 text-indigo-300' : 'bg-teal-500/10 text-teal-700')}>
+                  <span className={cn('w-8 h-8 rounded-full flex items-center justify-center', isMine ? 'bg-white/20 text-white' : 'bg-[var(--msg-accent-soft)] text-[color:var(--msg-accent-line)]')}>
                     <Play size={14} />
                   </span>
                   <div className="flex-1">
                     <div className="flex items-end gap-0.5 h-6">
                       {[10, 18, 26, 14, 30, 22, 12, 24, 16, 28].map((h, i) => (
-                        <span key={i} className={cn('w-[3px] rounded-sm origin-bottom', isMine ? 'bg-white/50' : isDark ? 'bg-indigo-300/50' : 'bg-teal-600/50')} style={{ height: `${h}px` }} />
+                        <span key={i} className={cn('w-[3px] rounded-sm origin-bottom', isMine ? 'bg-white/50' : 'bg-[var(--msg-accent-line)] opacity-50')} style={{ height: `${h}px` }} />
                       ))}
                     </div>
                   </div>
@@ -461,7 +461,7 @@ export function MessageBubble({
                   const realUrl = att.url && att.url !== '#' ? att.url : undefined
                   const row = (
                     <>
-                      <span className={cn('shrink-0', isMine ? 'text-white/80' : isDark ? 'text-indigo-300' : 'text-teal-600')}>
+                      <span className={cn('shrink-0', isMine ? 'text-white/80' : 'text-[color:var(--msg-accent-line)]')}>
                         {fileIcon(att.name)}
                       </span>
                       <div className="flex-1 min-w-0">
@@ -475,7 +475,7 @@ export function MessageBubble({
                     'mx-3 flex items-center gap-2.5 px-2.5 py-2 rounded-xl transition-colors',
                     isMine
                       ? 'bg-white/10 hover:bg-white/20'
-                      : isDark ? 'bg-white/5 hover:bg-white/10' : 'bg-teal-900/[0.05] hover:bg-teal-900/[0.09]',
+                      : isDark ? 'bg-white/5 hover:bg-white/10' : 'bg-[var(--msg-accent-soft)] hover:bg-[var(--msg-accent-border)]',
                     realUrl && onOpenMedia ? 'cursor-pointer' : 'cursor-default'
                   )
                   return realUrl && onOpenMedia ? (
@@ -515,9 +515,10 @@ export function MessageBubble({
                 <div className="stage-glass !rounded-2xl pl-2 pr-1.5 py-1.5 flex items-center gap-2 whitespace-nowrap">
                   <span
                     className="w-7 h-7 rounded-xl flex items-center justify-center text-white shrink-0"
-                    style={isDark
-                      ? { backgroundImage: 'linear-gradient(145deg,#8B7CFF,#5646C9)', boxShadow: '0 4px 12px -4px rgba(124,92,255,0.7), inset 0 1px 0 rgba(255,255,255,0.4)' }
-                      : { backgroundImage: 'linear-gradient(145deg,#2DD4BF,#0D9488)', boxShadow: '0 4px 12px -4px rgba(13,148,136,0.6), inset 0 1px 0 rgba(255,255,255,0.5)' }}
+                    style={{
+                      backgroundImage: 'linear-gradient(145deg, var(--msg-accent-a, #8B7CFF), var(--msg-accent-b, #5B4BD4))',
+                      boxShadow: '0 4px 12px -4px var(--msg-accent-glow, rgba(124,92,255,0.65)), inset 0 1px 0 rgba(255,255,255,0.4)',
+                    }}
                   >
                     <CheckCheck size={13} />
                   </span>
@@ -559,7 +560,7 @@ export function MessageBubble({
                     'flex items-center gap-1 pl-1.5 pr-2 py-0.5 rounded-full text-[11px] leading-none shadow-sm border backdrop-blur-md transition-colors',
                     r.mine
                       ? 'text-white border-transparent'
-                      : isDark ? 'bg-white/[0.06] border-white/10 text-slate-200 hover:bg-white/10' : 'bg-white border-teal-900/10 text-slate-700 hover:bg-teal-900/5'
+                      : isDark ? 'bg-white/[0.06] border-white/10 text-slate-200 hover:bg-white/10' : 'bg-white border-[color:var(--msg-hairline)] text-slate-700 hover:bg-[var(--msg-accent-soft)]'
                   )}
                 >
                   <span className="text-xs leading-none">{r.emoji}</span>
@@ -592,7 +593,7 @@ export function MessageBubble({
                         <button
                           key={e}
                           onClick={() => handleReact(e)}
-                          className={cn('w-8 h-8 flex items-center justify-center text-lg hover:scale-110 transition rounded-full', isDark ? 'hover:bg-white/10' : 'hover:bg-teal-900/5')}
+                          className={cn('w-8 h-8 flex items-center justify-center text-lg hover:scale-110 transition rounded-full', isDark ? 'hover:bg-white/10' : 'hover:bg-[var(--msg-accent-soft)]')}
                         >
                           {e}
                         </button>
@@ -600,7 +601,7 @@ export function MessageBubble({
                       <button
                         onClick={() => setMenu('picker')}
                         title="Plus de réactions"
-                        className={cn('w-8 h-8 flex items-center justify-center hover:scale-110 transition rounded-full', isDark ? 'text-slate-400 hover:text-white hover:bg-white/10' : 'text-slate-500 hover:text-teal-900 hover:bg-teal-900/5')}
+                        className={cn('w-8 h-8 flex items-center justify-center hover:scale-110 transition rounded-full', isDark ? 'text-slate-400 hover:text-white hover:bg-white/10' : 'text-slate-500 hover:text-[color:var(--msg-accent-line)] hover:bg-[var(--msg-accent-soft)]')}
                       >
                         <Plus size={15} />
                       </button>
@@ -610,7 +611,7 @@ export function MessageBubble({
                       <button
                         key={e}
                         onClick={() => handleReact(e)}
-                        className={cn('w-7 h-7 flex items-center justify-center text-base rounded-md transition-colors', isDark ? 'hover:bg-white/10' : 'hover:bg-teal-900/5')}
+                        className={cn('w-7 h-7 flex items-center justify-center text-base rounded-md transition-colors', isDark ? 'hover:bg-white/10' : 'hover:bg-[var(--msg-accent-soft)]')}
                       >
                         {e}
                       </button>

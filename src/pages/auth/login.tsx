@@ -10,7 +10,7 @@ import { ensureE2EEIdentity } from '../../services/e2ee/session'
 import { myIdFromToken } from '../../services/e2ee/conversation'
 import TwoFactorVerify from '../../components/auth/TwoFactorVerify'
 import { getDeviceInfo, getPublicIP } from '../../utils/device'
-import { Mail, Lock, Check, Key, Loader } from 'react-feather'
+import { Mail, Lock, Check, Key, Loader, Shield } from 'react-feather'
 
 export default function LoginPage() {
   const [formData, setFormData] = useState({ email: '', password: '' })
@@ -233,6 +233,20 @@ export default function LoginPage() {
         <p className="text-center text-xs text-text-secondary">
           Vous n'avez pas de compte ? Veuillez contacter votre administrateur.
         </p>
+
+        <div className="flex items-center gap-3 pt-1">
+          <div className="h-px flex-1 bg-white/10" />
+          <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-white/30">ou</span>
+          <div className="h-px flex-1 bg-white/10" />
+        </div>
+
+        <Link
+          to="/auth/admin/login"
+          className="group flex w-full items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-4 py-2.5 text-xs font-semibold text-white/60 backdrop-blur-xl transition-all duration-200 hover:border-[var(--auth-accent)]/40 hover:bg-white/[0.08] hover:text-white"
+        >
+          <Shield size={13} className="text-white/50 transition-colors duration-200 group-hover:text-[var(--auth-accent)]" />
+          Vous êtes administrateur ou gérant ? Accéder à l'espace admin
+        </Link>
       </form>
       )}
     </AuthFormContainer>

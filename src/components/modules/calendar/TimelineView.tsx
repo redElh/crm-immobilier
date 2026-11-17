@@ -5,6 +5,7 @@ import {
   formatEventRange, formatFrenchDate, formatFrenchDayName, getEventDayOverlap, getEventDayHours,
   getWeekDays, getWeekStart, eventMatchesSelectedAgents, isToday, readableChipText,
 } from '../../../types/calendar'
+import { useStageAccent, useStageScope } from '../../dashboard/Stage'
 import { useStageChrome } from './useStageChrome'
 
 interface TimelineViewProps {
@@ -63,6 +64,8 @@ export default function TimelineView({
   currentDate, events, selectedAgents, selectedEventTypes, agents, onEventClick,
 }: TimelineViewProps) {
   const { staged, dark } = useStageChrome()
+  const accent = useStageAccent()
+  const isAdmin = useStageScope() === 'admin'
   const weekDays = useMemo(() => getWeekDays(currentDate), [currentDate])
   const weekEvents = useMemo(() => {
     const start = getWeekStart(currentDate)
@@ -132,28 +135,30 @@ export default function TimelineView({
               staged
                 ? dark
                   ? 'border-white/[0.08] bg-white/[0.03]'
-                  : 'border-teal-900/[0.10] bg-white/40'
+                  : isAdmin
+                    ? 'border-orange-900/[0.10] bg-white/40'
+                    : 'border-teal-900/[0.10] bg-white/40'
                 : 'border-border/40 bg-background/50'
             }`}>
               <span
                 className="h-5 w-[3px] rounded-full"
                 style={{
                   background: dayIsToday
-                    ? dark || !staged
-                      ? 'linear-gradient(180deg, #8B7CFF, #5646C9)'
-                      : 'linear-gradient(180deg, #2DD4BF, #0D9488)'
+                    ? `linear-gradient(180deg, ${accent.a}, ${accent.b})`
                     : 'linear-gradient(180deg, rgba(148,163,184,0.7), rgba(100,116,139,0.4))',
-                  boxShadow: dayIsToday
-                    ? dark || !staged
-                      ? '0 0 10px rgba(124,92,255,0.7)'
-                      : '0 0 10px rgba(13,148,136,0.55)'
-                    : undefined,
+                  boxShadow: dayIsToday ? `0 0 10px ${accent.glow}` : undefined,
                 }}
               />
-              <h3 className={`text-sm font-bold capitalize tracking-tight ${dayIsToday ? 'text-accent' : staged ? (dark ? 'text-slate-100' : 'text-teal-950') : 'text-text'}`}>
+              <h3
+                className={`text-sm font-bold capitalize tracking-tight ${!dayIsToday ? (staged ? (dark ? 'text-slate-100' : isAdmin ? 'text-orange-950' : 'text-teal-950') : 'text-text') : ''}`}
+                style={dayIsToday ? { color: dark ? accent.a : accent.b } : undefined}
+              >
                 {group.label}
               </h3>
-              <span className="rounded-full bg-accent/10 px-2 py-px text-[9px] font-bold uppercase tracking-wider text-accent">
+              <span
+                className="rounded-full px-2 py-px text-[9px] font-bold uppercase tracking-wider"
+                style={{ backgroundColor: withAlpha(accent.a, '1A'), color: dark ? accent.a : accent.b }}
+              >
                 {group.events.length} évt{group.events.length > 1 ? 's' : ''}
               </span>
             </div>

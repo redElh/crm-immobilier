@@ -25,7 +25,7 @@ const formatMontant = (v: number) => v.toLocaleString('fr-FR');
 const statutFinancementColor = (statut: string | undefined, isGerant: boolean) => {
   switch (statut) {
     case 'Accordé': case 'Accorde': return 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20';
-    case 'En cours': return isGerant ? 'bg-[#905D5D]/10 text-[#905D5D] border-[#905D5D]/20' : 'bg-amber-500/10 text-amber-500 border-amber-500/20';
+    case 'En cours': return 'bg-accent/10 text-accent border-accent/20';
     case 'Refusé': case 'Refuse': return 'bg-error/10 text-error border-error/20';
     default: return 'bg-text-secondary/10 text-text-secondary border-text-secondary/20';
   }
@@ -85,7 +85,7 @@ export default function ClientFinancementTab({ client, isGerant = false }: Props
   /* Staged theme accents (Acheteur). */
   const { isDark, accent, ink } = useDetailAccent(client.type, isGerant);
 
-  const inputClass = `h-10 w-full rounded-xl border px-3 text-sm backdrop-blur-sm transition-all focus:outline-none focus:ring-2 ${isDark ? 'border-white/10 bg-white/[0.04] text-white placeholder:text-slate-500' : 'border-slate-200/70 bg-white/75 text-slate-900 placeholder:text-slate-400 shadow-sm'} ${isGerant ? 'focus:border-[#905D5D]/50 focus:ring-[#905D5D]/20' : isDark ? 'focus:border-violet-400/40 focus:ring-violet-400/20' : 'focus:border-teal-500/40 focus:ring-teal-500/20'}`;
+  const inputClass = `h-10 w-full rounded-xl border px-3 text-sm backdrop-blur-sm transition-all focus:outline-none focus:ring-2 ${isDark ? 'border-white/10 bg-white/[0.04] text-white placeholder:text-slate-500' : 'border-slate-200/70 bg-white/75 text-slate-900 placeholder:text-slate-400 shadow-sm'} ${isDark ? 'focus:border-violet-400/40 focus:ring-violet-400/20' : 'focus:border-teal-500/40 focus:ring-teal-500/20'}`;
   const labelClass = `mb-1 block text-[10px] font-bold uppercase tracking-[0.12em] ${isDark ? 'text-slate-500' : 'text-slate-400'}`;
 
   const openEmailModal = () => {
@@ -363,9 +363,7 @@ export default function ClientFinancementTab({ client, isGerant = false }: Props
           className={`flex items-center gap-2 rounded-2xl border px-3.5 py-2.5 text-xs font-bold backdrop-blur-sm ${
             isAboveBudget
               ? isDark ? 'border-emerald-400/25 bg-emerald-400/10 text-emerald-300' : 'border-emerald-300/60 bg-emerald-50 text-emerald-700'
-              : isGerant
-                ? isDark ? 'border-[#905D5D]/30 bg-[#905D5D]/10 text-[#E8B4B4]' : 'border-[#905D5D]/30 bg-[#E7D5D5] text-[#905D5D]'
-                : isDark ? 'border-amber-400/25 bg-amber-400/10 text-amber-300' : 'border-amber-300/60 bg-amber-50 text-amber-700'
+              : isDark ? 'border-accent/30 bg-accent/[0.08] text-accent' : 'border-accent/30 bg-accent/[0.08] text-accent'
           }`}
         >
           {isAboveBudget ? <CheckCircle size={14} className="shrink-0" /> : <AlertCircle size={14} className="shrink-0" />}
@@ -506,9 +504,9 @@ export default function ClientFinancementTab({ client, isGerant = false }: Props
           whileTap={{ scale: 0.96 }}
           onClick={openEmailModal}
           className="inline-flex items-center gap-2 rounded-xl border border-white/20 px-4 py-2 text-xs font-bold text-white shadow-lg transition-all hover:scale-[1.02] active:scale-95"
-          style={isGerant
-            ? { backgroundImage: 'linear-gradient(145deg, #C9A0A0 0%, #905D5D 100%)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.4), 0 10px 26px -10px rgba(144,93,93,0.6)' }
-            : isDark
+style={isGerant
+  ? { backgroundImage: `linear-gradient(145deg, ${accent.a} 0%, ${accent.b} 100%)`, boxShadow: `inset 0 1px 0 rgba(255,255,255,0.4), 0 10px 26px -10px ${accent.glow}` }
+  : isDark
               ? { backgroundImage: 'linear-gradient(145deg, #8B7CFF 0%, #6C5ECF 60%, #5646C9 100%)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.4), 0 10px 26px -8px rgba(124,92,255,0.65)' }
               : { backgroundImage: 'linear-gradient(145deg, #2DD4BF 0%, #14B8A6 60%, #0D9488 100%)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.5), 0 10px 26px -10px rgba(13,148,136,0.6)' }}
         >

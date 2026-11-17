@@ -12,6 +12,7 @@ import {
   type StageHue,
 } from '../../dashboard/Stage'
 import { cn } from '../../../lib/utils'
+import { FLOATING_SLOT_1, FLOATING_PANEL_1, FLOATING_PANEL_MAX_H, FLOATING_PANEL_LIST_H, FLOATING_PANEL_TALL, FLOATING_PANEL_TALL_MAX_H } from '../../../lib/floating'
 import { CrumpledPaperBall3D, type DraftTexRow } from './CrumpledPaper3D'
 
 /* ---------------------------------------------------------------------
@@ -190,7 +191,7 @@ export function DraftSection({ propertyType, agentSlug, adminSlug }: DraftSectio
         {/* Floating bubble */}
         <motion.button
           onClick={() => setOpen(v => !v)}
-          className="fixed bottom-6 right-6 z-[9999] flex items-center gap-2.5 px-4 py-3 rounded-2xl bg-gradient-to-br from-amber-400 to-amber-500 text-white shadow-lg hover:shadow-xl hover:scale-105 transition-shadow"
+          className={`fixed ${FLOATING_SLOT_1} right-6 z-[9999] flex items-center gap-2.5 px-4 py-3 rounded-2xl bg-gradient-to-br from-amber-400 to-amber-500 text-white shadow-lg hover:shadow-xl hover:scale-105 transition-shadow`}
           whileTap={{ scale: 0.95 }}
           layoutId="draft-bubble"
         >
@@ -217,8 +218,8 @@ export function DraftSection({ propertyType, agentSlug, adminSlug }: DraftSectio
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.85, y: 20, transition: { duration: 0.15 } }}
               transition={{ type: 'spring', damping: 22, stiffness: 300, mass: 0.8 }}
-              className="fixed bottom-24 right-6 z-[9999] w-[400px] max-w-[calc(100vw-32px)] bg-card rounded-2xl border border-border/50 shadow-2xl overflow-hidden"
-              style={{ maxHeight: 'calc(100vh - 160px)' }}
+              className={`fixed ${FLOATING_PANEL_1} right-6 z-[9999] w-[400px] max-w-[calc(100vw-32px)] bg-card rounded-2xl border border-border/50 shadow-2xl overflow-hidden`}
+              style={{ maxHeight: FLOATING_PANEL_MAX_H }}
             >
               {/* Header */}
               <div className="px-5 py-4 border-b border-border/30 flex items-center justify-between bg-gradient-to-r from-amber-50 to-amber-50/30">
@@ -240,7 +241,7 @@ export function DraftSection({ propertyType, agentSlug, adminSlug }: DraftSectio
               </div>
 
               {/* List */}
-              <div className="overflow-y-auto" style={{ maxHeight: 'calc(100vh - 260px)' }}>
+              <div className="overflow-y-auto" style={{ maxHeight: FLOATING_PANEL_LIST_H }}>
                 {drafts.map((draft) => {
                   const config = PROPERTY_TYPE_CONFIG[draft.propertyType] || PROPERTY_TYPE_CONFIG.residential
                   const { Icon } = config
@@ -385,7 +386,7 @@ export function DraftSection({ propertyType, agentSlug, adminSlug }: DraftSectio
           y: open ? { duration: 0.2 } : { duration: 3, repeat: Infinity, ease: 'easeInOut' },
           boxShadow: { duration: 2.8, repeat: Infinity, ease: 'easeInOut' },
         }}
-        className="fixed bottom-6 right-6 z-[9999] flex h-16 w-16 items-center justify-center rounded-full border border-white/25 text-white"
+        className={`fixed ${FLOATING_SLOT_1} right-6 z-[9999] flex h-16 w-16 items-center justify-center rounded-full border border-white/25 text-white`}
         style={{ backgroundImage: `linear-gradient(145deg, ${bubbleHue.a} 0%, ${bubbleHue.b} 100%)` }}
         aria-label={`${drafts.length} brouillon${drafts.length !== 1 ? 's' : ''} en cours`}
         aria-expanded={open}
@@ -467,7 +468,7 @@ export function DraftSection({ propertyType, agentSlug, adminSlug }: DraftSectio
       <AnimatePresence>
         {open && (
           <div
-            className="fixed bottom-24 right-6 z-[9999] w-[420px] max-w-[calc(100vw-32px)]"
+            className={`fixed ${FLOATING_PANEL_TALL} right-6 z-[9999] w-[420px] max-w-[calc(100vw-32px)]`}
             style={{ perspective: 1100 }}
           >
             {/* grounded shadow — tight & dark as a ball, wide & soft as a sheet */}
@@ -508,7 +509,7 @@ export function DraftSection({ propertyType, agentSlug, adminSlug }: DraftSectio
                 ? { type: 'spring', damping: 24, stiffness: 320, mass: 0.8 }
                 : { type: 'spring', stiffness: 150, damping: 21 }}
               className="relative"
-              style={{ maxHeight: 'calc(100vh - 160px)', transformOrigin: '88% 100%', transformStyle: 'preserve-3d' }}
+              style={{ maxHeight: FLOATING_PANEL_TALL_MAX_H, transformOrigin: '88% 100%', transformStyle: 'preserve-3d' }}
             >
               {/* ---- BALL: the REAL 3D wad with the draft PRINTED on it ----
                   Planar UVs smear the ink over the crumpled ball; as the

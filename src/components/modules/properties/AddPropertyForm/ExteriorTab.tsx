@@ -4,7 +4,7 @@ import { Select } from '../../../../components/ui/Select';
 import { Checkbox } from '../../../../components/ui/Checkbox';
 import { exteriorTypes, propertyStates } from './constants';
 import { Wind, MapPin, Sun, Layers, Home, Box, Droplet, Grid, Layers as LayersIcon, Info } from 'react-feather';
-import { SectionCard, SubPanel, SubLabel, Field, FieldGrid } from './stage';
+import { SectionCard, SubPanel, SubLabel, Field, FieldGrid, useFormTheme } from './stage';
 import { useStageChrome } from '../../calendar/useStageChrome';
 import { useStageTheme } from '../../../dashboard/Stage';
 
@@ -77,6 +77,7 @@ function ExteriorSpacesTable({ control, register }: { control: any; register: an
   const { staged, dark } = useStageChrome();
   const theme = useStageTheme();
   const isDark = staged ? dark : theme === 'dark';
+  const { inkFaint } = useFormTheme();
 
   // --- staged shell ---
   if (staged) {
@@ -89,8 +90,8 @@ function ExteriorSpacesTable({ control, register }: { control: any; register: an
             ? 'linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02))'
             : 'linear-gradient(180deg, rgba(255,255,255,0.92), rgba(255,255,255,0.58))',
           boxShadow: isDark
-            ? 'inset 0 1px 0 rgba(255,255,255,0.08), 0 18px 50px -28px rgba(2,4,18,0.9), 0 0 40px -18px rgba(139,124,255,0.28)'
-            : 'inset 0 1px 0 rgba(255,255,255,0.9), 0 18px 50px -26px rgba(13,148,136,0.28), 0 0 36px -16px rgba(52,211,153,0.22)',
+            ? 'inset 0 1px 0 rgba(255,255,255,0.08), 0 18px 50px -28px rgba(2,4,18,0.9), 0 0 40px -18px var(--pf-glow)'
+            : 'inset 0 1px 0 rgba(255,255,255,0.9), 0 18px 50px -26px var(--pf-glow), 0 0 36px -16px var(--pf-glow)',
           backdropFilter: 'blur(16px)',
         }}
       >
@@ -106,9 +107,9 @@ function ExteriorSpacesTable({ control, register }: { control: any; register: an
             <span
               className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-bold tracking-wide"
               style={{
-                color: isDark ? '#A78BFA' : '#0D9488',
-                borderColor: isDark ? 'rgba(167,139,250,0.30)' : 'rgba(13,148,136,0.20)',
-                background: isDark ? 'rgba(167,139,250,0.12)' : 'rgba(20,184,166,0.10)',
+                color: 'var(--pf-line)',
+                borderColor: 'var(--pf-soft-2)',
+                background: 'var(--pf-soft)',
               }}
             >
               <MapPin size={11} />
@@ -116,7 +117,7 @@ function ExteriorSpacesTable({ control, register }: { control: any; register: an
             </span>
             <ExteriorSpacesStats control={control} isDark={isDark} />
           </div>
-          <span className={`hidden items-center gap-1.5 text-[11px] sm:flex ${isDark ? 'text-slate-500' : 'text-teal-900/40'}`}>
+            <span className={`hidden items-center gap-1.5 text-[11px] sm:flex ${inkFaint}`}>
             <Info size={12} />
             Renseignez chaque espace présent sur le bien
           </span>
@@ -274,10 +275,10 @@ function ExteriorSpacesTable({ control, register }: { control: any; register: an
             color: isDark ? 'rgba(148,163,184,0.75)' : 'rgba(15,23,42,0.45)',
           }}
         >
-          <LayersIcon size={11} className={isDark ? 'text-violet-300/60' : 'text-teal-700/50'} />
+            <LayersIcon size={11} className="text-[color:var(--pf-line)] opacity-60" />
           Astuce : seules les lignes renseignées seront affichées sur la fiche bien
           <span className="ml-auto hidden items-center gap-1 sm:inline-flex" style={{ color: isDark ? 'rgba(148,163,184,0.55)' : 'rgba(15,23,42,0.35)' }}>
-            <span className="h-1 w-1 rounded-full" style={{ background: isDark ? '#A78BFA' : '#14B8A6' }} /> ligne active
+            <span className="h-1 w-1 rounded-full" style={{ background: 'var(--pf-line)' }} /> ligne active
             <span className="mx-1 h-3 w-px" style={{ background: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(15,23,42,0.08)' }} />
             <span className="h-1 w-1 rounded-full" style={{ background: isDark ? 'rgba(255,255,255,0.18)' : 'rgba(15,23,42,0.12)' }} /> vide
           </span>

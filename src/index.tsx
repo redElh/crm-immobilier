@@ -5,6 +5,25 @@ import App from './App';
 import reportWebVitals from './reportWebVitals';
 import { initTheme } from './contexts/ThemeContext';
 
+/* Chromium raises a benign "ResizeObserver loop" error whenever an observer
+   batch cannot deliver every notification in the same frame — it is not a
+   failure and must not reach the dev overlay / error reporting. */
+const isResizeObserverLoop = (message?: string | null): boolean =>
+  !!message &&
+  (message.includes('ResizeObserver loop completed with undelivered notifications') ||
+   message.includes('ResizeObserver loop limit exceeded'));
+
+window.addEventListener(
+  'error',
+  (event) => {
+    if (isResizeObserverLoop(event.message)) {
+      event.stopImmediatePropagation();
+      event.preventDefault();
+    }
+  },
+  true
+);
+
 initTheme();
 
 const root = ReactDOM.createRoot(

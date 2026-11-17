@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import { motion } from 'framer-motion'
 import { Clock } from 'react-feather'
-import { STAGE_HUES, OrbIcon } from '../../dashboard/Stage'
+import { OrbIcon, useStageAccent, useStageScope } from '../../dashboard/Stage'
 import { useStageChrome } from './useStageChrome'
 import {
   CalendarEvent, getEventTypeConfig, Agent, getEventUserColor, withAlpha, getEventAgentNames,
@@ -20,6 +20,8 @@ export default function AgendaView({
   events, selectedAgents, selectedEventTypes, agents, onEventClick,
 }: AgendaViewProps) {
   const { staged, dark } = useStageChrome()
+  const accent = useStageAccent()
+  const isAdmin = useStageScope() === 'admin'
 
   const sortedEvents = useMemo(() => {
     return events
@@ -62,8 +64,8 @@ export default function AgendaView({
   if (sortedEvents.length === 0) {
     return (
       <div className={`flex flex-col items-center justify-center rounded-2xl py-16 ${staged ? 'stage-glass' : 'border border-border/50 bg-card'}`}>
-        <OrbIcon icon={Clock} hue={STAGE_HUES.violet} size={52} radius={16} />
-        <p className={`mt-3 text-sm font-medium ${staged ? (dark ? 'text-slate-400' : 'text-teal-900/60') : 'text-text-secondary'}`}>
+        <OrbIcon icon={Clock} hue={accent} size={52} radius={16} />
+        <p className={`mt-3 text-sm font-medium ${staged ? (dark ? 'text-slate-400' : isAdmin ? 'text-orange-900/60' : 'text-teal-900/60') : 'text-text-secondary'}`}>
           Aucun événement à venir
         </p>
       </div>
@@ -82,17 +84,19 @@ export default function AgendaView({
                   ? 'border-border/60 bg-card/90 shadow-card'
                   : dark
                     ? 'border-white/10 bg-[#0d1228]/85 shadow-[0_12px_32px_-14px_rgba(2,4,18,0.9)]'
-                    : 'border-white/80 bg-white/85 shadow-[0_12px_32px_-16px_rgba(13,148,136,0.5)]'
+                    : 'border-white/80 bg-white/85'
               }`}
+              style={staged && !dark ? { boxShadow: `0 12px 32px -16px ${accent.glow}` } : undefined}
             >
               {group.isToday ? (
                 <span
-                  className="cal-day-orb cal-day-orb-sm"
+                  className="cal-day-orb cal-day-orb-sm flex h-[26px] w-[26px] items-center justify-center rounded-full text-[11px] font-bold"
                   style={
-                    !dark && staged
+                    staged
                       ? {
-                          backgroundImage: 'linear-gradient(145deg,#2DD4BF,#0D9488)',
-                          boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.5), 0 6px 18px -4px rgba(13,148,136,0.55)',
+                          color: '#fff',
+                          backgroundImage: `linear-gradient(145deg, ${accent.a}, ${accent.b})`,
+                          boxShadow: `inset 0 1px 0 rgba(255,255,255,0.5), 0 6px 18px -4px ${accent.glow}`,
                         }
                       : undefined
                   }
@@ -106,23 +110,29 @@ export default function AgendaView({
                       ? 'border-border bg-background text-text-secondary'
                       : dark
                         ? 'border-white/15 bg-white/5 text-slate-300'
-                        : 'border-teal-900/15 bg-white text-teal-900/70'
+                        : isAdmin
+                          ? 'border-orange-900/15 bg-white text-orange-900/70'
+                          : 'border-teal-900/15 bg-white text-teal-900/70'
                   }`}
                 >
                   {group.dayNum}
                 </span>
               )}
-              <span className={`text-xs font-bold capitalize tracking-tight ${staged ? (dark ? 'text-slate-200' : 'text-teal-950') : 'text-text'}`}>
+              <span className={`text-xs font-bold capitalize tracking-tight ${staged ? (dark ? 'text-slate-200' : isAdmin ? 'text-orange-950' : 'text-teal-950') : 'text-text'}`}>
                 {group.label}
               </span>
               <span
                 className={`rounded-full px-1.5 py-px text-[9px] font-bold ${
-                  !staged
-                    ? 'bg-accent-light text-accent'
-                    : dark
-                      ? 'bg-violet-500/20 text-violet-300'
-                      : 'bg-teal-500/15 text-teal-700'
+                  !staged ? 'bg-accent-light text-accent' : ''
                 }`}
+                style={
+                  staged
+                    ? {
+                        backgroundColor: dark ? withAlpha(accent.a, '33') : withAlpha(accent.a, '26'),
+                        color: dark ? accent.a : accent.b,
+                      }
+                    : undefined
+                }
               >
                 {group.events.length}
               </span>

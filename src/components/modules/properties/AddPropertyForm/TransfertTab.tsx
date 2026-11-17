@@ -1,6 +1,6 @@
 import { Controller, useWatch } from 'react-hook-form';
 import { Check, Share2, Globe, Layers, Info, Award } from 'react-feather';
-import { SectionCard } from './stage';
+import { SectionCard, useFormTheme } from './stage';
 import { PORTAL_PARTNER_GROUPS } from '../../../../data/portalPartners';
 import { useStageChrome } from '../../calendar/useStageChrome';
 import { useStageTheme } from '../../../dashboard/Stage';
@@ -38,6 +38,7 @@ export function TransfertTab({ control, setValue, isGerant = false }: TransfertT
   const { staged, dark } = useStageChrome();
   const theme = useStageTheme();
   const isDark = staged ? dark : theme === 'dark';
+  const { inkSoft, inkFaint } = useFormTheme();
 
   const updateGroup = (groupId: string, checked: boolean) => {
     const group = PORTAL_PARTNER_GROUPS.find((item) => item.id === groupId);
@@ -57,16 +58,16 @@ export function TransfertTab({ control, setValue, isGerant = false }: TransfertT
             style={{
               borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(15,23,42,0.07)',
               background: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.62)',
-              boxShadow: isDark ? 'inset 0 1px 0 rgba(255,255,255,0.05)' : 'inset 0 1px 0 rgba(255,255,255,0.85), 0 8px 22px -14px rgba(13,148,136,0.18)',
+              boxShadow: isDark ? 'inset 0 1px 0 rgba(255,255,255,0.05)' : 'inset 0 1px 0 rgba(255,255,255,0.85), 0 8px 22px -14px var(--pf-glow)',
             }}
           >
             <div className="flex flex-wrap items-center gap-2">
               <span
                 className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-bold tracking-wide"
                 style={{
-                  color: isDark ? '#A78BFA' : '#0D9488',
-                  borderColor: isDark ? 'rgba(167,139,250,0.30)' : 'rgba(13,148,136,0.20)',
-                  background: isDark ? 'rgba(167,139,250,0.12)' : 'rgba(20,184,166,0.10)',
+                  color: 'var(--pf-line)',
+                  borderColor: 'var(--pf-soft-2)',
+                  background: 'var(--pf-soft)',
                 }}
               >
                 <Globe size={11} />
@@ -84,7 +85,7 @@ export function TransfertTab({ control, setValue, isGerant = false }: TransfertT
                 {PORTAL_PARTNER_GROUPS.length} groupes
               </span>
             </div>
-            <span className={`hidden items-center gap-1.5 text-[11px] sm:flex ${isDark ? 'text-slate-500' : 'text-teal-900/40'}`}>
+              <span className={`hidden items-center gap-1.5 text-[11px] sm:flex ${inkFaint}`}>
               <Info size={12} />
               Cochez les portails où diffuser
             </span>
@@ -98,7 +99,7 @@ export function TransfertTab({ control, setValue, isGerant = false }: TransfertT
                 style={{
                   borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(15,23,42,0.07)',
                   background: isDark ? 'rgba(255,255,255,0.02)' : 'rgba(255,255,255,0.55)',
-                  boxShadow: isDark ? 'inset 0 1px 0 rgba(255,255,255,0.04)' : 'inset 0 1px 0 rgba(255,255,255,0.8), 0 12px 28px -18px rgba(13,148,136,0.18)',
+                  boxShadow: isDark ? 'inset 0 1px 0 rgba(255,255,255,0.04)' : 'inset 0 1px 0 rgba(255,255,255,0.8), 0 12px 28px -18px var(--pf-glow)',
                 }}
               >
                 <div
@@ -109,16 +110,16 @@ export function TransfertTab({ control, setValue, isGerant = false }: TransfertT
                     <span
                       className="flex h-8 w-8 items-center justify-center rounded-xl border"
                       style={{
-                        borderColor: isDark ? 'rgba(167,139,250,0.22)' : 'rgba(20,184,166,0.18)',
-                        background: isDark ? 'rgba(167,139,250,0.12)' : 'rgba(20,184,166,0.10)',
-                        color: isDark ? '#A78BFA' : '#0D9488',
+                        borderColor: 'var(--pf-soft-2)',
+                        background: 'var(--pf-soft)',
+                        color: 'var(--pf-line)',
                       }}
                     >
                       <Globe size={14} />
                     </span>
                     <div>
                       <h4 className={`text-sm font-bold tracking-[-0.1px] ${isDark ? 'text-white' : 'text-slate-900'}`}>{group.label}</h4>
-                      <p className={`text-xs ${isDark ? 'text-slate-400' : 'text-teal-900/50'}`}>{group.partners.length} portails · {group.id === 'maroc' ? 'Priorité nationale' : 'International & niche'}</p>
+                      <p className={`text-xs ${inkSoft}`}>{group.partners.length} portails · {group.id === 'maroc' ? 'Priorité nationale' : 'International & niche'}</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-1 rounded-xl border p-1" style={{ borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(15,23,42,0.08)', background: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.6)' }}>
@@ -136,8 +137,8 @@ export function TransfertTab({ control, setValue, isGerant = false }: TransfertT
                       onClick={() => updateGroup(group.id, true)}
                       className="rounded-lg px-2.5 py-1 text-xs font-bold text-white transition-all hover:scale-[1.02] active:scale-95"
                       style={{
-                        background: isDark ? 'linear-gradient(145deg, #8B7CFF, #5B4BD4)' : 'linear-gradient(145deg, #2DD4BF, #0D9488)',
-                        boxShadow: isDark ? '0 4px 14px -8px rgba(124,92,255,0.6)' : '0 4px 14px -8px rgba(13,148,136,0.5)',
+                        background: isDark ? 'linear-gradient(145deg, var(--pf-a), var(--pf-b))' : 'linear-gradient(145deg, var(--pf-a), var(--pf-b))',
+                        boxShadow: isDark ? '0 4px 14px -8px var(--pf-glow)' : '0 4px 14px -8px var(--pf-glow)',
                       }}
                     >
                       Cocher tous
@@ -160,10 +161,10 @@ export function TransfertTab({ control, setValue, isGerant = false }: TransfertT
                             onClick={() => field.onChange(!isSelected)}
                             className="group relative flex min-h-[152px] flex-col justify-between overflow-hidden rounded-2xl border p-3 text-left transition-all duration-300 hover:-translate-y-[1px] hover:shadow-lg"
                             style={{
-                              borderColor: isSelected ? (isDark ? 'rgba(167,139,250,0.55)' : 'rgba(20,184,166,0.45)') : isDark ? 'rgba(255,255,255,0.08)' : 'rgba(15,23,42,0.07)',
-                              background: isSelected ? (isDark ? 'rgba(167,139,250,0.10)' : 'rgba(255,255,255,0.92)') : isDark ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.62)',
+                              borderColor: isSelected ? (isDark ? 'var(--pf-ring)' : 'var(--pf-ring)') : isDark ? 'rgba(255,255,255,0.08)' : 'rgba(15,23,42,0.07)',
+                              background: isSelected ? (isDark ? 'var(--pf-soft)' : 'rgba(255,255,255,0.92)') : isDark ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.62)',
                               boxShadow: isSelected
-                                ? isDark ? '0 0 28px -12px rgba(167,139,250,0.55), inset 0 1px 0 rgba(255,255,255,0.08)' : '0 12px 28px -14px rgba(13,148,136,0.30), inset 0 1px 0 rgba(255,255,255,0.9)'
+                                ? isDark ? '0 0 28px -12px var(--pf-ring), inset 0 1px 0 rgba(255,255,255,0.08)' : '0 12px 28px -14px var(--pf-glow), inset 0 1px 0 rgba(255,255,255,0.9)'
                                 : isDark ? 'inset 0 1px 0 rgba(255,255,255,0.03)' : 'inset 0 1px 0 rgba(255,255,255,0.8)',
                             }}
                           >
@@ -171,9 +172,9 @@ export function TransfertTab({ control, setValue, isGerant = false }: TransfertT
                               className="absolute right-2 top-2 z-10 flex h-7 w-7 items-center justify-center rounded-full border text-white shadow-md transition-all duration-300"
                               style={{
                                 borderColor: isSelected ? 'rgba(255,255,255,0.70)' : isDark ? 'rgba(255,255,255,0.10)' : 'rgba(15,23,42,0.10)',
-                                background: isSelected ? (isDark ? 'linear-gradient(145deg, #8B7CFF, #5B4BD4)' : 'linear-gradient(145deg, #2DD4BF, #0D9488)') : isDark ? 'rgba(255,255,255,0.06)' : '#fff',
+                                background: isSelected ? (isDark ? 'linear-gradient(145deg, var(--pf-a), var(--pf-b))' : 'linear-gradient(145deg, var(--pf-a), var(--pf-b))') : isDark ? 'rgba(255,255,255,0.06)' : '#fff',
                                 color: isSelected ? 'white' : 'transparent',
-                                boxShadow: isSelected ? (isDark ? '0 6px 18px -6px rgba(124,92,255,0.75), 0 0 0 3px rgba(139,124,255,0.22)' : '0 6px 18px -6px rgba(13,148,136,0.65), 0 0 0 3px rgba(45,212,191,0.22)') : 'none',
+                                boxShadow: isSelected ? (isDark ? '0 6px 18px -6px var(--pf-glow), 0 0 0 3px var(--pf-soft-2)' : '0 6px 18px -6px var(--pf-glow), 0 0 0 3px var(--pf-soft-2)') : 'none',
                               }}
                             >
                               <Check size={14} strokeWidth={3} />
@@ -185,13 +186,13 @@ export function TransfertTab({ control, setValue, isGerant = false }: TransfertT
 
                             <div className="space-y-1 text-center">
                               <p className={`text-[11px] font-bold uppercase tracking-[0.12em] ${isDark ? 'text-slate-100' : 'text-slate-900'}`}>{portal.label}</p>
-                              <p className={`text-[10px] font-medium uppercase tracking-[0.16em] ${isDark ? 'text-slate-500' : 'text-teal-900/40'}`}>{group.label.replace('Partenaires • ', '')}</p>
+                              <p className={`text-[10px] font-medium uppercase tracking-[0.16em] ${inkFaint}`}>{group.label.replace('Partenaires • ', '')}</p>
                             </div>
 
                             {isSelected && (
                               <span
                                 className="pointer-events-none absolute inset-x-0 bottom-0 h-[2px]"
-                                style={{ background: isDark ? 'linear-gradient(90deg, #8B7CFF, #5B4BD4)' : 'linear-gradient(90deg, #2DD4BF, #0D9488)' }}
+                                style={{ background: isDark ? 'linear-gradient(90deg, var(--pf-a), var(--pf-b))' : 'linear-gradient(90deg, var(--pf-a), var(--pf-b))' }}
                               />
                             )}
                           </button>
@@ -212,7 +213,7 @@ export function TransfertTab({ control, setValue, isGerant = false }: TransfertT
               color: isDark ? 'rgba(148,163,184,0.7)' : 'rgba(15,23,42,0.5)',
             }}
           >
-            <Layers size={11} className={isDark ? 'text-violet-300/60' : 'text-teal-700/50'} />
+            <Layers size={11} className="text-[color:var(--pf-line)] opacity-60" />
             La diffusion est instantanée après enregistrement · Décocher pour exclure un portail
           </div>
         </SectionCard>

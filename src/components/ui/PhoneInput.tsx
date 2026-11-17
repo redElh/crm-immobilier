@@ -3,6 +3,7 @@ import { ChevronDown } from 'react-feather';
 import { COUNTRIES, Country } from '../../data/countries';
 import { cn } from '../../lib/utils';
 import { useStageChrome } from '../modules/calendar/useStageChrome';
+import { useStageScope } from '../dashboard/Stage';
 import { portalWithTheme } from './dropdownTheme';
 
 interface PhoneInputProps {
@@ -75,6 +76,7 @@ export const PhoneInput = ({
   // the violet glass gradient would render as a translucent white on the peach
   // admin background and look "still white".
   const isDark = staged && dark;
+  const isAdmin = useStageScope() === 'admin';
   const [selected, setSelected] = useState<Country>(() => parsePhone(value).country);
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState('');
@@ -184,7 +186,7 @@ export const PhoneInput = ({
   return (
     <div className="space-y-1.5 w-full">
       {label && (
-        <label className={cn('block mb-1.5', isDark ? 'text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400/85' : staged ? 'text-[11px] font-bold uppercase tracking-[0.14em] text-teal-900/55' : 'text-sm font-medium text-text')}>
+        <label className={cn('block mb-1.5', isDark ? 'text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400/85' : staged ? (isAdmin ? 'text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500' : 'text-[11px] font-bold uppercase tracking-[0.14em] text-teal-900/55') : 'text-sm font-medium text-text')}>
           {label}
           {required && <span className="text-error ml-0.5">*</span>}
         </label>
@@ -199,15 +201,17 @@ export const PhoneInput = ({
             isDark
               ? 'border-white/15 bg-gradient-to-b from-white/[0.10] to-white/[0.05] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.12)] hover:border-violet-400/30 hover:from-white/[0.12] hover:to-white/[0.06] focus:border-violet-400/60'
               : staged
-                ? 'border-teal-900/15 bg-gradient-to-b from-white to-teal-50/70 text-teal-900 shadow-[inset_0_1px_0_rgba(255,255,255,1)] hover:border-teal-900/20 focus:border-teal-500/50'
+                ? isAdmin
+                  ? 'border-orange-900/20 bg-gradient-to-b from-white to-orange-50/80 text-slate-600 shadow-[inset_0_1px_0_rgba(255,255,255,1)] hover:border-orange-900/30 focus:border-orange-500'
+                  : 'border-teal-900/15 bg-gradient-to-b from-white to-teal-50/70 text-teal-900 shadow-[inset_0_1px_0_rgba(255,255,255,1)] hover:border-teal-900/20 focus:border-teal-500/50'
                 : 'bg-background text-text border-border hover:bg-background/80 focus:outline-none dark:bg-background dark:text-text dark:border-border',
             error ? '!border-rose-400/60' : '',
             staged ? '' : error ? 'border-error' : 'border-border'
           )}
         >
           <span className="text-base leading-none">{flagEmoji(selected.iso2)}</span>
-          <span className={cn('text-xs font-medium', isDark ? 'text-slate-100' : staged ? 'text-teal-800' : 'text-text-secondary')}>+{selected.dial}</span>
-          <ChevronDown size={13} className={cn('transition-transform', isDark ? 'text-violet-300' : staged ? 'text-teal-700' : 'text-text-secondary', isOpen && 'rotate-180')} />
+          <span className={cn('text-xs font-medium', isDark ? 'text-slate-100' : staged ? (isAdmin ? 'text-slate-600' : 'text-teal-800') : 'text-text-secondary')}>+{selected.dial}</span>
+          <ChevronDown size={13} className={cn('transition-transform', isDark ? 'text-violet-300' : staged ? (isAdmin ? 'text-slate-400' : 'text-teal-700') : 'text-text-secondary', isOpen && 'rotate-180')} />
         </button>
         <input
           type="tel"
@@ -220,7 +224,9 @@ export const PhoneInput = ({
             isDark
               ? 'border-white/15 bg-gradient-to-b from-white/[0.10] to-white/[0.04] [background-color:transparent] text-white placeholder:text-slate-400 shadow-[inset_0_1px_0_rgba(255,255,255,0.12)] focus:border-violet-400/60 focus:shadow-[0_0_0_3px_rgba(124,92,255,0.28)]'
               : staged
-                ? 'border-teal-900/15 bg-gradient-to-b from-white to-teal-50/60 text-teal-950 placeholder:text-teal-900/40 shadow-[inset_0_1px_0_rgba(255,255,255,1)] focus:border-teal-500/50 focus:shadow-[0_0_0_3px_rgba(20,184,166,0.22)]'
+                ? isAdmin
+                  ? 'border-orange-900/20 bg-gradient-to-b from-white to-orange-50/80 text-slate-900 placeholder:text-slate-400 shadow-[inset_0_1px_0_rgba(255,255,255,1)] focus:border-orange-500 focus:shadow-[0_0_0_3px_rgba(249,115,22,0.22)]'
+                  : 'border-teal-900/15 bg-gradient-to-b from-white to-teal-50/60 text-teal-950 placeholder:text-teal-900/40 shadow-[inset_0_1px_0_rgba(255,255,255,1)] focus:border-teal-500/50 focus:shadow-[0_0_0_3px_rgba(20,184,166,0.22)]'
                 : 'bg-card text-text placeholder:text-text-secondary/40 focus:ring-2 focus:ring-accent/15 focus:border-accent hover:border-text-secondary/30 border-border dark:bg-card dark:text-text dark:placeholder:text-text-secondary/40 dark:border-border dark:focus:ring-accent/20',
             error ? (staged ? '!border-rose-400/60' : 'border-error') : '',
             className
@@ -242,11 +248,13 @@ export const PhoneInput = ({
               isDark
                 ? 'border-violet-500/20 bg-[#0F0A1E] shadow-[0_24px_60px_-20px_rgba(124,92,255,0.35),inset_0_1px_0_rgba(255,255,255,0.08)]'
                 : staged
-                  ? 'border-white/70 bg-white/92 shadow-[0_24px_60px_-28px_rgba(13,148,136,0.35),inset_0_1px_0_rgba(255,255,255,0.9)]'
+                  ? isAdmin
+                    ? 'border-white/70 bg-white/92 shadow-[0_24px_60px_-28px_rgba(41,37,36,0.28),inset_0_1px_0_rgba(255,255,255,0.9)]'
+                    : 'border-white/70 bg-white/92 shadow-[0_24px_60px_-28px_rgba(13,148,136,0.35),inset_0_1px_0_rgba(255,255,255,0.9)]'
                   : 'bg-card border-border/50 shadow-dropdown dark:bg-card dark:border-border/50'
             )}
           >
-          <div className={cn('p-2 border-b', isDark ? 'border-white/10' : staged ? 'border-teal-900/10' : 'border-border/30')}>
+          <div className={cn('p-2 border-b', isDark ? 'border-white/10' : staged ? (isAdmin ? 'border-slate-900/10' : 'border-teal-900/10') : 'border-border/30')}>
             <input
               ref={searchInputRef}
               value={search}
@@ -257,14 +265,16 @@ export const PhoneInput = ({
                 isDark
                   ? 'border-white/10 bg-white/[0.06] text-slate-100 placeholder:text-slate-500 focus:border-violet-400/40'
                   : staged
-                    ? 'border-teal-900/12 bg-white text-teal-900 placeholder:text-teal-900/35 focus:border-teal-500/30'
+                    ? isAdmin
+                      ? 'border-orange-900/20 bg-white text-slate-900 placeholder:text-slate-400 focus:border-orange-500'
+                      : 'border-teal-900/12 bg-white text-teal-900 placeholder:text-teal-900/35 focus:border-teal-500/30'
                     : 'border-border bg-card text-text placeholder:text-text-secondary/50 focus:ring-2 focus:ring-accent/15 focus:border-accent dark:border-border dark:bg-card dark:text-text dark:placeholder:text-text-secondary/50'
               )}
             />
           </div>
           <div className="max-h-52 overflow-y-auto py-1 scrollbar-thin">
             {filtered.length === 0 && (
-              <div className={cn('px-4 py-4 text-center text-xs', isDark ? 'text-slate-500' : staged ? 'text-teal-900/45' : 'text-text-secondary/60')}>Aucun pays trouvé</div>
+              <div className={cn('px-4 py-4 text-center text-xs', isDark ? 'text-slate-500' : staged ? (isAdmin ? 'text-slate-400' : 'text-teal-900/45') : 'text-text-secondary/60')}>Aucun pays trouvé</div>
             )}
             {filtered.map((c) => (
               <button
@@ -279,8 +289,12 @@ export const PhoneInput = ({
                       : 'text-slate-200 border border-transparent hover:bg-white/[0.06] hover:text-white'
                     : staged
                       ? selected.iso2 === c.iso2 && c.dial === selected.dial
-                        ? 'bg-teal-500/14 text-teal-900 border border-teal-500/25 font-medium'
-                        : 'text-teal-900/70 border border-transparent hover:bg-teal-900/[0.04] hover:text-teal-900'
+                        ? isAdmin
+                          ? 'bg-orange-500/14 text-orange-900 border border-orange-500/25 font-medium'
+                          : 'bg-teal-500/14 text-teal-900 border border-teal-500/25 font-medium'
+                        : isAdmin
+                          ? 'text-slate-600 border border-transparent hover:bg-slate-900/[0.04] hover:text-slate-900'
+                          : 'text-teal-900/70 border border-transparent hover:bg-teal-900/[0.04] hover:text-teal-900'
                       : selected.iso2 === c.iso2 && c.dial === selected.dial
                         ? 'bg-accent-light text-accent font-medium'
                         : 'text-text-secondary hover:text-text hover:bg-background'
@@ -288,7 +302,7 @@ export const PhoneInput = ({
               >
                 <span className="text-base leading-none">{flagEmoji(c.iso2)}</span>
                 <span className="flex-1 truncate">{c.name}</span>
-                <span className={cn('text-xs', isDark ? 'text-slate-400' : staged ? 'text-teal-700/60' : 'text-text-secondary/70')}>+{c.dial}</span>
+                <span className={cn('text-xs', isDark ? 'text-slate-400' : staged ? (isAdmin ? 'text-slate-400' : 'text-teal-700/60') : 'text-text-secondary/70')}>+{c.dial}</span>
               </button>
             ))}
           </div>

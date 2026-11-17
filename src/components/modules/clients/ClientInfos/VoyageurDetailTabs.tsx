@@ -5,7 +5,7 @@ import { InfoField } from '../../../ui/InfoField';
 import { Button } from '../../../ui/Button';
 import { ClientContractsTab } from '../ClientContractsTab';
 import { NotesActiviteTab } from './NotesActiviteTab';
-import { ClientTabsShell, StageField, StageSection, StageTags, HeaderPills, StageEmpty, ProximitesGrid, PrestationsGrid, useDetailAccent } from './ClientDetailStage';
+import { ClientTabsShell, StageField, StageSection, StageTags, HeaderPills, StageEmpty, ProximitesGrid, PrestationsGrid, useDetailAccent, StageDocumentsTab } from './ClientDetailStage';
 import { Client } from '../../../../types/client';
 import {
   Home, MapPin, Maximize2, Grid, Clock, User, Briefcase, CheckCircle,
@@ -23,7 +23,7 @@ const renderTagList = (items: string[] | undefined, label: string, isGerant: boo
       <p className="text-sm font-medium text-text mb-2">{label}</p>
       <div className="flex flex-wrap gap-1.5">
         {items.map(item => (
-          <span key={item} className={`px-2 py-1 text-xs rounded-lg ${isGerant ? 'bg-[#905D5D]/10 text-[#905D5D] border border-[#905D5D]/20' : 'bg-accent/10 text-accent border border-accent/20'}`}>
+          <span key={item} className={`px-2 py-1 text-xs rounded-lg ${'bg-accent/10 text-accent border border-accent/20'}`}>
             {item}
           </span>
         ))}
@@ -295,49 +295,40 @@ export const VoyageurDetailTabs = ({ client: initialClient, adminId, agentId, hi
 
     return (
       <div className="space-y-5">
-        <div>
-          <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-3">Informations sur le séjour</p>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {c.nbVoyageurs && <InfoField label="Nombre de voyageurs" value={`${c.nbVoyageurs}`} icon={<Users size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />}
-            {(c.nbEnfantsSejour !== undefined && c.nbEnfantsSejour > 0) && <InfoField label="Nombre d'enfants" value={`${c.nbEnfantsSejour}`} icon={<Users size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />}
-            {(c.animaux || c.animauxAcceptes) && <InfoField label="Animaux de compagnie" value="Oui" icon={<CheckCircle size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />}
-            {c.animauxEspeces && <InfoField label="Espèce(s)" value={c.animauxEspeces} icon={<Tag size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />}
-            {c.regimeAlimentaire && <InfoField label="Régime alimentaire" value={c.regimeAlimentaire} icon={<Tag size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />}
-            {c.languesParlees?.length > 0 && (
-              <div>
-                <p className="text-sm font-medium text-text mb-2">Langues parlées</p>
-                <div className="flex flex-wrap gap-1.5">
-                  {c.languesParlees.map((l: string) => (
-                    <span key={l} className={`px-2 py-1 text-xs rounded-lg ${isGerant ? 'bg-[#905D5D]/10 text-[#905D5D] border border-[#905D5D]/20' : 'bg-accent/10 text-accent border border-accent/20'}`}>{l}</span>
-                  ))}
-                </div>
+        <StageSection icon={Users} title="Informations sur le séjour" accent={accent} ink={ink} isDark={isDark} delay={0.05}>
+          {c.nbVoyageurs && <StageField icon={Users} label="Nombre de voyageurs" value={`${c.nbVoyageurs}`} accent={accent} ink={ink} isDark={isDark} />}
+          {(c.nbEnfantsSejour !== undefined && c.nbEnfantsSejour > 0) && <StageField icon={Users} label="Nombre d'enfants" value={`${c.nbEnfantsSejour}`} accent={accent} ink={ink} isDark={isDark} />}
+          {(c.animaux || c.animauxAcceptes) && <StageField icon={CheckCircle} label="Animaux de compagnie" value="Oui" accent={accent} ink={ink} isDark={isDark} />}
+          {c.animauxEspeces && <StageField icon={Tag} label="Espèce(s)" value={c.animauxEspeces} accent={accent} ink={ink} isDark={isDark} />}
+          {c.regimeAlimentaire && <StageField icon={Tag} label="Régime alimentaire" value={c.regimeAlimentaire} accent={accent} ink={ink} isDark={isDark} />}
+          {c.languesParlees?.length > 0 && (
+            <div className="md:col-span-2">
+              <p className={`text-[10px] font-bold uppercase tracking-widest mb-2 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>Langues parlées</p>
+              <div className="flex flex-wrap gap-1.5">
+                {c.languesParlees.map((l: string) => (
+                  <span key={l} className={`px-2 py-1 text-xs rounded-lg ${isDark ? 'bg-white/[0.06] text-slate-200 border border-white/10' : 'bg-accent/10 text-accent border border-accent/20'}`}>{l}</span>
+                ))}
               </div>
-            )}
-          </div>
-        </div>
+            </div>
+          )}
+        </StageSection>
 
-        <div className="border-t border-border/30 pt-4">
-          <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-3">Mode de paiement</p>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {client.modePaiement && <InfoField label="Mode de paiement" value={client.modePaiement} icon={<CreditCard size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />}
-            {acompteVal != null && <InfoField label="Acompte versé" value={`${acompteVal.toLocaleString()} ${devise}`} icon={<DollarSign size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />}
-            {c.acompteDate && <InfoField label="Date de l'acompte" value={new Date(c.acompteDate).toLocaleDateString('fr-FR')} icon={<Calendar size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />}
-            {c.soldeRestant != null && <InfoField label="Solde restant" value={`${c.soldeRestant.toLocaleString()} ${devise}`} icon={<DollarSign size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />}
-            {c.dateLimiteSolde && <InfoField label="Date limite de paiement du solde" value={new Date(c.dateLimiteSolde).toLocaleDateString('fr-FR')} icon={<Calendar size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />}
-            {cautionVal != null && <InfoField label="Caution" value={`${cautionVal.toLocaleString()} ${devise}`} icon={<DollarSign size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />}
-            {c.cautionMode && <InfoField label="Mode de prélèvement caution" value={c.cautionMode} icon={<CreditCard size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />}
-          </div>
-        </div>
+        <StageSection icon={CreditCard} title="Mode de paiement" accent={accent} ink={ink} isDark={isDark} delay={0.1}>
+          {client.modePaiement && <StageField icon={CreditCard} label="Mode de paiement" value={client.modePaiement} accent={accent} ink={ink} isDark={isDark} />}
+          {acompteVal != null && <StageField icon={DollarSign} label="Acompte versé" value={`${acompteVal.toLocaleString()} ${devise}`} accent={accent} ink={ink} isDark={isDark} />}
+          {c.acompteDate && <StageField icon={Calendar} label="Date de l'acompte" value={new Date(c.acompteDate).toLocaleDateString('fr-FR')} accent={accent} ink={ink} isDark={isDark} />}
+          {c.soldeRestant != null && <StageField icon={DollarSign} label="Solde restant" value={`${c.soldeRestant.toLocaleString()} ${devise}`} accent={accent} ink={ink} isDark={isDark} />}
+          {c.dateLimiteSolde && <StageField icon={Calendar} label="Date limite de paiement du solde" value={new Date(c.dateLimiteSolde).toLocaleDateString('fr-FR')} accent={accent} ink={ink} isDark={isDark} />}
+          {cautionVal != null && <StageField icon={DollarSign} label="Caution" value={`${cautionVal.toLocaleString()} ${devise}`} accent={accent} ink={ink} isDark={isDark} />}
+          {c.cautionMode && <StageField icon={CreditCard} label="Mode de prélèvement caution" value={c.cautionMode} accent={accent} ink={ink} isDark={isDark} />}
+        </StageSection>
 
-        <div className="border-t border-border/30 pt-4">
-          <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-3">Notes complémentaires</p>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {c.demandesSpeciales && <InfoField label="Demandes spéciales" value={c.demandesSpeciales} icon={<FileText size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />}
-            {c.arriveeHeure && <InfoField label="Heure d'arrivée prévue" value={c.arriveeHeure} icon={<Clock size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />}
-            {c.arriveeTransport && <InfoField label="Moyen de transport" value={c.arriveeTransport} icon={<Compass size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />}
-            {(client.notes || c.notesInternes) && <InfoField label="Notes internes" value={client.notes || c.notesInternes} icon={<FileText size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />}
-          </div>
-        </div>
+        <StageSection icon={FileText} title="Notes complémentaires" accent={accent} ink={ink} isDark={isDark} delay={0.15}>
+          {c.demandesSpeciales && <StageField icon={FileText} label="Demandes spéciales" value={c.demandesSpeciales} accent={accent} ink={ink} isDark={isDark} />}
+          {c.arriveeHeure && <StageField icon={Clock} label="Heure d'arrivée prévue" value={c.arriveeHeure} accent={accent} ink={ink} isDark={isDark} />}
+          {c.arriveeTransport && <StageField icon={Compass} label="Moyen de transport" value={c.arriveeTransport} accent={accent} ink={ink} isDark={isDark} />}
+          {(client.notes || c.notesInternes) && <StageField icon={FileText} label="Notes internes" value={client.notes || c.notesInternes} accent={accent} ink={ink} isDark={isDark} />}
+        </StageSection>
       </div>
     );
   };
@@ -355,246 +346,182 @@ export const VoyageurDetailTabs = ({ client: initialClient, adminId, agentId, hi
 
     return (
       <div className="space-y-5">
-        <div>
-          <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-3">Informations générales de la réservation</p>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {client.numeroMandat && <InfoField label="Numéro de réservation" value={client.numeroMandat} icon={<Tag size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />}
-            {client.statutReservation && <InfoField label="Statut" value={client.statutReservation} icon={<Clock size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />}
-            {client.dateSignature && <InfoField label="Date de réservation" value={new Date(client.dateSignature).toLocaleDateString('fr-FR')} icon={<Calendar size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />}
-            {client.dateDebut && <InfoField label="Date d'arrivée" value={new Date(client.dateDebut).toLocaleDateString('fr-FR')} icon={<Calendar size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />}
-            {client.dateExpiration && <InfoField label="Date de départ" value={new Date(client.dateExpiration).toLocaleDateString('fr-FR')} icon={<Calendar size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />}
-            {(c.nbNuits !== undefined && c.nbNuits > 0) && <InfoField label="Nombre de nuits" value={`${c.nbNuits}`} icon={<Clock size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />}
-          </div>
-        </div>
+        <StageSection icon={Tag} title="Informations générales de la réservation" accent={accent} ink={ink} isDark={isDark} delay={0.05}>
+          {client.numeroMandat && <StageField icon={Tag} label="Numéro de réservation" value={client.numeroMandat} accent={accent} ink={ink} isDark={isDark} />}
+          {client.statutReservation && <StageField icon={Clock} label="Statut" value={client.statutReservation} accent={accent} ink={ink} isDark={isDark} />}
+          {client.dateSignature && <StageField icon={Calendar} label="Date de réservation" value={new Date(client.dateSignature).toLocaleDateString('fr-FR')} accent={accent} ink={ink} isDark={isDark} />}
+          {client.dateDebut && <StageField icon={Calendar} label="Date d'arrivée" value={new Date(client.dateDebut).toLocaleDateString('fr-FR')} accent={accent} ink={ink} isDark={isDark} />}
+          {client.dateExpiration && <StageField icon={Calendar} label="Date de départ" value={new Date(client.dateExpiration).toLocaleDateString('fr-FR')} accent={accent} ink={ink} isDark={isDark} />}
+          {(c.nbNuits !== undefined && c.nbNuits > 0) && <StageField icon={Clock} label="Nombre de nuits" value={`${c.nbNuits}`} accent={accent} ink={ink} isDark={isDark} />}
+        </StageSection>
 
-        <div className="border-t border-border/30 pt-4">
-          <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-3">Détail du séjour</p>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {c.bienReserve && (
-              <div
-                role="button"
-                tabIndex={0}
-                onClick={() => basePath && navigate(`${basePath}/properties/${c.bienReserve}`)}
-                onKeyDown={(e) => { if (e.key === 'Enter' && basePath) navigate(`${basePath}/properties/${c.bienReserve}`); }}
-                className={`p-4 rounded-xl bg-background transition-colors ${basePath ? `cursor-pointer ${isGerant ? 'hover:bg-[#905D5D]/5' : 'hover:bg-accent/5'}` : ''}`}
-              >
-                <div className="flex items-center gap-2 text-xs text-text-secondary mb-1">
-                  <Layers size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />
-                  <span>Bien réservé</span>
-                </div>
-                <p className={`text-sm font-medium ${isGerant ? 'text-[#905D5D]' : 'text-accent'} hover:underline`}>
-                  {bienReserveProp ? (
-                    <>{bienReserveProp.title || bienReserveProp.reference || `Bien #${bienReserveProp.id}`}{bienReserveProp.city ? ` - ${bienReserveProp.city}` : ''}</>
-                  ) : (
-                    <>Bien #{c.bienReserve}</>
-                  )}
-                </p>
+        <StageSection icon={Layers} title="Détail du séjour" accent={accent} ink={ink} isDark={isDark} delay={0.1}>
+          {c.bienReserve && (
+            <div
+              role="button"
+              tabIndex={0}
+              onClick={() => basePath && navigate(`${basePath}/properties/${c.bienReserve}`)}
+              onKeyDown={(e) => { if (e.key === 'Enter' && basePath) navigate(`${basePath}/properties/${c.bienReserve}`); }}
+              className={`rounded-2xl border p-4 backdrop-blur-sm transition-colors ${isDark ? 'border-white/[0.07] bg-white/[0.04]' : 'border-slate-200/70 bg-white/75'} ${basePath ? ('hover:bg-accent/5 cursor-pointer') : ''}`}
+            >
+              <div className={`flex items-center gap-2 text-xs mb-1 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                <Layers size={16} className={'text-accent'} />
+                <span>Bien réservé</span>
               </div>
-            )}
-            {c.tarifNuit != null && <InfoField label="Tarif par nuit" value={`${c.tarifNuit.toLocaleString()} ${devise}`} icon={<DollarSign size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />}
-            {c.montantTotalHorsOptions != null && <InfoField label="Montant total (hors options)" value={`${c.montantTotalHorsOptions.toLocaleString()} ${devise}`} icon={<DollarSign size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />}
-            {c.montantTotalAvecOptions != null && <InfoField label="Montant total (avec options)" value={`${c.montantTotalAvecOptions.toLocaleString()} ${devise}`} icon={<DollarSign size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />}
-            {c.acompteMontant != null && <InfoField label="Acompte versé" value={`${c.acompteMontant.toLocaleString()} ${devise}`} icon={<DollarSign size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />}
-            {c.soldeRestant != null && <InfoField label="Solde restant" value={`${c.soldeRestant.toLocaleString()} ${devise}`} icon={<DollarSign size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />}
-            {c.cautionMontant != null && <InfoField label="Caution" value={`${c.cautionMontant.toLocaleString()} ${devise}`} icon={<DollarSign size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />}
-          </div>
+              <p className={`text-sm font-medium ${'text-accent'} hover:underline`}>
+                {bienReserveProp ? (
+                  <>{bienReserveProp.title || bienReserveProp.reference || `Bien #${bienReserveProp.id}`}{bienReserveProp.city ? ` - ${bienReserveProp.city}` : ''}</>
+                ) : (
+                  <>Bien #{c.bienReserve}</>
+                )}
+              </p>
+            </div>
+          )}
+          {c.tarifNuit != null && <StageField icon={DollarSign} label="Tarif par nuit" value={`${c.tarifNuit.toLocaleString()} ${devise}`} accent={accent} ink={ink} isDark={isDark} />}
+          {c.montantTotalHorsOptions != null && <StageField icon={DollarSign} label="Montant total (hors options)" value={`${c.montantTotalHorsOptions.toLocaleString()} ${devise}`} accent={accent} ink={ink} isDark={isDark} />}
+          {c.montantTotalAvecOptions != null && <StageField icon={DollarSign} label="Montant total (avec options)" value={`${c.montantTotalAvecOptions.toLocaleString()} ${devise}`} accent={accent} ink={ink} isDark={isDark} />}
+          {c.acompteMontant != null && <StageField icon={DollarSign} label="Acompte versé" value={`${c.acompteMontant.toLocaleString()} ${devise}`} accent={accent} ink={ink} isDark={isDark} />}
+          {c.soldeRestant != null && <StageField icon={DollarSign} label="Solde restant" value={`${c.soldeRestant.toLocaleString()} ${devise}`} accent={accent} ink={ink} isDark={isDark} />}
+          {c.cautionMontant != null && <StageField icon={DollarSign} label="Caution" value={`${c.cautionMontant.toLocaleString()} ${devise}`} accent={accent} ink={ink} isDark={isDark} />}
           {c.optionsSelectionnees?.length > 0 && (
-            <div className="mt-4">
+            <div className="md:col-span-2">
               {renderTagList(c.optionsSelectionnees, 'Options sélectionnées', isGerant)}
             </div>
           )}
-        </div>
+        </StageSection>
 
-        <div className="border-t border-border/30 pt-4">
-          <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-3">Conditions générales</p>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {c.conditionAnnulation && <InfoField label="Conditions d'annulation" value={c.conditionAnnulation} icon={<Shield size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />}
-            {c.checkInHeure && <InfoField label="Heure d'arrivée (check-in)" value={c.checkInHeure} icon={<Clock size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />}
-            {c.checkOutHeure && <InfoField label="Heure de départ (check-out)" value={c.checkOutHeure} icon={<Clock size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />}
-            {c.animauxAcceptes !== undefined && <InfoField label="Animaux acceptés" value={c.animauxAcceptes ? 'Oui' : 'Non'} icon={<CheckCircle size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />}
-            {c.fumeur !== undefined && <InfoField label="Non-fumeur" value={c.fumeur ? 'Oui' : 'Non'} icon={<CheckCircle size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />}
-          </div>
-        </div>
+        <StageSection icon={Shield} title="Conditions générales" accent={accent} ink={ink} isDark={isDark} delay={0.15}>
+          {c.conditionAnnulation && <StageField icon={Shield} label="Conditions d'annulation" value={c.conditionAnnulation} accent={accent} ink={ink} isDark={isDark} />}
+          {c.checkInHeure && <StageField icon={Clock} label="Heure d'arrivée (check-in)" value={c.checkInHeure} accent={accent} ink={ink} isDark={isDark} />}
+          {c.checkOutHeure && <StageField icon={Clock} label="Heure de départ (check-out)" value={c.checkOutHeure} accent={accent} ink={ink} isDark={isDark} />}
+          {c.animauxAcceptes !== undefined && <StageField icon={CheckCircle} label="Animaux acceptés" value={c.animauxAcceptes ? 'Oui' : 'Non'} accent={accent} ink={ink} isDark={isDark} />}
+          {c.fumeur !== undefined && <StageField icon={CheckCircle} label="Non-fumeur" value={c.fumeur ? 'Oui' : 'Non'} accent={accent} ink={ink} isDark={isDark} />}
+        </StageSection>
 
         {(client.assuranceAnnulation || client.assuranceMultirisque) && (
-          <div className="border-t border-border/30 pt-4">
-            <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-3">Assurance</p>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {client.assuranceAnnulation && <InfoField label="Assurance annulation proposée" value={client.assuranceAnnulationMontant != null ? `${client.assuranceAnnulationMontant.toLocaleString()} ${devise}` : 'Oui'} icon={<Shield size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />}
-              {client.assuranceMultirisque && <InfoField label="Assurance multirisque proposée" value={client.assuranceMultirisqueMontant != null ? `${client.assuranceMultirisqueMontant.toLocaleString()} ${devise}` : 'Oui'} icon={<Shield size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />}
-            </div>
-          </div>
+          <StageSection icon={Shield} title="Assurance" accent={accent} ink={ink} isDark={isDark} delay={0.2}>
+            {client.assuranceAnnulation && <StageField icon={Shield} label="Assurance annulation proposée" value={client.assuranceAnnulationMontant != null ? `${client.assuranceAnnulationMontant.toLocaleString()} ${devise}` : 'Oui'} accent={accent} ink={ink} isDark={isDark} />}
+            {client.assuranceMultirisque && <StageField icon={Shield} label="Assurance multirisque proposée" value={client.assuranceMultirisqueMontant != null ? `${client.assuranceMultirisqueMontant.toLocaleString()} ${devise}` : 'Oui'} accent={accent} ink={ink} isDark={isDark} />}
+          </StageSection>
         )}
 
         {(client.dateLimiteAnnulation || client.penaliteAnnulation || client.edlEntree || client.edlSortie || client.reglementInterieur !== undefined || client.contratNotes) && (
-          <div className="border-t border-border/30 pt-4">
-            <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-3">Conditions & État des lieux</p>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {client.dateLimiteAnnulation && <InfoField label="Date limite d'annulation" value={new Date(client.dateLimiteAnnulation).toLocaleDateString('fr-FR')} icon={<Calendar size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />}
-              {client.penaliteAnnulation != null && <InfoField label="Pénalité d'annulation" value={`${client.penaliteAnnulation} %`} icon={<DollarSign size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />}
-              {client.edlEntree && <InfoField label="État des lieux d'entrée" value={client.edlEntree} icon={<Calendar size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />}
-              {client.edlSortie && <InfoField label="État des lieux de sortie" value={client.edlSortie} icon={<Calendar size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />}
-              {client.reglementInterieur !== undefined && <InfoField label="Règlement intérieur accepté" value={client.reglementInterieur ? 'Oui' : 'Non'} icon={<CheckCircle size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />}
-              {client.contratNotes && <InfoField label="Notes contrat" value={client.contratNotes} icon={<FileText size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />}
-            </div>
-          </div>
+          <StageSection icon={Calendar} title="Conditions & État des lieux" accent={accent} ink={ink} isDark={isDark} delay={0.25}>
+            {client.dateLimiteAnnulation && <StageField icon={Calendar} label="Date limite d'annulation" value={new Date(client.dateLimiteAnnulation).toLocaleDateString('fr-FR')} accent={accent} ink={ink} isDark={isDark} />}
+            {client.penaliteAnnulation != null && <StageField icon={DollarSign} label="Pénalité d'annulation" value={`${client.penaliteAnnulation} %`} accent={accent} ink={ink} isDark={isDark} />}
+            {client.edlEntree && <StageField icon={Calendar} label="État des lieux d'entrée" value={client.edlEntree} accent={accent} ink={ink} isDark={isDark} />}
+            {client.edlSortie && <StageField icon={Calendar} label="État des lieux de sortie" value={client.edlSortie} accent={accent} ink={ink} isDark={isDark} />}
+            {client.reglementInterieur !== undefined && <StageField icon={CheckCircle} label="Règlement intérieur accepté" value={client.reglementInterieur ? 'Oui' : 'Non'} accent={accent} ink={ink} isDark={isDark} />}
+            {client.contratNotes && <StageField icon={FileText} label="Notes contrat" value={client.contratNotes} accent={accent} ink={ink} isDark={isDark} />}
+          </StageSection>
         )}
 
         {(client.guideCheckin && client.guideCheckin.length > 0) && (
-          <div className="border-t border-border/30 pt-4">
-            <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-3">Guide Check-in</p>
-            <div className="space-y-2">
-              {client.guideCheckin.map((step, i) => (
-                <div key={i} className="flex items-start gap-2 p-2 rounded-lg bg-background/50">
-                  <span className={`text-xs font-bold ${isGerant ? 'text-[#905D5D]' : 'text-accent'} mt-0.5`}>{i + 1}.</span>
-                  <p className="text-sm text-text">{step.texte}</p>
-                </div>
-              ))}
-            </div>
-          </div>
+          <StageSection icon={Layers} title="Guide Check-in" accent={accent} ink={ink} isDark={isDark} delay={0.3}>
+            {client.guideCheckin.map((step, i) => (
+              <div key={i} className={`flex items-start gap-2 p-3 rounded-2xl border backdrop-blur-sm ${isDark ? 'border-white/[0.07] bg-white/[0.04]' : 'border-slate-200/70 bg-white/75'}`}>
+                <span className={`text-xs font-bold mt-0.5 ${'text-accent'}`}>{i + 1}.</span>
+                <p className={`text-sm ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>{step.texte}</p>
+              </div>
+            ))}
+          </StageSection>
         )}
 
         {(client.checklistDepart && client.checklistDepart.length > 0) && (
-          <div className="border-t border-border/30 pt-4">
-            <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-3">Checklist Départ</p>
-            <div className="space-y-2">
-              {client.checklistDepart.map((item, i) => (
-                <div key={i} className="flex items-center gap-2 p-2 rounded-lg bg-background/50">
-                  <CheckSquare size={14} className={`${isGerant ? 'text-[#905D5D]' : 'text-accent'} shrink-0`} />
-                  <p className="text-sm text-text flex-1">{item.texte}</p>
-                  {item.obligatoire && <span className={`text-xs px-2 py-0.5 rounded-full ${isGerant ? 'bg-[#905D5D]/10 text-[#905D5D]' : 'bg-accent/10 text-accent'}`}>Obligatoire</span>}
-                </div>
-              ))}
-            </div>
-            {client.checklistDepartMessage && <p className="text-sm text-text mt-2">{client.checklistDepartMessage}</p>}
-            {client.checklistDepartWhatsapp && <InfoField label="WhatsApp" value={client.checklistDepartWhatsapp} icon={<MessageCircle size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />}
-          </div>
+          <StageSection icon={CheckSquare} title="Checklist Départ" accent={accent} ink={ink} isDark={isDark} delay={0.35}>
+            {client.checklistDepart.map((item, i) => (
+              <div key={i} className={`flex items-center gap-2 p-3 rounded-2xl border backdrop-blur-sm ${isDark ? 'border-white/[0.07] bg-white/[0.04]' : 'border-slate-200/70 bg-white/75'}`}>
+                <CheckSquare size={14} className={`${'text-accent'} shrink-0`} />
+                <p className={`text-sm flex-1 ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>{item.texte}</p>
+                {item.obligatoire && <span className={`text-xs px-2 py-0.5 rounded-full ${'bg-accent/10 text-accent'}`}>Obligatoire</span>}
+              </div>
+            ))}
+            {client.checklistDepartMessage && <p className={`text-sm ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>{client.checklistDepartMessage}</p>}
+            {client.checklistDepartWhatsapp && <StageField icon={MessageCircle} label="WhatsApp" value={client.checklistDepartWhatsapp} accent={accent} ink={ink} isDark={isDark} />}
+          </StageSection>
         )}
 
         {(client.cartePrivilegeActif || (client.cartePrivilegePartenaires && client.cartePrivilegePartenaires.length > 0)) && (
-          <div className="border-t border-border/30 pt-4">
-            <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-3">Carte Privilège - Partenaires</p>
-            {client.cartePrivilegeActif && <p className="text-sm text-emerald-600 font-medium mb-2">Activée</p>}
+          <StageSection icon={Tag} title="Carte Privilège - Partenaires" accent={accent} ink={ink} isDark={isDark} delay={0.4}>
+            {client.cartePrivilegeActif && <p className="text-sm text-emerald-600 font-medium">Activée</p>}
             {client.cartePrivilegePartenaires && client.cartePrivilegePartenaires.length > 0 && (
-              <div className="space-y-2">
+              <div className="space-y-2 md:col-span-2">
                 {client.cartePrivilegePartenaires.map((p, i) => (
-                  <div key={i} className="p-3 rounded-lg bg-background/50 border border-border/30">
+                  <div key={i} className={`p-3 rounded-2xl border backdrop-blur-sm ${isDark ? 'border-white/[0.07] bg-white/[0.04]' : 'border-slate-200/70 bg-white/75'}`}>
                     <div className="flex items-center justify-between">
-                      <p className="text-sm font-medium text-text">{p.nom}</p>
-                      {p.remise && <span className={`text-xs px-2 py-0.5 rounded-full ${isGerant ? 'bg-[#905D5D]/10 text-[#905D5D]' : 'bg-accent/10 text-accent'}`}>{p.remise}</span>}
+                      <p className={`text-sm font-medium ${isDark ? 'text-white' : 'text-slate-900'}`}>{p.nom}</p>
+                      {p.remise && <span className={`text-xs px-2 py-0.5 rounded-full ${'bg-accent/10 text-accent'}`}>{p.remise}</span>}
                     </div>
-                    {p.categorie && <p className="text-xs text-text-secondary mt-1">{p.categorie}</p>}
-                    {p.description && <p className="text-xs text-text-secondary mt-1">{p.description}</p>}
+                    {p.categorie && <p className={`text-xs mt-1 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{p.categorie}</p>}
+                    {p.description && <p className={`text-xs mt-1 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{p.description}</p>}
                   </div>
                 ))}
               </div>
             )}
-          </div>
+          </StageSection>
         )}
 
         {(client.conciergerieActif || client.conciergerieWhatsapp || (client.conciergerieActivites && client.conciergerieActivites.length > 0)) && (
-          <div className="border-t border-border/30 pt-4">
-            <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-3">Conciergerie d'Activités</p>
-            {client.conciergerieActif && <p className="text-sm text-emerald-600 font-medium mb-2">Activée</p>}
-            {client.conciergerieWhatsapp && <InfoField label="WhatsApp" value={client.conciergerieWhatsapp} icon={<MessageCircle size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />}
+          <StageSection icon={Layers} title="Conciergerie d'Activités" accent={accent} ink={ink} isDark={isDark} delay={0.45}>
+            {client.conciergerieActif && <p className="text-sm text-emerald-600 font-medium">Activée</p>}
+            {client.conciergerieWhatsapp && <StageField icon={MessageCircle} label="WhatsApp" value={client.conciergerieWhatsapp} accent={accent} ink={ink} isDark={isDark} />}
             {client.conciergerieActivites && client.conciergerieActivites.length > 0 && (
-              <div className="space-y-2 mt-2">
+              <div className="space-y-2 md:col-span-2">
                 {client.conciergerieActivites.map((a, i) => (
-                  <div key={i} className="p-3 rounded-lg bg-background/50 border border-border/30">
+                  <div key={i} className={`p-3 rounded-2xl border backdrop-blur-sm ${isDark ? 'border-white/[0.07] bg-white/[0.04]' : 'border-slate-200/70 bg-white/75'}`}>
                     <div className="flex items-center justify-between">
-                      <p className="text-sm font-medium text-text">{a.titre}</p>
-                      {a.prix && <span className={`text-xs font-medium ${isGerant ? 'text-[#905D5D]' : 'text-accent'}`}>{a.prix} {devise}</span>}
+                      <p className={`text-sm font-medium ${isDark ? 'text-white' : 'text-slate-900'}`}>{a.titre}</p>
+                      {a.prix && <span className={`text-xs font-medium ${'text-accent'}`}>{a.prix} {devise}</span>}
                     </div>
-                    {a.duree && <p className="text-xs text-text-secondary mt-1">Durée : {a.duree}</p>}
-                    {a.description && <p className="text-xs text-text-secondary mt-1">{a.description}</p>}
-                    {a.disponibilite && <p className="text-xs text-text-secondary mt-1">Dispo : {a.disponibilite}</p>}
+                    {a.duree && <p className={`text-xs mt-1 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Durée : {a.duree}</p>}
+                    {a.description && <p className={`text-xs mt-1 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{a.description}</p>}
+                    {a.disponibilite && <p className={`text-xs mt-1 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Dispo : {a.disponibilite}</p>}
                   </div>
                 ))}
               </div>
             )}
-          </div>
+          </StageSection>
         )}
 
         {(client.assistanceWhatsapp || client.assistanceTelephone || client.assistanceEmail) && (
-          <div className="border-t border-border/30 pt-4">
-            <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider mb-3">Assistance 24/7</p>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {client.assistanceWhatsapp && <InfoField label="WhatsApp" value={client.assistanceWhatsapp} icon={<MessageCircle size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />}
-              {client.assistanceTelephone && <InfoField label="Téléphone" value={client.assistanceTelephone} icon={<Phone size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />}
-              {client.assistanceEmail && <InfoField label="Email" value={client.assistanceEmail} icon={<Mail size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />}
-            </div>
-            {client.assistanceMessage && <p className="text-sm text-text mt-2">{client.assistanceMessage}</p>}
-          </div>
+          <StageSection icon={MessageCircle} title="Assistance 24/7" accent={accent} ink={ink} isDark={isDark} delay={0.5}>
+            {client.assistanceWhatsapp && <StageField icon={MessageCircle} label="WhatsApp" value={client.assistanceWhatsapp} accent={accent} ink={ink} isDark={isDark} />}
+            {client.assistanceTelephone && <StageField icon={Phone} label="Téléphone" value={client.assistanceTelephone} accent={accent} ink={ink} isDark={isDark} />}
+            {client.assistanceEmail && <StageField icon={Mail} label="Email" value={client.assistanceEmail} accent={accent} ink={ink} isDark={isDark} />}
+            {client.assistanceMessage && <p className={`text-sm ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>{client.assistanceMessage}</p>}
+          </StageSection>
         )}
       </div>
     );
   };
 
   const renderDocuments = () => {
-    const docs = [
+    const items = [
       { label: "Pièce d'identité (passeport ou CIN)", required: true, url: client.docIdentiteUrl, name: client.docIdentiteName },
-      { label: 'Contrat de location signé', required: true, url: client.mandatPdfUrl, name: client.mandatPdfName },
       { label: 'Preuve de paiement (acompte)', required: true, url: client.docRevenusUrl, name: client.docRevenusName },
       { label: 'Justificatif de domicile', required: false, url: client.docDomicileUrl, name: client.docDomicileName },
     ];
 
     return (
-      <div className="space-y-5">
-        <div className="rounded-xl border border-border/50 bg-background/50 p-4 space-y-3">
-          <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider">Documents justificatifs</p>
-          {docs.map((doc, i) => {
-            const uploaded = !!doc.url;
-            return (
-              <div key={i} className="flex items-center gap-3 p-3 rounded-lg border border-border bg-card/50">
-                <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 transition-colors ${uploaded ? 'bg-emerald-500 border-emerald-500' : 'bg-background border-border'}`}>
-                  {uploaded && (
-                    <svg width="12" height="10" viewBox="0 0 10 8" fill="none">
-                      <path d="M1 4L3.5 6.5L9 1" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
-                  )}
-                </div>
-                <span className={`text-sm flex-1 ${uploaded ? 'text-text-secondary' : 'text-text'}`}>{doc.label}</span>
-                {doc.name && <span className="text-[10px] text-text-secondary truncate max-w-[140px]">{doc.name}</span>}
-                {doc.required ? (
-                  <span className="text-[10px] font-medium text-error uppercase">Obligatoire</span>
-                ) : (
-                  <span className={`text-[10px] font-medium ${isGerant ? 'text-[#905D5D]' : 'text-accent'} uppercase`}>Recommandé</span>
-                )}
-                {uploaded && doc.url ? (
-                  <button type="button" onClick={() => openViewer(doc.url!, doc.label)} className={`text-xs px-2.5 py-1 rounded-lg transition-all flex items-center gap-1 ${isGerant ? 'bg-[#905D5D]/10 text-[#905D5D] border border-[#905D5D]/20 hover:bg-[#905D5D]/20' : 'bg-accent/10 text-accent border border-accent/20 hover:bg-accent/20'}`}>
-                    <Eye size={12} /> Voir
-                  </button>
-                ) : null}
-              </div>
-            );
-          })}
-        </div>
-
-        <div className="rounded-xl border border-border/50 bg-background/50 p-4 space-y-3">
-          <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider">Fichier du contrat signé</p>
-          <div className="flex items-center gap-3 p-3 rounded-lg border border-border bg-card/50">
-            <FileText size={16} className={client.mandatPdfUrl ? 'text-emerald-500' : 'text-text-secondary'} />
-            <span className="text-sm text-text flex-1">Contrat signé (PDF)</span>
-            {client.mandatPdfUrl ? (
-              <>
-                <span className="text-[10px] font-medium text-emerald-600 uppercase bg-emerald-50 px-2 py-0.5 rounded">Uploadé</span>
-                <button type="button" onClick={() => openViewer(client.mandatPdfUrl!, 'Contrat signé')} className={`text-xs px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 ${isGerant ? 'bg-[#905D5D]/10 text-[#905D5D] border border-[#905D5D]/20 hover:bg-[#905D5D]/20' : 'bg-accent/10 text-accent border border-accent/20 hover:bg-accent/20'}`}>
-                  <Eye size={12} /> Voir
-                </button>
-              </>
-            ) : (
-              <span className="text-[10px] font-medium text-text-secondary uppercase bg-background px-2 py-0.5 rounded">Non uploadé</span>
-            )}
-          </div>
-        </div>
-      </div>
+      <StageDocumentsTab
+        items={items}
+        clientName={client.name}
+        mandatTitle="Contrat signé"
+        mandatUrl={client.mandatPdfUrl}
+        mandatName={(client as any).mandatPdfName || 'Contrat signé (PDF)'}
+        accent={accent}
+        ink={ink}
+        isDark={isDark}
+        isGerant={isGerant}
+        onOpen={openViewer}
+      />
     );
   };
 
   const renderContrats = () => {
     if (!canReadContracts) return null;
     return (
-      <ClientContractsTab clientId={client.id} clientName={client.name} isGerant={isGerant} />
+      <ClientContractsTab clientId={client.id} clientName={client.name} clientType={client.type} isGerant={isGerant} />
     );
   };
 

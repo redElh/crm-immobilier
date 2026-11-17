@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { FileText, Clock, Trash2, ArrowRight, X, User, Briefcase, Users } from 'react-feather'
 import { getDrafts, deleteDraft, type ContactDraft } from '../../../services/contactDraftStorage'
 import { CompletionRing } from '../../ui/CompletionRing'
+import { FLOATING_SLOT_1, FLOATING_PANEL_1, FLOATING_PANEL_MAX_H, FLOATING_PANEL_LIST_H } from '../../../lib/floating'
 
 const CONTACT_TYPE_CONFIG: Record<string, { gradient: string; icon: React.ReactNode; label: string }> = {
   Particulier: { gradient: 'from-blue-500/20 to-blue-600/10', icon: <User size={15} />, label: 'Particulier' },
@@ -76,7 +77,7 @@ export function ContactDraftSection({ contactType, userId, onResume, draftChange
     <>
       <motion.button
         onClick={() => setOpen(v => !v)}
-        className="fixed bottom-6 right-6 z-[9999] flex items-center gap-2.5 px-4 py-3 rounded-2xl bg-gradient-to-br from-amber-400 to-amber-500 text-white shadow-lg hover:shadow-xl hover:scale-105 transition-shadow"
+        className={`fixed ${FLOATING_SLOT_1} right-6 z-[9999] flex items-center gap-2.5 px-4 py-3 rounded-2xl bg-gradient-to-br from-amber-400 to-amber-500 text-white shadow-lg hover:shadow-xl hover:scale-105 transition-shadow`}
         whileTap={{ scale: 0.95 }}
         layoutId="contact-draft-bubble"
       >
@@ -102,8 +103,8 @@ export function ContactDraftSection({ contactType, userId, onResume, draftChange
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.85, y: 20, transition: { duration: 0.15 } }}
             transition={{ type: 'spring', damping: 22, stiffness: 300, mass: 0.8 }}
-            className="fixed bottom-24 right-6 z-[9999] w-[400px] max-w-[calc(100vw-32px)] bg-card rounded-2xl border border-border/50 shadow-2xl overflow-hidden"
-            style={{ maxHeight: 'calc(100vh - 160px)' }}
+            className={`fixed ${FLOATING_PANEL_1} right-6 z-[9999] w-[400px] max-w-[calc(100vw-32px)] bg-card rounded-2xl border border-border/50 shadow-2xl overflow-hidden`}
+            style={{ maxHeight: FLOATING_PANEL_MAX_H }}
           >
             <div className="px-5 py-4 border-b border-border/30 flex items-center justify-between bg-gradient-to-r from-amber-50 to-amber-50/30">
               <div className="flex items-center gap-2.5">
@@ -123,7 +124,7 @@ export function ContactDraftSection({ contactType, userId, onResume, draftChange
               </button>
             </div>
 
-            <div className="overflow-y-auto" style={{ maxHeight: 'calc(100vh - 260px)' }}>
+            <div className="overflow-y-auto" style={{ maxHeight: FLOATING_PANEL_LIST_H }}>
               {drafts.map((draft) => {
                 const config = CONTACT_TYPE_CONFIG[draft.contactType] || DEFAULT_CONFIG
                 const pct = draft.completion

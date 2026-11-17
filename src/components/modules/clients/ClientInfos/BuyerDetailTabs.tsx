@@ -9,7 +9,7 @@ import { ClientTransactionsTab } from '../ClientTransactionsTab';
 import { NotesActiviteTab } from './NotesActiviteTab';
 import { ClientContractsTab } from '../ClientContractsTab';
 import ClientFinancementTab from '../ClientFinancementTab';
-import { ClientTabsShell, StageField, StageSection, StageTags, HeaderPills, StageEmpty, ProximitesGrid, PrestationsGrid, StagePill, StageProgressCard, StageDocButton, StageLinkCard, ScoreRing, getScoreHue, scoreLabel, getFinancementStatusHue, getMandatStatusHue, OK_STAGE_HUE, SLATE_STAGE_HUE, useDetailAccent } from './ClientDetailStage';
+import { ClientTabsShell, StageField, StageSection, StageTags, HeaderPills, StageEmpty, ProximitesGrid, PrestationsGrid, StagePill, StageProgressCard, StageDocButton, StageLinkCard, ScoreRing, getScoreHue, scoreLabel, getFinancementStatusHue, getMandatStatusHue, OK_STAGE_HUE, SLATE_STAGE_HUE, useDetailAccent, StageDocumentsTab } from './ClientDetailStage';
 import { Client } from '../../../../types/client';
 import { AGENTS } from '../../../../types/calendar';
 import { api } from '../../../../services/api';
@@ -50,7 +50,7 @@ const renderTagList = (items: string[] | undefined, label: string, isGerant: boo
       <p className="text-sm font-medium text-text mb-2">{label}</p>
       <div className="flex flex-wrap gap-1.5">
         {items.map(item => (
-          <span key={item} className={`px-2 py-1 text-xs rounded-lg ${isGerant ? 'bg-[#905D5D]/10 text-[#905D5D] border border-[#905D5D]/20' : 'bg-accent/10 text-accent border border-accent/20'}`}>
+          <span key={item} className={`px-2 py-1 text-xs rounded-lg ${'bg-accent/10 text-accent border border-accent/20'}`}>
             {item}
           </span>
         ))}
@@ -112,7 +112,7 @@ const resolveAgentName = (id: string): string => {
 
 const statutFinancementColor = (statut: string | undefined, isGerant: boolean) => {
   switch (statut) {
-    case 'En cours': return isGerant ? 'bg-[#905D5D]/10 text-[#905D5D] border-[#905D5D]/20' : 'bg-amber-500/10 text-amber-500 border-amber-500/20';
+    case 'En cours': return 'bg-accent/10 text-accent border-accent/20';
     case 'Accordé': case 'Accorde': return 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20';
     case 'Refusé': case 'Refuse': return 'bg-error/10 text-error border-error/20';
     default: return 'bg-text-secondary/10 text-text-secondary border-text-secondary/20';
@@ -643,7 +643,7 @@ export const BuyerDetailTabs = ({ client: initialClient, adminId, agentId, highl
       }
     };
 
-    const scoreHueOf = (score: number) => getScoreHue(score, isGerant);
+    const scoreHueOf = (score: number) => getScoreHue(score, isGerant, accent);
 
     const criterionMeta: Record<string, { label: string; icon: any; weight: number }> = {
       location: { label: 'Localisation', icon: MapPin, weight: 20 },
@@ -781,9 +781,9 @@ export const BuyerDetailTabs = ({ client: initialClient, adminId, agentId, highl
                 <button
                   type="button"
                   className="inline-flex items-center gap-2 rounded-xl border border-white/20 px-3.5 py-2 text-xs font-bold text-white shadow-lg transition-all hover:scale-[1.02] active:scale-95"
-                  style={isGerant
-                    ? { backgroundImage: 'linear-gradient(145deg, #C9A0A0 0%, #905D5D 100%)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.4), 0 10px 26px -10px rgba(144,93,93,0.6)' }
-                    : isDark
+style={isGerant
+  ? { backgroundImage: `linear-gradient(145deg, ${accent.a} 0%, ${accent.b} 100%)`, boxShadow: `inset 0 1px 0 rgba(255,255,255,0.4), 0 10px 26px -10px ${accent.glow}` }
+  : isDark
                       ? { backgroundImage: 'linear-gradient(145deg, #8B7CFF 0%, #6C5ECF 60%, #5646C9 100%)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.4), 0 10px 26px -8px rgba(124,92,255,0.65)' }
                       : { backgroundImage: 'linear-gradient(145deg, #2DD4BF 0%, #14B8A6 60%, #0D9488 100%)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.5), 0 10px 26px -10px rgba(13,148,136,0.6)' }}
                 >
@@ -809,11 +809,11 @@ export const BuyerDetailTabs = ({ client: initialClient, adminId, agentId, highl
                   type="button"
                   onClick={() => setCroisementScoreFilter(val)}
                   className={`rounded-lg px-2.5 py-1 text-[11px] font-bold transition-all duration-200 ${on ? 'text-white shadow-sm' : isDark ? 'text-slate-400 hover:bg-white/[0.06] hover:text-white' : 'text-slate-500 hover:bg-slate-900/[0.04] hover:text-slate-900'}`}
-                  style={on ? (isGerant
-                    ? { background: 'linear-gradient(145deg, #C9A0A0, #905D5D)' }
-                    : isDark
-                      ? { background: 'linear-gradient(145deg, #8B7CFF, #6C5ECF)' }
-                      : { background: 'linear-gradient(145deg, #2DD4BF, #0D9488)' }) : undefined}
+style={on ? (isGerant
+  ? { background: `linear-gradient(145deg, ${accent.a}, ${accent.b})` }
+  : isDark
+    ? { background: 'linear-gradient(145deg, #8B7CFF, #6C5ECF)' }
+    : { background: 'linear-gradient(145deg, #2DD4BF, #0D9488)' }) : undefined}
                 >
                   {val === 0 ? 'Tous' : `${val}%+`}
                 </button>
@@ -830,11 +830,11 @@ export const BuyerDetailTabs = ({ client: initialClient, adminId, agentId, highl
                   type="button"
                   onClick={() => setSortBy(val)}
                   className={`flex items-center gap-1 rounded-lg px-2.5 py-1 text-[11px] font-bold transition-all duration-200 ${on ? 'text-white shadow-sm' : isDark ? 'text-slate-400 hover:bg-white/[0.06] hover:text-white' : 'text-slate-500 hover:bg-slate-900/[0.04] hover:text-slate-900'}`}
-                  style={on ? (isGerant
-                    ? { background: 'linear-gradient(145deg, #C9A0A0, #905D5D)' }
-                    : isDark
-                      ? { background: 'linear-gradient(145deg, #8B7CFF, #6C5ECF)' }
-                      : { background: 'linear-gradient(145deg, #2DD4BF, #0D9488)' }) : undefined}
+style={on ? (isGerant
+  ? { background: `linear-gradient(145deg, ${accent.a}, ${accent.b})` }
+  : isDark
+    ? { background: 'linear-gradient(145deg, #8B7CFF, #6C5ECF)' }
+    : { background: 'linear-gradient(145deg, #2DD4BF, #0D9488)' }) : undefined}
                 >
                   <Icon size={10} />{label}
                 </button>
@@ -910,7 +910,7 @@ export const BuyerDetailTabs = ({ client: initialClient, adminId, agentId, highl
                         </div>
                         {/* Score ring */}
                         <div className="flex shrink-0 flex-col items-center gap-1">
-                          <ScoreRing score={match.score} size={52} isGerant={isGerant} isDark={isDark} />
+                          <ScoreRing score={match.score} size={52} isGerant={isGerant} isDark={isDark} accent={accent} />
                           <span className="text-[8px] font-extrabold uppercase tracking-wider" style={{ color: isDark ? scoreHue.a : scoreHue.b }}>
                             {scoreLabel(match.score)}
                           </span>
@@ -990,7 +990,7 @@ export const BuyerDetailTabs = ({ client: initialClient, adminId, agentId, highl
                       <div className="flex flex-wrap gap-x-4 gap-y-1">
                         {criteria.map(({ key, label, icon: CIcon, ratio }) => {
                           const pct = Math.round(ratio * 100);
-                          const cHue = getScoreHue(pct, isGerant);
+                          const cHue = getScoreHue(pct, isGerant, accent);
                           return (
                             <div key={key} className="flex items-center gap-1.5 py-0.5 text-[11px]">
                               <CIcon size={10} style={{ color: cHue.line }} />
@@ -1027,7 +1027,7 @@ export const BuyerDetailTabs = ({ client: initialClient, adminId, agentId, highl
                         {criteria.map(({ key, label, icon: CIcon, ratio, weight }) => {
                           const pct = Math.round(ratio * 100);
                           const pts = Math.round(ratio * weight);
-                          const cHue = getScoreHue(pct, isGerant);
+                          const cHue = getScoreHue(pct, isGerant, accent);
                           return (
                             <div key={key} className={`flex items-center justify-between py-1 ${isDark ? 'border-white/[0.06]' : 'border-slate-200/60'} border-b last:border-0`}>
                               <div className="flex items-center gap-2 text-[11px]">
@@ -1208,7 +1208,7 @@ export const BuyerDetailTabs = ({ client: initialClient, adminId, agentId, highl
                     <div className="space-y-2">
                       {mCriteria.map(({ key, label, icon: CIcon, ratio, weight }) => {
                         const p = Math.round(ratio * 100);
-                        const cHue = getScoreHue(p, isGerant);
+                        const cHue = getScoreHue(p, isGerant, accent);
                         return (
                           <div key={key} className="flex items-center gap-2">
                             <CIcon size={11} style={{ color: cHue.line }} className="shrink-0" />
@@ -1231,7 +1231,7 @@ export const BuyerDetailTabs = ({ client: initialClient, adminId, agentId, highl
                     value={proposalEmail}
                     onChange={(e) => setProposalEmail(e.target.value)}
                     placeholder="email@exemple.com"
-                    className={`h-10 w-full rounded-xl border px-3.5 text-sm backdrop-blur-sm transition-all focus:outline-none focus:ring-2 ${isDark ? 'border-white/10 bg-white/[0.04] text-white placeholder:text-slate-500' : 'border-slate-200/70 bg-white/75 text-slate-900 placeholder:text-slate-400 shadow-sm'} ${isGerant ? 'focus:border-[#905D5D]/50 focus:ring-[#905D5D]/20' : isDark ? 'focus:border-violet-400/40 focus:ring-violet-400/20' : 'focus:border-teal-500/40 focus:ring-teal-500/20'}`}
+                    className={`h-10 w-full rounded-xl border px-3.5 text-sm backdrop-blur-sm transition-all focus:outline-none focus:ring-2 ${isDark ? 'border-white/10 bg-white/[0.04] text-white placeholder:text-slate-500' : 'border-slate-200/70 bg-white/75 text-slate-900 placeholder:text-slate-400 shadow-sm'} ${isDark ? 'focus:border-violet-400/40 focus:ring-violet-400/20' : 'focus:border-teal-500/40 focus:ring-teal-500/20'}`}
                   />
                 </div>
 
@@ -1241,7 +1241,7 @@ export const BuyerDetailTabs = ({ client: initialClient, adminId, agentId, highl
                     value={proposalMessage}
                     onChange={(e) => setProposalMessage(e.target.value)}
                     rows={12}
-                    className={`w-full resize-none rounded-xl border px-3.5 py-2.5 font-mono text-xs leading-relaxed backdrop-blur-sm transition-all focus:outline-none focus:ring-2 ${isDark ? 'border-white/10 bg-white/[0.04] text-slate-200' : 'border-slate-200/70 bg-white/75 text-slate-800 shadow-sm'} ${isGerant ? 'focus:border-[#905D5D]/50 focus:ring-[#905D5D]/20' : isDark ? 'focus:border-violet-400/40 focus:ring-violet-400/20' : 'focus:border-teal-500/40 focus:ring-teal-500/20'}`}
+                    className={`w-full resize-none rounded-xl border px-3.5 py-2.5 font-mono text-xs leading-relaxed backdrop-blur-sm transition-all focus:outline-none focus:ring-2 ${isDark ? 'border-white/10 bg-white/[0.04] text-slate-200' : 'border-slate-200/70 bg-white/75 text-slate-800 shadow-sm'} ${isDark ? 'focus:border-violet-400/40 focus:ring-violet-400/20' : 'focus:border-teal-500/40 focus:ring-teal-500/20'}`}
                   />
                 </div>
               </div>
@@ -1260,9 +1260,9 @@ export const BuyerDetailTabs = ({ client: initialClient, adminId, agentId, highl
                   onClick={submitProposal}
                   disabled={proposalSending || !proposalEmail}
                   className="flex items-center gap-2 rounded-xl border border-white/20 px-5 py-2.5 text-sm font-bold text-white shadow-lg transition-all hover:scale-[1.02] active:scale-95 disabled:pointer-events-none disabled:opacity-50"
-                  style={isGerant
-                    ? { backgroundImage: 'linear-gradient(145deg, #C9A0A0 0%, #905D5D 100%)' }
-                    : isDark
+style={isGerant
+  ? { backgroundImage: `linear-gradient(145deg, ${accent.a} 0%, ${accent.b} 100%)` }
+  : isDark
                       ? { backgroundImage: 'linear-gradient(145deg, #8B7CFF 0%, #6C5ECF 60%, #5646C9 100%)' }
                       : { backgroundImage: 'linear-gradient(145deg, #2DD4BF 0%, #14B8A6 60%, #0D9488 100%)' }}
                 >
@@ -1289,70 +1289,37 @@ export const BuyerDetailTabs = ({ client: initialClient, adminId, agentId, highl
 
   const renderDocuments = () => {
     const docs = client.documents || [];
+    const findMatched = (matchTerms: string[]) =>
+      docs.find(d => matchTerms.some(t => d.name.toLowerCase().includes(t)));
     const requiredDocs = [
       { label: "Pièce d'identité (passeport ou CIN)", required: true, matchTerms: ['cin', 'identité', 'passeport', 'carte'], url: (client as any).docIdentiteUrl },
       { label: 'Justificatif de domicile', required: true, matchTerms: ['justificatif de domicile', 'domicile'], url: (client as any).docDomicileUrl },
       { label: "Avis d'imposition ou justificatif de revenus", required: true, matchTerms: ['avis', 'imposition', 'revenus'], url: (client as any).docRevenusUrl },
       { label: 'Attestation de financement ou de prêt', required: true, matchTerms: ['attestation', 'financement', 'prêt', 'pret'], url: (client as any).docFinancementUrl },
       { label: 'Relevés bancaires (3 derniers mois)', required: false, matchTerms: ['relevé', 'bancaire', 'relevés'], url: (client as any).docBancaireUrl },
-    ];
-    const mandatUploaded = !!client.mandatPdfUrl;
+    ].map(d => {
+      const matched = findMatched(d.matchTerms);
+      return {
+        label: d.label,
+        required: d.required,
+        url: d.url || matched?.url || null,
+        name: matched?.name || null,
+      };
+    });
 
     return (
-      <div className="space-y-5">
-        {/* Documents justificatifs */}
-        <div className="rounded-xl border border-border/50 bg-background/50 p-4 space-y-3">
-          <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider">Documents justificatifs</p>
-          {requiredDocs.map((doc, i) => {
-            const matchedDoc = docs.find(d => doc.matchTerms.some(t => d.name.toLowerCase().includes(t)));
-            const uploaded = !!doc.url || !!matchedDoc;
-            const fileUrl = doc.url || matchedDoc?.url;
-            const fileName = matchedDoc?.name;
-            return (
-              <div key={i} className="flex items-center gap-3 p-3 rounded-lg border border-border bg-card/50">
-                <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 transition-colors ${uploaded ? 'bg-emerald-500 border-emerald-500' : 'bg-background border-border'}`}>
-                  {uploaded && (
-                    <svg width="12" height="10" viewBox="0 0 10 8" fill="none">
-                      <path d="M1 4L3.5 6.5L9 1" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
-                  )}
-                </div>
-                <span className={`text-sm flex-1 ${uploaded ? 'text-text-secondary' : 'text-text'}`}>{doc.label}</span>
-                {fileName && <span className="text-[10px] text-text-secondary truncate max-w-[140px]">{fileName}</span>}
-                {doc.required ? (
-                  <span className="text-[10px] font-medium text-error uppercase">Obligatoire</span>
-                ) : (
-                  <span className={`text-[10px] font-medium ${isGerant ? 'text-[#905D5D]' : 'text-accent'} uppercase`}>Recommandé</span>
-                )}
-                {uploaded && fileUrl ? (
-                  <button type="button" onClick={() => openViewer(fileUrl, doc.label)} className={`text-xs px-2.5 py-1 rounded-lg ${isGerant ? 'bg-[#905D5D]/10 text-[#905D5D] border border-[#905D5D]/20 hover:bg-[#905D5D]/20' : 'bg-accent/10 text-accent border border-accent/20 hover:bg-accent/20'} transition-all flex items-center gap-1`}>
-                    <Eye size={12} /> Voir
-                  </button>
-                ) : null}
-              </div>
-            );
-          })}
-        </div>
-
-        {/* Fichier du mandat signé */}
-        <div className="rounded-xl border border-border/50 bg-background/50 p-4 space-y-3">
-          <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider">Fichier du mandat signé</p>
-          <div className="flex items-center gap-3 p-3 rounded-lg border border-border bg-card/50">
-            <FileText size={16} className={mandatUploaded ? 'text-emerald-500' : 'text-text-secondary'} />
-            <span className="text-sm text-text flex-1">Mandat signé (PDF)</span>
-            {mandatUploaded ? (
-              <>
-                <span className="text-[10px] font-medium text-emerald-600 uppercase bg-emerald-50 px-2 py-0.5 rounded">Uploadé</span>
-                <button type="button" onClick={() => client.mandatPdfUrl && openViewer(client.mandatPdfUrl, 'Mandat signé')} className={`text-xs px-3 py-1.5 rounded-lg ${isGerant ? 'bg-[#905D5D]/10 text-[#905D5D] border border-[#905D5D]/20 hover:bg-[#905D5D]/20' : 'bg-accent/10 text-accent border border-accent/20 hover:bg-accent/20'} transition-all flex items-center gap-1.5`}>
-                  <Eye size={12} /> Voir
-                </button>
-              </>
-            ) : (
-              <span className="text-[10px] font-medium text-text-secondary uppercase bg-background px-2 py-0.5 rounded">Non uploadé</span>
-            )}
-          </div>
-        </div>
-      </div>
+      <StageDocumentsTab
+        items={requiredDocs}
+        clientName={client.name}
+        mandatTitle="Mandat signé"
+        mandatUrl={client.mandatPdfUrl}
+        mandatName={(client as any).mandatPdfName || 'Mandat signé (PDF)'}
+        accent={accent}
+        ink={ink}
+        isDark={isDark}
+        isGerant={isGerant}
+        onOpen={openViewer}
+      />
     );
   };
 
@@ -1363,7 +1330,7 @@ export const BuyerDetailTabs = ({ client: initialClient, adminId, agentId, highl
   const renderContrats = () => {
     if (!canReadContracts) return null;
     return (
-      <ClientContractsTab clientId={client.id} clientName={client.name} isGerant={isGerant} />
+      <ClientContractsTab clientId={client.id} clientName={client.name} clientType={client.type} isGerant={isGerant} />
     );
   };
 

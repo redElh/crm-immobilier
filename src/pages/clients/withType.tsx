@@ -18,7 +18,7 @@ import { fetchClients, createClient, deleteClient } from '../../services/clientS
 import { useToast } from '../../components/ui/Toast';
 import { BackLink } from '../../components/ui/BackLink';
 import Card from '../../components/ui/Card';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
   BarChart2, UserCheck, UserX, Target, Calendar, Home, ArrowUp, ArrowDown, CheckCircle, Sun, Users, Search, X, ArrowLeft, Plus, Zap
 } from 'react-feather';
@@ -305,17 +305,19 @@ export default function ClientsPageWithType() {
           <StageStatCard icon={type === 'voyageur' ? Sun : Home} label={type === 'vendeur' ? 'Biens en stock' : type === 'bailleur' ? 'Biens en location' : 'Biens proposés'} value={typeStats.biensProposes} hue={STAGE_HUES.violet} spark={[1, 3, 2, 4, 3, 5]} />
         </div>
 
-        {canWrite && isModalOpen && (() => {
-          const handleClose = () => { setIsModalOpen(false); setResumeDraftId(undefined); setEditingClient(null); setSelectedContactId(undefined); };
-          const handleSubmit = editingClient ? handleUpdateClient : handleAddClient;
-          const commonProps = { onClose: handleClose, onSubmit: handleSubmit, key: editingClient?.id || 'new', selectedContactId: selectedContactId };
-          if (typeLabels[type || ''] === 'Acheteur') return <BuyerFormModal {...commonProps} assignmentInfo={assignmentInfo} draftId={resumeDraftId} userId={currentUser ? String(currentUser.id) : undefined} onDraftChange={() => setDraftVersion(v => v + 1)} client={editingClient} />;
-          if (typeLabels[type || ''] === 'Vendeur') return <SellerFormModal {...commonProps} assignmentInfo={assignmentInfo} draftId={resumeDraftId} userId={currentUser ? String(currentUser.id) : undefined} onDraftChange={() => setDraftVersion(v => v + 1)} client={editingClient} />;
-          if (typeLabels[type || ''] === 'Bailleur') return <BailleurFormModal {...commonProps} assignmentInfo={assignmentInfo} draftId={resumeDraftId} userId={currentUser ? String(currentUser.id) : undefined} onDraftChange={() => setDraftVersion(v => v + 1)} client={editingClient} />;
-          if (typeLabels[type || ''] === 'Locataire') return <LocataireFormModal {...commonProps} assignmentInfo={assignmentInfo} draftId={resumeDraftId} userId={currentUser ? String(currentUser.id) : undefined} onDraftChange={() => setDraftVersion(v => v + 1)} client={editingClient} />;
-          if (typeLabels[type || ''] === 'Voyageur') return <VoyageurFormModal {...commonProps} assignmentInfo={assignmentInfo} draftId={resumeDraftId} userId={currentUser ? String(currentUser.id) : undefined} onDraftChange={() => setDraftVersion(v => v + 1)} client={editingClient} />;
-          return <ClientFormModal {...commonProps} clientType={typeLabels[type || '']} />;
-        })()}
+        <AnimatePresence>
+          {canWrite && isModalOpen && (() => {
+            const handleClose = () => { setIsModalOpen(false); setResumeDraftId(undefined); setEditingClient(null); setSelectedContactId(undefined); };
+            const handleSubmit = editingClient ? handleUpdateClient : handleAddClient;
+            const commonProps = { onClose: handleClose, onSubmit: handleSubmit, key: editingClient?.id || 'new', selectedContactId: selectedContactId };
+            if (typeLabels[type || ''] === 'Acheteur') return <BuyerFormModal {...commonProps} assignmentInfo={assignmentInfo} draftId={resumeDraftId} userId={currentUser ? String(currentUser.id) : undefined} onDraftChange={() => setDraftVersion(v => v + 1)} client={editingClient} />;
+            if (typeLabels[type || ''] === 'Vendeur') return <SellerFormModal {...commonProps} assignmentInfo={assignmentInfo} draftId={resumeDraftId} userId={currentUser ? String(currentUser.id) : undefined} onDraftChange={() => setDraftVersion(v => v + 1)} client={editingClient} />;
+            if (typeLabels[type || ''] === 'Bailleur') return <BailleurFormModal {...commonProps} assignmentInfo={assignmentInfo} draftId={resumeDraftId} userId={currentUser ? String(currentUser.id) : undefined} onDraftChange={() => setDraftVersion(v => v + 1)} client={editingClient} />;
+            if (typeLabels[type || ''] === 'Locataire') return <LocataireFormModal {...commonProps} assignmentInfo={assignmentInfo} draftId={resumeDraftId} userId={currentUser ? String(currentUser.id) : undefined} onDraftChange={() => setDraftVersion(v => v + 1)} client={editingClient} />;
+            if (typeLabels[type || ''] === 'Voyageur') return <VoyageurFormModal {...commonProps} assignmentInfo={assignmentInfo} draftId={resumeDraftId} userId={currentUser ? String(currentUser.id) : undefined} onDraftChange={() => setDraftVersion(v => v + 1)} client={editingClient} />;
+            return <ClientFormModal {...commonProps} clientType={typeLabels[type || '']} />;
+          })()}
+        </AnimatePresence>
 
         {canWrite && currentUser && (
           <ClientDraftSection key={draftVersion} userId={String(currentUser.id)} clientType={typeLabels[type || '']} onResume={(draft) => setResumeDraftId(draft.id)} />

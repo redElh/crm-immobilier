@@ -1,23 +1,28 @@
 import { API_ORIGIN } from '../../../utils/config'
 import { useState, useEffect, useRef } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Badge } from '../../../components/ui/Badge'
 import { useToast } from '../../../components/ui/Toast'
 import {
   Users, Plus, MoreHorizontal, Search, Shield, UserCheck, UserX,
   Eye, Trash2, Lock, CheckCircle, Mail,
-  ChevronLeft, ChevronRight, RefreshCw, ArrowLeft
+  ChevronLeft, ChevronRight, RefreshCw
 } from 'react-feather'
 import { getAuthToken } from '../../../utils/auth'
 import {
-  Stage,
   StageBadge,
   StageButton,
   OrbIcon,
   STAGE_HUES,
   useStageTheme,
 } from '../../../components/dashboard/Stage'
+import {
+  SettingsBackButton,
+  SettingsHero,
+  useSettingsChrome,
+} from '../../../components/settings/SettingsChrome'
+import { ResendCredentialsDialog } from '../../../components/ui/ResendCredentialsDialog'
 
 interface UserData {
   id: number
@@ -80,8 +85,7 @@ function ActionMenu({ user, position, onClose, onReactivate, onDelete, onResetPa
 export default function EquipePage() {
   const { adminId } = useParams<{ adminId: string }>()
   const theme = useStageTheme()
-  const isDark = theme === 'dark'
-  const navigate = useNavigate()
+  const { isDark, isAdmin, accent } = useSettingsChrome()
   const { toast } = useToast()
   const token = getAuthToken()
   const [users, setUsers] = useState<UserData[]>([])
@@ -89,6 +93,8 @@ export default function EquipePage() {
   const [search, setSearch] = useState('')
   const [currentPage, setCurrentPage] = useState(1)
   const [menuTarget, setMenuTarget] = useState<{ user: UserData; position: MenuPosition } | null>(null)
+  const [resendTarget, setResendTarget] = useState<UserData | null>(null)
+  const [resending, setResending] = useState(false)
 
   const fetchUsers = async () => {
     try { setLoading(true); const res = await fetch(`${API}/users`, { headers: { Authorization: `Bearer ${token}` } }); if (!res.ok) throw new Error('Failed'); setUsers(await res.json()) } catch (err) { console.error(err) } finally { setLoading(false) }
@@ -105,34 +111,29 @@ export default function EquipePage() {
   const handleReactivate = async (id: number) => { try { const res = await fetch(`${API}/users/${id}/reactivate`, { method: 'PATCH', headers: { Authorization: `Bearer ${token}` } }); if (!res.ok) throw new Error('Failed'); toast('success', 'Compte réactivé'); await fetchUsers() } catch { toast('error', 'Erreur') } }
   const handleDelete = async (id: number) => { if (!window.confirm('Supprimer définitivement cet utilisateur ?')) return; try { const res = await fetch(`${API}/users/${id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } }); if (!res.ok) throw new Error('Failed'); toast('success', 'Utilisateur supprimé'); await fetchUsers() } catch { toast('error', 'Erreur') } }
   const handleResetPassword = async (id: number) => { try { const res = await fetch(`${API_ORIGIN}/api/admin/forgot-password`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: users.find(u => u.id === id)?.email }) }); if (!res.ok) throw new Error('Failed'); toast('success', 'Email envoyé') } catch { toast('error', 'Erreur') } }
-  const handleResendCredentials = async (id: number) => { const target = users.find(u => String(u.id) === String(id)); if (!window.confirm(`Renvoyer les identifiants à ${target?.first_name} ${target?.last_name} ?`)) return; try { const res = await fetch(`${API}/users/${id}/resend-credentials`, { method: 'POST', headers: { Authorization: `Bearer ${token}` } }); if (!res.ok) throw new Error('Failed'); toast('success', `Identifiants renvoyés à ${target?.first_name}`) } catch { toast('error', 'Erreur') } }
+  const handleResendCredentials = (id: number) => { const target = users.find(u => String(u.id) === String(id)); if (!target) return; setResendTarget(target) }
+  const confirmResendCredentials = async () => { if (!resendTarget || resending) return; setResending(true); try { const res = await fetch(`${API}/users/${resendTarget.id}/resend-credentials`, { method: 'POST', headers: { Authorization: `Bearer ${token}` } }); if (!res.ok) throw new Error('Failed'); toast('success', `Identifiants renvoyés à ${resendTarget.first_name}`); setResendTarget(null) } catch { toast('error', 'Erreur') } finally { setResending(false) } }
 
   return (
-    <Stage theme={theme}>
+    
       <div className="space-y-6">
-        <button onClick={() => navigate(-1)} className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl border transition-colors w-fit ${isDark ? 'border-white/10 text-slate-300 hover:bg-white/5' : 'border-teal-900/10 text-slate-600 hover:bg-white'}`}><ArrowLeft size={13} /> Retour</button>
+        <SettingsBackButton />
 
-        <div className="flex flex-wrap items-end justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <OrbIcon icon={Users} hue={STAGE_HUES.violet} size={48} radius={14} />
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="relative flex h-2 w-2"><span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60" /><span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400" /></span>
-                <p className={`text-[10px] font-bold uppercase tracking-[0.24em] ${isDark ? 'text-slate-400/80' : 'text-teal-900/50'}`}>Paramètres · Équipe</p>
-              </div>
-              <h1 className={`text-2xl font-extrabold tracking-tight ${isDark ? 'text-white' : 'text-slate-900'}`}>Gestion de l'équipe</h1>
-              <p className={`text-sm ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Membres, rôles et permissions</p>
+        <SettingsHero
+          eyebrow="Paramètres · Équipe"
+          title="Gestion de l'équipe"
+          subtitle="Membres, rôles et permissions"
+          right={
+            <div className="flex items-center gap-2">
+              <StageButton variant="glass" icon={<RefreshCw size={14} />} onClick={fetchUsers}>Actualiser</StageButton>
+              {adminId && <StageButton variant="primary" icon={<Plus size={14} />} onClick={() => window.location.href = `/admin/${adminId}/users`}>Ajouter un membre</StageButton>}
             </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <StageButton variant="glass" icon={<RefreshCw size={14} />} onClick={fetchUsers}>Actualiser</StageButton>
-            {adminId && <StageButton variant="primary" icon={<Plus size={14} />} onClick={() => window.location.href = `/admin/${adminId}/users`}>Ajouter un membre</StageButton>}
-          </div>
-        </div>
+          }
+        />
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {[
-            { icon: Users, label: 'Total', value: stats.total, hue: STAGE_HUES.violet },
+            { icon: Users, label: 'Total', value: stats.total, hue: accent },
             { icon: Shield, label: 'Admin', value: stats.admins, hue: STAGE_HUES.amber },
             { icon: UserCheck, label: 'Agents', value: stats.agents, hue: STAGE_HUES.emerald },
             { icon: UserX, label: 'Inactifs', value: stats.inactifs, hue: { a: '#FB7185', b: '#BE123C', glow: 'rgba(251,113,133,0.5)', line: '#FB7185' } as any },
@@ -151,7 +152,7 @@ export default function EquipePage() {
           <div className="flex flex-wrap items-center gap-3 mb-4">
             <div className="relative flex-1 max-w-xs">
               <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-              <input type="text" placeholder="Rechercher par nom, email..." value={search} onChange={e => { setSearch(e.target.value); setCurrentPage(1) }} className={`w-full pl-9 pr-4 py-2 rounded-xl border text-sm focus:outline-none focus:ring-2 transition-all ${isDark ? 'bg-white/[0.04] border-white/10 text-white placeholder:text-slate-500 focus:border-violet-400/40 focus:ring-violet-400/20' : 'bg-white border-slate-200 text-slate-900 placeholder:text-slate-400 focus:border-teal-400/40 focus:ring-teal-400/20'}`} />
+              <input type="text" placeholder="Rechercher par nom, email..." value={search} onChange={e => { setSearch(e.target.value); setCurrentPage(1) }} className={`w-full pl-9 pr-4 py-2 rounded-xl border text-sm focus:outline-none focus:ring-2 transition-all ${isDark ? (isAdmin ? 'bg-white/[0.04] border-white/10 text-white placeholder:text-slate-500 focus:border-rose-400/40 focus:ring-rose-400/20' : 'bg-white/[0.04] border-white/10 text-white placeholder:text-slate-500 focus:border-violet-400/40 focus:ring-violet-400/20') : (isAdmin ? 'bg-white border-slate-200 text-slate-900 placeholder:text-slate-400 focus:border-orange-400/40 focus:ring-orange-400/20' : 'bg-white border-slate-200 text-slate-900 placeholder:text-slate-400 focus:border-teal-400/40 focus:ring-teal-400/20')}`} />
             </div>
             <StageBadge variant="neutral" className="ml-auto">{loading ? 'Chargement...' : `${filtered.length} membre${filtered.length > 1 ? 's' : ''}`}</StageBadge>
           </div>
@@ -164,7 +165,7 @@ export default function EquipePage() {
                   const initials = `${user.first_name[0] || ''}${user.last_name[0] || ''}`
                   return (
                     <tr key={user.id} className={`${isDark ? 'hover:bg-white/[0.03]' : 'hover:bg-slate-50'} transition-colors group`}>
-                      <td className="py-3"><div className="w-8 h-8 rounded-full bg-gradient-to-br from-violet-500 to-indigo-600 text-white flex items-center justify-center text-xs font-bold shadow">{initials}</div></td>
+                      <td className="py-3"><div className={`w-8 h-8 rounded-full bg-gradient-to-br text-white flex items-center justify-center text-xs font-bold shadow ${isAdmin ? (isDark ? 'from-rose-500 to-violet-600' : 'from-orange-400 to-amber-600') : 'from-violet-500 to-indigo-600'}`}>{initials}</div></td>
                       <td className={`py-3 text-sm font-semibold ${isDark ? 'text-white' : 'text-slate-900'}`}>{user.first_name} {user.last_name}</td>
                       <td className={`py-3 text-sm ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{user.email}</td>
                       <td className="py-3"><Badge variant={roleBadgeColors[user.role] || 'default'} size="sm">{user.role === 'admin' ? 'Administrateur' : user.role === 'gerant' ? 'Gérant' : 'Agent'}</Badge></td>
@@ -184,7 +185,7 @@ export default function EquipePage() {
               <p className={`text-xs ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>Affichage {(currentPage - 1) * ITEMS_PER_PAGE + 1}-{Math.min(currentPage * ITEMS_PER_PAGE, filtered.length)} sur {filtered.length}</p>
               <div className="flex items-center gap-1">
                 <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className={`p-1.5 rounded-lg border transition-colors disabled:opacity-30 ${isDark ? 'border-white/10 text-slate-400 hover:bg-white/5' : 'border-slate-200 text-slate-500 hover:bg-slate-50'}`}><ChevronLeft size={15} /></button>
-                {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => <button key={page} onClick={() => setCurrentPage(page)} className={`w-8 h-8 rounded-xl text-xs font-bold transition-all ${page === currentPage ? 'text-white shadow' : isDark ? 'text-slate-400 hover:text-white hover:bg-white/5' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50'}`} style={page === currentPage ? { backgroundImage: isDark ? 'linear-gradient(135deg, #8B7CFF, #6C5ECF)' : 'linear-gradient(135deg, #2DD4BF, #0D9488)' } : undefined}>{page}</button>)}
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => <button key={page} onClick={() => setCurrentPage(page)} className={`w-8 h-8 rounded-xl text-xs font-bold transition-all ${page === currentPage ? 'text-white shadow' : isDark ? 'text-slate-400 hover:text-white hover:bg-white/5' : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50'}`} style={page === currentPage ? { backgroundImage: `linear-gradient(135deg, ${accent.a}, ${accent.b})` } : undefined}>{page}</button>)}
                 <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className={`p-1.5 rounded-lg border transition-colors disabled:opacity-30 ${isDark ? 'border-white/10 text-slate-400 hover:bg-white/5' : 'border-slate-200 text-slate-500 hover:bg-slate-50'}`}><ChevronRight size={15} /></button>
               </div>
             </div>
@@ -207,8 +208,20 @@ export default function EquipePage() {
           </div>
         </div>
 
+        <ResendCredentialsDialog
+          open={!!resendTarget}
+          onClose={() => { if (!resending) setResendTarget(null) }}
+          onConfirm={confirmResendCredentials}
+          pending={resending}
+          user={resendTarget ? {
+            first_name: resendTarget.first_name,
+            last_name: resendTarget.last_name,
+            email: resendTarget.email,
+            roleLabel: resendTarget.role === 'admin' ? 'Administrateur' : resendTarget.role === 'gerant' ? 'Gérant' : 'Agent',
+          } : null}
+        />
         {menuTarget && <ActionMenu user={menuTarget.user} position={menuTarget.position} adminId={adminId!} onClose={() => setMenuTarget(null)} onReactivate={handleReactivate} onDelete={handleDelete} onResetPassword={handleResetPassword} onResendCredentials={handleResendCredentials} />}
       </div>
-    </Stage>
+    
   )
 }

@@ -1,6 +1,7 @@
 import * as React from 'react';
 import { cn } from '../../../lib/utils';
 import { useStageChrome } from '../../modules/calendar/useStageChrome';
+import { useStageScope } from '../../dashboard/Stage';
 
 interface RadioGroupItemProps extends React.InputHTMLAttributes<HTMLInputElement> {
   id: string;
@@ -13,6 +14,7 @@ interface RadioGroupItemProps extends React.InputHTMLAttributes<HTMLInputElement
 const RadioGroupItem = React.forwardRef<HTMLInputElement, RadioGroupItemProps>(
   ({ className, id, value, checked, onChange, disabled, children, ...props }, ref) => {
     const { staged, dark } = useStageChrome();
+    const isAdmin = useStageScope() === 'admin';
 
     if (staged) {
       return (
@@ -24,10 +26,14 @@ const RadioGroupItem = React.forwardRef<HTMLInputElement, RadioGroupItemProps>(
             checked
               ? dark
                 ? 'border-violet-400/40 bg-white/[0.07] shadow-[0_0_16px_-6px_rgba(124,92,255,0.7),inset_0_1px_0_rgba(255,255,255,0.08)]'
-                : 'border-teal-500/35 bg-teal-500/10 shadow-[0_0_14px_-6px_rgba(20,184,166,0.6),inset_0_1px_0_rgba(255,255,255,0.85)]'
+                : isAdmin
+                  ? 'border-orange-500/35 bg-orange-500/10 shadow-[0_0_14px_-6px_rgba(249,115,22,0.6),inset_0_1px_0_rgba(255,255,255,0.85)]'
+                  : 'border-teal-500/35 bg-teal-500/10 shadow-[0_0_14px_-6px_rgba(20,184,166,0.6),inset_0_1px_0_rgba(255,255,255,0.85)]'
               : dark
                 ? 'border-white/10 bg-white/[0.03] hover:border-white/18 hover:bg-white/[0.06]'
-                : 'border-teal-900/10 bg-white/60 hover:border-teal-900/18 hover:bg-white',
+                : isAdmin
+                  ? 'border-slate-900/12 bg-white/60 hover:border-slate-900/22 hover:bg-white'
+                  : 'border-teal-900/10 bg-white/60 hover:border-teal-900/18 hover:bg-white',
             className,
           )}
         >
@@ -49,17 +55,21 @@ const RadioGroupItem = React.forwardRef<HTMLInputElement, RadioGroupItemProps>(
                 checked
                   ? dark
                     ? 'border-violet-400 bg-gradient-to-br from-[#8B7CFF] to-[#5646C9] shadow-[0_0_10px rgba(124,92,255,0.7)]'
-                    : 'border-teal-500 bg-gradient-to-br from-teal-400 to-emerald-600 shadow-[0_0_10px rgba(20,184,166,0.6)]'
+                    : isAdmin
+                      ? 'border-orange-500 bg-gradient-to-br from-[#FDBA74] to-[#C2410C] shadow-[0_0_10px rgba(249,115,22,0.6)]'
+                      : 'border-teal-500 bg-gradient-to-br from-teal-400 to-emerald-600 shadow-[0_0_10px rgba(20,184,166,0.6)]'
                   : dark
                     ? 'border-white/20 bg-white/[0.04] group-hover:border-white/30'
-                    : 'border-teal-900/20 bg-white group-hover:border-teal-900/30',
+                    : isAdmin
+                      ? 'border-slate-900/20 bg-white group-hover:border-slate-900/35'
+                      : 'border-teal-900/20 bg-white group-hover:border-teal-900/30',
               )}
             >
               {checked && <span className="h-[7px] w-[7px] rounded-full bg-white shadow-[0_1px_2px_rgba(0,0,0,0.35)]" />}
             </span>
           </span>
           {children && (
-            <span className={cn('text-sm font-medium leading-tight', dark ? 'text-slate-200 group-hover:text-white' : 'text-teal-950 group-hover:text-teal-900')}>
+            <span className={cn('text-sm font-medium leading-tight', dark ? 'text-slate-200 group-hover:text-white' : isAdmin ? 'text-slate-900 group-hover:text-slate-950' : 'text-teal-950 group-hover:text-teal-900')}>
               {children}
             </span>
           )}

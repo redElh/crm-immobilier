@@ -198,7 +198,7 @@ export default function ClientPage() {
       >
         <button
           type="button"
-          onClick={() => navigate(detailBackPath)}
+          onClick={() => navigate(-1)}
           className={`group inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-bold backdrop-blur-md transition-all ${isDark ? 'border-white/10 bg-white/[0.04] text-slate-400 hover:border-white/20 hover:bg-white/10 hover:text-white' : 'border-teal-900/10 bg-white/60 text-teal-900/60 hover:border-teal-900/20 hover:bg-white hover:text-teal-900'}`}
         >
           <ArrowLeft size={14} className="transition-transform duration-200 group-hover:-translate-x-0.5" />
@@ -240,12 +240,12 @@ export default function ClientPage() {
           {canDelete && (
             <button
               type="button"
-              onClick={async () => {
-                const typeName = client.type || 'Client';
-                try {
-                  await deleteClient(client.id);
-                  toast('success', `${typeName} supprimé`);
-                  navigate(detailBackPath);
+                onClick={async () => {
+                  const typeName = client.type || 'Client';
+                  try {
+                    await deleteClient(client.id);
+                    toast('success', `${typeName} supprimé`);
+                    navigate(-1);
                 } catch (err) {
                   console.error('Failed to delete client:', err);
                   toast('error', `Erreur lors de la suppression du ${typeName.toLowerCase()}`);
@@ -335,21 +335,23 @@ export default function ClientPage() {
         )}
       </AnimatePresence>
 
-      {isEditModalOpen && client && client.type === 'Acheteur' && (
-        <BuyerFormModal onClose={() => setIsEditModalOpen(false)} onSubmit={handleEditClient} client={client} />
-      )}
-      {isEditModalOpen && client && client.type === 'Vendeur' && (
-        <SellerFormModal onClose={() => setIsEditModalOpen(false)} onSubmit={handleEditClient} client={client} />
-      )}
-      {isEditModalOpen && client && client.type === 'Bailleur' && (
-        <BailleurFormModal onClose={() => setIsEditModalOpen(false)} onSubmit={handleEditClient} client={client} />
-      )}
-      {isEditModalOpen && client && client.type === 'Locataire' && (
-        <LocataireFormModal onClose={() => setIsEditModalOpen(false)} onSubmit={handleEditClient} client={client} />
-      )}
-      {isEditModalOpen && client && client.type === 'Voyageur' && (
-        <VoyageurFormModal onClose={() => setIsEditModalOpen(false)} onSubmit={handleEditClient} client={client} />
-      )}
+      <AnimatePresence>
+        {isEditModalOpen && client && client.type === 'Acheteur' && (
+          <BuyerFormModal onClose={() => setIsEditModalOpen(false)} onSubmit={handleEditClient} client={client} />
+        )}
+        {isEditModalOpen && client && client.type === 'Vendeur' && (
+          <SellerFormModal onClose={() => setIsEditModalOpen(false)} onSubmit={handleEditClient} client={client} />
+        )}
+        {isEditModalOpen && client && client.type === 'Bailleur' && (
+          <BailleurFormModal onClose={() => setIsEditModalOpen(false)} onSubmit={handleEditClient} client={client} />
+        )}
+        {isEditModalOpen && client && client.type === 'Locataire' && (
+          <LocataireFormModal onClose={() => setIsEditModalOpen(false)} onSubmit={handleEditClient} client={client} />
+        )}
+        {isEditModalOpen && client && client.type === 'Voyageur' && (
+          <VoyageurFormModal onClose={() => setIsEditModalOpen(false)} onSubmit={handleEditClient} client={client} />
+        )}
+      </AnimatePresence>
     </ClientLayout>
   );
 }

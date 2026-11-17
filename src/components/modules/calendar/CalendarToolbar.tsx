@@ -3,6 +3,7 @@ import {
   ChevronLeft, ChevronRight, Sun, Columns, Grid, List, Activity, Filter,
 } from 'react-feather'
 import { CalendarView, MONTH_NAMES, addDays, addWeeks, addMonths } from '../../../types/calendar'
+import { useStageAccent } from '../../dashboard/Stage'
 import { useStageChrome } from './useStageChrome'
 
 interface CalendarToolbarProps {
@@ -10,6 +11,7 @@ interface CalendarToolbarProps {
   currentDate: Date
   filtersOpen: boolean
   activeFilterCount?: number
+  eventCount?: number
   onToggleFilters: () => void
   onViewChange: (view: CalendarView) => void
   onDateChange: (date: Date) => void
@@ -55,9 +57,10 @@ function useNavigate(view: CalendarView, currentDate: Date, onDateChange: (d: Da
 }
 
 export default function CalendarToolbar({
-  view, currentDate, filtersOpen, activeFilterCount = 0, onToggleFilters, onViewChange, onDateChange, onToday,
+  view, currentDate, filtersOpen, activeFilterCount = 0, eventCount, onToggleFilters, onViewChange, onDateChange, onToday,
 }: CalendarToolbarProps) {
   const { staged, dark } = useStageChrome()
+  const accent = useStageAccent()
   const title = usePeriodLabel(view, currentDate)
   const navigate = useNavigate(view, currentDate, onDateChange)
 
@@ -140,21 +143,31 @@ export default function CalendarToolbar({
       </div>
 
       {/* Period label */}
-      <div
-        className={`relative min-w-[190px] pl-2.5 before:absolute before:left-0 before:top-1/2 before:h-6 before:w-0.5 before:-translate-y-1/2 before:rounded-full ${
-          dark ? 'before:bg-gradient-to-b before:from-violet-400 before:to-indigo-500' : 'before:bg-gradient-to-b before:from-teal-500 before:to-emerald-600'
-        }`}
-      >
+      <div className="relative min-w-[190px] pl-2.5">
+        <span
+          className="absolute left-0 top-1/2 h-6 w-0.5 -translate-y-1/2 rounded-full"
+          style={{ backgroundImage: `linear-gradient(180deg, ${accent.a}, ${accent.b})` }}
+        />
         <p className={`text-[9px] font-bold uppercase tracking-[0.22em] ${dark ? 'text-slate-400/70' : 'text-teal-900/45'}`}>
           Période
         </p>
-        <h2
-          className={`bg-gradient-to-r bg-clip-text text-base font-bold capitalize leading-tight tracking-tight text-transparent ${
-            dark ? 'from-white via-indigo-100 to-indigo-300' : 'from-teal-900 via-teal-700 to-emerald-600'
-          }`}
-        >
-          {title}
-        </h2>
+        <div className="flex items-center gap-2">
+          <h2
+            className="bg-clip-text text-base font-bold capitalize leading-tight tracking-tight text-transparent"
+            style={{ backgroundImage: dark ? `linear-gradient(90deg, #FFFFFF, ${accent.a})` : `linear-gradient(90deg, ${accent.b}, ${accent.a})` }}
+          >
+            {title}
+          </h2>
+          {typeof eventCount === 'number' && (
+            <span
+              className={`rounded-full border px-1.5 py-0.5 text-[9px] font-extrabold tabular-nums ${
+                dark ? 'border-white/10 bg-white/[0.06] text-slate-300' : 'border-teal-900/10 bg-white/80 text-teal-900/65'
+              }`}
+            >
+              {eventCount}
+            </span>
+          )}
+        </div>
       </div>
 
       <div className="ml-auto flex items-center gap-2.5">
@@ -162,24 +175,28 @@ export default function CalendarToolbar({
         <button
           onClick={onToggleFilters}
           title="Filtres"
+          style={filtersOpen ? {
+            borderColor: `${accent.a}66`,
+            backgroundColor: `${accent.a}24`,
+            color: dark ? accent.a : accent.b,
+            boxShadow: `0 0 16px -4px ${accent.glow}, inset 0 1px 0 rgba(255,255,255,0.25)`,
+          } : undefined}
           className={`relative flex h-8 w-8 items-center justify-center rounded-xl border transition-all duration-200 active:scale-95 ${
-            filtersOpen
+            !filtersOpen
               ? dark
-                ? 'border-violet-400/40 bg-violet-500/20 text-violet-200 shadow-[0_0_16px_-4px_rgba(124,92,255,0.7),inset_0_1px_0_rgba(255,255,255,0.25)]'
-                : 'border-teal-500/50 bg-teal-500/15 text-teal-800 shadow-[0_0_16px_-4px_rgba(13,148,136,0.6),inset_0_1px_0_rgba(255,255,255,0.7)]'
-              : dark
                 ? 'border-white/10 bg-white/5 text-slate-400 shadow-[inset_0_1px_0_rgba(255,255,255,0.12)] hover:bg-white/10 hover:text-white'
                 : 'border-teal-900/10 bg-white/70 text-teal-900/60 shadow-[inset_0_1px_0_rgba(255,255,255,0.9)] hover:bg-white hover:text-teal-900'
+              : ''
           }`}
         >
           <Filter size={14} />
           {activeFilterCount > 0 && (
             <span
-              className={`absolute -right-1 -top-1 flex h-4 min-w-[16px] items-center justify-center rounded-full px-1 text-[9px] font-bold text-white ${
-                dark
-                  ? 'bg-gradient-to-br from-fuchsia-400 to-violet-500 shadow-[0_2px_8px_-1px_rgba(124,92,255,0.8)]'
-                  : 'bg-gradient-to-br from-teal-400 to-emerald-600 shadow-[0_2px_8px_-1px_rgba(13,148,136,0.8)]'
-              }`}
+              className="absolute -right-1 -top-1 flex h-4 min-w-[16px] items-center justify-center rounded-full px-1 text-[9px] font-bold text-white"
+              style={{
+                backgroundImage: `linear-gradient(145deg, ${accent.a}, ${accent.b})`,
+                boxShadow: `0 2px 8px -1px ${accent.glow}`,
+              }}
             >
               {activeFilterCount}
             </span>
@@ -206,12 +223,10 @@ export default function CalendarToolbar({
                     layoutId="cal-view-pill"
                     className="absolute inset-0 rounded-lg border border-white/20"
                     style={{
-                      backgroundImage: dark
-                        ? 'linear-gradient(145deg, #8B7CFF 0%, #6C5ECF 60%, #5646C9 100%)'
-                        : 'linear-gradient(145deg, #2DD4BF 0%, #14B8A6 60%, #0D9488 100%)',
+                      backgroundImage: `linear-gradient(145deg, ${accent.a} 0%, ${accent.b} 100%)`,
                       boxShadow: dark
-                        ? 'inset 0 1px 0 rgba(255,255,255,0.4), 0 6px 18px -6px rgba(124,92,255,0.7)'
-                        : 'inset 0 1px 0 rgba(255,255,255,0.5), 0 6px 18px -8px rgba(13,148,136,0.65)',
+                        ? `inset 0 1px 0 rgba(255,255,255,0.4), 0 6px 18px -6px ${accent.glow}`
+                        : `inset 0 1px 0 rgba(255,255,255,0.5), 0 6px 18px -8px ${accent.glow}`,
                     }}
                     transition={{ type: 'spring', stiffness: 380, damping: 32 }}
                   />

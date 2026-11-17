@@ -414,7 +414,7 @@ function PropertyTypeOrb({ property, index, onClick }: { property: any; index: n
   );
 }
 
-const PipelineTab = memo(function PipelineTab({ pre, navigate }: { pre: PipelinePre; navigate: (path: string) => void }) {
+const PipelineTab = memo(function PipelineTab({ pre, navigate, agentId }: { pre: PipelinePre; navigate: (path: string) => void; agentId: string }) {
   const { dark } = useStageChrome();
   const theme = useStageTheme();
   const isDark = theme === 'dark';
@@ -594,10 +594,10 @@ const PipelineTab = memo(function PipelineTab({ pre, navigate }: { pre: Pipeline
       <StagePanel title="Actions rapides" icon={Tag} hue={STAGE_HUES.amber}>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {[
-            { label: 'Nouveau résidentiel', icon: Home, hue: STAGE_HUES.violet, action: () => navigate('/properties/create?type=residential') },
-            { label: 'Nouveau commercial', icon: Briefcase, hue: STAGE_HUES.sky, action: () => navigate('/properties/create?type=commercial') },
-            { label: 'Nouveau terrain', icon: MapPin, hue: STAGE_HUES.emerald, action: () => navigate('/properties/create?type=land') },
-            { label: 'Nouveau vacances', icon: Sun, hue: STAGE_HUES.amber, action: () => navigate('/properties/create?type=vacation') },
+            { label: 'Nouveau résidentiel', icon: Home, hue: STAGE_HUES.violet, action: () => navigate(`/${agentId}/properties/add?type=residential`) },
+            { label: 'Nouveau commercial', icon: Briefcase, hue: STAGE_HUES.sky, action: () => navigate(`/${agentId}/properties/add?type=commercial`) },
+            { label: 'Nouveau terrain', icon: MapPin, hue: STAGE_HUES.emerald, action: () => navigate(`/${agentId}/properties/add?type=land`) },
+            { label: 'Nouveau vacances', icon: Sun, hue: STAGE_HUES.amber, action: () => navigate(`/${agentId}/properties/add?type=vacation`) },
           ].map((item, i) => (
             <motion.div
               key={item.label}
@@ -1005,7 +1005,7 @@ export default function PropertyTypesPage() {
           </div>
 
           <div className="flex items-center gap-2.5">
-            <StageButton variant="primary" size="md" onClick={() => navigate('/properties/create')} icon={<FileText size={15} />}>
+            <StageButton variant="primary" size="md" onClick={() => navigate(`/${agentId}/properties/add`)} icon={<FileText size={15} />}>
               Nouveau bien
             </StageButton>
           </div>
@@ -1045,7 +1045,7 @@ export default function PropertyTypesPage() {
                   key={property.type}
                   property={property}
                   index={index}
-                  onClick={() => navigate(`/properties/type/${property.type}`)}
+                  onClick={() => navigate(`/${agentId}/properties/type/${property.type}`)}
                 />
               ))}
             </div>
@@ -1054,7 +1054,7 @@ export default function PropertyTypesPage() {
             className={activeTab === 'pipeline' ? 'space-y-6' : 'h-0 overflow-hidden invisible pointer-events-none'}
             aria-hidden={activeTab !== 'pipeline'}
           >
-            <PipelineTab pre={pipelinePre} navigate={navigate} />
+            <PipelineTab pre={pipelinePre} navigate={navigate} agentId={agentId || ''} />
           </div>
           <div
             className={activeTab === 'stats' ? 'space-y-6' : 'h-0 overflow-hidden invisible pointer-events-none'}

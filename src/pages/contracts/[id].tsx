@@ -4,31 +4,32 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   FileText, User, Users, Home, DollarSign, Calendar, Clock, Download,
   Trash2, Phone, Mail, MapPin, Shield, Send, RefreshCw, MessageSquare,
-  Zap, Layout, Link2, Copy, ArrowRight, Upload, ExternalLink,
-  ChevronLeft, ChevronRight, Filter, CheckCircle, Share2, Lock,
+  Zap, Link2, Copy, ArrowRight, Upload, ExternalLink, ArrowLeft,
+  ChevronLeft, ChevronRight, Filter, CheckCircle, Share2, Lock, Loader,
+  Eye, AlertTriangle, Printer,
 } from 'react-feather'
 import { Button } from '../../components/ui/Button'
-import { Badge } from '../../components/ui/Badge'
-import Card from '../../components/ui/Card'
-import { BackLink } from '../../components/ui/BackLink'
-import { Dialog } from '../../components/ui/Dialog'
-import { ConfirmDialog } from '../../components/ui/ConfirmDialog'
 import { Select } from '../../components/ui/Select'
 import { Input } from '../../components/ui/Input'
 import { DatePicker } from '../../components/ui/DatePicker'
 import { Textarea } from '../../components/ui/Textarea'
-import { InfoField } from '../../components/ui/InfoField'
 import { useToast } from '../../components/ui/Toast'
-import { DocumentCategorySection } from '../../components/modules/documents/DocumentCategorySection'
+import StageModal, { useStageModalButtons } from '../../components/modules/calendar/StageModal'
+import { cn } from '../../lib/utils'
+import { useStageTheme, Stage, SLATE_HUE, OrbIcon } from '../../components/dashboard/Stage'
+import { StageField, StageSection, StageEmpty, stagePillStyle } from '../../components/modules/prospects/ProspectDetailStage'
+import { RED_HUE } from '../../components/modules/prospects/ProspectCard'
+import {
+  useContractAccent, contractPrimaryStyle, statusHue, partyRoleMeta,
+  StagePill, ContractHeader, ContractTabsShell,
+} from '../../components/modules/contracts/ContractDetailStage'
+import { getDocTypeLabel } from '../../types/document'
 import {
   mockContracts,
+  normalizeContract,
   CONTRACT_TYPE_LABELS,
   CONTRACT_TYPE_CONFIG,
   CONTRACT_STATUS_LABELS,
-  CONTRACT_STATUS_COLORS,
-  VENTE_ETAPE_LABELS,
-  VENTE_ETAPE_COLORS,
-  partyRoleColor,
 } from '../../types/contract'
 import type { Contract, ContractStatus, ContractDocument, ContractHistoryEntry } from '../../types/contract'
 import {
@@ -42,23 +43,15 @@ import {
   sendContractToProprietaire,
 } from '../../services/contractService'
 import { api } from '../../services/api'
-import { generateContratPdf, buildContractPdfData } from '../../utils/generateContratPdf'
+import { generateContratHtml, buildContractPdfData } from '../../utils/generateContratPdf'
+import { exportHtmlToPdfFromFrame } from '../../utils/htmlToPdf'
 import { resolveMediaUrl, downloadMedia } from '../../utils/mediaUrl'
 import { useMyPermissions, permissionAllowed } from '../../hooks/useMyPermissions'
 
 interface TabItem {
   id: string
+  slug: string
   label: string
-  icon: React.ReactNode
-}
-
-const STATUS_META: Record<ContractStatus, { label: string; dot: string; badge: string; badgeBg: string }> = {
-  en_cours: { label: 'En cours', dot: 'bg-amber-500', badge: 'bg-amber-50 text-amber-700 border-amber-200', badgeBg: 'bg-amber-50' },
-  confirme_actif: { label: 'Confirmé / Actif', dot: 'bg-emerald-500', badge: 'bg-emerald-50 text-emerald-700 border-emerald-200', badgeBg: 'bg-emerald-50' },
-  paye: { label: 'Payé', dot: 'bg-emerald-500', badge: 'bg-emerald-50 text-emerald-700 border-emerald-200', badgeBg: 'bg-emerald-50' },
-  occupe: { label: 'Occupé', dot: 'bg-sky-500', badge: 'bg-sky-50 text-sky-700 border-sky-200', badgeBg: 'bg-sky-50' },
-  finalise_termine: { label: 'Finalisé / Terminé', dot: 'bg-blue-500', badge: 'bg-blue-50 text-blue-700 border-blue-200', badgeBg: 'bg-blue-50' },
-  annule: { label: 'Annulé', dot: 'bg-red-500', badge: 'bg-red-50 text-red-700 border-red-200', badgeBg: 'bg-red-50' },
 }
 
 const STATUS_DESCRIPTIONS: Record<ContractStatus, string> = {
@@ -78,66 +71,14 @@ const isImageDoc = (doc: ContractDocument) => {
   return t.startsWith('image/') || /\.(jpg|jpeg|png|gif|webp|svg|jfif)$/.test(u)
 }
 
-function normalizeContract(raw: any): Contract {
-  const type = raw.type || raw.contractType
-  return {
-    id: raw.id,
-    reference: raw.reference || `${CONTRACT_TYPE_CONFIG[type as Contract['type']]?.shortLabel || 'CTR'}-${String(raw.id).padStart(3, '0')}`,
-    type,
-    status: raw.status,
-    etape: raw.etape,
-    partieA: raw.partieA || {
-      id: raw.clientId || '',
-      name: raw.clientName || '—',
-      type: raw.clientType || '',
-      phone: '',
-      email: '',
-      role: raw.clientType || '',
-    },
-    partieB: raw.partieB || {
-      id: '',
-      name: '',
-      type: '',
-      phone: '',
-      email: '',
-      role: 'Partie B',
-    },
-    agentPrincipal: raw.agentPrincipal || raw.agentName || '—',
-    agentId: raw.agentId || '',
-    propertyId: raw.propertyId || raw.property_id || '',
-    propertyTitle: raw.propertyTitle || raw.property_title || raw.propertyName || 'Bien associé',
-    propertyRef: raw.propertyRef || raw.property_ref || '',
-    propertyAddress: raw.propertyAddress || raw.property_address || '',
-    propertyTypeLabel: raw.propertyTypeLabel || raw.propertyType || '',
-    dateCreation: raw.dateCreation || raw.createdAt || '',
-    dateOffre: raw.dateOffre,
-    dateReservation: raw.dateReservation,
-    dateCompromis: raw.dateCompromis,
-    dateActe: raw.dateActe,
-    dateDebutBail: raw.dateDebutBail,
-    dateFinBail: raw.dateFinBail,
-    dateArrivee: raw.dateArrivee || raw.startDate,
-    dateDepart: raw.dateDepart || raw.endDate,
-    prixVente: raw.prixVente,
-    montantNetVendeur: raw.montantNetVendeur,
-    honorairesTTC: raw.honorairesTTC,
-    sequestre: raw.sequestre,
-    conditionPaiementHonoraires: raw.conditionPaiementHonoraires,
-    loyerMensuelHC: raw.loyerMensuelHC,
-    chargesMensuelles: raw.chargesMensuelles,
-    depotGarantie: raw.depotGarantie,
-    honorairesLocation: raw.honorairesLocation,
-    prixTotalSejour: raw.prixTotalSejour || raw.amount || raw.montant,
-    acompteVerse: raw.acompteVerse,
-    soldeRestant: raw.soldeRestant,
-    caution: raw.caution,
-    devise: raw.devise || 'MAD',
-    documents: raw.documents || [],
-    history: raw.history || [],
-    notes: raw.notes,
-    createdAt: raw.createdAt || raw.dateCreation || '',
-    updatedAt: raw.updatedAt || '',
+/* Byte count (uploads send a number) or already-formatted label. */
+const fmtDocSize = (s?: string | number): string | null => {
+  if (s == null || s === '') return null
+  const n = typeof s === 'string' ? Number(s) : s
+  if (Number.isFinite(n) && n > 0) {
+    return n < 1024 * 1024 ? `${Math.max(1, Math.round(n / 1024))} Ko` : `${(n / (1024 * 1024)).toFixed(n / (1024 * 1024) < 10 ? 1 : 0).replace('.', ',')} Mo`
   }
+  return String(s)
 }
 
 export default function ContractDetailPage({ basePath: basePathProp, showResponsible = false }: { basePath?: string; showResponsible?: boolean } = {}) {
@@ -149,6 +90,8 @@ export default function ContractDetailPage({ basePath: basePathProp, showRespons
   const canWrite = permissionAllowed(perms, 'contrats-ecriture')
   const canExport = permissionAllowed(perms, 'contrats-general-export')
   const historyLocked = !!perms && perms['contrats-general-lock'] === true
+  const theme = useStageTheme()
+  const isDark = theme === 'dark'
   const actionParam = searchParams.get('action')
 
   const [contract, setContract] = useState<Contract | null>(null)
@@ -170,6 +113,12 @@ export default function ContractDetailPage({ basePath: basePathProp, showRespons
   const [sendSubject, setSendSubject] = useState('')
   const [sendMessage, setSendMessage] = useState('')
   const [sendSaving, setSendSaving] = useState(false)
+
+  const [pdfViewerOpen, setPdfViewerOpen] = useState(false)
+  const [pdfBuilding, setPdfBuilding] = useState(false)
+  const [pdfSaving, setPdfSaving] = useState(false)
+  const [pdfDocHtml, setPdfDocHtml] = useState('')
+  const pdfFrameRef = useRef<HTMLIFrameElement>(null)
 
   const [historyItems, setHistoryItems] = useState<ContractHistoryEntry[]>([])
   const [historyTotal, setHistoryTotal] = useState(0)
@@ -200,6 +149,50 @@ export default function ContractDetailPage({ basePath: basePathProp, showRespons
     ? contract?.agentPrincipal || '—'
     : currentUserName || contract?.agentPrincipal || '—'
 
+  const { accent, ink } = useContractAccent(contract?.type)
+  const primaryBtnStyle = contractPrimaryStyle(accent, isDark)
+
+  /* Staged modal chrome — premium StageModal skin + shared notices. */
+  const stageBtns = useStageModalButtons()
+  const modalSectionTitle = 'mb-2 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.2em]'
+  const modalNotice = `flex items-start gap-2 rounded-xl border px-3 py-2.5 text-[11px] font-medium ${
+    isDark ? 'border-amber-400/25 bg-amber-400/10 text-amber-200' : 'border-amber-200/80 bg-amber-50/80 text-amber-800'
+  }`
+  const modalDangerNotice = `flex items-start gap-2 rounded-xl border px-3 py-2.5 text-[11px] font-medium ${
+    isDark ? 'border-rose-400/25 bg-rose-500/10 text-rose-200' : 'border-rose-200/80 bg-rose-50/80 text-rose-700'
+  }`
+  const modalDangerPanel = `flex items-start gap-3 rounded-2xl border p-4 ${
+    isDark ? 'border-rose-500/20 bg-rose-500/[0.07]' : 'border-rose-200/80 bg-rose-50/80'
+  }`
+  /* Destructive pill: same shape as the stage primary, rose identity. */
+  const stageDangerPrimary = `inline-flex h-9 items-center gap-1.5 rounded-xl border px-4 text-sm font-semibold text-white transition-all duration-200 active:scale-[0.97] hover:brightness-110 ${
+    isDark
+      ? 'border-rose-400/40 bg-gradient-to-r from-rose-500 to-red-600 shadow-[inset_0_1px_0_rgba(255,255,255,0.30),0_10px_26px_-8px_rgba(225,29,72,0.55)]'
+      : 'border-white/25 bg-gradient-to-r from-rose-500 to-rose-600 shadow-[inset_0_1px_0_rgba(255,255,255,0.40),0_10px_26px_-10px_rgba(244,63,94,0.55)]'
+  }`
+
+  /* Glass chrome shared by all staged blocks on the page. */
+  const glassPanel = `border backdrop-blur-sm ${
+    isDark
+      ? 'border-white/[0.07] bg-white/[0.04]'
+      : 'border-slate-200/70 bg-white/75 shadow-[0_1px_2px_rgba(15,23,42,0.05)]'
+  }`
+  const glassBtn = `inline-flex items-center gap-2 rounded-xl border px-3.5 h-9 text-xs font-bold transition-all active:scale-[0.97] ${
+    isDark
+      ? 'border-white/10 bg-white/[0.05] text-slate-300 hover:border-white/20 hover:bg-white/10 hover:text-white'
+      : 'border-slate-200/80 bg-white/70 text-slate-600 shadow-sm hover:bg-white hover:text-slate-900'
+  }`
+  const dangerBtn = `inline-flex items-center gap-2 rounded-xl border px-3.5 h-9 text-xs font-bold transition-all active:scale-[0.97] ${
+    isDark
+      ? 'border-rose-400/30 bg-rose-500/10 text-rose-300 hover:border-rose-400/50 hover:bg-rose-500/20'
+      : 'border-rose-200/80 bg-rose-50/80 text-rose-500 shadow-sm hover:border-rose-300 hover:bg-rose-50 hover:text-rose-600'
+  }`
+  const moduleBtn = `inline-flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-bold transition-all active:scale-[0.97] ${
+    isDark
+      ? 'border-white/10 bg-white/[0.04] text-slate-300 hover:border-white/25 hover:bg-white/10 hover:text-white'
+      : 'border-slate-200/80 bg-white/70 text-slate-600 shadow-sm hover:bg-white hover:text-slate-900'
+  }`
+
   useEffect(() => {
     api.get<any>('/auth/me').then(setCurrentUser).catch(() => setCurrentUser(null))
   }, [])
@@ -223,32 +216,43 @@ export default function ContractDetailPage({ basePath: basePathProp, showRespons
   const getRoleBadge = (user?: any) => {
     if (!user) return null
     if (user.role === 'agent') {
-      return { label: user.position || 'Agent', cls: 'bg-emerald-100 text-emerald-700' }
+      return { label: user.position || 'Agent', hue: 'bg-emerald-500/15 text-emerald-500 border-emerald-500/30' }
     }
     if (user.role === 'gerant') {
-      return { label: 'Gérant', cls: 'bg-orange-100 text-orange-700' }
+      return { label: 'Gérant', hue: 'bg-orange-500/15 text-orange-500 border-orange-500/30' }
     }
     if (user.role === 'admin') {
-      return { label: 'Admin', cls: 'bg-indigo-100 text-indigo-700' }
+      return { label: 'Admin', hue: 'bg-indigo-500/15 text-indigo-400 border-indigo-500/30' }
     }
     return null
   }
+
+  const demoContract = useMemo(() => (id ? mockContracts.find(c => c.id === id) : undefined), [id])
 
   useEffect(() => {
     let mounted = true
     setLoading(true)
     setNotFound(false)
-    fetchContractById(id!)
+    if (!id || !/^\d+$/.test(id)) {
+      // Demo contract (mock data ids like "c1"): skip the API entirely so the
+      // backend never receives a non-numeric id.
+      if (!mounted) return
+      if (demoContract) setContract(normalizeContract(demoContract))
+      else setNotFound(true)
+      setLoading(false)
+      return
+    }
+    fetchContractById(id)
       .then(res => { if (mounted) setContract(normalizeContract(res)) })
       .catch(() => {
-        const mock = mockContracts.find(c => c.id === id)
+        const mock = demoContract
         if (!mounted) return
         if (mock) setContract(normalizeContract(mock))
         else setNotFound(true)
       })
       .finally(() => { if (mounted) setLoading(false) })
     return () => { mounted = false }
-  }, [id])
+  }, [id, demoContract])
 
   // Auto-open the status/note dialog when arriving from an action menu shortcut.
   // The action is consumed once; the URL param is cleared only after the dialog closes.
@@ -276,7 +280,29 @@ export default function ContractDetailPage({ basePath: basePathProp, showRespons
 
   const loadHistory = useCallback(() => {
     if (!id) return
+    const numeric = /^\d+$/.test(id)
     setHistoryLoading(true)
+    if (!numeric) {
+      // Demo contract: build the history client-side from the mock entries so
+      // filters and pagination keep working without hitting the backend.
+      const fromTime = historyFrom ? new Date(`${historyFrom}T00:00:00`).getTime() : null
+      const toTime = historyTo ? new Date(`${historyTo}T23:59:59.999`).getTime() : null
+      const filtered = (demoContract?.history || []).filter(e => {
+        const ts = new Date(e.date).getTime()
+        if (historyAction && e.action !== historyAction) return false
+        if (fromTime != null && ts < fromTime) return false
+        if (toTime != null && ts > toTime) return false
+        return true
+      })
+      const pageSize = 10
+      const pages = Math.max(1, Math.ceil(filtered.length / pageSize))
+      const start = (historyPage - 1) * pageSize
+      setHistoryItems(filtered.slice(start, start + pageSize))
+      setHistoryTotal(filtered.length)
+      setHistoryPages(pages)
+      setHistoryLoading(false)
+      return
+    }
     fetchContractHistory(
       id,
       {
@@ -297,7 +323,7 @@ export default function ContractDetailPage({ basePath: basePathProp, showRespons
         setHistoryPages(0)
       })
       .finally(() => setHistoryLoading(false))
-  }, [id, historyPage, historyAction, historyFrom, historyTo])
+  }, [id, demoContract, historyPage, historyAction, historyFrom, historyTo])
 
   useEffect(() => { if (id) loadHistory() }, [loadHistory])
 
@@ -323,37 +349,92 @@ export default function ContractDetailPage({ basePath: basePathProp, showRespons
     return date.toLocaleDateString('fr-FR')
   }
 
-  const mainAmount = useMemo(() => {
-    if (!contract) return { label: 'Montant', value: undefined as number | undefined, unit: '' }
-    if (contract.type === 'vente') return { label: 'Prix de vente', value: contract.prixVente, unit: '' }
-    if (contract.type === 'location_classique') return { label: 'Loyer mensuel', value: contract.loyerMensuelHC, unit: '/mois' }
-    return { label: 'Total du séjour', value: contract.prixTotalSejour, unit: '' }
-  }, [contract])
-
-  const mainDate = useMemo(() => {
-    if (!contract) return { label: 'Date', value: '' }
-    if (contract.type === 'vente') {
-      if (contract.etape === 'acte_authentique') return { label: 'Acte authentique', value: contract.dateActe || '' }
-      if (contract.etape === 'compromis') return { label: 'Compromis', value: contract.dateCompromis || '' }
-      if (contract.etape === 'reservation') return { label: 'Réservation', value: contract.dateReservation || '' }
-      return { label: 'Offre', value: contract.dateOffre || '' }
-    }
-    if (contract.type === 'location_classique') return { label: 'Début du bail', value: contract.dateDebutBail || '' }
-    return { label: 'Arrivée', value: contract.dateArrivee || '' }
-  }, [contract])
-
   const propertyPath = contract?.propertyId ? `${basePath}/properties/${contract.propertyId}` : null
   const clientPath = (party: Contract['partieA']) =>
     party?.id ? `${basePath}/clients/type/${(party.type || 'client').toLowerCase()}/${party.id}` : null
 
+  const backBtn = (
+    <motion.button
+      type="button"
+      onClick={() => navigate(contractsPath)}
+      initial={{ opacity: 0, x: -12 }}
+      animate={{ opacity: 1, x: 0 }}
+      transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+      whileHover="hover"
+      whileTap={{ scale: 0.96 }}
+      title="Retour aux contrats"
+      className={`group/back relative flex h-9 shrink-0 items-center gap-2 overflow-hidden rounded-xl border pl-2.5 pr-4 text-xs font-bold backdrop-blur-md transition-all ${
+        isDark
+          ? 'border-white/10 bg-white/[0.05] text-slate-300 hover:border-white/30 hover:bg-white/10 hover:text-white'
+          : 'border-slate-200/80 bg-white/70 text-slate-600 shadow-sm hover:border-teal-500/40 hover:bg-white hover:text-teal-900'
+      }`}
+    >
+      <motion.span
+        className="flex h-6 w-6 items-center justify-center rounded-lg"
+        style={{ background: isDark ? 'rgba(255,255,255,0.07)' : 'rgba(15,23,42,0.05)' }}
+        variants={{ hover: { x: -3 } }}
+        transition={{ type: 'spring', stiffness: 500, damping: 28 }}
+      >
+        <ArrowLeft size={14} style={{ color: isDark ? accent.a : ink }} />
+      </motion.span>
+      <span>Retour aux contrats</span>
+      <motion.span
+        className="absolute inset-x-3 bottom-1 h-[2px] origin-left rounded-full"
+        style={{ background: `linear-gradient(90deg, ${accent.a}, ${accent.b})` }}
+        initial={{ scaleX: 0, opacity: 0 }}
+        variants={{ hover: { scaleX: 1, opacity: 0.8 } }}
+        transition={{ duration: 0.25, ease: 'easeOut' }}
+      />
+    </motion.button>
+  )
+
   // ---- Actions ----
 
   const handleDownload = () => {
-    if (!contract) return
+    if (!contract || pdfBuilding) return
+    /* In-app PDF viewer: the contract document is assembled and rendered
+       inside a staged modal (iframe srcDoc) — no hijacked browser tab.
+       Build first so the modal opens with its loading skeleton already up. */
+    setPdfViewerOpen(true)
+    setPdfDocHtml('')
+    setPdfBuilding(true)
+    // Let the modal spring + skeleton paint before the CPU-bound assembly
+    // blocks the main thread for a beat.
+    window.setTimeout(() => {
+      try {
+        setPdfDocHtml(generateContratHtml(buildContractPdfData(contract, agentDisplayName), { scrollTheme: isDark ? 'dark' : 'light' }))
+      } catch {
+        setPdfViewerOpen(false)
+        toast('error', 'Erreur lors de la génération du PDF du contrat')
+      } finally {
+        setPdfBuilding(false)
+      }
+    }, 420)
+  }
+
+  /* The print dialog carries "Imprimer" for the ghost action. */
+  const handlePdfPrint = () => {
+    if (!pdfDocHtml || !pdfFrameRef.current?.contentWindow) {
+      return toast('info', 'Document en cours de génération...')
+    }
+    pdfFrameRef.current.contentWindow.focus()
+    pdfFrameRef.current.contentWindow.print()
+  }
+
+  /* True file download: rasterizes the displayed document into an
+     A4 multipage PDF (WYSIWYG with the in-app preview). */
+  const handlePdfDownload = async () => {
+    if (!pdfDocHtml || pdfSaving || pdfBuilding || !contract) return
+    setPdfSaving(true)
     try {
-      generateContratPdf(buildContractPdfData(contract, agentDisplayName))
+      await exportHtmlToPdfFromFrame(pdfFrameRef.current, {
+        downloadName: `Contrat-${contract.reference}.pdf`,
+      })
+      toast('success', 'Contrat téléchargé au format PDF')
     } catch {
       toast('error', 'Erreur lors de la génération du PDF du contrat')
+    } finally {
+      setPdfSaving(false)
     }
   }
 
@@ -521,109 +602,211 @@ export default function ContractDetailPage({ basePath: basePathProp, showRespons
   // ---- Render helpers ----
 
   const renderKeyDates = () => (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-      <InfoBox label="Création" value={fmtDate(contract?.dateCreation)} />
+    <StageSection icon={Calendar} title="Dates clés" accent={accent} ink={ink} isDark={isDark} delay={0.04}>
+      <StageField icon={Calendar} label="Création" value={fmtDate(contract?.dateCreation)} accent={accent} ink={ink} isDark={isDark} delay={0.02} />
       {contract?.type === 'vente' && (
         <>
-          <InfoBox label="Offre" value={fmtDate(contract?.dateOffre)} />
-          <InfoBox label="Réservation" value={fmtDate(contract?.dateReservation)} />
-          <InfoBox label="Compromis" value={fmtDate(contract?.dateCompromis)} />
-          {contract?.dateActe && <InfoBox label="Acte authentique" value={fmtDate(contract?.dateActe)} />}
+          <StageField icon={Calendar} label="Offre" value={fmtDate(contract?.dateOffre)} accent={accent} ink={ink} isDark={isDark} delay={0.04} />
+          <StageField icon={Calendar} label="Réservation" value={fmtDate(contract?.dateReservation)} accent={accent} ink={ink} isDark={isDark} delay={0.06} />
+          <StageField icon={Calendar} label="Compromis" value={fmtDate(contract?.dateCompromis)} accent={accent} ink={ink} isDark={isDark} delay={0.08} />
+          <StageField icon={Calendar} label="Acte authentique" value={fmtDate(contract?.dateActe)} accent={accent} ink={ink} isDark={isDark} delay={0.1} />
         </>
       )}
       {contract?.type === 'location_classique' && (
         <>
-          <InfoBox label="Début du bail" value={fmtDate(contract?.dateDebutBail)} />
-          <InfoBox label="Fin du bail" value={fmtDate(contract?.dateFinBail)} />
+          <StageField icon={Calendar} label="Début du bail" value={fmtDate(contract?.dateDebutBail)} accent={accent} ink={ink} isDark={isDark} delay={0.04} />
+          <StageField icon={Calendar} label="Fin du bail" value={fmtDate(contract?.dateFinBail)} accent={accent} ink={ink} isDark={isDark} delay={0.06} />
         </>
       )}
       {contract?.type === 'location_saisonniere' && (
         <>
-          <InfoBox label="Arrivée" value={fmtDate(contract?.dateArrivee)} />
-          <InfoBox label="Départ" value={fmtDate(contract?.dateDepart)} />
+          <StageField icon={Calendar} label="Arrivée" value={fmtDate(contract?.dateArrivee)} accent={accent} ink={ink} isDark={isDark} delay={0.04} />
+          <StageField icon={Calendar} label="Départ" value={fmtDate(contract?.dateDepart)} accent={accent} ink={ink} isDark={isDark} delay={0.06} />
         </>
       )}
-    </div>
+    </StageSection>
   )
+
+  const StagedPartyCard = ({ party, delay }: { party: Contract['partieA']; delay: number }) => {
+    const meta = partyRoleMeta(party.role)
+    const RoleIcon = meta.icon
+    const empty = !party.name
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay, duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+        className={`flex items-center gap-3 rounded-2xl p-3.5 ${glassPanel} ${empty ? 'border-dashed' : ''}`}
+        style={empty && isDark ? { borderColor: 'rgba(255,255,255,0.12)' } : undefined}
+      >
+        <span
+          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border text-xs font-extrabold"
+          style={isDark
+            ? { background: `${meta.hue.a}18`, borderColor: `${meta.hue.a}38`, color: '#fff' }
+            : { background: `${meta.hue.a}12`, borderColor: `${meta.hue.a}3A`, color: meta.hue.b }}
+        >
+          {empty ? <User size={14} className={isDark ? 'text-slate-400' : 'text-slate-500'} /> : (party.name || '?').split(' ').map(n => n[0]).slice(0, 2).join('')}
+        </span>
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-1.5">
+            <p className={`truncate text-sm font-extrabold ${isDark ? 'text-white' : 'text-slate-900'}`}>
+              {party.name || 'Non renseignée'}
+            </p>
+            <span
+              className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.08em]"
+              style={stagePillStyle(meta.hue, isDark)}
+            >
+              <RoleIcon size={9} /> {party.role}
+            </span>
+          </div>
+          {!empty && (
+            <div className={`mt-0.5 flex flex-wrap items-center gap-3 text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+              <span className="flex items-center gap-1"><Phone size={10} /> {party.phone || '—'}</span>
+              <span className="flex items-center gap-1"><Mail size={10} /> <span className="max-w-[220px] truncate">{party.email || '—'}</span></span>
+            </div>
+          )}
+        </div>
+        {!empty && clientPath(party) && (
+          <button
+            type="button"
+            onClick={() => { const p = clientPath(party); if (p) navigate(p) }}
+            className="flex shrink-0 items-center gap-1 text-xs font-bold transition-all hover:gap-1.5"
+            style={{ color: isDark ? accent.a : ink }}
+          >
+            Fiche <ArrowRight size={12} />
+          </button>
+        )}
+      </motion.div>
+    )
+  }
+
+  const StagedPartyDetailCard = ({ title, subtitle, party, delay }: { title: string; subtitle: string; party: Contract['partieA']; delay: number }) => {
+    const meta = partyRoleMeta(party.role)
+    const RoleIcon = meta.icon
+    const empty = !party.name
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay, duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+        className={`rounded-2xl p-4 sm:p-5 ${glassPanel} ${empty ? 'border-dashed' : ''}`}
+        style={empty && isDark ? { borderColor: 'rgba(255,255,255,0.12)' } : undefined}
+      >
+        <div className="mb-3 flex items-center justify-between gap-2">
+          <div>
+            <p className={`text-sm font-extrabold ${isDark ? 'text-white' : 'text-slate-900'}`}>{title}</p>
+            <p className={`text-xs ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>{subtitle}</p>
+          </div>
+          <StagePill hue={meta.hue} isDark={isDark} icon={RoleIcon}>{party.role}</StagePill>
+        </div>
+        <div className={`flex items-center gap-3 rounded-xl border p-3 ${isDark ? 'border-white/[0.06] bg-white/[0.03]' : 'border-slate-200/60 bg-white/60'}`}>
+          <span
+            className="orb-icon select-none flex h-10 w-10 items-center justify-center text-xs font-extrabold text-white"
+            style={{ width: 40, height: 40, borderRadius: 12, '--orb-a': meta.hue.a, '--orb-b': meta.hue.b, '--orb-glow': meta.hue.glow } as React.CSSProperties}
+          >
+            {empty ? '?' : (party.name || '?').split(' ').map(n => n[0]).slice(0, 2).join('')}
+          </span>
+          <div className="min-w-0">
+            <p className={`truncate text-sm font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>{party.name || 'Non renseignée'}</p>
+            <p className={`truncate text-xs ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>{party.type || party.role}</p>
+          </div>
+        </div>
+        {!empty && (
+          <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <StageField icon={Phone} label="Téléphone" value={party.phone || '—'} accent={accent} ink={ink} isDark={isDark} delay={0} />
+            <StageField icon={Mail} label="Email" value={party.email || '—'} accent={accent} ink={ink} isDark={isDark} delay={0} />
+          </div>
+        )}
+        {!empty && clientPath(party) && (
+          <button
+            type="button"
+            onClick={() => { const p = clientPath(party); if (p) navigate(p) }}
+            className="mt-3 inline-flex items-center gap-1 text-xs font-bold transition-all hover:gap-2"
+            style={{ color: isDark ? accent.a : ink }}
+          >
+            Voir la fiche client <ArrowRight size={12} />
+          </button>
+        )}
+      </motion.div>
+    )
+  }
 
   const renderResume = () => {
     if (!contract || !typeCfg) return null
     return (
-      <div className="space-y-7">
-        <div>
-          <SectionHeader icon={<FileText size={14} />} title="Informations" />
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            <InfoField label="Référence" value={<span className="font-mono text-[13px]">{contract.reference}</span>} icon={<Copy size={11} />} />
-            <InfoField label="Type" value={CONTRACT_TYPE_LABELS[contract.type]} icon={<TypeIcon size={11} />} highlight />
-            <InfoField label="Statut" value={STATUS_META[contract.status].label} icon={<Shield size={11} />} />
-            <InfoField label="Agent responsable" value={agentDisplayName} icon={<User size={11} />} />
-            <InfoField label="Créé le" value={fmtDate(contract.createdAt || contract.dateCreation)} icon={<Calendar size={11} />} />
-            <InfoField label="Dernière mise à jour" value={fmtDate(contract.updatedAt)} icon={<Clock size={11} />} />
+      <div className="space-y-6">
+        <StageSection icon={TypeIcon || FileText} title="Informations" accent={accent} ink={ink} isDark={isDark} delay={0.02}>
+          <StageField icon={Copy} label="Référence" value={<span className="font-mono text-[13px]">{contract.reference}</span>} accent={accent} ink={ink} isDark={isDark} delay={0.02} />
+          <StageField icon={TypeIcon || FileText} label="Type" value={CONTRACT_TYPE_LABELS[contract.type]} accent={accent} ink={ink} isDark={isDark} delay={0.04} />
+          <StageField icon={Shield} label="Statut" value={CONTRACT_STATUS_LABELS[contract.status]} accent={accent} ink={ink} isDark={isDark} delay={0.06} />
+          <StageField icon={User} label="Agent responsable" value={agentDisplayName} accent={accent} ink={ink} isDark={isDark} delay={0.08} />
+          <StageField icon={Calendar} label="Créé le" value={fmtDate(contract.createdAt || contract.dateCreation)} accent={accent} ink={ink} isDark={isDark} delay={0.1} />
+          <StageField icon={Clock} label="Dernière mise à jour" value={fmtDate(contract.updatedAt)} accent={accent} ink={ink} isDark={isDark} delay={0.12} />
+        </StageSection>
+
+        {renderKeyDates()}
+
+        <StageSection icon={Users} title="Parties" accent={accent} ink={ink} isDark={isDark} delay={0.06}>
+          <div className="md:col-span-2 space-y-2.5">
+            <StagedPartyCard party={contract.partieA} delay={0.02} />
+            <StagedPartyCard party={contract.partieB} delay={0.06} />
           </div>
-        </div>
+        </StageSection>
 
-        <div>
-          <SectionHeader icon={<Calendar size={14} />} title="Dates clés" />
-          {renderKeyDates()}
-        </div>
-
-        <div>
-          <SectionHeader icon={<Users size={14} />} title="Parties" />
-          <div className="grid grid-cols-1 gap-4">
-            <PartyCard
-              label={contract.partieA.role}
-              name={contract.partieA.name}
-              type={contract.partieA.type}
-              phone={contract.partieA.phone}
-              email={contract.partieA.email}
-              onClickLink={() => { const p = clientPath(contract.partieA); if (p) navigate(p) }}
-            />
-            <PartyCard
-              label={contract.partieB.role}
-              name={contract.partieB.name}
-              type={contract.partieB.type}
-              phone={contract.partieB.phone}
-              email={contract.partieB.email}
-              placeholder={!contract.partieB.name}
-              onClickLink={() => { const p = clientPath(contract.partieB); if (p) navigate(p) }}
-            />
-          </div>
-        </div>
-
-        <div>
-          <SectionHeader icon={<Home size={14} />} title="Bien concerné" />
-          <div className="p-4 rounded-xl bg-background border border-border/50 flex items-start gap-3">
-            <div className="w-10 h-10 rounded-xl bg-accent-light flex items-center justify-center flex-shrink-0">
-              <Home size={16} className="text-accent" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="font-medium text-text">{contract.propertyTitle}</p>
-              <div className="flex items-center gap-1.5 text-xs text-text-secondary mt-0.5">
+        <StageSection icon={Home} title="Bien concerné" accent={accent} ink={ink} isDark={isDark} delay={0.1}>
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.04, duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+            className={`md:col-span-2 flex items-start gap-3 rounded-2xl p-3.5 ${glassPanel}`}
+          >
+            <span
+              className="orb-icon select-none flex shrink-0 items-center justify-center text-white"
+              style={{ width: 40, height: 40, borderRadius: 12, '--orb-a': accent.a, '--orb-b': accent.b, '--orb-glow': accent.glow } as React.CSSProperties}
+            >
+              <Home size={17} />
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className={`truncate text-sm font-extrabold ${isDark ? 'text-white' : 'text-slate-900'}`}>{contract.propertyTitle}</p>
+              <div className={`mt-0.5 flex items-center gap-1.5 text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
                 <MapPin size={11} />
-                <span>{contract.propertyAddress || '—'}</span>
+                <span className="truncate">{contract.propertyAddress || '—'}</span>
               </div>
-              <div className="flex items-center gap-2 mt-1">
-                {contract.propertyTypeLabel && <Badge variant="outline">{contract.propertyTypeLabel}</Badge>}
-                {contract.propertyRef && <span className="text-[11px] text-text-secondary/60 font-mono">{contract.propertyRef}</span>}
+              <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                {contract.propertyTypeLabel && <StagePill hue={accent} isDark={isDark}>{contract.propertyTypeLabel}</StagePill>}
+                {contract.propertyRef && <span className={`font-mono text-[11px] ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>{contract.propertyRef}</span>}
               </div>
             </div>
             {propertyPath && (
-              <Button variant="ghost" size="sm" icon={<ArrowRight size={13} />} iconPosition="right" onClick={() => navigate(propertyPath)}>
-                Voir le bien
-              </Button>
+              <button type="button" className={moduleBtn} onClick={() => navigate(propertyPath)}>
+                <ArrowRight size={12} /> Voir le bien
+              </button>
+            )}
+          </motion.div>
+        </StageSection>
+
+        <StageSection icon={Link2} title="Liens vers les autres modules" accent={accent} ink={ink} isDark={isDark} delay={0.14}>
+          <div className="md:col-span-2 flex flex-wrap gap-2">
+            <button type="button" className={moduleBtn} onClick={() => navigate(`${basePath}/register`)}>
+              <FileText size={13} /> Registre des mandats
+            </button>
+            {propertyPath && (
+              <button type="button" className={moduleBtn} onClick={() => navigate(propertyPath)}>
+                <Home size={13} /> Fiche bien
+              </button>
+            )}
+            {clientPath(contract.partieA) && (
+              <button type="button" className={moduleBtn} onClick={() => { const p = clientPath(contract.partieA); if (p) navigate(p) }}>
+                <User size={13} /> Fiche partie A
+              </button>
+            )}
+            {clientPath(contract.partieB) && (
+              <button type="button" className={moduleBtn} onClick={() => { const p = clientPath(contract.partieB); if (p) navigate(p) }}>
+                <User size={13} /> Fiche partie B
+              </button>
             )}
           </div>
-        </div>
-
-        <div>
-          <SectionHeader icon={<Link2 size={14} />} title="Liens vers les autres modules" />
-          <div className="flex flex-wrap gap-2">
-            <ModuleLink icon={<FileText size={13} />} label="Registre des mandats" onClick={() => navigate(`${basePath}/register`)} />
-            {propertyPath && <ModuleLink icon={<Home size={13} />} label="Fiche bien" onClick={() => navigate(propertyPath)} />}
-            {clientPath(contract.partieA) && <ModuleLink icon={<User size={13} />} label="Fiche partie A" onClick={() => clientPath(contract.partieA) && navigate(clientPath(contract.partieA)!)} />}
-            {clientPath(contract.partieB) && <ModuleLink icon={<User size={13} />} label="Fiche partie B" onClick={() => clientPath(contract.partieB) && navigate(clientPath(contract.partieB)!)} />}
-          </div>
-        </div>
+        </StageSection>
       </div>
     )
   }
@@ -632,33 +815,30 @@ export default function ContractDetailPage({ basePath: basePathProp, showRespons
     if (!contract) return null
     return (
       <div className="space-y-6">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-          <PartyDetailCard
-            title={contract.partieA.role}
-            subtitle="Partie A"
-            party={contract.partieA}
-            onClickLink={() => { const p = clientPath(contract.partieA); if (p) navigate(p) }}
-          />
-          <PartyDetailCard
-            title={contract.partieB.role}
-            subtitle="Partie B"
-            party={contract.partieB}
-            placeholder={!contract.partieB.name}
-            onClickLink={() => { const p = clientPath(contract.partieB); if (p) navigate(p) }}
-          />
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <StagedPartyDetailCard title={contract.partieA.role} subtitle="Partie A" party={contract.partieA} delay={0.02} />
+          <StagedPartyDetailCard title={contract.partieB.role} subtitle="Partie B" party={contract.partieB} delay={0.06} />
         </div>
-        <div className="p-4 rounded-xl bg-background border border-border/50 flex items-center justify-between gap-3">
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1, duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+          className={`flex items-center justify-between gap-3 rounded-2xl p-4 ${glassPanel}`}
+        >
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-accent-light flex items-center justify-center flex-shrink-0">
-              <User size={16} className="text-accent" />
-            </div>
+            <span
+              className="orb-icon select-none flex shrink-0 items-center justify-center text-white text-xs font-extrabold"
+              style={{ width: 40, height: 40, borderRadius: 12, '--orb-a': accent.a, '--orb-b': accent.b, '--orb-glow': accent.glow } as React.CSSProperties}
+            >
+              <User size={16} />
+            </span>
             <div>
-              <p className="text-xs text-text-secondary">Agent principal</p>
-              <p className="font-medium text-text">{agentDisplayName}</p>
+              <p className={`text-xs ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>Agent principal</p>
+              <p className={`text-sm font-extrabold ${isDark ? 'text-white' : 'text-slate-900'}`}>{agentDisplayName}</p>
             </div>
           </div>
-          <Badge variant="outline">Mandat exclusif</Badge>
-        </div>
+          <StagePill hue={SLATE_HUE} isDark={isDark}>Mandat exclusif</StagePill>
+        </motion.div>
       </div>
     )
   }
@@ -668,226 +848,371 @@ export default function ContractDetailPage({ basePath: basePathProp, showRespons
     return (
       <div className="space-y-6">
         {contract.type === 'vente' && (
-          <>
-            <SectionHeader icon={<DollarSign size={14} />} title="Détails financiers — Vente" />
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-              <InfoField label="Prix de vente" value={money(contract.prixVente)} icon={<DollarSign size={11} />} highlight />
-              <InfoField label="Montant net vendeur" value={money(contract.montantNetVendeur)} icon={<DollarSign size={11} />} />
-              <InfoField
-                label="Honoraires TTC"
-                value={money(contract.honorairesTTC)}
-                icon={<DollarSign size={11} />}
-                helperText={contract.prixVente && contract.honorairesTTC ? `${((contract.honorairesTTC / contract.prixVente) * 100).toFixed(2)}% du prix de vente` : undefined}
-              />
-              {contract.sequestre != null && <InfoField label="Séquestre" value={money(contract.sequestre)} icon={<Shield size={11} />} />}
-              {contract.conditionPaiementHonoraires && (
-                <InfoField label="Paiement des honoraires" value={contract.conditionPaiementHonoraires} icon={<Clock size={11} />} />
-              )}
-            </div>
-          </>
+          <StageSection icon={DollarSign} title="Détails financiers — Vente" accent={accent} ink={ink} isDark={isDark} delay={0.02}>
+            <StageField icon={DollarSign} label="Prix de vente" value={money(contract.prixVente)} accent={accent} ink={ink} isDark={isDark} delay={0.02} />
+            <StageField icon={DollarSign} label="Montant net vendeur" value={money(contract.montantNetVendeur)} accent={accent} ink={ink} isDark={isDark} delay={0.04} />
+            <StageField
+              icon={DollarSign}
+              label="Honoraires TTC"
+              value={money(contract.honorairesTTC)}
+              accent={accent}
+              ink={ink}
+              isDark={isDark}
+              delay={0.06}
+            />
+            {contract.sequestre != null && <StageField icon={Shield} label="Séquestre" value={money(contract.sequestre)} accent={accent} ink={ink} isDark={isDark} delay={0.08} />}
+            {contract.conditionPaiementHonoraires && <StageField icon={Clock} label="Paiement des honoraires" value={contract.conditionPaiementHonoraires} accent={accent} ink={ink} isDark={isDark} delay={0.1} />}
+          </StageSection>
         )}
         {contract.type === 'location_classique' && (
-          <>
-            <SectionHeader icon={<DollarSign size={14} />} title="Détails financiers — Location classique" />
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-              <InfoField label="Loyer mensuel HC" value={money(contract.loyerMensuelHC)} icon={<DollarSign size={11} />} highlight />
-              <InfoField label="Charges mensuelles" value={money(contract.chargesMensuelles)} icon={<DollarSign size={11} />} />
-              <InfoField
-                label="Loyer total CC"
-                value={money(contract.loyerMensuelHC != null && contract.chargesMensuelles != null ? contract.loyerMensuelHC + contract.chargesMensuelles : undefined)}
-                icon={<DollarSign size={11} />}
-              />
-              <InfoField
-                label="Dépôt de garantie"
-                value={money(contract.depotGarantie)}
-                icon={<Shield size={11} />}
-                helperText={contract.depotGarantie != null && contract.loyerMensuelHC ? `${(contract.depotGarantie / contract.loyerMensuelHC).toFixed(1)} mois de loyer` : undefined}
-              />
-              <InfoField label="Honoraires de location" value={money(contract.honorairesLocation)} icon={<DollarSign size={11} />} />
-            </div>
-          </>
+          <StageSection icon={DollarSign} title="Détails financiers — Location classique" accent={accent} ink={ink} isDark={isDark} delay={0.02}>
+            <StageField icon={DollarSign} label="Loyer mensuel HC" value={money(contract.loyerMensuelHC)} accent={accent} ink={ink} isDark={isDark} delay={0.02} />
+            <StageField icon={DollarSign} label="Charges mensuelles" value={money(contract.chargesMensuelles)} accent={accent} ink={ink} isDark={isDark} delay={0.04} />
+            <StageField
+              icon={DollarSign}
+              label="Loyer total CC"
+              value={money(contract.loyerMensuelHC != null && contract.chargesMensuelles != null ? contract.loyerMensuelHC + contract.chargesMensuelles : undefined)}
+              accent={accent}
+              ink={ink}
+              isDark={isDark}
+              delay={0.06}
+            />
+            <StageField
+              icon={Shield}
+              label="Dépôt de garantie"
+              value={money(contract.depotGarantie)}
+              accent={accent}
+              ink={ink}
+              isDark={isDark}
+              delay={0.08}
+            />
+            <StageField icon={DollarSign} label="Honoraires de location" value={money(contract.honorairesLocation)} accent={accent} ink={ink} isDark={isDark} delay={0.1} />
+          </StageSection>
         )}
         {contract.type === 'location_saisonniere' && (
-          <>
-            <SectionHeader icon={<DollarSign size={14} />} title="Détails financiers — Location saisonnière" />
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-              <InfoField label="Prix total du séjour" value={money(contract.prixTotalSejour)} icon={<DollarSign size={11} />} highlight />
-              <InfoField
-                label="Tarif / nuit"
-                value={money(contract.prixTotalSejour && contract.dateArrivee && contract.dateDepart ? contract.prixTotalSejour / Math.max(1, Math.floor((new Date(contract.dateDepart).getTime() - new Date(contract.dateArrivee).getTime()) / (1000 * 60 * 60 * 24))) : undefined)}
-                icon={<DollarSign size={11} />}
-              />
-              <InfoField
-                label="Acompte versé"
-                value={money(contract.acompteVerse)}
-                icon={<DollarSign size={11} />}
-                helperText={contract.acompteVerse != null && contract.prixTotalSejour ? `${((contract.acompteVerse / contract.prixTotalSejour) * 100).toFixed(0)}% du total` : undefined}
-              />
-              <InfoField label="Solde restant" value={money(contract.soldeRestant)} icon={<DollarSign size={11} />} />
-              <InfoField label="Caution" value={money(contract.caution)} icon={<Shield size={11} />} />
-            </div>
-          </>
+          <StageSection icon={DollarSign} title="Détails financiers — Location saisonnière" accent={accent} ink={ink} isDark={isDark} delay={0.02}>
+            <StageField icon={DollarSign} label="Prix total du séjour" value={money(contract.prixTotalSejour)} accent={accent} ink={ink} isDark={isDark} delay={0.02} />
+            <StageField
+              icon={DollarSign}
+              label="Tarif / nuit"
+              value={money(contract.prixTotalSejour && contract.dateArrivee && contract.dateDepart ? contract.prixTotalSejour / Math.max(1, Math.floor((new Date(contract.dateDepart).getTime() - new Date(contract.dateArrivee).getTime()) / (1000 * 60 * 60 * 24))) : undefined)}
+              accent={accent}
+              ink={ink}
+              isDark={isDark}
+              delay={0.04}
+            />
+            <StageField
+              icon={DollarSign}
+              label="Acompte versé"
+              value={money(contract.acompteVerse)}
+              accent={accent}
+              ink={ink}
+              isDark={isDark}
+              delay={0.06}
+            />
+            <StageField icon={DollarSign} label="Solde restant" value={money(contract.soldeRestant)} accent={accent} ink={ink} isDark={isDark} delay={0.08} />
+            <StageField icon={Shield} label="Caution" value={money(contract.caution)} accent={accent} ink={ink} isDark={isDark} delay={0.1} />
+          </StageSection>
         )}
         {contract.notes && (
-          <div>
-            <SectionHeader icon={<MessageSquare size={14} />} title="Notes" />
-            <p className="text-sm text-text/80 p-3 rounded-xl bg-background border border-border/50">{contract.notes}</p>
-          </div>
+          <StageSection icon={MessageSquare} title="Notes" accent={accent} ink={ink} isDark={isDark} delay={0.06}>
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.04, duration: 0.4 }}
+              className={`md:col-span-2 rounded-2xl p-3.5 ${glassPanel}`}
+            >
+              <div className="mb-1.5 flex items-center gap-2">
+                <MessageSquare size={13} style={{ color: isDark ? accent.a : ink }} />
+                <span className={`text-[10px] font-extrabold uppercase tracking-[0.14em] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Note interne</span>
+              </div>
+              <p className={`whitespace-pre-wrap text-sm font-semibold leading-relaxed ${isDark ? 'text-white/90' : 'text-slate-800'}`}>{contract.notes}</p>
+            </motion.div>
+          </StageSection>
         )}
       </div>
     )
   }
 
-  const renderDocuments = () => (
-    <div className="space-y-4">
-      <div className="flex justify-end">
-        <Button variant="outline" size="sm" icon={<Upload size={14} />} loading={docUploading} onClick={pickFiles}>
-          {docUploading ? 'Upload en cours...' : 'Ajouter un document'}
-        </Button>
-      </div>
-      {docError && (
-        <div className="p-3 rounded-xl bg-red-50 border border-red-200 text-sm text-red-700">
-          {docError}
-        </div>
-      )}
-      <input
-        ref={fileInputRef}
-        type="file"
-        multiple
-        accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt"
-        className="hidden"
-        onChange={handleFilesSelected}
-      />
-      {contract && (
-        <DocumentCategorySection
-          title="Documents du contrat"
-          description="Pièces justificatives et contrats signés"
-          icon={<Shield size={16} />}
-          documents={contract.documents.map(d => ({ ...d, category: d.category || 'contrat' }))}
-          onAdd={pickFiles}
-          onDownload={handleDocDownload}
-          onDelete={(d: any) => setDocToDelete(d as ContractDocument)}
-          onView={handleDocView}
-          emptyMessage="Aucun document lié à ce contrat"
-          defaultOpen={true}
+  const renderDocuments = () => {
+    const docs = contract?.documents || []
+    const docRowAction =
+      'flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border transition-all duration-200 active:scale-95 ' +
+      (isDark
+        ? 'border-white/[0.06] bg-white/[0.02] text-slate-400 hover:border-white/20 hover:bg-white/[0.08] hover:text-white'
+        : 'border-slate-200/70 bg-white/70 text-slate-500 hover:border-teal-500/30 hover:bg-white hover:text-teal-900')
+    const docRowActionDanger =
+      'flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border transition-all duration-200 active:scale-95 ' +
+      (isDark
+        ? 'border-rose-400/25 bg-rose-500/[0.06] text-rose-300/90 hover:border-rose-400/50 hover:bg-rose-500/15 hover:text-rose-300'
+        : 'border-rose-200/80 bg-rose-50/80 text-rose-400 hover:border-rose-300 hover:bg-rose-50 hover:text-rose-600')
+
+    return (
+      <div className="space-y-3">
+        {/* Header — orb + count + add action */}
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+          className={`flex flex-wrap items-center justify-between gap-3 rounded-2xl p-3.5 ${glassPanel}`}
+        >
+          <div className="flex min-w-0 items-center gap-3">
+            <OrbIcon icon={Shield} hue={accent} size={38} radius={12} />
+            <div className="min-w-0">
+              <p className={`text-sm font-extrabold ${isDark ? 'text-white' : 'text-slate-900'}`}>Documents du contrat</p>
+              <p className={`text-xs ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+                {docs.length} pièce{docs.length > 1 ? 's' : ''} joint{docs.length > 1 ? 'e' : ''}
+                {docs.length > 1 ? 's' : ''} · contrats signés et justificatifs
+              </p>
+            </div>
+          </div>
+          <button type="button" className={glassBtn} onClick={pickFiles} disabled={docUploading}>
+            {docUploading ? <Loader size={14} className="animate-spin" /> : <Upload size={14} />}
+            {docUploading ? 'Upload en cours...' : 'Ajouter un document'}
+          </button>
+        </motion.div>
+
+        {docError && (
+          <motion.div
+            initial={{ opacity: 0, y: -6 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.25 }}
+            className={cn(
+              'flex items-start gap-2 rounded-xl border px-3 py-2.5 text-[13px] font-medium',
+              isDark ? 'border-rose-400/25 bg-rose-500/10 text-rose-200' : 'border-rose-200/80 bg-rose-50/80 text-rose-700',
+            )}
+          >
+            <AlertTriangle size={14} className="mt-0.5 shrink-0 text-rose-400" />
+            <p>{docError}</p>
+          </motion.div>
+        )}
+
+        <input
+          ref={fileInputRef}
+          type="file"
+          multiple
+          accept="image/*,.pdf,.doc,.docx,.xls,.xlsx,.txt"
+          className="hidden"
+          onChange={handleFilesSelected}
         />
-      )}
-    </div>
-  )
+
+        {docs.length === 0 ? (
+          <StageEmpty
+            icon={FileText}
+            title="Aucun document lié à ce contrat"
+            hint="Ajoutez le contrat scanné et ses pièces justificatives (PDF ou images)."
+            accent={accent}
+            ink={ink}
+            isDark={isDark}
+            action={
+              <button type="button" className={glassBtn} onClick={pickFiles}>
+                <Upload size={14} /> Ajouter un document
+              </button>
+            }
+          />
+        ) : (
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.06, duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+            className="overflow-hidden rounded-2xl"
+          >
+            <div className={glassPanel}>
+              <div className={isDark ? 'divide-y divide-white/[0.05]' : 'divide-y divide-slate-100'}>
+                {docs.map((doc, i) => {
+                  const sizeLabel = fmtDocSize(doc.size)
+                  return (
+                    <motion.div
+                      key={doc.id}
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.1 + i * 0.04, duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+                      className={`group flex items-center gap-3 px-4 py-3 transition-colors duration-200 ${isDark ? 'hover:bg-white/[0.04]' : 'hover:bg-white/70'}`}
+                    >
+                      {isImageDoc(doc) && doc.url && !doc.url.startsWith('#') ? (
+                        <button
+                          type="button"
+                          onClick={() => handleDocView(doc)}
+                          title="Aperçu"
+                          className="relative h-10 w-10 shrink-0 overflow-hidden rounded-xl border transition-all duration-200 hover:scale-105"
+                          style={{ borderColor: isDark ? `${accent.a}38` : `${accent.a}30`, boxShadow: `0 2px 10px -4px ${accent.glow}` }}
+                        >
+                          <img
+                            src={resolveMediaUrl(doc.url)}
+                            alt={doc.name}
+                            loading="lazy"
+                            className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-110"
+                          />
+                        </button>
+                      ) : (
+                        <span
+                          className={cn(
+                            'flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border',
+                            isDark ? 'border-white/[0.08] bg-white/[0.05]' : 'border-slate-200/80 bg-white/80',
+                          )}
+                          style={{ boxShadow: isDark ? 'inset 0 1px 0 rgba(255,255,255,0.06)' : 'inset 0 1px 0 rgba(255,255,255,0.9)' }}
+                        >
+                          <FileText size={15} style={{ color: isDark ? accent.a : ink }} />
+                        </span>
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <button
+                          type="button"
+                          onClick={() => handleDocView(doc)}
+                          className={`block w-full max-w-full truncate text-left text-sm font-bold transition-colors ${isDark ? 'text-white hover:text-sky-400' : 'text-slate-900 hover:text-teal-900'} ${previewDoc?.id === doc.id ? 'underline decoration-2 underline-offset-4' : ''}`}
+                          style={{ textDecorationColor: isDark ? accent.a : ink }}
+                        >
+                          {doc.name}
+                        </button>
+                        <div className={`mt-0.5 flex items-center gap-2 text-[11px] ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+                          <span className="truncate">{getDocTypeLabel(doc.type)}</span>
+                          {sizeLabel && (
+                            <>
+                              <span className="opacity-40">·</span>
+                              <span className="whitespace-nowrap">{sizeLabel}</span>
+                            </>
+                          )}
+                          <span className="opacity-40">·</span>
+                          <span className="whitespace-nowrap">{new Date(doc.date).toLocaleDateString('fr-FR')}</span>
+                        </div>
+                      </div>
+                      <div className="flex shrink-0 items-center gap-0.5 opacity-100 transition-opacity duration-200 md:opacity-0 md:group-hover:opacity-100">
+                        <button type="button" onClick={() => handleDocView(doc)} className={docRowAction} title="Voir">
+                          <Eye size={13} />
+                        </button>
+                        <button type="button" onClick={() => handleDocDownload(doc)} className={docRowAction} title="Télécharger">
+                          <Download size={13} />
+                        </button>
+                        <button type="button" onClick={() => setDocToDelete(doc)} className={docRowActionDanger} title="Supprimer">
+                          <Trash2 size={13} />
+                        </button>
+                      </div>
+                    </motion.div>
+                  )
+                })}
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </div>
+    )
+  }
 
   const HISTORY_ACTIONS = ['Contrat créé', 'Changement de statut', 'Modification de la note']
 
+  const stageSelectLabel = `text-[10px] font-bold uppercase tracking-[0.12em] mb-1 block ${isDark ? 'text-slate-500' : 'text-slate-400'}`
+
   const renderHistorique = () => (
-    <div className="space-y-4">
+    <div className="space-y-3">
       {historyLocked && (
-        <div className="flex items-center gap-2 p-3 rounded-xl bg-background border border-border/50 text-sm">
+        <div className={`flex items-center gap-2 p-3 rounded-2xl border text-sm backdrop-blur-sm ${glassPanel}`}>
           <Lock size={14} className="text-error" />
-          <span className="text-xs text-text-secondary">L'historique du contrat est verrouillé par l'administrateur.</span>
+          <span className={`text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>L'historique du contrat est verrouillé par l'administrateur.</span>
         </div>
       )}
       <div className="relative">
-        <div className={`space-y-4 ${historyLocked ? 'blur-sm select-none pointer-events-none' : ''}`}>
-      {/* Filters */}
-      <div className="p-3 rounded-xl bg-background border border-border/50 flex flex-wrap items-end gap-3">
-        <div className="w-48">
-          <label className="text-[11px] font-medium text-text-secondary mb-1 block">Action</label>
-          <Select
-            value={historyAction}
-            onValueChange={(val) => { setHistoryAction(val); setHistoryPage(1) }}
-            options={[{ value: '', label: 'Toutes les actions' }, ...HISTORY_ACTIONS.map(a => ({ value: a, label: a }))]}
-          />
-        </div>
-        <div className="w-44">
-          <label className="text-[11px] font-medium text-text-secondary mb-1 block">Du</label>
-          <DatePicker value={historyFrom} placeholder="Date de début" onChange={e => { setHistoryFrom(e.target.value); setHistoryPage(1) }} />
-        </div>
-        <div className="w-44">
-          <label className="text-[11px] font-medium text-text-secondary mb-1 block">Au</label>
-          <DatePicker value={historyTo} placeholder="Date de fin" onChange={e => { setHistoryTo(e.target.value); setHistoryPage(1) }} />
-        </div>
-        <Button
-          variant="ghost"
-          size="sm"
-          icon={<Filter size={13} />}
-          onClick={() => { setHistoryAction(''); setHistoryFrom(''); setHistoryTo(''); setHistoryPage(1) }}
-        >
-          Réinitialiser
-        </Button>
-        <div className="ml-auto text-xs text-text-secondary">
-          {historyTotal} entrée{historyTotal > 1 ? 's' : ''}
-        </div>
-      </div>
-
-      {/* List */}
-      {historyLoading ? (
-        <div className="flex items-center justify-center py-16 text-text-secondary">
-          <div className="animate-spin rounded-full h-8 w-8 border-2 border-accent/20 border-t-accent" />
-        </div>
-      ) : historyItems.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-12 text-text-secondary">
-          <Clock size={32} className="mb-3 opacity-40" />
-          <p className="text-sm">Aucun historique pour ces critères</p>
-        </div>
-      ) : (
-        <div className="relative pl-6 space-y-0">
-          <div className="absolute left-[11px] top-2 bottom-2 w-px bg-border" />
-          {historyItems.map((entry, i) => (
-            <motion.div
-              key={entry.id}
-              initial={{ opacity: 0, x: -8 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: i * 0.04, duration: 0.2 }}
-              className="relative pb-5 last:pb-0"
+        <div className={`space-y-3 ${historyLocked ? 'blur-sm select-none pointer-events-none' : ''}`}>
+          {/* Filters */}
+          <div className={`p-3 rounded-2xl flex flex-wrap items-end gap-3 ${glassPanel}`}>
+            <div>
+              <label className={stageSelectLabel}>Action</label>
+              <Select
+                value={historyAction}
+                onValueChange={(val: string) => { setHistoryAction(val); setHistoryPage(1) }}
+                options={[{ value: '', label: 'Toutes les actions' }, ...HISTORY_ACTIONS.map(a => ({ value: a, label: a }))]}
+              />
+            </div>
+            <div className="w-44">
+              <label className={stageSelectLabel}>Du</label>
+              <DatePicker value={historyFrom} placeholder="Date de début" onChange={e => { setHistoryFrom(e.target.value); setHistoryPage(1) }} />
+            </div>
+            <div className="w-44">
+              <label className={stageSelectLabel}>Au</label>
+              <DatePicker value={historyTo} placeholder="Date de fin" onChange={e => { setHistoryTo(e.target.value); setHistoryPage(1) }} />
+            </div>
+            <button
+              type="button"
+              className={glassBtn}
+              onClick={() => { setHistoryAction(''); setHistoryFrom(''); setHistoryTo(''); setHistoryPage(1) }}
             >
-              <div className="absolute -left-[21px] top-1 w-[10px] h-[10px] rounded-full border-2 border-accent bg-card" />
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <p className="text-sm font-medium text-text">{entry.action}</p>
-                  {entry.details && <p className="text-xs text-text-secondary mt-0.5">{entry.details}</p>}
-                  <p className="text-[11px] text-text-secondary/60 mt-1">par {entry.agent}</p>
-                </div>
-                <span className="text-[11px] text-text-secondary/60 whitespace-nowrap">{formatRelativeDate(entry.date)}</span>
-              </div>
-            </motion.div>
-          ))}
-        </div>
-      )}
-
-      {/* Pagination */}
-      {historyPages > 1 && (
-        <div className="flex items-center justify-between pt-1">
-          <span className="text-xs text-text-secondary">
-            Page {historyPage} sur {historyPages}
-          </span>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              icon={<ChevronLeft size={14} />}
-              disabled={historyPage <= 1}
-              onClick={() => setHistoryPage(p => Math.max(1, p - 1))}
-            >
-              Précédent
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              icon={<ChevronRight size={14} />}
-              iconPosition="right"
-              disabled={historyPage >= historyPages}
-              onClick={() => setHistoryPage(p => Math.min(historyPages, p + 1))}
-            >
-              Suivant
-            </Button>
+              <Filter size={13} /> Réinitialiser
+            </button>
+            <div className={`ml-auto text-xs font-semibold ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+              {historyTotal} entrée{historyTotal > 1 ? 's' : ''}
+            </div>
           </div>
-        </div>
-      )}
+
+          {/* List */}
+          {historyLoading ? (
+            <div className="flex items-center justify-center py-16">
+              <span className="h-8 w-8 animate-spin rounded-full border-2 border-solid" style={{ borderColor: isDark ? `${accent.a}33` : 'rgba(13,148,136,0.25)', borderTopColor: accent.a }} />
+            </div>
+          ) : historyItems.length === 0 ? (
+            <StageEmpty
+              icon={Clock}
+              title="Aucun historique pour ces critères"
+              hint="Les mouvements du contrat apparaîtront ici dès qu'il sera créé ou modifié."
+              accent={accent}
+              ink={ink}
+              isDark={isDark}
+            />
+          ) : (
+            <div className="relative pl-6 space-y-0">
+              <div
+                className="absolute left-[11px] top-2 bottom-2 w-px"
+                style={{ background: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(13,148,136,0.18)' }}
+              />
+              {historyItems.map((entry, i) => (
+                <motion.div
+                  key={entry.id}
+                  initial={{ opacity: 0, x: -8 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: i * 0.04, duration: 0.25 }}
+                  className="relative pb-3 last:pb-0"
+                >
+                  <span
+                    className="absolute -left-[21px] top-4 h-[10px] w-[10px] rounded-full border-2"
+                    style={{
+                      background: isDark ? '#0B1022' : '#ffffff',
+                      borderColor: accent.a,
+                      boxShadow: `0 0 6px ${accent.glow}`,
+                    }}
+                  />
+                  <div className={`flex items-start justify-between gap-4 rounded-2xl p-3 ${glassPanel}`}>
+                    <div className="min-w-0">
+                      <p className={`text-sm font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>{entry.action}</p>
+                      {entry.details && <p className={`mt-0.5 text-xs ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>{entry.details}</p>}
+                      <p className={`mt-1 text-[11px] ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>par {entry.agent}</p>
+                    </div>
+                    <span className={`whitespace-nowrap text-[11px] font-semibold ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>{formatRelativeDate(entry.date)}</span>
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+          )}
+
+          {/* Pagination */}
+          {historyPages > 1 && (
+            <div className="flex items-center justify-between pt-1">
+              <span className={`text-xs font-semibold ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+                Page {historyPage} sur {historyPages}
+              </span>
+              <div className="flex items-center gap-2">
+                <button type="button" className={glassBtn} disabled={historyPage <= 1} onClick={() => setHistoryPage(p => Math.max(1, p - 1))}>
+                  <ChevronLeft size={14} /> Précédent
+                </button>
+                <button type="button" className={glassBtn} disabled={historyPage >= historyPages} onClick={() => setHistoryPage(p => Math.min(historyPages, p + 1))}>
+                  Suivant <ChevronRight size={14} />
+                </button>
+              </div>
+            </div>
+          )}
         </div>
         {historyLocked && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center z-10 text-text-secondary">
-            <Lock size={28} className="mb-2 opacity-50" />
-            <p className="text-sm font-medium">Historique verrouillé</p>
-            <p className="text-xs text-text-secondary/60 mt-1">Contenu masqué par l'administrateur</p>
+          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center">
+            <Lock size={28} className={isDark ? 'text-slate-500' : 'text-slate-400'} />
+            <p className={`mt-2 text-sm font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>Historique verrouillé</p>
+            <p className={`mt-1 text-xs ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>Contenu masqué par l'administrateur</p>
           </div>
         )}
       </div>
@@ -895,26 +1220,50 @@ export default function ContractDetailPage({ basePath: basePathProp, showRespons
   )
 
   const renderNotes = () => (
-    <div className="space-y-4">
+    <div className="space-y-3">
       <div className="flex justify-end">
-        <Button variant="outline" size="sm" icon={<MessageSquare size={14} />} disabled={!canWrite} onClick={openNoteDialog}>
-          {contract?.notes ? 'Modifier la note' : 'Ajouter une note'}
-        </Button>
+        <button type="button" className={glassBtn} disabled={!canWrite} onClick={openNoteDialog}>
+          <MessageSquare size={14} /> {contract?.notes ? 'Modifier la note' : 'Ajouter une note'}
+        </button>
       </div>
       {contract?.notes ? (
-        <div className="p-4 rounded-xl bg-background border border-border/50">
-          <div className="flex items-center gap-2 mb-2">
-            <MessageSquare size={14} className="text-accent" />
-            <span className="text-xs font-semibold uppercase tracking-wider text-text-secondary">Note interne</span>
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+          className={`rounded-2xl p-4 ${glassPanel}`}
+        >
+          <div className="mb-2 flex items-center gap-2">
+            <span
+              className="flex h-7 w-7 items-center justify-center rounded-lg border"
+              style={isDark
+                ? { background: `${accent.a}14`, borderColor: `${accent.a}30`, color: accent.a }
+                : { background: `${accent.a}12`, borderColor: `${accent.a}30`, color: ink }}
+            >
+              <MessageSquare size={13} />
+            </span>
+            <span className={`text-[10px] font-extrabold uppercase tracking-[0.14em] ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Note interne</span>
           </div>
-          <p className="text-sm text-text/90 leading-relaxed whitespace-pre-wrap">{contract.notes}</p>
-        </div>
+          <p className={`whitespace-pre-wrap text-sm font-semibold leading-relaxed ${isDark ? 'text-white/90' : 'text-slate-800'}`}>{contract.notes}</p>
+        </motion.div>
       ) : (
-        <div className="flex flex-col items-center justify-center py-12 text-text-secondary">
-          <MessageSquare size={32} className="mb-3 opacity-40" />
-          <p className="text-sm">Aucune note pour ce contrat</p>
-          <p className="text-xs text-text-secondary/60 mt-1">Ajoutez une note interne pour votre suivi</p>
-        </div>
+        <StageEmpty
+          icon={MessageSquare}
+          title="Aucune note pour ce contrat"
+          hint="Ajoutez une note interne pour suivre vos échanges et avancement."
+          accent={accent}
+          ink={ink}
+          isDark={isDark}
+          action={canWrite ? (
+            <button type="button" className={glassBtn} onClick={openNoteDialog}>
+              <MessageSquare size={14} /> Ajouter une note
+            </button>
+          ) : (
+            <span className={`text-xs font-bold ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+              <Lock size={11} className="mr-1 inline" /> Autorisation « contrats-ecriture » requise
+            </span>
+          )}
+        />
       )}
     </div>
   )
@@ -923,487 +1272,751 @@ export default function ContractDetailPage({ basePath: basePathProp, showRespons
 
   if (loading) {
     return (
-      <div className="space-y-6 animate-fade-in">
-        <BackLink to={contractsPath} />
-        <div className="flex flex-col items-center justify-center py-24 text-text-secondary">
-          <div className="animate-spin rounded-full h-10 w-10 border-2 border-accent/20 border-t-accent mb-4" />
-          <p className="text-sm">Chargement du contrat...</p>
+      <Stage theme={theme}>
+        <div className="animate-fade-in space-y-4">
+          {backBtn}
+          <div className="flex flex-col items-center justify-center py-24">
+            <div className="relative flex h-12 w-12 items-center justify-center">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-sky-400/20" />
+              <span className="relative inline-flex h-8 w-8 animate-spin rounded-full border-2 border-sky-400/80 border-t-transparent" />
+            </div>
+            <p className="mt-4 text-sm font-semibold text-text-secondary">Chargement du contrat...</p>
+          </div>
         </div>
-      </div>
+      </Stage>
     )
   }
 
   if (notFound || !contract || !typeCfg) {
     return (
-      <div className="space-y-6 animate-fade-in">
-        <BackLink to={contractsPath} />
-        <div className="flex flex-col items-center justify-center py-20 text-text-secondary">
-          <FileText size={48} className="mb-4 opacity-30" />
-          <p className="text-lg font-medium">Contrat non trouvé</p>
-          <p className="text-sm text-text-secondary/60 mt-1">Ce contrat n'existe pas ou a été supprimé</p>
-          <Button variant="outline" className="mt-6" onClick={() => navigate(contractsPath)}>
-            Retour aux contrats
-          </Button>
+      <Stage theme={theme}>
+        <div className="animate-fade-in space-y-4">
+          {backBtn}
+          <StageEmpty
+            icon={FileText}
+            title="Contrat non trouvé"
+            hint="Ce contrat n'existe pas ou a été supprimé."
+            accent={accent}
+            ink={ink}
+            isDark={isDark}
+            action={
+              <Button variant="outline" onClick={() => navigate(contractsPath)}>
+                Retour aux contrats
+              </Button>
+            }
+          />
         </div>
-      </div>
+      </Stage>
     )
   }
 
+  // Staged modal accessories (safe: contract is resolved past the guards).
+  const modalAccent = isDark ? accent.a : '#14B8A6'
+  const selStatusHue = statusHue(newStatus || contract.status)
+  const noOwnerEmail = !contract.partieB.email
+
   const tabs: TabItem[] = [
-    { id: 'resume', label: 'Résumé', icon: <Layout size={15} /> },
-    { id: 'parties', label: 'Parties', icon: <Users size={15} /> },
-    { id: 'financier', label: 'Financier', icon: <DollarSign size={15} /> },
-    { id: 'documents', label: 'Documents', icon: <FileText size={15} /> },
-    { id: 'historique', label: 'Historique', icon: <Clock size={15} /> },
-    { id: 'notes', label: 'Notes', icon: <MessageSquare size={15} /> },
+    { id: 'resume', slug: 'resume', label: 'Résumé' },
+    { id: 'parties', slug: 'parties', label: 'Parties' },
+    { id: 'financier', slug: 'financier', label: 'Financier' },
+    { id: 'documents', slug: 'documents', label: 'Documents' },
+    { id: 'historique', slug: 'historique', label: 'Historique' },
+    { id: 'notes', slug: 'notes', label: 'Notes' },
   ]
 
   return (
-    <div className="space-y-6 animate-fade-in pb-8">
-      {/* Top bar */}
-      <div className="flex items-center justify-between flex-wrap gap-3">
-        <BackLink to={contractsPath} />
-        <div className="flex items-center gap-2 text-xs text-text-secondary">
-          <Clock size={12} />
-          Mis à jour le {fmtDate(contract.updatedAt)}
+    <Stage theme={theme}>
+      <div className="animate-fade-in space-y-4 pb-8">
+        {/* Top action bar */}
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          {backBtn}
+          <motion.div
+            initial={{ opacity: 0, x: 12 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.45, delay: 0.1 }}
+            className={`flex items-center gap-1.5 rounded-xl border px-3 py-2 text-xs font-semibold backdrop-blur-md ${
+              isDark ? 'border-white/10 bg-white/[0.05] text-slate-400' : 'border-slate-200/80 bg-white/70 text-slate-500 shadow-sm'
+            }`}
+          >
+            <Clock size={12} />
+            Mis à jour le {fmtDate(contract.updatedAt)}
+          </motion.div>
         </div>
-      </div>
 
-      {/* Hero */}
-      <div className="relative overflow-hidden rounded-2xl border border-border/50 bg-card shadow-card">
-        <div className={`absolute inset-0 bg-gradient-to-br ${typeCfg.gradient} via-transparent to-transparent pointer-events-none`} />
-        <div className="relative p-6">
-          <div className="flex items-start justify-between gap-4 flex-wrap">
-            <div className="flex items-start gap-4">
-              <div className={`w-12 h-12 rounded-xl ${typeCfg.accentBg} flex items-center justify-center shrink-0`}>
-                <TypeIcon size={22} className={typeCfg.accent} />
-              </div>
-              <div>
-                <p className={`text-[11px] font-mono tracking-wider ${typeCfg.accent}`}>CONTRAT {contract.reference}</p>
-                <h1 className="text-xl md:text-2xl font-bold mt-1">{typeCfg.label}</h1>
-                <div className="flex items-center gap-2 mt-2 text-sm text-text-secondary flex-wrap">
-                  <span className="flex items-center gap-1.5"><User size={13} />{contract.partieA.name}</span>
-                  {contract.partieB.name && (
-                    <>
-                      <span className="text-text-secondary/40">→</span>
-                      <span className="flex items-center gap-1.5"><User size={13} />{contract.partieB.name}</span>
-                    </>
-                  )}
-                </div>
-              </div>
-            </div>
-            <div className="flex flex-col items-end gap-2">
-              <Badge className={STATUS_META[contract.status].badge} size="md">
-                <span className={`w-1.5 h-1.5 rounded-full ${STATUS_META[contract.status].dot} mr-1.5`} />
-                {STATUS_META[contract.status].label}
-              </Badge>
-              {contract.type === 'vente' && contract.etape && (
-                <Badge className={VENTE_ETAPE_COLORS[contract.etape]} size="md">
-                  {VENTE_ETAPE_LABELS[contract.etape]}
-                </Badge>
-              )}
-            </div>
-          </div>
+        {/* Hero header */}
+        <ContractHeader contract={contract} agentName={agentDisplayName} />
 
-          {/* Summary strip */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mt-6">
-            <StatCard icon={<TypeIcon size={16} />} label="Type" value={CONTRACT_TYPE_LABELS[contract.type]} accent={typeCfg.accent} accentBg={typeCfg.accentBg} />
-            <StatCard icon={<Shield size={16} />} label="Statut" value={STATUS_META[contract.status].label} dot={STATUS_META[contract.status].dot} />
-            <StatCard icon={<DollarSign size={16} />} label={mainAmount.label} value={money(mainAmount.value)} unit={mainAmount.unit} accent="text-accent" accentBg="bg-accent-light" />
-            <StatCard icon={<Calendar size={16} />} label={mainDate.label} value={fmtDate(mainDate.value || undefined)} accent="text-text-secondary" accentBg="bg-background" />
-          </div>
-        </div>
-      </div>
+        {/* Actions rail */}
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.08, ease: [0.22, 1, 0.36, 1] }}
+          className={`flex flex-wrap items-center gap-2 rounded-2xl border p-3 backdrop-blur-sm ${isDark ? 'border-white/[0.07] bg-white/[0.03]' : 'border-slate-200/70 bg-white/70 shadow-[0_1px_2px_rgba(15,23,42,0.05)]'}`}
+        >
+          <span className={`flex items-center gap-1.5 px-1 text-[10px] font-extrabold uppercase tracking-[0.14em] ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+            <Zap size={12} /> Actions
+          </span>
+          <span className={`h-6 w-px ${isDark ? 'bg-white/10' : 'bg-slate-200'}`} />
+          <button type="button" className={glassBtn} onClick={handleDownload} disabled={pdfBuilding}>
+            {pdfBuilding ? <Loader size={14} className="animate-spin" /> : <Download size={14} />}
+            {pdfBuilding ? 'Génération du contrat...' : 'Télécharger le contrat (PDF)'}
+          </button>
+          <button type="button" className={glassBtn} onClick={handleSendToClient}>
+            <Send size={14} /> Envoyer au client
+          </button>
+          <button type="button" className={glassBtn} onClick={handleSendToProprietaire}>
+            <Send size={14} /> Envoyer au propriétaire
+          </button>
+          {canExport && (
+            <button type="button" className={glassBtn} onClick={handleShare}>
+              <Share2 size={14} /> Partager
+            </button>
+          )}
+          <button type="button" className={glassBtn} disabled={!canWrite} onClick={openStatusDialog}>
+            <RefreshCw size={14} /> Changer le statut
+          </button>
+          <button type="button" className={glassBtn} disabled={!canWrite} onClick={openNoteDialog}>
+            <MessageSquare size={14} /> {contract?.notes ? 'Modifier la note' : 'Ajouter une note'}
+          </button>
+          <span className={`mx-1 h-6 w-px ${isDark ? 'bg-white/10' : 'bg-slate-200'}`} />
+          <button type="button" className={dangerBtn} onClick={() => setDeleteDialog(true)}>
+            <Trash2 size={14} /> Supprimer le contrat
+          </button>
+        </motion.div>
 
-      {/* Actions */}
-      <div className="bg-card rounded-xl border border-border/50 shadow-card p-3 flex flex-wrap items-center gap-2">
-        <span className="text-xs font-semibold uppercase tracking-wider text-text-secondary mr-2 flex items-center gap-1.5 px-2">
-          <Zap size={13} /> Actions
-        </span>
-        <div className="w-px h-6 bg-border/50 mr-1" />
-        <Button variant="outline" size="sm" icon={<Download size={14} />} onClick={handleDownload}>Télécharger le contrat (PDF)</Button>
-        <Button variant="outline" size="sm" icon={<Send size={14} />} onClick={handleSendToClient}>Envoyer au client</Button>
-        <Button variant="outline" size="sm" icon={<Send size={14} />} onClick={handleSendToProprietaire}>Envoyer au propriétaire</Button>
-        {canExport && <Button variant="outline" size="sm" icon={<Share2 size={14} />} onClick={handleShare}>Partager</Button>}
-        <Button variant="outline" size="sm" icon={<RefreshCw size={14} />} disabled={!canWrite} onClick={openStatusDialog}>Changer le statut</Button>
-        <Button variant="outline" size="sm" icon={<MessageSquare size={14} />} disabled={!canWrite} onClick={openNoteDialog}>{contract?.notes ? 'Modifier la note' : 'Ajouter une note'}</Button>
-        <div className="w-px h-6 bg-border/50 mx-1" />
-        <Button variant="danger" size="sm" icon={<Trash2 size={14} />} onClick={() => setDeleteDialog(true)}>Supprimer le contrat</Button>
-      </div>
-
-      {/* Responsible agent (admin / gérant) */}
-      {showResponsible && (
-        <div className="bg-card rounded-xl border border-border/50 shadow-card p-4">
-          <div className="flex items-center gap-3">
-            <div className={`w-10 h-10 rounded-xl ${responsibleUser?.color || 'bg-indigo-500'} flex items-center justify-center text-white text-xs font-bold flex-shrink-0`}>
+        {/* Responsible agent (admin / gérant) */}
+        {showResponsible && (
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, delay: 0.12, ease: [0.22, 1, 0.36, 1] }}
+            className={`flex items-center gap-3 rounded-2xl border p-4 backdrop-blur-sm ${glassPanel}`}
+          >
+            <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-xs font-bold text-white ${responsibleUser?.color || 'bg-indigo-500'}`}>
               {responsibleUser?.initials || 'NA'}
             </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-xs text-text-secondary">En charge du contrat</p>
-              <div className="flex items-center gap-2 flex-wrap">
-                <p className="text-sm font-medium text-text">{responsibleUser?.name || contract.agentPrincipal || 'Non assigné'}</p>
+            <div className="min-w-0 flex-1">
+              <p className={`text-xs ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>En charge du contrat</p>
+              <div className="flex flex-wrap items-center gap-2">
+                <p className={`text-sm font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>{responsibleUser?.name || contract.agentPrincipal || 'Non assigné'}</p>
                 {(() => {
                   const badge = getRoleBadge(responsibleUser)
                   return badge ? (
-                    <span className={`inline-flex items-center px-1.5 py-0.5 text-[9px] font-semibold rounded-full uppercase tracking-wider ${badge.cls}`}>
+                    <span className={`inline-flex items-center rounded-full border px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wider ${badge.hue}`}>
                       {badge.label}
                     </span>
                   ) : null
                 })()}
               </div>
             </div>
-          </div>
-        </div>
-      )}
+          </motion.div>
+        )}
 
-      {/* Tabs */}
-      <div className="bg-card rounded-xl border border-border/50 shadow-card overflow-hidden">
-        <div className="overflow-x-auto scrollbar-thin border-b border-border/40">
-          <div className="flex px-1 min-w-max">
-            {tabs.map(tab => (
+        {/* Staged tabs shell */}
+        <ContractTabsShell tabs={tabs} activeTab={activeTab} onChange={setActiveTab} accent={accent}>
+          {activeTab === 'resume' && renderResume()}
+          {activeTab === 'parties' && renderParties()}
+          {activeTab === 'financier' && renderFinancier()}
+          {activeTab === 'documents' && renderDocuments()}
+          {activeTab === 'historique' && renderHistorique()}
+          {activeTab === 'notes' && renderNotes()}
+        </ContractTabsShell>
+
+        {/* Status dialog — staged */}
+        <StageModal
+          open={statusDialog}
+          onClose={() => setStatusDialog(false)}
+          eyebrow="Pipeline du contrat"
+          title="Changer le statut"
+          subtitle={`Contrat ${contract.reference}`}
+          icon={RefreshCw}
+          hue={selStatusHue}
+          accent={modalAccent}
+          badge={
+            <StagePill hue={statusHue(contract.status)} isDark={isDark} pulse>
+              {CONTRACT_STATUS_LABELS[contract.status]}
+            </StagePill>
+          }
+          maxWidth="max-w-xl"
+          centered
+          bodyClassName="pt-2"
+          footer={
+            <>
+              <button type="button" className={stageBtns.ghost} onClick={() => setStatusDialog(false)}>
+                Annuler
+              </button>
               <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-all whitespace-nowrap ${
-                  activeTab === tab.id
-                    ? 'text-accent border-accent'
-                    : 'text-text-secondary border-transparent hover:text-text hover:border-border'
+                type="button"
+                disabled={statusSaving}
+                onClick={handleStatusChange}
+                className={cn(
+                  stageBtns.primary,
+                  (!canWrite || !newStatus || newStatus === contract.status) && !statusSaving && 'pointer-events-none opacity-40',
+                )}
+              >
+                {statusSaving ? (
+                  <><Loader size={14} className="animate-spin" /> Enregistrement...</>
+                ) : (
+                  <><CheckCircle size={14} /> Enregistrer</>
+                )}
+              </button>
+            </>
+          }
+        >
+          <motion.div
+            initial={{ opacity: 0, y: 12, filter: 'blur(6px)' }}
+            animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+            transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+            className="space-y-4"
+          >
+            <p className={modalSectionTitle} style={{ color: isDark ? selStatusHue.a : ink }}>
+              <span className="h-px w-4 bg-gradient-to-r from-current to-transparent" />
+              Nouveau statut
+            </p>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              {STATUS_ORDER.map((s, i) => {
+                const hue = statusHue(s)
+                const selected = newStatus === s
+                const current = contract.status === s
+                return (
+                  <motion.button
+                    key={s}
+                    type="button"
+                    onClick={() => setNewStatus(s)}
+                    disabled={!canWrite}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.08 + i * 0.04, duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+                    className={`relative overflow-hidden rounded-2xl border p-3 text-left backdrop-blur-sm transition-all duration-200 ${
+                      !selected
+                        ? isDark
+                          ? 'border-white/[0.08] bg-white/[0.03] hover:border-white/20 hover:bg-white/[0.06]'
+                          : 'border-slate-200/70 bg-white/75 shadow-[0_1px_2px_rgba(15,23,42,0.05)] hover:border-teal-500/40 hover:bg-white'
+                        : ''
+                    } ${current && !selected ? 'opacity-70' : ''} ${!canWrite ? 'opacity-50 pointer-events-none cursor-not-allowed' : ''}`}
+                    style={selected
+                      ? (isDark
+                        ? { borderColor: `${hue.a}66`, background: `${hue.a}14`, boxShadow: `0 10px 28px -12px ${hue.glow}, inset 0 1px 0 rgba(255,255,255,0.14)` }
+                        : { borderColor: `${hue.a}55`, background: `${hue.a}12`, boxShadow: `0 10px 26px -14px ${hue.glow}, inset 0 1px 0 rgba(255,255,255,0.9)` })
+                      : undefined}
+                  >
+                    <span
+                      className="pointer-events-none absolute inset-x-0 top-0 h-px transition-opacity duration-300"
+                      style={{ background: `linear-gradient(90deg, transparent, ${hue.line}, transparent)`, opacity: selected ? 0.7 : 0 }}
+                    />
+                    <div className="flex items-center justify-between gap-2">
+                      <span className={`flex items-center gap-2 text-sm font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                        {selected ? (
+                          <motion.span
+                            initial={{ scale: 0, rotate: -90 }}
+                            animate={{ scale: 1, rotate: 0 }}
+                            transition={{ type: 'spring', stiffness: 500, damping: 22 }}
+                            className="relative flex h-1.5 w-1.5"
+                          >
+                            <span className="absolute inline-flex h-full w-full animate-ping rounded-full opacity-60" style={{ background: hue.line }} />
+                            <span className="relative inline-flex h-1.5 w-1.5 rounded-full" style={{ background: hue.line }} />
+                          </motion.span>
+                        ) : (
+                          <span className="h-2 w-2 rounded-full" style={{ background: hue.line, boxShadow: `0 0 6px ${hue.glow}` }} />
+                        )}
+                        {CONTRACT_STATUS_LABELS[s]}
+                      </span>
+                      {current && !selected && (
+                        <span className={cn(
+                          'rounded-full border px-1.5 py-0.5 text-[9px] font-extrabold uppercase tracking-[0.08em]',
+                          isDark ? 'border-white/10 bg-white/[0.06] text-slate-400' : 'border-slate-200/80 bg-white/80 text-slate-500',
+                        )}>
+                          Actuel
+                        </span>
+                      )}
+                      {selected && (
+                        <motion.span
+                          initial={{ scale: 0 }}
+                          animate={{ scale: 1 }}
+                          transition={{ type: 'spring', stiffness: 480, damping: 20, delay: 0.05 }}
+                        >
+                          <CheckCircle size={16} style={{ color: isDark ? hue.a : hue.b }} />
+                        </motion.span>
+                      )}
+                    </div>
+                    <p className={`mt-1.5 text-[11px] leading-relaxed ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                      {STATUS_DESCRIPTIONS[s]}
+                    </p>
+                  </motion.button>
+                )
+              })}
+            </div>
+            <div className={modalNotice}>
+              <Clock size={14} className="mt-0.5 shrink-0 text-amber-500" />
+              <p>Le changement de statut sera horodaté et consigné dans l'historique du contrat.</p>
+            </div>
+          </motion.div>
+        </StageModal>
+
+        {/* Note dialog — staged */}
+        <StageModal
+          open={noteDialog}
+          onClose={() => setNoteDialog(false)}
+          eyebrow="Suivi interne"
+          title={contract.notes ? 'Modifier la note' : 'Ajouter une note'}
+          subtitle={`Contrat ${contract.reference}`}
+          icon={MessageSquare}
+          hue={accent}
+          accent={modalAccent}
+          maxWidth="max-w-lg"
+          centered
+          bodyClassName="pt-2"
+          footer={
+            <>
+              <button type="button" className={stageBtns.ghost} onClick={() => setNoteDialog(false)}>
+                Annuler
+              </button>
+              <button
+                type="button"
+                disabled={noteSaving}
+                onClick={handleSaveNote}
+                className={cn(
+                  stageBtns.primary,
+                  !noteSaving && (!canWrite || noteText === (contract.notes || '')) && 'pointer-events-none opacity-40',
+                )}
+              >
+                {noteSaving ? (
+                  <><Loader size={14} className="animate-spin" /> Enregistrement...</>
+                ) : (
+                  <><MessageSquare size={14} /> Enregistrer la note</>
+                )}
+              </button>
+            </>
+          }
+        >
+          <motion.div
+            initial={{ opacity: 0, y: 12, filter: 'blur(6px)' }}
+            animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+            transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+            className="space-y-3.5"
+          >
+            <p className={modalSectionTitle} style={{ color: isDark ? accent.a : ink }}>
+              <span className="h-px w-4 bg-gradient-to-r from-current to-transparent" />
+              Contenu de la note
+            </p>
+            <Textarea
+              placeholder="Ex : en attente de la signature du compromis..."
+              value={noteText}
+              onChange={e => setNoteText(e.target.value)}
+              rows={7}
+              maxLength={2000}
+              disabled={!canWrite}
+            />
+            <div className="flex items-center gap-2.5">
+              <div className={`h-1 flex-1 overflow-hidden rounded-full ${isDark ? 'bg-white/[0.06]' : 'bg-teal-900/10'}`}>
+                <span
+                  className="block h-full rounded-full transition-all duration-300"
+                  style={{
+                    width: `${Math.min(100, (noteText.length / 2000) * 100)}%`,
+                    background: noteText.length > 1900
+                      ? 'linear-gradient(90deg, #FB7185, #DC2626)'
+                      : `linear-gradient(90deg, ${isDark ? accent.a : '#2DD4BF'}, ${isDark ? accent.b : '#0D9488'})`,
+                    boxShadow: noteText.length > 1900 ? '0 0 10px rgba(248,113,113,0.5)' : `0 0 10px ${accent.glow}`,
+                  }}
+                />
+              </div>
+              <span
+                className={`text-[11px] font-semibold tabular-nums ${
+                  noteText.length > 1900 ? (isDark ? 'text-rose-400' : 'text-rose-500') : isDark ? 'text-slate-500' : 'text-slate-400'
                 }`}
               >
-                {tab.icon}
-                {tab.label}
+                {noteText.length} / 2000
+              </span>
+            </div>
+            <div className={modalNotice}>
+              <Clock size={14} className="mt-0.5 shrink-0 text-amber-500" />
+              <p>La note sera horodatée dans l'historique du contrat et visible dans l'onglet Notes.</p>
+            </div>
+          </motion.div>
+        </StageModal>
+
+        {/* Send to propriétaire dialog — staged */}
+        <StageModal
+          open={sendDialog}
+          onClose={() => setSendDialog(false)}
+          eyebrow="Envoi par e-mail"
+          title="Envoyer au propriétaire"
+          subtitle={contract.propertyTitle}
+          icon={Send}
+          hue={accent}
+          accent={modalAccent}
+          maxWidth="max-w-lg"
+          centered
+          bodyClassName="pt-2"
+          footer={
+            <>
+              <button type="button" className={stageBtns.ghost} onClick={() => setSendDialog(false)}>
+                Annuler
               </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="p-5">
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={activeTab}
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              transition={{ duration: 0.15 }}
+              <button
+                type="button"
+                disabled={sendSaving}
+                onClick={handleSendProprietaireConfirm}
+                className={cn(
+                  stageBtns.primary,
+                  !sendSaving && (!sendSubject.trim() || noOwnerEmail) && 'pointer-events-none opacity-40',
+                )}
+              >
+                {sendSaving ? (
+                  <><Loader size={14} className="animate-spin" /> Envoi en cours...</>
+                ) : (
+                  <><Send size={14} /> Envoyer</>
+                )}
+              </button>
+            </>
+          }
+        >
+          <motion.div
+            initial={{ opacity: 0, y: 12, filter: 'blur(6px)' }}
+            animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+            transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+            className="space-y-4"
+          >
+            <p className={modalSectionTitle} style={{ color: isDark ? accent.a : ink }}>
+              <span className="h-px w-4 bg-gradient-to-r from-current to-transparent" />
+              Destinataire
+            </p>
+            <div
+              className={cn(
+                'flex items-center gap-3 rounded-2xl border p-3.5',
+                isDark ? 'border-white/[0.07] bg-white/[0.04]' : 'border-slate-200/70 bg-white/75 shadow-[0_1px_2px_rgba(15,23,42,0.05)]',
+              )}
             >
-              {activeTab === 'resume' && renderResume()}
-              {activeTab === 'parties' && renderParties()}
-              {activeTab === 'financier' && renderFinancier()}
-              {activeTab === 'documents' && renderDocuments()}
-              {activeTab === 'historique' && renderHistorique()}
-              {activeTab === 'notes' && renderNotes()}
-            </motion.div>
-          </AnimatePresence>
-        </div>
-      </div>
-
-      {/* Status dialog */}
-      <Dialog isOpen={statusDialog} onClose={() => setStatusDialog(false)} title="Changer le statut du contrat">
-        <div className="space-y-4">
-          <div className="flex items-center gap-2 p-3 rounded-xl bg-background border border-border/50 text-sm">
-            <span className="text-text-secondary">Statut actuel :</span>
-            <Badge className={STATUS_META[contract.status].badge}>
-              <span className={`w-1.5 h-1.5 rounded-full ${STATUS_META[contract.status].dot} mr-1.5`} />
-              {STATUS_META[contract.status].label}
-            </Badge>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-            {STATUS_ORDER.map(s => {
-              const meta = STATUS_META[s]
-              const selected = newStatus === s
-              const current = contract.status === s
-              return (
-                <button
-                  key={s}
-                  onClick={() => setNewStatus(s)}
-                  disabled={!canWrite}
-                  className={`p-3 rounded-xl border text-left transition-all ${
-                    selected
-                      ? 'border-accent bg-accent/5 ring-1 ring-accent/20'
-                      : 'border-border/60 bg-card hover:border-accent/40'
-                  } ${current ? 'opacity-70' : ''} ${!canWrite ? 'opacity-50 pointer-events-none cursor-not-allowed' : ''}`}
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="flex items-center gap-2 text-sm font-medium text-text">
-                      <span className={`w-2 h-2 rounded-full ${meta.dot}`} />
-                      {meta.label}
-                    </span>
-                    {selected && <CheckCircle size={16} className="text-accent" />}
-                  </div>
-                  <p className="text-[11px] text-text-secondary/70 mt-1.5 leading-relaxed">
-                    {STATUS_DESCRIPTIONS[s]}
-                  </p>
-                </button>
-              )
-            })}
-          </div>
-          <div className="flex items-center justify-end gap-2 pt-2">
-            <Button variant="ghost" size="sm" onClick={() => setStatusDialog(false)}>Annuler</Button>
-            <Button variant="primary" size="sm" loading={statusSaving} disabled={!canWrite || !newStatus || newStatus === contract.status} onClick={handleStatusChange}>
-              Enregistrer
-            </Button>
-          </div>
-        </div>
-      </Dialog>
-
-      {/* Note dialog */}
-      <Dialog isOpen={noteDialog} onClose={() => setNoteDialog(false)} title={contract.notes ? 'Modifier la note' : 'Ajouter une note'} size="md">
-        <div className="space-y-4">
-          <div className="flex items-center gap-2 p-3 rounded-xl bg-background border border-border/50 text-sm">
-            <MessageSquare size={14} className="text-accent" />
-            <p className="text-xs text-text-secondary">La note sera ajoutée à l'historique du contrat et visible dans l'onglet Notes.</p>
-          </div>
-          <Textarea
-            label="Note interne"
-            placeholder="Ex : en attente de la signature du compromis..."
-            value={noteText}
-            onChange={e => setNoteText(e.target.value)}
-            rows={6}
-            maxLength={2000}
-            disabled={!canWrite}
-          />
-          <div className="flex items-center justify-between gap-2">
-            <span className={`text-[11px] ${noteText.length > 1900 ? 'text-error' : 'text-text-secondary/60'}`}>
-              {noteText.length} / 2000 caractères
-            </span>
-            <div className="flex items-center gap-2">
-              <Button variant="ghost" size="sm" onClick={() => setNoteDialog(false)}>Annuler</Button>
-              <Button variant="primary" size="sm" loading={noteSaving} disabled={!canWrite || noteText === (contract.notes || '')} onClick={handleSaveNote}>
-                Enregistrer la note
-              </Button>
+              <OrbIcon icon={User} hue={partyRoleMeta(contract.partieB.role).hue} size={40} radius={12} />
+              <div className="min-w-0 flex-1">
+                <p className={`truncate text-sm font-extrabold ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                  {contract.partieB.name || 'Propriétaire'}
+                </p>
+                <p className={cn('mt-0.5 flex items-center gap-1.5 text-xs', isDark ? 'text-slate-400' : 'text-slate-500')}>
+                  <Mail size={11} className={`shrink-0 ${noOwnerEmail ? 'text-rose-400' : ''}`} />
+                  <span className="truncate">{contract.partieB.email || 'Aucun e-mail renseigné'}</span>
+                </p>
+              </div>
+              <StagePill hue={partyRoleMeta(contract.partieB.role).hue} isDark={isDark} icon={partyRoleMeta(contract.partieB.role).icon}>
+                {contract.partieB.role || 'Propriétaire'}
+              </StagePill>
             </div>
-          </div>
-        </div>
-      </Dialog>
-
-      {/* Send to propriétaire dialog */}
-      <Dialog isOpen={sendDialog} onClose={() => setSendDialog(false)} title="Envoyer le contrat au propriétaire" size="md">
-        <div className="space-y-4">
-          <div className="flex items-start gap-3 p-3 rounded-xl bg-background border border-border/50">
-            <div className="w-9 h-9 rounded-xl bg-accent-light flex items-center justify-center flex-shrink-0">
-              <User size={15} className="text-accent" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-sm font-medium text-text">{contract.partieB.name || 'Propriétaire'}</p>
-              <p className="text-xs text-text-secondary flex items-center gap-1.5 mt-0.5">
-                <Mail size={11} />
-                {contract.partieB.email || 'Aucun e-mail renseigné'}
-              </p>
-            </div>
-          </div>
-          <Input
-            label="Objet"
-            value={sendSubject}
-            onChange={e => setSendSubject(e.target.value)}
-            placeholder="Objet de l'e-mail"
-          />
-          <Textarea
-            label="Message"
-            value={sendMessage}
-            onChange={e => setSendMessage(e.target.value)}
-            rows={6}
-            placeholder="Message accompagnant le contrat..."
-          />
-          <p className="text-[11px] text-text-secondary/70">
-            Le contrat <span className="font-mono text-text-secondary">{contract.reference}</span> sera joint à l'e-mail sous forme de PDF généré automatiquement.
-          </p>
-          <div className="flex items-center justify-end gap-2">
-            <Button variant="ghost" size="sm" onClick={() => setSendDialog(false)}>Annuler</Button>
-            <Button
-              variant="primary"
-              size="sm"
-              loading={sendSaving}
-              icon={<Send size={14} />}
-              disabled={!sendSubject.trim() || !contract.partieB.email}
-              onClick={handleSendProprietaireConfirm}
-            >
-              Envoyer
-            </Button>
-          </div>
-        </div>
-      </Dialog>
-
-      {/* Document preview */}
-      <Dialog isOpen={!!previewDoc} onClose={() => setPreviewDoc(null)} title={previewDoc?.name || 'Aperçu'} size="3xl">
-        <div className="space-y-4">
-          <div className="rounded-xl border border-border/50 bg-background overflow-hidden flex items-center justify-center p-2 min-h-[40vh]">
-            {previewDoc?.url && isImageDoc(previewDoc) ? (
-              <img
-                src={resolveMediaUrl(previewDoc.url)}
-                alt={previewDoc.name}
-                className="max-h-[60vh] max-w-full object-contain rounded-lg"
-              />
-            ) : previewDoc?.url ? (
-              <iframe
-                src={resolveMediaUrl(previewDoc.url)}
-                title={previewDoc.name}
-                className="w-full h-[60vh] rounded-lg bg-white border border-border/40"
-              />
-            ) : (
-              <div className="flex flex-col items-center justify-center py-12 text-text-secondary">
-                <FileText size={32} className="mb-3 opacity-40" />
-                <p className="text-sm">Aperçu non disponible pour ce type de fichier</p>
+            {noOwnerEmail && (
+              <div className={modalDangerNotice}>
+                <Mail size={14} className="mt-0.5 shrink-0 text-rose-400" />
+                <p>Renseignez l'adresse e-mail du propriétaire sur sa fiche client pour pouvoir envoyer le contrat.</p>
               </div>
             )}
-          </div>
-          <div className="flex items-center justify-end gap-2">
-            <Button variant="outline" size="sm" icon={<ExternalLink size={13} />} onClick={() => { const u = previewDoc && resolveMediaUrl(previewDoc.url); if (u) window.open(u, '_blank') }}>
-              Ouvrir dans un onglet
-            </Button>
-            <Button variant="outline" size="sm" icon={<Download size={13} />} onClick={() => previewDoc && handleDocDownload(previewDoc)}>
-              Télécharger
-            </Button>
-          </div>
-        </div>
-      </Dialog>
+            <p className={modalSectionTitle} style={{ color: isDark ? accent.a : ink }}>
+              <span className="h-px w-4 bg-gradient-to-r from-current to-transparent" />
+              Message
+            </p>
+            <Input
+              label="Objet"
+              value={sendSubject}
+              onChange={e => setSendSubject(e.target.value)}
+              placeholder="Objet de l'e-mail"
+            />
+            <Textarea
+              label="Message"
+              value={sendMessage}
+              onChange={e => setSendMessage(e.target.value)}
+              rows={6}
+              placeholder="Message accompagnant le contrat..."
+              className="stage-scroll-slim"
+            />
+            <div className={modalNotice}>
+              <FileText size={14} className="mt-0.5 shrink-0 text-amber-500" />
+              <p>
+                Le contrat <span className="font-mono font-bold">{contract.reference}</span> sera joint à l'e-mail sous forme de PDF généré automatiquement.
+              </p>
+            </div>
+          </motion.div>
+        </StageModal>
 
-      {/* Document delete confirmation */}
-      <ConfirmDialog
-        isOpen={!!docToDelete}
-        onClose={() => setDocToDelete(null)}
-        onConfirm={handleDocDelete}
-        title="Supprimer le document"
-        message={`Le document « ${docToDelete?.name || ''} » sera définitivement supprimé de ce contrat.`}
-        confirmLabel={docDeleting ? 'Suppression...' : 'Supprimer'}
-      />
+        {/* PDF generation modal — staged in-app viewer with print/save actions */}
+        <StageModal
+          open={pdfViewerOpen}
+          onClose={() => setPdfViewerOpen(false)}
+          eyebrow="Génération du document"
+          title="Télécharger le contrat (PDF)"
+          subtitle={`Contrat ${contract.reference} · ${CONTRACT_TYPE_LABELS[contract.type]}`}
+          icon={FileText}
+          hue={accent}
+          accent={modalAccent}
+          maxWidth="max-w-4xl"
+          centered
+          bodyClassName="pt-2"
+          footer={
+            <>
+              <button type="button" className={cn(stageBtns.ghost, 'mr-auto')} onClick={() => setPdfViewerOpen(false)}>
+                Fermer
+              </button>
+              <button
+                type="button"
+                disabled={pdfBuilding || !pdfDocHtml || pdfSaving}
+                onClick={handlePdfPrint}
+                className={cn(stageBtns.ghost, (pdfBuilding || !pdfDocHtml || pdfSaving) && 'pointer-events-none opacity-40')}
+              >
+                <Printer size={14} /> Imprimer
+              </button>
+              <button
+                type="button"
+                disabled={pdfBuilding || !pdfDocHtml || pdfSaving}
+                onClick={handlePdfDownload}
+                className={cn(stageBtns.primary, (pdfBuilding || !pdfDocHtml || pdfSaving) && 'pointer-events-none opacity-40')}
+              >
+                {pdfSaving ? (
+                  <><Loader size={14} className="animate-spin" /> Génération du PDF...</>
+                ) : (
+                  <><Download size={14} /> Enregistrer en PDF</>
+                )}
+              </button>
+            </>
+          }
+        >
+          <motion.div
+            initial={{ opacity: 0, y: 12, filter: 'blur(6px)' }}
+            animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+            transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+            className="space-y-3"
+          >
+            <div
+              className={cn(
+                'overflow-hidden rounded-2xl border',
+                isDark ? 'border-white/[0.07] bg-white/[0.02]' : 'border-slate-200/70 bg-slate-50/80',
+              )}
+            >
+              {pdfBuilding || !pdfDocHtml ? (
+                <div className="flex h-[65vh] flex-col items-center justify-center gap-4">
+                  <div className="relative flex h-12 w-12 items-center justify-center">
+                    <span
+                      className="absolute inline-flex h-full w-full animate-ping rounded-full"
+                      style={{ background: `${accent.a}22` }}
+                    />
+                    <span
+                      className="relative inline-flex h-9 w-9 animate-spin rounded-full border-2 border-solid border-t-transparent"
+                      style={{ borderColor: isDark ? `${accent.a}55` : 'rgba(13,148,136,0.25)', borderTopColor: isDark ? accent.a : '#14B8A6' }}
+                    />
+                  </div>
+                  <div className="text-center">
+                    <p className={`text-sm font-extrabold ${isDark ? 'text-white' : 'text-slate-900'}`}>Génération du document...</p>
+                    <p className={`mt-1 text-xs ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>
+                      Assemblage des données du contrat en document imprimable.
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <iframe
+                  ref={pdfFrameRef}
+                  srcDoc={pdfDocHtml}
+                  title={`Contrat ${contract.reference}`}
+                  className="h-[65vh] w-full border-0 bg-white"
+                />
+              )}
+            </div>
+            <div className={modalNotice}>
+              <Printer size={14} className="mt-0.5 shrink-0 text-amber-500" />
+              <p>
+                « Enregistrer en PDF » télécharge directement un fichier A4 conforme à l'aperçu. Utilisez « Imprimer » pour passer par la boîte d'impression du navigateur.
+              </p>
+            </div>
+          </motion.div>
+        </StageModal>
 
-      {/* Delete confirmation */}
-      <ConfirmDialog
-        isOpen={deleteDialog}
-        onClose={() => setDeleteDialog(false)}
-        onConfirm={handleDelete}
-        title="Supprimer le contrat"
-        message={`Cette action est irréversible. Le contrat ${contract.reference} et ses documents seront supprimés. Pour une location saisonnière, la réservation liée sera annulée (les jours redeviennent disponibles), le voyageur sera remis en « En recherche / Brouillon » et le registre lié sera supprimé.`}
-        confirmLabel={deleting ? 'Suppression...' : 'Supprimer'}
-      />
-    </div>
+        {/* Document preview — staged */}
+        <StageModal
+          open={!!previewDoc}
+          onClose={() => setPreviewDoc(null)}
+          eyebrow="Aperçu du document"
+          title={previewDoc?.name || 'Aperçu'}
+          subtitle={previewDoc
+            ? `${getDocTypeLabel(previewDoc.type)}${fmtDocSize(previewDoc.size) ? ` · ${fmtDocSize(previewDoc.size)}` : ''}`
+            : undefined}
+          icon={Eye}
+          hue={accent}
+          accent={modalAccent}
+          maxWidth="max-w-3xl"
+          centered
+          bodyClassName="pt-2"
+          footer={
+            <>
+              <button type="button" className={cn(stageBtns.ghost, 'mr-auto')} onClick={() => setPreviewDoc(null)}>
+                Fermer
+              </button>
+              <button
+                type="button"
+                className={stageBtns.ghost}
+                onClick={() => { const u = previewDoc && resolveMediaUrl(previewDoc.url); if (u) window.open(u, '_blank') }}
+              >
+                <ExternalLink size={14} /> Ouvrir dans un onglet
+              </button>
+              <button type="button" className={stageBtns.primary} onClick={() => previewDoc && handleDocDownload(previewDoc)}>
+                <Download size={14} /> Télécharger
+              </button>
+            </>
+          }
+        >
+          <motion.div
+            initial={{ opacity: 0, y: 12, filter: 'blur(6px)' }}
+            animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+            transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+          >
+            <div
+              className={cn(
+                'flex min-h-[45vh] items-center justify-center overflow-hidden rounded-2xl border p-2',
+                isDark ? 'border-white/[0.07] bg-white/[0.02]' : 'border-slate-200/70 bg-slate-50/80',
+              )}
+            >
+              {previewDoc?.url && isImageDoc(previewDoc) ? (
+                <img
+                  src={resolveMediaUrl(previewDoc.url)}
+                  alt={previewDoc.name}
+                  className="max-h-[60vh] max-w-full rounded-xl object-contain"
+                />
+              ) : previewDoc?.url ? (
+                <iframe
+                  src={resolveMediaUrl(previewDoc.url)}
+                  title={previewDoc.name}
+                  className="h-[60vh] w-full rounded-xl bg-white"
+                />
+              ) : (
+                <div className={`flex flex-col items-center justify-center py-12 ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                  <FileText size={32} className="mb-3 opacity-40" />
+                  <p className="text-sm font-semibold">Aperçu non disponible pour ce type de fichier</p>
+                </div>
+              )}
+            </div>
+          </motion.div>
+        </StageModal>
+
+        {/* Document delete confirmation — staged */}
+        <StageModal
+          open={!!docToDelete}
+          onClose={() => setDocToDelete(null)}
+          eyebrow="Action irréversible"
+          title="Supprimer le document"
+          subtitle={docToDelete?.name}
+          icon={Trash2}
+          hue={RED_HUE}
+          accent="#FB7185"
+          maxWidth="max-w-md"
+          centered
+          bodyClassName="pt-2"
+          footer={
+            <>
+              <button type="button" className={stageBtns.ghost} onClick={() => setDocToDelete(null)} disabled={docDeleting}>
+                Annuler
+              </button>
+              <button
+                type="button"
+                disabled={docDeleting}
+                onClick={handleDocDelete}
+                className={stageDangerPrimary}
+              >
+                {docDeleting ? (
+                  <><Loader size={14} className="animate-spin" /> Suppression...</>
+                ) : (
+                  <><Trash2 size={14} /> Supprimer</>
+                )}
+              </button>
+            </>
+          }
+        >
+          {docToDelete && (
+            <motion.div
+              initial={{ opacity: 0, y: 12, filter: 'blur(6px)' }}
+              animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+              transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+              className={modalDangerPanel}
+            >
+              <OrbIcon icon={FileText} hue={RED_HUE} size={38} radius={12} />
+              <div className="min-w-0">
+                <p className={`text-sm font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                  Voulez-vous vraiment supprimer <strong>{docToDelete.name}</strong> ?
+                </p>
+                <p className={`mt-1 text-xs leading-relaxed ${isDark ? 'text-rose-200/70' : 'text-rose-700/80'}`}>
+                  Le document sera définitivement retiré de ce contrat. Cette action est irréversible.
+                </p>
+              </div>
+            </motion.div>
+          )}
+        </StageModal>
+
+        {/* Delete contract confirmation — staged */}
+        <StageModal
+          open={deleteDialog}
+          onClose={() => setDeleteDialog(false)}
+          eyebrow="Action irréversible"
+          title="Supprimer le contrat"
+          subtitle={`Contrat ${contract.reference} · ${CONTRACT_TYPE_LABELS[contract.type]}`}
+          icon={AlertTriangle}
+          hue={RED_HUE}
+          accent="#FB7185"
+          maxWidth="max-w-md"
+          centered
+          bodyClassName="pt-2"
+          footer={
+            <>
+              <button type="button" className={stageBtns.ghost} onClick={() => setDeleteDialog(false)} disabled={deleting}>
+                Annuler
+              </button>
+              <button
+                type="button"
+                disabled={deleting}
+                onClick={handleDelete}
+                className={stageDangerPrimary}
+              >
+                {deleting ? (
+                  <><Loader size={14} className="animate-spin" /> Suppression...</>
+                ) : (
+                  <><Trash2 size={14} /> Supprimer définitivement</>
+                )}
+              </button>
+            </>
+          }
+        >
+          <motion.div
+            initial={{ opacity: 0, y: 12, filter: 'blur(6px)' }}
+            animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+            transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+            className="space-y-3"
+          >
+            <div className={modalDangerPanel}>
+              <OrbIcon icon={Trash2} hue={RED_HUE} size={38} radius={12} />
+              <div className="min-w-0">
+                <p className={`text-sm font-bold ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                  Voulez-vous vraiment supprimer le contrat <span className="font-mono">{contract.reference}</span> ?
+                </p>
+                <p className={`mt-1 text-xs leading-relaxed ${isDark ? 'text-rose-200/70' : 'text-rose-700/80'}`}>
+                  Cette action est irréversible — toutes les données liées disparaîtront.
+                </p>
+              </div>
+            </div>
+            <ul className="space-y-1.5 px-1" role="list">
+              {[
+                'Le contrat et ses documents seront définitivement supprimés.',
+                'Pour une location saisonnière : réservation annulée, les jours redeviennent disponibles et le voyageur repasse en « En recherche / Brouillon ».',
+                'Le registre des mandats lié au contrat sera supprimé.',
+              ].map((line, i) => (
+                <motion.li
+                  key={i}
+                  initial={{ opacity: 0, x: -8 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: 0.1 + i * 0.07, duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+                  className={cn('flex items-start gap-2 text-xs leading-relaxed', isDark ? 'text-slate-300' : 'text-slate-600')}
+                >
+                  <span
+                    className="mt-[7px] h-1.5 w-1.5 shrink-0 rounded-full"
+                    style={{ background: RED_HUE.line, boxShadow: `0 0 6px ${RED_HUE.glow}` }}
+                  />
+                  <span>{line}</span>
+                </motion.li>
+              ))}
+            </ul>
+          </motion.div>
+        </StageModal>
+      </div>
+    </Stage>
   )
 }
-
-// ---- Sub-components ----
-
-const SectionHeader = ({ icon, title }: { icon: React.ReactNode; title: string }) => (
-  <h3 className="text-sm font-semibold text-text-secondary uppercase tracking-wider mb-3 flex items-center gap-2">
-    <span className="text-accent">{icon}</span>
-    {title}
-  </h3>
-)
-
-const StatCard = ({ icon, label, value, unit, accent = 'text-accent', accentBg = 'bg-accent-light', dot }: {
-  icon: React.ReactNode; label: string; value: string; unit?: string; accent?: string; accentBg?: string; dot?: string
-}) => (
-  <div className="p-3 rounded-xl bg-background border border-border/50 flex items-center gap-3">
-    <div className={`w-9 h-9 rounded-lg ${accentBg} flex items-center justify-center shrink-0`}>
-      {icon}
-    </div>
-    <div className="min-w-0">
-      <p className="text-[10px] text-text-secondary/70 uppercase tracking-wider truncate">{label}</p>
-      <p className="text-sm font-bold text-text truncate flex items-center gap-1.5">
-        {dot && <span className={`w-1.5 h-1.5 rounded-full ${dot}`} />}
-        {value}
-        {unit && <span className="text-[10px] text-text-secondary/60 font-normal">{unit}</span>}
-      </p>
-    </div>
-  </div>
-)
-
-const InfoBox = ({ label, value, highlight }: { label: string; value: string; highlight?: boolean }) => (
-  <div className="p-3 rounded-xl bg-background border border-border/50">
-    <p className="text-[11px] text-text-secondary/60 mb-0.5">{label}</p>
-    <p className={`text-sm font-medium ${highlight ? 'text-accent' : 'text-text'}`}>{value}</p>
-  </div>
-)
-
-const PartyCard = ({ label, name, type, phone, email, placeholder = false, onClickLink }: {
-  label: string; name: string; type: string; phone: string; email: string; placeholder?: boolean; onClickLink?: () => void
-}) => (
-  <div className={`p-4 rounded-xl flex items-center gap-3 ${placeholder ? 'bg-background/50 border border-dashed border-border' : 'bg-background border border-border/50'}`}>
-    <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${placeholder ? 'bg-background' : 'bg-accent-light'}`}>
-      <User size={16} className={placeholder ? 'text-text-secondary/40' : 'text-accent'} />
-    </div>
-    <div className="flex-1 min-w-0">
-      <div className="flex items-center gap-2">
-        <p className={`font-medium ${placeholder ? 'text-text-secondary/70' : 'text-text'}`}>{name || 'Non renseignée'}</p>
-        {type && (
-          <span className={`inline-block px-1.5 py-0.5 text-[10px] font-medium rounded border ${partyRoleColor(type)}`}>
-            {type}
-          </span>
-        )}
-      </div>
-      <p className="text-xs text-text-secondary/60">{label}</p>
-      {!placeholder && (
-        <div className="flex items-center gap-3 mt-1">
-          <span className="text-xs text-text-secondary flex items-center gap-1">
-            <Phone size={10} /> {phone || '—'}
-          </span>
-          <span className="text-xs text-text-secondary flex items-center gap-1">
-            <Mail size={10} /> {email || '—'}
-          </span>
-        </div>
-      )}
-    </div>
-    {onClickLink && !placeholder && (
-      <button onClick={onClickLink} className="text-xs text-accent hover:text-accent/80 flex items-center gap-1 shrink-0">
-        Fiche <ArrowRight size={12} />
-      </button>
-    )}
-  </div>
-)
-
-const PartyDetailCard = ({ title, subtitle, party, placeholder = false, onClickLink }: {
-  title: string; subtitle: string; party: Contract['partieA']; placeholder?: boolean; onClickLink?: () => void
-}) => (
-  <Card className={`p-5 ${placeholder ? 'opacity-80' : ''}`}>
-    <div className="flex items-center justify-between mb-4">
-      <div>
-        <p className="text-sm font-medium text-text">{title}</p>
-        <p className="text-xs text-text-secondary">{subtitle}</p>
-      </div>
-      {!placeholder && (
-        <span className={`inline-block px-2 py-0.5 text-[11px] font-medium rounded-lg border ${partyRoleColor(party.type)}`}>
-          {party.type || '—'}
-        </span>
-      )}
-    </div>
-    <div className="space-y-3">
-      <div className="flex items-center gap-3 p-3 rounded-lg bg-background">
-        <div className="w-9 h-9 rounded-full bg-accent-light flex items-center justify-center flex-shrink-0">
-          <span className="text-accent font-bold text-xs">{(party.name || '?').split(' ').map(n => n[0]).slice(0, 2).join('')}</span>
-        </div>
-        <div>
-          <p className="text-sm font-medium text-text">{party.name || 'Non renseignée'}</p>
-          <p className="text-xs text-text-secondary/60">{party.role}</p>
-        </div>
-      </div>
-      {!placeholder && (
-        <>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm">
-            <div className="flex items-center gap-2 text-text-secondary">
-              <Phone size={12} />
-              <span>{party.phone || '—'}</span>
-            </div>
-            <div className="flex items-center gap-2 text-text-secondary">
-              <Mail size={12} />
-              <span className="truncate">{party.email || '—'}</span>
-            </div>
-          </div>
-          {onClickLink && (
-            <button onClick={onClickLink} className="inline-flex items-center gap-1 text-xs text-accent hover:text-accent/80">
-              Voir la fiche client <ArrowRight size={12} />
-            </button>
-          )}
-        </>
-      )}
-    </div>
-  </Card>
-)
-
-const ModuleLink = ({ icon, label, onClick }: { icon: React.ReactNode; label: string; onClick: () => void }) => (
-  <button
-    onClick={onClick}
-    className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-background border border-border/50 text-xs font-medium text-text hover:border-accent/40 hover:text-accent transition-all"
-  >
-    {icon}
-    {label}
-  </button>
-)

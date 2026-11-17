@@ -1,11 +1,14 @@
-import { Shield, Database, Eye, Lock, Share2, Mail, FileText, Sliders, ArrowLeft } from 'react-feather'
-import { useNavigate } from 'react-router-dom'
+import { Shield, Database, Eye, Lock, Share2, Mail, FileText, Sliders } from 'react-feather'
 import {
-  Stage,
   OrbIcon,
   STAGE_HUES,
   useStageTheme,
 } from '../../../components/dashboard/Stage'
+import {
+  SettingsBackButton,
+  SettingsHero,
+  useSettingsChrome,
+} from '../../../components/settings/SettingsChrome'
 
 const sections = [
   { icon: Shield, title: 'Responsable du traitement', hue: STAGE_HUES.violet, content: 'Square Meter, société immatriculée au Registre du Commerce de Casablanca sous le numéro XX-XXX-XXXX, dont le siège social est situé à Casablanca, Maroc, est le responsable du traitement des données personnelles collectées via la plateforme CRM Immobilier.' },
@@ -20,20 +23,16 @@ const sections = [
 
 export default function ConfidentialitePage() {
   const theme = useStageTheme()
-  const isDark = theme === 'dark'
-  const navigate = useNavigate()
+  const { isDark } = useSettingsChrome()
   return (
-    <Stage theme={theme}>
+    
       <div className="space-y-6">
-        <button onClick={() => navigate(-1)} className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl border transition-colors w-fit ${isDark ? 'border-white/10 text-slate-300 hover:bg-white/5' : 'border-teal-900/10 text-slate-600 hover:bg-white'}`}><ArrowLeft size={13} /> Retour</button>
-        <div>
-          <div className="flex items-center gap-2">
-            <span className="relative flex h-2 w-2"><span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60" /><span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.9)]" /></span>
-            <p className={`text-[10px] font-bold uppercase tracking-[0.24em] ${isDark ? 'text-slate-400/80' : 'text-teal-900/50'}`}>Paramètres · Confidentialité</p>
-          </div>
-          <h1 className={`mt-1 text-3xl font-extrabold tracking-tight ${isDark ? 'bg-gradient-to-r from-white via-indigo-100 to-indigo-300 bg-clip-text text-transparent' : 'bg-gradient-to-r from-teal-900 via-teal-700 to-emerald-600 bg-clip-text text-transparent'}`}>Politique de confidentialité</h1>
-          <p className={`mt-1 text-xs ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>Dernière mise à jour : 15 juin 2026</p>
-        </div>
+        <SettingsBackButton />
+        <SettingsHero
+          eyebrow="Paramètres · Confidentialité"
+          title="Politique de confidentialité"
+          subtitle="Dernière mise à jour : 15 juin 2026"
+        />
 
         <div className="stage-glass p-6">
           <p className={`text-sm leading-relaxed ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>La présente politique de confidentialité décrit comment Square Meter (« nous », « notre », « nos ») collecte, utilise, partage et protège les informations personnelles des utilisateurs de la plateforme CRM Immobilier. Nous nous engageons à protéger votre vie privée conformément à la loi 09-08 et au RGPD.</p>
@@ -59,6 +58,6 @@ export default function ConfidentialitePage() {
           <p className={`text-sm leading-relaxed ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>Pour toute question concernant cette politique ou pour exercer vos droits, contactez-nous à dpo@squaremeter.com ou par courrier : Square Meter, Casablanca, Maroc.</p>
         </div>
       </div>
-    </Stage>
+    
   )
 }

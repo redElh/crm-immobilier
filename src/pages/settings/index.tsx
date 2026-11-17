@@ -2,7 +2,6 @@ import { motion } from 'framer-motion'
 import { NavLink } from 'react-router-dom'
 import { User, Mail, Bell, Paperclip, Download, HelpCircle, ArrowRight, Settings, Users } from 'react-feather'
 import {
-  Stage,
   StageBadge,
   OrbIcon,
   TiltCard,
@@ -34,7 +33,7 @@ export default function SettingsPage() {
   const isDark = theme === 'dark'
 
   return (
-    <Stage theme={theme}>
+    
       <div className="space-y-6">
         {/* ── Hero ── */}
         <div className="flex flex-wrap items-end justify-between gap-4">
@@ -128,6 +127,6 @@ export default function SettingsPage() {
           <div className={`flex-1 h-px ${isDark ? 'bg-white/10' : 'bg-teal-900/10'}`} />
         </div>
       </div>
-    </Stage>
+    
   )
 }

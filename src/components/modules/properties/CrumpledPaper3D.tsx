@@ -389,7 +389,11 @@ export function CrumpledPaperBall3D({ seed = 1, detail = 6, className, tex }: Cr
       camera.updateProjectionMatrix()
     }
     resize()
-    const ro = new ResizeObserver(resize)
+    let resizeRaf = 0
+    const ro = new ResizeObserver(() => {
+      cancelAnimationFrame(resizeRaf)
+      resizeRaf = requestAnimationFrame(resize)
+    })
     ro.observe(host)
 
     let raf = 0
@@ -425,6 +429,7 @@ export function CrumpledPaperBall3D({ seed = 1, detail = 6, className, tex }: Cr
 
     return () => {
       cancelAnimationFrame(raf)
+      cancelAnimationFrame(resizeRaf)
       ro.disconnect()
       scene.traverse((obj) => {
         const m = obj as THREE.Mesh

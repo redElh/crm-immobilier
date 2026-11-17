@@ -6,7 +6,7 @@ import { Button } from '../../../ui/Button';
 import { ClientTransactionsTab } from '../ClientTransactionsTab';
 import { NotesActiviteTab } from './NotesActiviteTab';
 import { ClientContractsTab } from '../ClientContractsTab';
-import { ClientTabsShell, StageField, StageSection, StageTags, HeaderPills, StageEmpty, ProximitesGrid, PrestationsGrid, StageHeroAmount, StagePill, StageLinkCard, StageDocButton, getMandatStatusHue, OK_STAGE_HUE, SLATE_STAGE_HUE, useDetailAccent } from './ClientDetailStage';
+import { ClientTabsShell, StageField, StageSection, StageTags, HeaderPills, StageEmpty, ProximitesGrid, PrestationsGrid, StageHeroAmount, StagePill, StageLinkCard, StageDocButton, getMandatStatusHue, OK_STAGE_HUE, SLATE_STAGE_HUE, useDetailAccent, StageDocumentsTab } from './ClientDetailStage';
 import { Client } from '../../../../types/client';
 import { api } from '../../../../services/api';
 import { useMyPermissions, permissionAllowed } from '../../../../hooks/useMyPermissions';
@@ -24,7 +24,7 @@ const renderTagList = (items: string[] | undefined, label: string, isGerant: boo
       <p className="text-sm font-medium text-text mb-2">{label}</p>
       <div className="flex flex-wrap gap-1.5">
         {items.map(item => (
-          <span key={item} className={`px-2 py-1 text-xs rounded-lg ${isGerant ? 'bg-[#905D5D]/10 text-[#905D5D] border border-[#905D5D]/20' : 'bg-accent/10 text-accent border border-accent/20'}`}>
+          <span key={item} className={`px-2 py-1 text-xs rounded-lg ${'bg-accent/10 text-accent border border-accent/20'}`}>
             {item}
           </span>
         ))}
@@ -63,9 +63,10 @@ const TABS = [
   { id: 11, label: 'Notes & Activité', slug: 'notes_activite' },
 ];
 
-export const BailleurDetailTabs = ({ client: initialClient, highlightActivityId, isGerant = false }: { client: Client; highlightActivityId?: number; isGerant?: boolean }) => {
+export const BailleurDetailTabs = ({ client: initialClient, adminId, agentId, highlightActivityId, isGerant = false }: { client: Client; adminId?: string; agentId?: string; highlightActivityId?: number; isGerant?: boolean }) => {
   const navigate = useNavigate();
   const [client, setClientState] = useState<Client>(initialClient);
+  const basePath = adminId ? `/admin/${adminId}` : agentId ? `/${agentId}` : '';
   useEffect(() => {
     setClientState(initialClient);
   }, [initialClient]);
@@ -282,33 +283,23 @@ export const BailleurDetailTabs = ({ client: initialClient, highlightActivityId,
 
     return (
       <div className="space-y-5">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {client.currentSituation && (
-            <InfoField label="Situation actuelle" value={client.currentSituation} icon={<User size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />
-          )}
-          {client.reasonForSelling && (
-            <InfoField label="Raison de la mise en location" value={client.reasonForSelling} icon={<Briefcase size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />
-          )}
-          {c.creditEnCours !== undefined && (
-            <InfoField label="Crédit en cours sur le bien" value={c.creditEnCours ? 'Oui' : 'Non'} icon={<CreditCard size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />
-          )}
-          {c.creditEnCours && c.creditMontantRestant && (
-            <InfoField label="Montant restant dû" value={`${c.creditMontantRestant.toLocaleString()} ${client.devise || 'MAD'}`} icon={<CreditCard size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />
-          )}
-          {c.dateDisponibilite && (
-            <InfoField label="Date souhaitée de disponibilité" value={new Date(c.dateDisponibilite).toLocaleDateString('fr-FR')} icon={<Calendar size={16} className={isGerant ? 'text-[#905D5D]' : 'text-accent'} />} />
-          )}
-        </div>
+        <StageSection icon={User} title="Situation" accent={accent} ink={ink} isDark={isDark} delay={0.05}>
+          {client.currentSituation && <StageField icon={User} label="Situation actuelle" value={client.currentSituation} accent={accent} ink={ink} isDark={isDark} />}
+          {client.reasonForSelling && <StageField icon={Briefcase} label="Raison de la mise en location" value={client.reasonForSelling} accent={accent} ink={ink} isDark={isDark} />}
+          {c.creditEnCours !== undefined && <StageField icon={CreditCard} label="Crédit en cours sur le bien" value={c.creditEnCours ? 'Oui' : 'Non'} accent={accent} ink={ink} isDark={isDark} />}
+          {c.creditEnCours && c.creditMontantRestant && <StageField icon={CreditCard} label="Montant restant dû" value={`${c.creditMontantRestant.toLocaleString()} ${client.devise || 'MAD'}`} accent={accent} ink={ink} isDark={isDark} />}
+          {c.dateDisponibilite && <StageField icon={Calendar} label="Date souhaitée de disponibilité" value={new Date(c.dateDisponibilite).toLocaleDateString('fr-FR')} accent={accent} ink={ink} isDark={isDark} />}
+        </StageSection>
         {c.conditionsParticulieres && (
-          <div className="p-4 rounded-xl bg-background border border-border/30">
-            <p className="text-xs font-medium text-text-secondary mb-1">Conditions particulières</p>
-            <p className="text-sm text-text">{c.conditionsParticulieres}</p>
+          <div className={`rounded-2xl border p-4 backdrop-blur-sm ${isDark ? 'border-white/[0.07] bg-white/[0.04]' : 'border-slate-200/70 bg-white/75'}`}>
+            <p className={`text-[10px] font-bold uppercase tracking-widest mb-1 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>Conditions particulières</p>
+            <p className={`text-sm ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>{c.conditionsParticulieres}</p>
           </div>
         )}
         {client.notes && (
-          <div className="p-4 rounded-xl bg-background border border-border/30">
-            <p className="text-xs font-medium text-text-secondary mb-1">Notes complémentaires</p>
-            <p className="text-sm text-text">{client.notes}</p>
+          <div className={`rounded-2xl border p-4 backdrop-blur-sm ${isDark ? 'border-white/[0.07] bg-white/[0.04]' : 'border-slate-200/70 bg-white/75'}`}>
+            <p className={`text-[10px] font-bold uppercase tracking-widest mb-1 ${isDark ? 'text-slate-500' : 'text-slate-400'}`}>Notes complémentaires</p>
+            <p className={`text-sm ${isDark ? 'text-slate-200' : 'text-slate-700'}`}>{client.notes}</p>
           </div>
         )}
       </div>
@@ -348,7 +339,7 @@ export const BailleurDetailTabs = ({ client: initialClient, highlightActivityId,
             icon={Layers}
             eyebrow="Bien concerné"
             title={bienProp ? `${bienProp.title || bienProp.reference || `Bien #${bienProp.id}`}${bienProp.city ? ` - ${bienProp.city}` : ''}` : `Bien #${c.bienConcerneId}`}
-            onOpen={() => navigate(`/properties/${c.bienConcerneId}`)}
+            onOpen={basePath ? () => navigate(`${basePath}/properties/${c.bienConcerneId}`) : undefined}
             accent={accent}
             ink={ink}
             isDark={isDark}
@@ -406,7 +397,7 @@ export const BailleurDetailTabs = ({ client: initialClient, highlightActivityId,
 
   // ─── TAB 8: DOCUMENTS ───
   const renderDocuments = () => {
-    const docs = [
+    const items = [
       { label: "Pièce d'identité du bailleur", required: true, url: client.docIdentiteUrl, name: client.docIdentiteName },
       { label: 'Titre de propriété', required: true, url: client.docDomicileUrl, name: client.docDomicileName },
       { label: 'Diagnostic technique (DPE)', required: true, url: client.docDiagnosticUrl, name: client.docDiagnosticName },
@@ -415,58 +406,20 @@ export const BailleurDetailTabs = ({ client: initialClient, highlightActivityId,
       { label: 'État des lieux (entrant)', required: false, url: client.docEtatDesLieuxUrl, name: client.docEtatDesLieuxName },
       { label: 'Autre document', required: false, url: client.docFinancementUrl, name: client.docFinancementName },
     ];
-    const mandatUploaded = !!client.mandatPdfUrl;
 
     return (
-      <div className="space-y-5">
-        <div className="rounded-xl border border-border/50 bg-background/50 p-4 space-y-3">
-          <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider">Documents justificatifs</p>
-          {docs.map((doc, i) => {
-            const uploaded = !!doc.url;
-            return (
-              <div key={i} className="flex items-center gap-3 p-3 rounded-lg border border-border bg-card/50">
-                <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 transition-colors ${uploaded ? 'bg-emerald-500 border-emerald-500' : 'bg-background border-border'}`}>
-                  {uploaded && (
-                    <svg width="12" height="10" viewBox="0 0 10 8" fill="none">
-                      <path d="M1 4L3.5 6.5L9 1" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                    </svg>
-                  )}
-                </div>
-                <span className={`text-sm flex-1 ${uploaded ? 'text-text-secondary' : 'text-text'}`}>{doc.label}</span>
-                {doc.name && <span className="text-[10px] text-text-secondary truncate max-w-[140px]">{doc.name}</span>}
-                {doc.required ? (
-                  <span className="text-[10px] font-medium text-error uppercase">Obligatoire</span>
-                ) : (
-                  <span className={`text-[10px] font-medium ${isGerant ? 'text-[#905D5D]' : 'text-accent'} uppercase`}>Recommandé</span>
-                )}
-                {uploaded && doc.url ? (
-                  <button type="button" onClick={() => openViewer(doc.url!, doc.label)} className={`text-xs px-2.5 py-1 rounded-lg ${isGerant ? 'bg-[#905D5D]/10 text-[#905D5D] border border-[#905D5D]/20' : 'bg-accent/10 text-accent border border-accent/20'} ${isGerant ? 'hover:bg-[#905D5D]/20' : 'hover:bg-accent/20'} transition-all flex items-center gap-1`}>
-                    <Eye size={12} /> Voir
-                  </button>
-                ) : null}
-              </div>
-            );
-          })}
-        </div>
-
-        <div className="rounded-xl border border-border/50 bg-background/50 p-4 space-y-3">
-          <p className="text-xs font-semibold text-text-secondary uppercase tracking-wider">Fichier du mandat signé</p>
-          <div className="flex items-center gap-3 p-3 rounded-lg border border-border bg-card/50">
-            <FileText size={16} className={mandatUploaded ? 'text-emerald-500' : 'text-text-secondary'} />
-            <span className="text-sm text-text flex-1">Mandat signé (PDF)</span>
-            {mandatUploaded ? (
-              <>
-                <span className="text-[10px] font-medium text-emerald-600 uppercase bg-emerald-50 px-2 py-0.5 rounded">Uploadé</span>
-                <button type="button" onClick={() => client.mandatPdfUrl && openViewer(client.mandatPdfUrl, 'Mandat signé')} className={`text-xs px-3 py-1.5 rounded-lg ${isGerant ? 'bg-[#905D5D]/10 text-[#905D5D] border border-[#905D5D]/20' : 'bg-accent/10 text-accent border border-accent/20'} ${isGerant ? 'hover:bg-[#905D5D]/20' : 'hover:bg-accent/20'} transition-all flex items-center gap-1.5`}>
-                  <Eye size={12} /> Voir
-                </button>
-              </>
-            ) : (
-              <span className="text-[10px] font-medium text-text-secondary uppercase bg-background px-2 py-0.5 rounded">Non uploadé</span>
-            )}
-          </div>
-        </div>
-      </div>
+      <StageDocumentsTab
+        items={items}
+        clientName={client.name}
+        mandatTitle="Mandat signé"
+        mandatUrl={client.mandatPdfUrl}
+        mandatName={(client as any).mandatPdfName || 'Mandat signé (PDF)'}
+        accent={accent}
+        ink={ink}
+        isDark={isDark}
+        isGerant={isGerant}
+        onOpen={openViewer}
+      />
     );
   };
 
@@ -477,7 +430,7 @@ export const BailleurDetailTabs = ({ client: initialClient, highlightActivityId,
   const renderContrats = () => {
     if (!canReadContracts) return null;
     return (
-      <ClientContractsTab clientId={client.id} clientName={client.name} isGerant={isGerant} />
+      <ClientContractsTab clientId={client.id} clientName={client.name} clientType={client.type} isGerant={isGerant} />
     );
   };
 

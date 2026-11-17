@@ -101,6 +101,15 @@ export async function getContacts(req, res) {
   }
 }
 
+function parseContactId(req, res) {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id) || id <= 0) {
+    res.status(404).json({ error: 'Contact not found' });
+    return null;
+  }
+  return id;
+}
+
 export async function getContactById(req, res) {
   try {
     const perms = await assertAgentPermission(req, 'contacts-lecture', "Vous n'avez pas accès aux contacts.");
@@ -109,7 +118,8 @@ export async function getContactById(req, res) {
       err.status = 403;
       throw err;
     }
-    const { id } = req.params;
+    const id = parseContactId(req, res);
+    if (id === null) return;
     const result = await pool.query('SELECT * FROM contacts WHERE id = $1', [id]);
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Contact not found' });
@@ -183,7 +193,8 @@ export async function createContact(req, res) {
 export async function updateContact(req, res) {
   try {
     await assertAgentPermission(req, 'contacts-ecriture', "Vous n'avez pas le droit de modifier les contacts.");
-    const { id } = req.params;
+    const id = parseContactId(req, res);
+    if (id === null) return;
     const b = req.body;
 
     if (b.agentId !== undefined) {
@@ -370,7 +381,8 @@ export async function removeContactMandatOnClientDelete(clientId, contactId) {
 export async function deleteContact(req, res) {
   try {
     await assertAgentPermission(req, 'contacts-supprimer', "Vous n'avez pas le droit de supprimer les contacts.");
-    const { id } = req.params;
+    const id = parseContactId(req, res);
+    if (id === null) return;
     await pool.query(
       "UPDATE owner_clients SET data = data - 'contactId' WHERE data->>'contactId' = $1",
       [id]
@@ -393,7 +405,8 @@ export async function deleteContact(req, res) {
 export async function duplicateContact(req, res) {
   try {
     await assertAgentPermission(req, 'contacts-ecriture', "Vous n'avez pas le droit d'ajouter des contacts.");
-    const { id } = req.params;
+    const id = parseContactId(req, res);
+    if (id === null) return;
     const result = await pool.query('SELECT * FROM contacts WHERE id = $1', [id]);
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Contact not found' });

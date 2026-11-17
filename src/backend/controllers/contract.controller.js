@@ -32,6 +32,18 @@ const CONTRACT_SELECT = `
   LEFT JOIN owner_clients vc ON vc.id = c.client_id
 `;
 
+// Contract ids are integers in the DB; demo ids like "c1" must be rejected with
+// a clean 404 instead of reaching pg (22P02 invalid input syntax for integer).
+function parseContractId(req, res) {
+  const raw = req.params.id;
+  const parsed = Number.parseInt(raw, 10);
+  if (raw == null || !/^\d+$/.test(String(raw)) || Number.isNaN(parsed) || parsed <= 0) {
+    res.status(404).json({ error: 'Contract not found' });
+    return null;
+  }
+  return parsed;
+}
+
 export async function insertContractHistory(conn, contractId, action, details, agentName) {
   const db = conn || pool;
   try {
@@ -198,7 +210,8 @@ export async function getContracts(req, res) {
 
 export async function getContractById(req, res) {
   try {
-    const { id } = req.params;
+    const id = parseContractId(req, res);
+    if (id === null) return;
     const result = await pool.query(`${CONTRACT_SELECT} WHERE c.id = $1`, [id]);
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'Contract not found' });
@@ -213,6 +226,9 @@ export async function getContractById(req, res) {
 export async function getContractsByClient(req, res) {
   try {
     const { client_id } = req.params;
+    if (!/^\d+$/.test(String(client_id || ''))) {
+      return res.json([]);
+    }
     const result = await pool.query(
       `${CONTRACT_SELECT} WHERE c.client_id = $1 ORDER BY c.created_at DESC`,
       [client_id]
@@ -311,7 +327,8 @@ export async function createContract(req, res) {
 
 export async function updateContract(req, res) {
   try {
-    const { id } = req.params;
+    const id = parseContractId(req, res);
+    if (id === null) return;
     const {
       clientId, propertyId, contractType, status,
       startDate, endDate, amount, notes,
@@ -383,7 +400,8 @@ export async function updateContract(req, res) {
 
 export async function getContractHistory(req, res) {
   try {
-    const { id } = req.params;
+    const id = parseContractId(req, res);
+    if (id === null) return;
     const { action, from, to, page = 1, limit = 10 } = req.query;
     const pageNum = Math.max(1, parseInt(page, 10) || 1);
     const limitNum = Math.min(100, Math.max(1, parseInt(limit, 10) || 10));
@@ -460,7 +478,8 @@ export async function uploadContractFile(req, res) {
 
 export async function updateContractDocuments(req, res) {
   try {
-    const { id } = req.params;
+    const id = parseContractId(req, res);
+    if (id === null) return;
     const { documents } = req.body;
     const result = await pool.query(
       `UPDATE contracts SET documents = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2 RETURNING *`,
@@ -478,7 +497,9 @@ export async function updateContractDocuments(req, res) {
 
 export async function deleteContractDocument(req, res) {
   try {
-    const { id, docId } = req.params;
+    const id = parseContractId(req, res);
+    if (id === null) return;
+    const { docId } = req.params;
     const existing = await pool.query('SELECT documents FROM contracts WHERE id = $1', [id]);
     if (existing.rows.length === 0) {
       return res.status(404).json({ error: 'Contract not found' });
@@ -504,7 +525,8 @@ export async function deleteContractDocument(req, res) {
 
 export async function sendContractToProprietaire(req, res) {
   try {
-    const { id } = req.params;
+    const id = parseContractId(req, res);
+    if (id === null) return;
     const { subject, message, senderName } = req.body;
     const result = await pool.query(`${CONTRACT_SELECT} WHERE c.id = $1`, [id]);
     if (result.rows.length === 0) {
@@ -542,7 +564,8 @@ const VOYAGEUR_BOOKING_DATA_KEYS = [
 
 export async function deleteContract(req, res) {
   try {
-    const { id } = req.params;
+    const id = parseContractId(req, res);
+    if (id === null) return;
     const existing = await pool.query('SELECT * FROM contracts WHERE id = $1', [id]);
     if (existing.rows.length === 0) {
       return res.status(404).json({ error: 'Contract not found' });
